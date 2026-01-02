@@ -28,17 +28,22 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const user = await currentUser()
   let userRole = null
   let userName = null
 
-  if (user) {
-    const dbUser = await prisma.user.findUnique({
-      where: { clerkId: user.id },
-      select: { role: true, name: true }
-    })
-    userRole = dbUser?.role
-    userName = dbUser?.name
+  try {
+    const user = await currentUser()
+
+    if (user) {
+      const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        select: { role: true, name: true }
+      })
+      userRole = dbUser?.role
+      userName = dbUser?.name
+    }
+  } catch (error) {
+    console.warn("RootLayout fetch failed (ignoring for static build):", error)
   }
 
   return (
