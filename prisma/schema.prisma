@@ -1,0 +1,205 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================
+// GUIDELINE TEMPLATE SYSTEM
+// ============================================
+
+model GuidelineTemplate {
+  id          String   @id @default(cuid())
+  name        String   @unique  // "Tap Elite 2026", "WTF Standard"
+  pdfUrl      String?  // Uploaded PDF path/URL
+  createdAt   DateTime @default(now())
+  
+  divisions   Division[]
+  tournaments Tournament[]
+}
+
+model Division {
+  id           String   @id @default(cuid())
+  name         String   // "Cadet", "Junior", "Senior"
+  minAge       Int      // Minimum age for this division
+  maxAge       Int      // Maximum age for this division
+  displayOrder Int      @default(0)  // For sorted display
+  
+  templateId   String
+  template     GuidelineTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  
+  categories   WeightCategory[]
+}
+
+model WeightCategory {
+  id          String   @id @default(cuid())
+  name        String   // "FIN", "Under 58kg"
+  gender      String   // "Male", "Female", "Both"
+  minWeight   Float    // Minimum weight (inclusive)
+  maxWeight   Float    // Maximum weight (exclusive, 999 for "and over")
+  displayOrder Int     @default(0)
+  
+  divisionId  String
+  division    Division @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// TOURNAMENT
+// ============================================
+
+model Tournament {
+  id                  String     @id @default(cuid())
+  name                String
+  organizerId         String?
+  organizer           User?      @relation("OrganizerTournaments", fields: [organizerId], references: [id])
+  managers            User[]     @relation("TournamentManagers")
+  startDate           DateTime   @default(now())
+  venue               String?    // Location of the tournament
+  registrationStart   DateTime?  // When registration opens
+  registrationEnd     DateTime?  // When registration closes
+  guidelinePdfUrl     String?    // URL to uploaded guideline PDF
+  headerImageUrl      String?    // URL to uploaded header image
+  
+  // Guideline Template (optional - if set, auto-generates categories)
+  guidelineTemplateId String?
+  guidelineTemplate   GuidelineTemplate? @relation(fields: [guidelineTemplateId], references: [id])
+  
+  categories          Category[]
+}
+
+model Category {
+  id           String     @id @default(cuid())
+  name         String
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id])
+  players      Player[]
+  matches      Match[]
+}
+
+// ============================================
+// USER & PLAYER
+// ============================================
+
+model User {
+  id        String    @id // 5-digit random ID like "00123"
+  clerkId   String    @unique
+  email     String    @unique
+  role      String    @default("ATHLETE") // ATHLETE, CLUB_MASTER, ASSISTANT_CLUB_MASTER, ORGANIZER, MANAGER
+  
+  // Profile Fields
+  name      String?
+  birthDate DateTime? // For calculating age/division
+  belt      String?
+  gender    String?
+  weight    Float?
+  height    Float?    // Height in cm for Toddler/Grade School divisions
+  clubName  String?
+  
+  // Relations
+  players   Player[]
+  club      Club?
+
+  // Organizer Relations
+  createdTournaments Tournament[] @relation("OrganizerTournaments")
+  managedTournaments Tournament[] @relation("TournamentManagers")
+}
+
+model Player {
+  id         String   @id // 5-digit ID like "00123"
+  name       String
+  gender     String   @default("Male")
+  weight     Float?
+  belt       String?  @default("Black")
+  height     Float? // Added for player specifics
+  division   String?  // NEW: "Cadet", "Junior", etc.
+  
+  registrationStatus String @default("PENDING") // PENDING, APPROVED, REJECTED
+  skillLevel String?  @default("Novice")
+  
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+  
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+
+  clubId     String?
+  club       Club?    @relation(fields: [clubId], references: [id])
+}
+
+model Club {
+  id        String   @id @default(cuid())
+  name      String
+  masterId  String   @unique
+  master    User     @relation(fields: [masterId], references: [id])
+  students  Player[]
+}
+
+// ============================================
+// MATCH / BRACKET
+// ============================================
+
+model Match {
+  id Int @id @default(autoincrement())
+
+  category     String?
+  categoryRef  Category? @relation(fields: [categoryRefId], references: [id])
+  categoryRefId String?
+
+  round Int
+
+  player1 String
+  player2 String
+
+  winner String?
+
+  status String @default("Pending")
+
+  nextMatchId   Int?
+  nextMatch     Match?  @relation("Bracket", fields: [nextMatchId], references: [id])
+  prevMatches   Match[] @relation("Bracket")
+  nextMatchSlot String?
+
+  court String @default("Unassigned")
+
+  // Scoring Fields
+  r1_blue_score  Int @default(0)
+  r1_red_score   Int @default(0)
+  r2_blue_score  Int @default(0)
+  r2_red_score   Int @default(0)
+  r3_blue_score  Int @default(0)
+  r3_red_score   Int @default(0)
+  total_blue_score Int @default(0)
+  total_red_score  Int @default(0)
+  blue_gam_jeom   Int @default(0)
+  red_gam_jeom    Int @default(0)
+  blue_rounds_won Int @default(0)
+  red_rounds_won  Int @default(0)
+}
+
+// ============================================
+// ORGANIZER INVITES
+// ============================================
+
+model OrganizerInvite {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?  // Optional: Pre-fill name for the user
+  createdAt DateTime @default(now())
+  invitedBy String   // Admin user ID who created invite
+}
+
+model ClubMasterInvite {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?  // Optional: Pre-fill name for the user
+  clubName  String   // Required: The club they will manage
+  createdAt DateTime @default(now())
+  invitedBy String   // Admin user ID who created invite
+}
