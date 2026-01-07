@@ -42,15 +42,15 @@ export default async function AdminTournamentsPage({
                 </Link>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-visible flex flex-col">
-                <div className="overflow-visible">
-                    <table className="w-full text-left border-collapse">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse min-w-[800px] sm:min-w-0">
                         <thead>
                             <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider">
-                                <th className="px-6 py-4">Tournament Name</th>
-                                <th className="px-6 py-4">Date</th>
-                                <th className="px-6 py-4">Status</th>
-                                <th className="px-6 py-4 text-right">Actions</th>
+                                <th className="px-4 py-3 sm:px-6 sm:py-4">Tournament Name</th>
+                                <th className="px-4 py-3 sm:px-6 sm:py-4">Date</th>
+                                <th className="px-4 py-3 sm:px-6 sm:py-4">Status</th>
+                                <th className="px-4 py-3 sm:px-6 sm:py-4 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -63,24 +63,24 @@ export default async function AdminTournamentsPage({
                             ) : (
                                 tournaments.map((t) => (
                                     <tr key={t.id} className="hover:bg-gray-50/50 transition-colors">
-                                        <td className="px-6 py-4">
-                                            <span className="font-semibold text-gray-900">{t.name}</span>
+                                        <td className="px-4 py-3 sm:px-6 sm:py-4">
+                                            <span className="font-semibold text-gray-900 text-sm sm:text-base">{t.name}</span>
                                         </td>
-                                        <td className="px-6 py-4 text-gray-600 text-sm">
+                                        <td className="px-4 py-3 sm:px-6 sm:py-4 text-gray-600 text-xs sm:text-sm">
                                             {new Date(t.startDate).toLocaleDateString(undefined, {
                                                 year: 'numeric',
                                                 month: 'long',
                                                 day: 'numeric'
                                             })}
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-4 py-3 sm:px-6 sm:py-4">
                                             <TournamentStatusBadge status={t.status} />
                                         </td>
-                                        <td className="px-6 py-4 text-right flex justify-end items-center gap-2">
+                                        <td className="px-4 py-3 sm:px-6 sm:py-4 text-right flex justify-end items-center gap-2">
                                             <TournamentStatusActions tournamentId={t.id} currentStatus={t.status} />
                                             <Link
                                                 href={`/tournament/${t.id}`}
-                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm group"
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 text-xs sm:text-sm font-medium rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm group whitespace-nowrap"
                                             >
                                                 <Settings className="w-4 h-4 text-gray-400 group-hover:text-indigo-500 transition-colors" />
                                                 Manage

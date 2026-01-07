@@ -149,16 +149,16 @@ export default async function AdminUsersPage({
             <UserFilters />
 
             {/* Unified Table */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-visible">
-                <div className="overflow-visible">
-                    <table className="w-full text-left border-collapse">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse min-w-[800px] sm:min-w-0">
                         <thead>
                             <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider">
-                                <th className="px-6 py-4">User Info</th>
-                                <th className="px-6 py-4 w-32">Role</th>
-                                <th className="px-6 py-4">Club</th>
-                                <th className="px-6 py-4 w-32">Status</th>
-                                <th className="px-6 py-4 text-right w-24">Actions</th>
+                                <th className="px-4 py-3 sm:px-6 sm:py-4">User Info</th>
+                                <th className="px-4 py-3 sm:px-6 sm:py-4 w-32">Role</th>
+                                <th className="px-4 py-3 sm:px-6 sm:py-4">Club</th>
+                                <th className="px-4 py-3 sm:px-6 sm:py-4 w-32">Status</th>
+                                <th className="px-4 py-3 sm:px-6 sm:py-4 text-right w-24">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -171,24 +171,24 @@ export default async function AdminUsersPage({
                             ) : (
                                 allRows.map((u) => (
                                     <tr key={`${u.type}-${u.id}`} className="hover:bg-gray-50/50 transition-colors">
-                                        <td className="px-6 py-4">
+                                        <td className="px-4 py-3 sm:px-6 sm:py-4">
                                             <div className="flex flex-col">
-                                                <span className={`font-semibold ${u.name ? 'text-gray-900' : 'text-gray-400 italic'}`}>
+                                                <span className={`font-semibold text-sm sm:text-base ${u.name ? 'text-gray-900' : 'text-gray-400 italic'}`}>
                                                     {u.name || 'No Name'}
                                                 </span>
-                                                <span className="text-sm text-gray-500">{u.email}</span>
+                                                <span className="text-xs sm:text-sm text-gray-500">{u.email}</span>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-4 py-3 sm:px-6 sm:py-4">
                                             <RoleBadge role={u.role} />
                                         </td>
-                                        <td className="px-6 py-4 text-gray-600 text-sm">
+                                        <td className="px-4 py-3 sm:px-6 sm:py-4 text-gray-600 text-xs sm:text-sm">
                                             {u.clubName || '-'}
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-4 py-3 sm:px-6 sm:py-4">
                                             <StatusBadge status={u.status} />
                                         </td>
-                                        <td className="px-6 py-4 text-right">
+                                        <td className="px-4 py-3 sm:px-6 sm:py-4 text-right">
                                             {u.status === 'ACTIVE' ? (
                                                 <UserActions
                                                     userId={u.id}
