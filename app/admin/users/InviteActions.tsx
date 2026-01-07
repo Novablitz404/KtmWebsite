@@ -141,9 +141,17 @@ export default function InviteActions({ pendingOrganizerInvites, pendingClubMast
                                 <button
                                     type="submit"
                                     disabled={isLoading}
-                                    className="w-full py-2.5 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50"
+                                    className="w-full py-2.5 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                 >
-                                    {isLoading ? 'Sending...' : 'Send Invitation'}
+                                    {isLoading ? (
+                                        <>
+                                            <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            <span>Sending...</span>
+                                        </>
+                                    ) : 'Send Invitation'}
                                 </button>
                             </form>
 
@@ -232,39 +240,19 @@ export default function InviteActions({ pendingOrganizerInvites, pendingClubMast
                                 <button
                                     type="submit"
                                     disabled={isLoading}
-                                    className="w-full py-2.5 bg-orange-600 text-white rounded-xl font-medium hover:bg-orange-700 transition-colors shadow-sm disabled:opacity-50"
+                                    className="w-full py-2.5 bg-orange-600 text-white rounded-xl font-medium hover:bg-orange-700 transition-colors shadow-sm disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                 >
-                                    {isLoading ? 'Sending...' : 'Send Invitation'}
+                                    {isLoading ? (
+                                        <>
+                                            <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            <span>Sending...</span>
+                                        </>
+                                    ) : 'Send Invitation'}
                                 </button>
                             </form>
-
-                            {pendingClubMasterInvites.length > 0 && (
-                                <div>
-                                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Pending Invites</h4>
-                                    <div className="space-y-2">
-                                        {pendingClubMasterInvites.map(invite => (
-                                            <div key={invite.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
-                                                <div className="flex items-center gap-3 overflow-hidden">
-                                                    <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
-                                                        <Mail className="w-4 h-4 text-orange-600" />
-                                                    </div>
-                                                    <div className="truncate">
-                                                        <p className="text-sm font-medium text-gray-900 truncate">{invite.email}</p>
-                                                        <p className="text-xs text-green-600 truncate font-medium">{invite.clubName}</p>
-                                                    </div>
-                                                </div>
-                                                <button
-                                                    onClick={() => handleCancelInvite('CM', invite.id)}
-                                                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                    title="Cancel Invite"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>
