@@ -2,6 +2,7 @@ import { currentUser, clerkClient } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import InviteActions from './InviteActions'
 
 export default async function MembersPage(props: { searchParams: Promise<{ page?: string }> }) {
     const searchParams = await props.searchParams
@@ -93,6 +94,12 @@ export default async function MembersPage(props: { searchParams: Promise<{ page?
     const females = genderStats.find(s => s.gender === 'Female')?._count || 0
     const blackBelts = beltStats.find(s => s.belt === 'Black')?._count || 0
 
+    // Fetch pending invites
+    const pendingInvites = await prisma.clubAssistantInvite.findMany({
+        where: { clubName: dbUser.clubName },
+        orderBy: { createdAt: 'desc' }
+    })
+
     return (
         <main className="min-h-[calc(100vh-4rem)] bg-gray-50 pb-2">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2">
@@ -117,14 +124,20 @@ export default async function MembersPage(props: { searchParams: Promise<{ page?
                     </div>
                 </div>
 
-                {/* 👥 Members Grid */}
-                <div className="mb-6 flex items-end justify-between">
+                {/* Actions & Header */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
                     <div>
                         <h2 className="text-2xl font-bold text-gray-900">Club Roster</h2>
                         <p className="text-gray-500 text-sm mt-1">All registered members of {dbUser.clubName}</p>
                     </div>
-                    <div className="text-sm text-gray-500">
-                        Showing {skip + 1}-{Math.min(skip + pageSize, totalMembers)} of {totalMembers}
+                    <div className="flex flex-col items-end gap-2">
+                        {/* Only Club Master (not Assistant) can invite others? Usually yes. */}
+                        {dbUser.role === 'CLUB_MASTER' && (
+                            <InviteActions invites={pendingInvites} />
+                        )}
+                        <div className="text-sm text-gray-500">
+                            Showing {skip + 1}-{Math.min(skip + pageSize, totalMembers)} of {totalMembers}
+                        </div>
                     </div>
                 </div>
 

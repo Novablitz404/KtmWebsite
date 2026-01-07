@@ -25,5 +25,26 @@ export default async function OnboardingPage() {
         select: { id: true, name: true }
     })
 
-    return <OnboardingForm clubs={clubs} />
+    // Check for Invites to pre-fill content
+    const userEmail = clerkUser.emailAddresses[0].emailAddress
+    const clubAssistantInvite = await prisma.clubAssistantInvite.findUnique({ where: { email: userEmail } })
+    const clubMasterInvite = await prisma.clubMasterInvite.findUnique({ where: { email: userEmail } })
+    // We could check Organizer invite too to lock role, but usually Admin invites imply trust.
+
+    let prefilledClubName = undefined
+    let lockedRole = undefined
+
+    if (clubAssistantInvite) {
+        prefilledClubName = clubAssistantInvite.clubName
+        lockedRole = 'ASSISTANT_CLUB_MASTER'
+    } else if (clubMasterInvite) {
+        prefilledClubName = clubMasterInvite.clubName
+        lockedRole = 'CLUB_MASTER'
+    }
+
+    return <OnboardingForm
+        clubs={clubs}
+        prefilledClubName={prefilledClubName}
+        lockedRole={lockedRole}
+    />
 }

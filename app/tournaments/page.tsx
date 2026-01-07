@@ -32,6 +32,7 @@ export default async function TournamentsPage() {
             name: true,
             startDate: true,
             venue: true,
+            status: true,
             _count: {
                 select: {
                     categories: true
@@ -79,6 +80,7 @@ export default async function TournamentsPage() {
                 ) : (
                     <div className="space-y-4">
                         {tournaments.map(tournament => {
+                            const isCancelled = tournament.status === 'CANCELLED'
                             const isRegistered = registeredTournamentIds.has(tournament.id)
                             const dateStr = tournament.startDate?.toLocaleDateString('en-US', {
                                 weekday: 'long',
@@ -90,14 +92,21 @@ export default async function TournamentsPage() {
                             return (
                                 <div
                                     key={tournament.id}
-                                    className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+                                    className={`bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow ${isCancelled ? 'opacity-80 bg-gray-50' : ''}`}
                                 >
                                     <div className="p-6">
                                         <div className="flex justify-between items-start">
                                             <div className="flex-1">
-                                                <h2 className="text-xl font-bold text-gray-900">
-                                                    {tournament.name}
-                                                </h2>
+                                                <div className="flex items-center gap-3">
+                                                    <h2 className={`text-xl font-bold ${isCancelled ? 'text-gray-500 line-through decoration-gray-400' : 'text-gray-900'}`}>
+                                                        {tournament.name}
+                                                    </h2>
+                                                    {isCancelled && (
+                                                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700 uppercase tracking-wide">
+                                                            Cancelled
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <p className="mt-1 text-gray-500 text-sm">
                                                     📅 {dateStr}
                                                 </p>
@@ -107,7 +116,14 @@ export default async function TournamentsPage() {
                                             </div>
 
                                             <div className="ml-4">
-                                                {isRegistered ? (
+                                                {isCancelled ? (
+                                                    <button
+                                                        disabled
+                                                        className="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-400 rounded-lg text-sm font-medium cursor-not-allowed border border-gray-200"
+                                                    >
+                                                        Cancelled
+                                                    </button>
+                                                ) : isRegistered ? (
                                                     <span className="inline-flex items-center px-4 py-2 bg-green-100 text-green-800 rounded-lg text-sm font-medium">
                                                         ✓ Registered
                                                     </span>

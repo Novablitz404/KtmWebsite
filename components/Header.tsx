@@ -83,7 +83,6 @@ export default function Header() {
                         {/* Logo / Brand */}
                         <Link href="/" className="flex items-center gap-2">
                             <img src="/KTMLogo.png" alt="KTM Logo" className="h-10 w-10 object-contain" />
-                            <span className="font-bold text-xl text-gray-900">KTM</span>
                         </Link>
 
                         {/* Navigation - Hide on Homepage */}

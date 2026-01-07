@@ -70,6 +70,12 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
         orderBy: { name: 'asc' }
     })
 
+    // Fetch pending manager invites
+    const pendingManagerInvites = await prisma.tournamentManagerInvite.findMany({
+        where: { tournamentId: id },
+        orderBy: { createdAt: 'desc' }
+    })
+
     return (
         <main className="min-h-screen bg-gray-50 pb-20">
             <div className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-10">
@@ -100,6 +106,7 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
                     tournament={tournamentWithData}
                     players={players}
                     availableTemplates={availableTemplates}
+                    pendingManagerInvites={pendingManagerInvites}
                 />
             </div>
         </main>

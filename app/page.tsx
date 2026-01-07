@@ -167,43 +167,67 @@ export default async function Home() {
             </div>
           ) : (
             <div className="grid gap-6 md:grid-cols-3">
-              {upcomingTournaments.map((tournament, index) => (
-                <Link
-                  key={tournament.id}
-                  href={`/tournament/${tournament.id}/register`}
-                  className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-all group block"
-                >
-                  <div className="h-32 bg-gray-100 relative">
-                    {tournament.headerImageUrl ? (
-                      <Image
-                        src={tournament.headerImageUrl}
-                        alt={tournament.name}
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 768px) 100vw, 33vw"
-                        priority={index < 3}
-                      />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center text-4xl">
-                        🏆
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-6">
-                    <h3 className="font-bold text-lg text-gray-900 group-hover:text-indigo-600 truncate">
-                      {tournament.name}
-                    </h3>
-                    <p className="text-sm text-gray-500 mt-2">
-                      📅 {new Date(tournament.startDate).toLocaleDateString()}
-                    </p>
-                    {tournament.venue && (
-                      <p className="text-sm text-gray-500 mt-1">
-                        📍 {tournament.venue}
+              {upcomingTournaments.map((tournament, index) => {
+                const isCancelled = tournament.status === 'CANCELLED'
+                const CardContent = (
+                  <>
+                    <div className={`h-32 bg-gray-100 relative ${isCancelled ? 'grayscale opacity-75' : ''}`}>
+                      {tournament.headerImageUrl ? (
+                        <Image
+                          src={tournament.headerImageUrl}
+                          alt={tournament.name}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 100vw, 33vw"
+                          priority={index < 3}
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-4xl">
+                          🏆
+                        </div>
+                      )}
+                      {isCancelled && (
+                        <div className="absolute inset-0 bg-black/10 flex items-center justify-center backdrop-blur-[1px]">
+                          <span className="bg-red-600 text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm">
+                            Cancelled
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-6">
+                      <h3 className={`font-bold text-lg truncate ${isCancelled ? 'text-gray-500' : 'text-gray-900 group-hover:text-indigo-600'}`}>
+                        {tournament.name}
+                      </h3>
+                      <p className="text-sm text-gray-500 mt-2">
+                        📅 {new Date(tournament.startDate).toLocaleDateString()}
                       </p>
-                    )}
-                  </div>
-                </Link>
-              ))}
+                      {tournament.venue && (
+                        <p className="text-sm text-gray-500 mt-1">
+                          📍 {tournament.venue}
+                        </p>
+                      )}
+                    </div>
+                  </>
+                )
+
+                if (isCancelled) {
+                  return (
+                    <div key={tournament.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden opacity-80 cursor-not-allowed">
+                      {CardContent}
+                    </div>
+                  )
+                }
+
+                return (
+                  <Link
+                    key={tournament.id}
+                    href={`/tournament/${tournament.id}/register`}
+                    className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-all group block"
+                  >
+                    {CardContent}
+                  </Link>
+                )
+              })}
             </div>
           )}
         </section>

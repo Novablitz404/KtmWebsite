@@ -448,30 +448,73 @@ export async function completeOnboarding(formData: FormData) {
     };
 
     const newUserId = await generate5DigitId();
+    const userEmail = user.emailAddresses[0].emailAddress
+
+    // ----------------------------------------------------
+    // CHECK FOR INVITES & OVERRIDE ROLE IF APPLICABLE
+    // ----------------------------------------------------
+    let assignedRole = role
+    let assignedClubName = clubName
+
+    // 1. Check for Organizer Invite
+    const organizerInvite = await prisma.organizerInvite.findUnique({ where: { email: userEmail } })
+    if (organizerInvite) {
+        assignedRole = 'ORGANIZER'
+        await prisma.organizerInvite.delete({ where: { email: userEmail } })
+    }
+
+    // 2. Check for Club Master Invite
+    const clubMasterInvite = await prisma.clubMasterInvite.findUnique({ where: { email: userEmail } })
+    if (clubMasterInvite) {
+        assignedRole = 'CLUB_MASTER'
+        assignedClubName = clubMasterInvite.clubName
+        await prisma.clubMasterInvite.delete({ where: { email: userEmail } })
+    }
+
+    // 3. Check for Club Assistant Invite
+    const assistantInvite = await prisma.clubAssistantInvite.findUnique({ where: { email: userEmail } })
+    if (assistantInvite) {
+        assignedRole = 'ASSISTANT_CLUB_MASTER'
+        assignedClubName = assistantInvite.clubName
+        await prisma.clubAssistantInvite.delete({ where: { email: userEmail } })
+    }
 
     // Create the User record
     const dbUser = await prisma.user.create({
         data: {
             id: newUserId,
             clerkId: user.id,
-            email: user.emailAddresses[0].emailAddress,
-            role: role,
+            email: userEmail,
+            role: assignedRole,
             name: `${firstName} ${lastName}`,
-            clubName: clubName,
+            clubName: assignedClubName,
             birthDate: birthDate,
             gender: gender,
             belt: belt
         }
     })
 
-    // If Club Master, create the Club
-    if (role === 'CLUB_MASTER' && clubName) {
+    // If Club Master match, create the Club
+    if (assignedRole === 'CLUB_MASTER' && assignedClubName) {
         await prisma.club.create({
             data: {
-                name: clubName,
+                name: assignedClubName,
                 masterId: dbUser.id
             }
         })
+    }
+
+    // 4. Check for Tournament Manager Invites (Can exist alongside any role)
+    const managerInvites = await prisma.tournamentManagerInvite.findMany({ where: { email: userEmail } })
+    if (managerInvites.length > 0) {
+        for (const invite of managerInvites) {
+            await prisma.tournament.update({
+                where: { id: invite.tournamentId },
+                data: { managers: { connect: { id: dbUser.id } } }
+            })
+            // Delete the invite
+            await prisma.tournamentManagerInvite.delete({ where: { id: invite.id } })
+        }
     }
 }
 

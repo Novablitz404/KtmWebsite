@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Category, Match, Player, Tournament, GuidelineTemplate, User } from '@prisma/client'
+import { Category, Match, Player, Tournament, GuidelineTemplate, User, TournamentManagerInvite } from '@prisma/client'
 import CategoryManager from './CategoryManager'
 import TournamentScheduler from './TournamentScheduler'
 import BracketList from './BracketList'
@@ -24,9 +24,10 @@ interface TournamentTabsProps {
     tournament: TournamentWithData
     players: PlayerWithCategory[]
     availableTemplates: { id: string; name: string }[]
+    pendingManagerInvites?: TournamentManagerInvite[]
 }
 
-export default function TournamentTabs({ tournament, players, availableTemplates }: TournamentTabsProps) {
+export default function TournamentTabs({ tournament, players, availableTemplates, pendingManagerInvites = [] }: TournamentTabsProps) {
     const [activeTab, setActiveTab] = useState<'categories' | 'scheduler' | 'brackets' | 'athletes' | 'managers'>('categories')
 
     const tabs = [
@@ -118,6 +119,7 @@ export default function TournamentTabs({ tournament, players, availableTemplates
                         <TournamentManagers
                             tournamentId={tournament.id}
                             managers={tournament.managers}
+                            pendingInvites={pendingManagerInvites}
                             organizerId={tournament.organizerId}
                             currentUserId={tournament.currentUserId}
                         />

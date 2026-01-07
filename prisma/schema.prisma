@@ -75,6 +75,7 @@ model Tournament {
   guidelineTemplate   GuidelineTemplate? @relation(fields: [guidelineTemplateId], references: [id])
   
   categories          Category[]
+  managerInvites      TournamentManagerInvite[] // Relation for pending invites
 }
 
 model Category {
@@ -219,6 +220,25 @@ model ClubMasterInvite {
   clubName  String   // Required: The club they will manage
   createdAt DateTime @default(now())
   invitedBy String   // Admin user ID who created invite
+}
+
+model ClubAssistantInvite {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  clubName  String   // The club they are being invited to
+  invitedBy String   // Club Master ID who created invite (User ID)
+  createdAt DateTime @default(now())
+}
+
+model TournamentManagerInvite {
+  id           String   @id @default(cuid())
+  email        String
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  invitedBy    String   // Organizer ID (User ID)
+  createdAt    DateTime @default(now())
+
+  @@unique([email, tournamentId]) // One invite per user per tournament
 }
 
 // ============================================

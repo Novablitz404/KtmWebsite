@@ -15,14 +15,16 @@ interface Club {
 
 interface OnboardingFormProps {
     clubs: Club[]
+    prefilledClubName?: string
+    lockedRole?: string
 }
 
-export default function OnboardingForm({ clubs }: OnboardingFormProps) {
+export default function OnboardingForm({ clubs, prefilledClubName, lockedRole }: OnboardingFormProps) {
     const router = useRouter()
-    const role = 'ATHLETE' // Fixed role
+    const role = lockedRole || 'ATHLETE' // Fixed role unless overriden
     const [firstName, setFirstName] = useState('')
     const [lastName, setLastName] = useState('')
-    const [clubName, setClubName] = useState('')
+    const [clubName, setClubName] = useState(prefilledClubName || '')
     const [isClubDropdownOpen, setIsClubDropdownOpen] = useState(false)
     const [clubSearch, setClubSearch] = useState('')
 
@@ -177,14 +179,15 @@ export default function OnboardingForm({ clubs }: OnboardingFormProps) {
                                 <input
                                     type="text"
                                     className="block w-full bg-white border border-gray-300 rounded-xl shadow-sm pl-3 pr-10 py-2 text-left focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                    placeholder="Select a club..."
-                                    value={clubSearch}
+                                    disabled={!!prefilledClubName}
+                                    placeholder={prefilledClubName ? "Club assigned by invite" : "Select a club..."}
+                                    value={prefilledClubName || clubSearch}
                                     onChange={(e) => {
                                         setClubSearch(e.target.value)
                                         setIsClubDropdownOpen(true)
-                                        setClubName('') // Clear selection when typing to ensure valid choice
+                                        setClubName('') // Clear selection when typing
                                     }}
-                                    onClick={() => setIsClubDropdownOpen(true)}
+                                    onClick={() => !prefilledClubName && setIsClubDropdownOpen(true)}
                                 />
                                 <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
                                     <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
