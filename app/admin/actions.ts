@@ -75,6 +75,18 @@ export async function inviteOrganizer(formData: FormData) {
         }
     })
 
+    // 4. Send Clerk Invitation
+    try {
+        const client = await clerkClient()
+        await client.invitations.createInvitation({
+            emailAddress: email,
+            redirectUrl: process.env.NEXT_PUBLIC_CLERK_SIGN_UP_URL || 'http://localhost:3000/sign-up',
+            ignoreExisting: true
+        })
+    } catch (error) {
+        console.error('Clerk Invite Error:', error)
+    }
+
     revalidatePath('/admin/users')
 }
 
@@ -117,14 +129,27 @@ export async function inviteClubMaster(formData: FormData) {
     const existingInvite = await prisma.clubMasterInvite.findUnique({ where: { email } })
     if (existingInvite) throw new Error('Invite already sent to this email')
 
+    // 3. Create Invite in DB
     await prisma.clubMasterInvite.create({
         data: {
             email,
-            name: name || null,
+            name: name,
             clubName,
-            invitedBy: dbUser.id
+            invitedBy: user.id
         }
     })
+
+    // 4. Send Clerk Invitation
+    try {
+        const client = await clerkClient()
+        await client.invitations.createInvitation({
+            emailAddress: email,
+            redirectUrl: process.env.NEXT_PUBLIC_CLERK_SIGN_UP_URL || 'http://localhost:3000/sign-up',
+            ignoreExisting: true
+        })
+    } catch (error) {
+        console.error('Clerk Invite Error:', error)
+    }
 
     revalidatePath('/admin/users')
 }
