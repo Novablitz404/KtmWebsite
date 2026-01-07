@@ -10,24 +10,28 @@ export default async function TournamentsPage() {
         redirect('/sign-in')
     }
 
-    // Get user
+    // Get user (only need id for registration check)
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: clerkUser.id }
+        where: { clerkId: clerkUser.id },
+        select: { id: true }
     })
 
     if (!dbUser) {
         redirect('/onboarding')
     }
 
-    // Get all upcoming/active tournaments
+    // Get all upcoming/active tournaments (use select for minimal data)
     const tournaments = await prisma.tournament.findMany({
         where: {
             startDate: {
                 gte: new Date(new Date().setHours(0, 0, 0, 0)) // Today or future
             }
         },
-        include: {
-            categories: true,
+        select: {
+            id: true,
+            name: true,
+            startDate: true,
+            venue: true,
             _count: {
                 select: {
                     categories: true

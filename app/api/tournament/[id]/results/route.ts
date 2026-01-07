@@ -8,33 +8,58 @@ export async function POST(
 ) {
     try {
         const { id } = await params
-        const user = await currentUser()
+        const apiKey = request.headers.get('x-api-key')
 
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        let isAuthorized = false
+
+        // 1. Check API Key
+        if (apiKey) {
+            const validKey = await prisma.apiKey.findUnique({
+                where: { key: apiKey, isActive: true },
+                include: { owner: true } // Fetch owner to verify tournament ownership
+            })
+
+            if (validKey) {
+                // Verify this key's owner manages this tournament
+                const tournamentCheck = await prisma.tournament.findUnique({
+                    where: { id },
+                    include: { managers: true }
+                })
+
+                if (tournamentCheck) {
+                    const isOwner = tournamentCheck.organizerId === validKey.ownerId
+                    const isManager = tournamentCheck.managers.some(m => m.id === validKey.ownerId)
+                    if (isOwner || isManager || validKey.owner.role === 'ADMIN') {
+                        isAuthorized = true
+                    }
+                }
+            }
         }
 
-        const dbUser = await prisma.user.findUnique({
-            where: { clerkId: user.id }
-        })
+        // 2. Fallback to User Session
+        if (!isAuthorized) {
+            const user = await currentUser()
 
-        if (!dbUser) {
-            return NextResponse.json({ error: 'User not found' }, { status: 404 })
+            if (user) {
+                const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+                if (dbUser) {
+                    const tournamentCheck = await prisma.tournament.findUnique({
+                        where: { id },
+                        include: { managers: true }
+                    })
+                    if (tournamentCheck) {
+                        const isOwner = tournamentCheck.organizerId === dbUser.id
+                        const isManager = tournamentCheck.managers.some(m => m.id === dbUser.id)
+                        if (isOwner || isManager || dbUser.role === 'ADMIN') {
+                            isAuthorized = true
+                        }
+                    }
+                }
+            }
         }
 
-        // Access Control
-        const tournament = await prisma.tournament.findUnique({
-            where: { id },
-            include: { managers: true }
-        })
-
-        if (!tournament) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
-
-        const isOrganizer = tournament.organizerId === dbUser.id
-        const isManager = tournament.managers.some(m => m.id === dbUser.id)
-
-        if (!isOrganizer && !isManager && dbUser.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        if (!isAuthorized) {
+            return NextResponse.json({ error: 'Unauthorized: Valid User Session or API Key required' }, { status: 401 })
         }
 
         // Parse Body

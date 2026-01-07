@@ -149,8 +149,8 @@ export default async function AdminUsersPage({
             <UserFilters />
 
             {/* Unified Table */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-                <div className="overflow-x-auto">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-visible">
+                <div className="overflow-visible">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider">

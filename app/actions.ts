@@ -126,21 +126,7 @@ export async function createTournament(formData: FormData) {
     return { success: true }
 }
 
-export async function createCategory(formData: FormData) {
-    const name = formData.get('name') as string
-    const tournamentId = formData.get('tournamentId') as string
 
-    if (!name || !tournamentId) return
-
-    await prisma.category.create({
-        data: {
-            name,
-            tournamentId,
-        },
-    })
-
-    revalidatePath(`/tournament/${tournamentId}`)
-}
 
 export async function createPlayer(formData: FormData) {
     const name = formData.get('name') as string
@@ -656,10 +642,14 @@ export async function registerForTournamentAuto(input: RegisterAutoInput) {
     })
 
     if (!category) {
+        // Determine type
+        const type = categoryName.toLowerCase().includes('poomsae') ? 'POOMSAE' : 'KYORUGI'
+
         category = await prisma.category.create({
             data: {
                 name: categoryName,
-                tournamentId
+                tournamentId,
+                type: type
             }
         })
     }
@@ -905,5 +895,37 @@ export async function bulkDeleteRegistrations(playerIds: string[]) {
     } catch (error) {
         console.error('Bulk delete error:', error)
         return { error: 'Failed to delete registrations.' }
+    }
+}
+
+export async function updateCategory(categoryId: string, tournamentId: string, data: { name?: string; type?: string; court?: string }) {
+    try {
+        await prisma.category.update({
+            where: { id: categoryId },
+            data
+        })
+        revalidatePath(`/tournament/${tournamentId}`)
+        return { success: true }
+    } catch (error) {
+        console.error('Update Category Error:', error)
+        return { error: 'Failed to update category' }
+    }
+}
+
+export async function createCategory(tournamentId: string, name: string, type: string = 'KYORUGI', court: string = '') {
+    try {
+        await prisma.category.create({
+            data: {
+                tournamentId,
+                name,
+                type,
+                court: court || null
+            }
+        })
+        revalidatePath(`/tournament/${tournamentId}`)
+        return { success: true }
+    } catch (error) {
+        console.error('Create Category Error:', error)
+        return { error: 'Failed to create category' }
     }
 }

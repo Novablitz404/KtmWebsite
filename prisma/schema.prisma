@@ -36,6 +36,8 @@ model Division {
   template     GuidelineTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   
   categories   WeightCategory[]
+  
+  @@index([templateId])
 }
 
 model WeightCategory {
@@ -66,6 +68,7 @@ model Tournament {
   registrationEnd     DateTime?  // When registration closes
   guidelinePdfUrl     String?    // URL to uploaded guideline PDF
   headerImageUrl      String?    // URL to uploaded header image
+  status              String     @default("UPCOMING") // UPCOMING, ONGOING, COMPLETED, CANCELLED, RESCHEDULED
   
   // Guideline Template (optional - if set, auto-generates categories)
   guidelineTemplateId String?
@@ -81,6 +84,11 @@ model Category {
   tournament   Tournament @relation(fields: [tournamentId], references: [id])
   players      Player[]
   matches      Match[]
+  
+  type         String     @default("KYORUGI") // "KYORUGI", "POOMSAE"
+  court        String?    // Assigned Court Number
+  
+  @@index([tournamentId])
 }
 
 // ============================================
@@ -109,6 +117,9 @@ model User {
   // Organizer Relations
   createdTournaments Tournament[] @relation("OrganizerTournaments")
   managedTournaments Tournament[] @relation("TournamentManagers")
+  
+  // API Keys
+  apiKeys   ApiKey[]
 }
 
 model Player {
@@ -131,6 +142,10 @@ model Player {
 
   clubId     String?
   club       Club?    @relation(fields: [clubId], references: [id])
+  
+  @@index([userId])
+  @@index([categoryId])
+  @@index([clubId])
 }
 
 model Club {
@@ -181,6 +196,8 @@ model Match {
   red_gam_jeom    Int @default(0)
   blue_rounds_won Int @default(0)
   red_rounds_won  Int @default(0)
+  
+  @@index([categoryRefId])
 }
 
 // ============================================
@@ -202,4 +219,18 @@ model ClubMasterInvite {
   clubName  String   // Required: The club they will manage
   createdAt DateTime @default(now())
   invitedBy String   // Admin user ID who created invite
+}
+
+// ============================================
+// API KEYS (Electron Security)
+// ============================================
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  key         String   @unique // The secret key (e.g. "ktm_live_...")
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id])
+  description String?  // e.g. "Court Laptop 1"
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
 }

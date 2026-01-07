@@ -5,6 +5,8 @@ import Pagination from '@/components/Pagination'
 
 const PAGE_SIZE = 10
 
+import TournamentStatusActions from '@/components/TournamentStatusActions'
+
 export default async function AdminTournamentsPage({
     searchParams,
 }: {
@@ -40,8 +42,8 @@ export default async function AdminTournamentsPage({
                 </Link>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-                <div className="overflow-x-auto">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-visible flex flex-col">
+                <div className="overflow-visible">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider">
@@ -72,9 +74,10 @@ export default async function AdminTournamentsPage({
                                             })}
                                         </td>
                                         <td className="px-6 py-4">
-                                            <TournamentStatusBadge startDate={t.startDate} />
+                                            <TournamentStatusBadge status={t.status} />
                                         </td>
-                                        <td className="px-6 py-4 text-right">
+                                        <td className="px-6 py-4 text-right flex justify-end items-center gap-2">
+                                            <TournamentStatusActions tournamentId={t.id} currentStatus={t.status} />
                                             <Link
                                                 href={`/tournament/${t.id}`}
                                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm group"
@@ -97,24 +100,24 @@ export default async function AdminTournamentsPage({
     )
 }
 
-function TournamentStatusBadge({ startDate }: { startDate: Date }) {
-    const now = new Date()
-    const start = new Date(startDate)
-    // Assume 1 day tournament if no end date
-    const end = new Date(start.getTime() + 86400000)
-
-    let status: 'UPCOMING' | 'ONGOING' | 'COMPLETED' = 'UPCOMING'
+function TournamentStatusBadge({ status }: { status: string }) {
     let style = 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
 
-    if (now > end) {
-        status = 'COMPLETED'
-        style = 'bg-gray-100 text-gray-700 ring-1 ring-gray-200'
-    } else if (now >= start && now <= end) {
-        status = 'ONGOING'
-        style = 'bg-green-50 text-green-700 ring-1 ring-green-100'
-    } else {
-        // Upcoming
-        style = 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
+    switch (status) {
+        case 'ONGOING':
+            style = 'bg-green-50 text-green-700 ring-1 ring-green-100'
+            break
+        case 'COMPLETED':
+            style = 'bg-gray-100 text-gray-700 ring-1 ring-gray-200'
+            break
+        case 'CANCELLED':
+            style = 'bg-red-50 text-red-700 ring-1 ring-red-100'
+            break
+        case 'RESCHEDULED':
+            style = 'bg-orange-50 text-orange-700 ring-1 ring-orange-100'
+            break
+        default: // UPCOMING
+            style = 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
     }
 
     return (

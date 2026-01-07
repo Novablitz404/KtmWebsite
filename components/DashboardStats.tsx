@@ -4,7 +4,10 @@ import { currentUser } from '@clerk/nextjs/server'
 
 export default async function DashboardStats() {
     const user = await currentUser()
-    const dbUser = user ? await prisma.user.findUnique({ where: { clerkId: user.id } }) : null
+    const dbUser = user ? await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        select: { id: true }
+    }) : null
 
     // If not logged in, show placeholders
     if (!dbUser) return <div className="p-4 bg-yellow-50 text-yellow-800 rounded-lg">Please log in to view stats.</div>

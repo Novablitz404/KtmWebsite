@@ -10,10 +10,14 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
     let currentUserId = undefined
 
     if (user) {
-        const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+        const dbUser = await prisma.user.findUnique({
+            where: { clerkId: user.id },
+            select: { id: true }
+        })
         currentUserId = dbUser?.id
     }
 
+    // Optimized query: include relations but only select needed fields where possible
     const tournament = await prisma.tournament.findUnique({
         where: { id },
         include: {
@@ -38,7 +42,7 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
         currentUserId
     }
 
-    // Fetch players
+    // Fetch players - use select for nested relations
     const players = await prisma.player.findMany({
         where: {
             category: {
@@ -46,8 +50,12 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
             }
         },
         include: {
-            category: true,
-            club: true
+            category: {
+                select: { id: true, name: true, type: true, tournamentId: true, court: true }
+            },
+            club: {
+                select: { id: true, name: true }
+            }
         },
         orderBy: {
             category: {
@@ -56,8 +64,9 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
         }
     })
 
-    // Fetch available guideline templates
+    // Fetch available guideline templates (minimal fields)
     const availableTemplates = await prisma.guidelineTemplate.findMany({
+        select: { id: true, name: true },
         orderBy: { name: 'asc' }
     })
 
@@ -96,4 +105,3 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
         </main>
     )
 }
-

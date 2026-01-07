@@ -18,19 +18,20 @@ interface ClubMasterProfileViewProps {
 }
 
 export default async function ClubMasterProfileView({ dbUser, clerkImageUrl }: ClubMasterProfileViewProps) {
-    // Get club stats
-    const clubStats = dbUser.clubName ? await prisma.player.aggregate({
-        where: { club: { name: dbUser.clubName } },
-        _count: true
-    }) : { _count: 0 }
+    // Get club stats using optimized count queries
+    const [clubStats, uniqueTournamentCount] = await Promise.all([
+        dbUser.clubName ? prisma.player.count({
+            where: { club: { name: dbUser.clubName } }
+        }) : 0,
+        dbUser.clubName ? prisma.category.groupBy({
+            by: ['tournamentId'],
+            where: {
+                players: { some: { club: { name: dbUser.clubName } } }
+            }
+        }).then(results => results.length) : 0
+    ])
 
-    const tournamentCount = dbUser.clubName ? await prisma.player.findMany({
-        where: { club: { name: dbUser.clubName } },
-        select: { category: { select: { tournamentId: true } } },
-        distinct: ['categoryId']
-    }) : []
-
-    const uniqueTournaments = new Set(tournamentCount.map(p => p.category.tournamentId)).size
+    const uniqueTournaments = uniqueTournamentCount
 
     return (
         <div className="">
@@ -45,27 +46,27 @@ export default async function ClubMasterProfileView({ dbUser, clerkImageUrl }: C
                 </div>
 
                 {/* Profile Info */}
-                <div className="px-6 pb-6">
-                    <div className="relative flex flex-col sm:flex-row sm:items-end gap-4 -mt-16">
+                <div className="px-4 sm:px-6 pb-6">
+                    <div className="relative flex flex-col sm:flex-row sm:items-end gap-4 -mt-12 sm:-mt-16">
                         {/* Avatar */}
                         <div className="relative flex-shrink-0">
                             {clerkImageUrl ? (
                                 <img
                                     src={clerkImageUrl}
                                     alt={dbUser.name || 'Club Master'}
-                                    className="w-32 h-32 rounded-xl border-4 border-white shadow-lg object-cover bg-white"
+                                    className="w-24 h-24 sm:w-32 sm:h-32 rounded-xl border-4 border-white shadow-lg object-cover bg-white"
                                 />
                             ) : (
-                                <div className="w-32 h-32 rounded-xl bg-gradient-to-br from-orange-100 to-orange-200 border-4 border-white shadow-lg flex items-center justify-center text-5xl">
+                                <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-xl bg-gradient-to-br from-orange-100 to-orange-200 border-4 border-white shadow-lg flex items-center justify-center text-3xl sm:text-5xl">
                                     🏫
                                 </div>
                             )}
                         </div>
 
                         {/* Name & Role */}
-                        <div className="flex-1 pt-4 sm:pt-0 sm:pb-1">
+                        <div className="flex-1 pt-2 sm:pt-0 sm:pb-1">
                             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-                                <h1 className="text-2xl font-bold text-gray-900">{dbUser.name || 'Club Master'}</h1>
+                                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{dbUser.name || 'Club Master'}</h1>
                                 <span className="self-start sm:self-auto inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-orange-100 text-orange-700">
                                     👑 Club Master
                                 </span>
@@ -80,26 +81,23 @@ export default async function ClubMasterProfileView({ dbUser, clerkImageUrl }: C
                     </div>
 
                     {/* Club Badge */}
-                    <div className="mt-6 flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                        <div className="w-14 h-14 rounded-xl bg-gray-900 flex items-center justify-center text-2xl shadow-sm">
-                            🥋
-                        </div>
-                        <div className="flex-1">
+                    <div className="mt-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                        <div className="flex-1 w-full">
                             <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">Club</p>
-                            <p className="text-lg font-bold text-gray-900">{dbUser.clubName || 'Not Assigned'}</p>
+                            <p className="text-base sm:text-lg font-bold text-gray-900 break-words">{dbUser.clubName || 'Not Assigned'}</p>
                         </div>
                         {/* Stats */}
-                        <div className="ml-auto flex items-center gap-6">
+                        <div className="sm:ml-auto flex items-center gap-6 w-full sm:w-auto border-t sm:border-t-0 border-gray-200 pt-3 sm:pt-0 mt-1 sm:mt-0 justify-around sm:justify-start">
                             <div className="text-center">
-                                <p className="text-2xl font-bold text-gray-900">{clubStats._count}</p>
+                                <p className="text-xl sm:text-2xl font-bold text-gray-900">{clubStats}</p>
                                 <p className="text-xs text-gray-500">Athletes</p>
                             </div>
                             <div className="text-center">
-                                <p className="text-2xl font-bold text-gray-900">{uniqueTournaments}</p>
+                                <p className="text-xl sm:text-2xl font-bold text-gray-900">{uniqueTournaments}</p>
                                 <p className="text-xs text-gray-500">Events</p>
                             </div>
                             <div className="text-center hidden sm:block">
-                                <p className="text-2xl font-bold text-amber-500">0</p>
+                                <p className="text-xl sm:text-2xl font-bold text-amber-500">0</p>
                                 <p className="text-xs text-gray-500">Medals</p>
                             </div>
                         </div>

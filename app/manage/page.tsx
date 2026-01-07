@@ -1,6 +1,8 @@
+import { Suspense } from 'react'
 import ManagePageActions from './ManagePageActions'
 import DashboardStats from '@/components/DashboardStats'
 import TournamentsTable from '@/components/TournamentsTable'
+import { StatsCardsSkeleton, TournamentsTableSkeleton } from '@/components/Skeletons'
 import { currentUser } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
@@ -13,7 +15,8 @@ export default async function ManagePage() {
     }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id }
+        where: { clerkId: user.id },
+        select: { id: true, role: true }
     })
 
     if (!dbUser) {
@@ -58,15 +61,19 @@ export default async function ManagePage() {
                     </div>
                 </header>
 
-                {/* Stats Section */}
+                {/* Stats Section - Wrapped in Suspense for streaming */}
                 <section>
-                    <DashboardStats />
+                    <Suspense fallback={<StatsCardsSkeleton />}>
+                        <DashboardStats />
+                    </Suspense>
                 </section>
 
-                {/* Active Tournaments Table */}
+                {/* Active Tournaments Table - Wrapped in Suspense for streaming */}
                 <section className="space-y-4">
                     <h2 className="text-xl font-bold text-gray-900">Active Tournaments</h2>
-                    <TournamentsTable />
+                    <Suspense fallback={<TournamentsTableSkeleton />}>
+                        <TournamentsTable />
+                    </Suspense>
                 </section>
             </div>
         </main>

@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
+import Image from 'next/image'
 import { currentUser } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 
@@ -12,14 +13,19 @@ export default async function Home() {
   if (user) {
     const userEmail = user.emailAddresses[0]?.emailAddress
 
-    // Admin redirect (whitelist based)
-    if (userEmail && ADMIN_EMAILS.includes(userEmail)) {
-      const existingAdmin = await prisma.user.findUnique({
+    // Parallel fetch all needed data upfront
+    const [existingUser, pendingOrganizerInvite, pendingClubMasterInvite] = await Promise.all([
+      prisma.user.findUnique({
         where: { clerkId: user.id },
         select: { role: true }
-      })
+      }),
+      userEmail ? prisma.organizerInvite.findUnique({ where: { email: userEmail } }) : null,
+      userEmail ? prisma.clubMasterInvite.findUnique({ where: { email: userEmail } }) : null
+    ])
 
-      if (!existingAdmin || existingAdmin.role !== 'ADMIN') {
+    // Admin redirect (whitelist based)
+    if (userEmail && ADMIN_EMAILS.includes(userEmail)) {
+      if (!existingUser || existingUser.role !== 'ADMIN') {
         await prisma.user.upsert({
           where: { clerkId: user.id },
           update: { role: 'ADMIN' },
@@ -33,79 +39,59 @@ export default async function Home() {
           }
         })
       }
-
       redirect('/admin')
     }
 
-    // Check for pending organizer invite
-    if (userEmail) {
-      const pendingOrganizerInvite = await prisma.organizerInvite.findUnique({
-        where: { email: userEmail }
-      })
-
-      if (pendingOrganizerInvite) {
-        // Generate 5-digit ID
-        const generateId = () => String(Math.floor(10000 + Math.random() * 90000))
-        let newId = generateId()
-        while (await prisma.user.findUnique({ where: { id: newId } })) {
-          newId = generateId()
-        }
-
-        // Create user as Organizer
-        await prisma.user.create({
-          data: {
-            id: newId,
-            clerkId: user.id,
-            email: userEmail,
-            name: pendingOrganizerInvite.name || user.firstName ? `${user.firstName} ${user.lastName}` : 'Organizer',
-            role: 'ORGANIZER'
-          }
-        })
-
-        // Delete the invite (it's been claimed)
-        await prisma.organizerInvite.delete({ where: { id: pendingOrganizerInvite.id } })
-
-        redirect('/manage')
+    // Handle pending organizer invite
+    if (pendingOrganizerInvite && userEmail) {
+      const generateId = () => String(Math.floor(10000 + Math.random() * 90000))
+      let newId = generateId()
+      while (await prisma.user.findUnique({ where: { id: newId } })) {
+        newId = generateId()
       }
 
-      // Check for pending Club Master invite
-      const pendingClubMasterInvite = await prisma.clubMasterInvite.findUnique({
-        where: { email: userEmail }
-      })
-
-      if (pendingClubMasterInvite) {
-        // Generate 5-digit ID
-        const generateId = () => String(Math.floor(10000 + Math.random() * 90000))
-        let newId = generateId()
-        while (await prisma.user.findUnique({ where: { id: newId } })) {
-          newId = generateId()
+      await prisma.user.create({
+        data: {
+          id: newId,
+          clerkId: user.id,
+          email: userEmail,
+          name: pendingOrganizerInvite.name || user.firstName ? `${user.firstName} ${user.lastName}` : 'Organizer',
+          role: 'ORGANIZER'
         }
-
-        // Create user as Club Master
-        await prisma.user.create({
-          data: {
-            id: newId,
-            clerkId: user.id,
-            email: userEmail,
-            name: pendingClubMasterInvite.name || user.firstName ? `${user.firstName} ${user.lastName}` : 'Club Master',
-            role: 'CLUB_MASTER',
-            clubName: pendingClubMasterInvite.clubName
-          }
-        })
-
-        // Delete the invite (it's been claimed)
-        await prisma.clubMasterInvite.delete({ where: { id: pendingClubMasterInvite.id } })
-
-        redirect('/profile')
-      }
+      })
+      await prisma.organizerInvite.delete({ where: { id: pendingOrganizerInvite.id } })
+      redirect('/manage')
     }
 
-    // Check existing user role for other redirects
-    const existingUser = await prisma.user.findUnique({
-      where: { clerkId: user.id },
-      select: { role: true }
-    })
+    // Handle pending Club Master invite
+    if (pendingClubMasterInvite && userEmail) {
+      const generateId = () => String(Math.floor(10000 + Math.random() * 90000))
+      let newId = generateId()
+      while (await prisma.user.findUnique({ where: { id: newId } })) {
+        newId = generateId()
+      }
 
+      await prisma.user.create({
+        data: {
+          id: newId,
+          clerkId: user.id,
+          email: userEmail,
+          name: pendingClubMasterInvite.name || user.firstName ? `${user.firstName} ${user.lastName}` : 'Club Master',
+          role: 'CLUB_MASTER',
+          clubName: pendingClubMasterInvite.clubName
+        }
+      })
+      await prisma.club.create({
+        data: {
+          name: pendingClubMasterInvite.clubName,
+          masterId: newId
+        }
+      })
+      await prisma.clubMasterInvite.delete({ where: { id: pendingClubMasterInvite.id } })
+      redirect('/profile')
+    }
+
+    // Existing user redirects
     if (existingUser) {
       // Club Master redirect
       if (existingUser.role === 'CLUB_MASTER' || existingUser.role === 'ASSISTANT_CLUB_MASTER') {
@@ -147,17 +133,17 @@ export default async function Home() {
     <main className="min-h-screen bg-gray-50 pb-20">
       {/* Hero Section */}
       <div className="bg-indigo-700 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24 text-center">
-          <h1 className="text-4xl font-extrabold sm:text-5xl md:text-6xl tracking-tight">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-24 text-center">
+          <h1 className="text-3xl font-extrabold sm:text-5xl md:text-6xl tracking-tight">
             KTM Tournament Manager
           </h1>
-          <p className="mt-4 text-xl text-indigo-100 max-w-2xl mx-auto">
+          <p className="mt-4 text-base sm:text-xl text-indigo-100 max-w-2xl mx-auto">
             The premier platform for Taekwondo tournament management, scoring, and rankings.
           </p>
           <div className="mt-8 flex justify-center gap-4">
             <Link
               href="/tournaments"
-              className="px-8 py-3 border border-transparent text-base font-medium rounded-md text-indigo-700 bg-white hover:bg-gray-50 md:text-lg"
+              className="px-6 py-2.5 sm:px-8 sm:py-3 border border-transparent text-sm sm:text-base font-medium rounded-md text-indigo-700 bg-white hover:bg-gray-50 md:text-lg"
             >
               Browse Tournaments
             </Link>
@@ -181,16 +167,27 @@ export default async function Home() {
             </div>
           ) : (
             <div className="grid gap-6 md:grid-cols-3">
-              {upcomingTournaments.map(tournament => (
+              {upcomingTournaments.map((tournament, index) => (
                 <Link
                   key={tournament.id}
                   href={`/tournament/${tournament.id}/register`}
                   className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-all group block"
                 >
                   <div className="h-32 bg-gray-100 relative">
-                    <div className="absolute inset-0 flex items-center justify-center text-4xl">
-                      🏆
-                    </div>
+                    {tournament.headerImageUrl ? (
+                      <Image
+                        src={tournament.headerImageUrl}
+                        alt={tournament.name}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 100vw, 33vw"
+                        priority={index < 3}
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-4xl">
+                        🏆
+                      </div>
+                    )}
                   </div>
                   <div className="p-6">
                     <h3 className="font-bold text-lg text-gray-900 group-hover:text-indigo-600 truncate">

@@ -35,22 +35,39 @@ export default async function MembersPage(props: { searchParams: Promise<{ page?
         )
     }
 
-    // Fetch ALL club members (Users) not just registered players
-    const clubMembers = await prisma.user.findMany({
-        where: {
-            clubName: dbUser.clubName,
-            role: 'ATHLETE' // Only fetch athletes, not other admins if any
-        },
-        orderBy: { name: 'asc' }
-    })
-
-    // Pagination Logic
+    // Pagination Setup
     const currentPage = Number(searchParams.page) || 1
     const pageSize = 8
-    const totalMembers = clubMembers.length
+    const skip = (currentPage - 1) * pageSize
+
+    // Optimized: Parallel queries with DB pagination and aggregates
+    const [paginatedMembers, totalMembers, genderStats, beltStats] = await Promise.all([
+        // Paginated members (only fetch current page)
+        prisma.user.findMany({
+            where: { clubName: dbUser.clubName, role: 'ATHLETE' },
+            orderBy: { name: 'asc' },
+            skip,
+            take: pageSize
+        }),
+        // Total count for pagination
+        prisma.user.count({
+            where: { clubName: dbUser.clubName, role: 'ATHLETE' }
+        }),
+        // Gender stats (aggregated in DB)
+        prisma.user.groupBy({
+            by: ['gender'],
+            where: { clubName: dbUser.clubName, role: 'ATHLETE' },
+            _count: true
+        }),
+        // Belt stats (aggregated in DB)
+        prisma.user.groupBy({
+            by: ['belt'],
+            where: { clubName: dbUser.clubName, role: 'ATHLETE' },
+            _count: true
+        })
+    ])
+
     const totalPages = Math.ceil(totalMembers / pageSize)
-    const startIndex = (currentPage - 1) * pageSize
-    const paginatedMembers = clubMembers.slice(startIndex, startIndex + pageSize)
 
     // Fetch avatars from Clerk (Only for current page)
     const clerkIds = paginatedMembers.map(u => u.clerkId).filter(Boolean)
@@ -59,12 +76,10 @@ export default async function MembersPage(props: { searchParams: Promise<{ page?
     if (clerkIds.length > 0) {
         try {
             const uniqueIds = Array.from(new Set(clerkIds))
-
             const users = await (await clerkClient()).users.getUserList({
                 userId: uniqueIds,
                 limit: 100
             })
-
             users.data.forEach(user => {
                 avatars[user.id] = user.imageUrl
             })
@@ -73,10 +88,10 @@ export default async function MembersPage(props: { searchParams: Promise<{ page?
         }
     }
 
-    // Calculations for Stats (Based on TOTAL members)
-    const males = clubMembers.filter(m => m.gender === 'Male').length
-    const females = clubMembers.filter(m => m.gender === 'Female').length
-    const blackBelts = clubMembers.filter(m => m.belt === 'Black').length
+    // Extract stats from grouped results
+    const males = genderStats.find(s => s.gender === 'Male')?._count || 0
+    const females = genderStats.find(s => s.gender === 'Female')?._count || 0
+    const blackBelts = beltStats.find(s => s.belt === 'Black')?._count || 0
 
     return (
         <main className="min-h-[calc(100vh-4rem)] bg-gray-50 pb-2">
@@ -109,7 +124,7 @@ export default async function MembersPage(props: { searchParams: Promise<{ page?
                         <p className="text-gray-500 text-sm mt-1">All registered members of {dbUser.clubName}</p>
                     </div>
                     <div className="text-sm text-gray-500">
-                        Showing {startIndex + 1}-{Math.min(startIndex + pageSize, totalMembers)} of {totalMembers}
+                        Showing {skip + 1}-{Math.min(skip + pageSize, totalMembers)} of {totalMembers}
                     </div>
                 </div>
 

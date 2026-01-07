@@ -5,17 +5,28 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { UserButton, useUser, SignInButton, SignOutButton as ClerkSignOutButton } from '@clerk/nextjs'
 
-interface HeaderProps {
-    role?: string | null
-    userName?: string | null
-}
-
-export default function Header({ role, userName }: HeaderProps) {
+export default function Header() {
     const { user, isLoaded } = useUser()
     const pathname = usePathname()
     const router = useRouter()
     const wasSignedOut = useRef(true)
     const [isRedirecting, setIsRedirecting] = useState(false)
+
+    // Client-side role fetching
+    const [role, setRole] = useState<string | null>(null)
+    const [userName, setUserName] = useState<string | null>(null)
+
+    useEffect(() => {
+        if (isLoaded && user) {
+            fetch('/api/user/role')
+                .then(res => res.json())
+                .then(data => {
+                    setRole(data.role)
+                    setUserName(data.userName)
+                })
+                .catch(console.error)
+        }
+    }, [isLoaded, user])
 
     // Detect sign-in and refresh page to trigger server-side admin redirect
     useEffect(() => {
@@ -179,7 +190,7 @@ export default function Header({ role, userName }: HeaderProps) {
                                     {user.firstName}
                                 </span>
                                 {/* Custom User Dropdown */}
-                                <UserDropdown user={user} dbName={userName} />
+                                <UserDropdown user={user} dbName={userName} role={role} />
                             </>
                         ) : isLoaded ? (
                             <SignInButton mode="modal" forceRedirectUrl="/">
@@ -197,9 +208,15 @@ export default function Header({ role, userName }: HeaderProps) {
 
 import { UserResource } from '@clerk/types'
 
-function UserDropdown({ user, dbName }: { user: UserResource, dbName?: string | null }) {
+function UserDropdown({ user, dbName, role }: { user: UserResource, dbName?: string | null, role: string | null }) {
     const [isOpen, setIsOpen] = useState(false)
     const dropdownRef = useRef<HTMLDivElement>(null)
+    const pathname = usePathname()
+
+    // Determine roles for dropdown links
+    const isOrganizer = role === 'ORGANIZER' || role === 'MANAGER' || role === 'ADMIN'
+    const isClubMaster = role === 'CLUB_MASTER' || role === 'ASSISTANT_CLUB_MASTER'
+    const isAthlete = role === 'ATHLETE' || (!role)
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -226,7 +243,7 @@ function UserDropdown({ user, dbName }: { user: UserResource, dbName?: string | 
             </button>
 
             {isOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
                     <div className="px-4 py-3 border-b border-gray-50">
                         <p className="text-sm font-semibold text-gray-900 truncate">
                             {dbName || user.fullName || user.firstName || 'User'}
@@ -235,7 +252,89 @@ function UserDropdown({ user, dbName }: { user: UserResource, dbName?: string | 
                     </div>
 
                     <div className="p-1 space-y-0.5">
+                        {/* Mobile Navigation Links (Hidden on Desktop) */}
+                        <div className="md:hidden border-b border-gray-50 mb-1 pb-1">
+                            {/* Athlete Links */}
+                            {isAthlete && (
+                                <>
+                                    <Link
+                                        href="/profile"
+                                        onClick={() => setIsOpen(false)}
+                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/profile' ? 'bg-red-50 text-red-600' : ''}`}
+                                    >
+                                        Profile
+                                    </Link>
+                                    <Link
+                                        href="/tournaments"
+                                        onClick={() => setIsOpen(false)}
+                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/tournaments' ? 'bg-red-50 text-red-600' : ''}`}
+                                    >
+                                        Register
+                                    </Link>
+                                    <span className="flex items-center px-3 py-2 text-sm text-gray-400 cursor-not-allowed">
+                                        Stats
+                                    </span>
+                                </>
+                            )}
 
+                            {/* Club Master Links */}
+                            {isClubMaster && (
+                                <>
+                                    <Link
+                                        href="/profile"
+                                        onClick={() => setIsOpen(false)}
+                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/profile' ? 'bg-red-50 text-red-600' : ''}`}
+                                    >
+                                        Profile
+                                    </Link>
+                                    <Link
+                                        href="/members"
+                                        onClick={() => setIsOpen(false)}
+                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/members' ? 'bg-red-50 text-red-600' : ''}`}
+                                    >
+                                        Members
+                                    </Link>
+                                    <Link
+                                        href="/club"
+                                        onClick={() => setIsOpen(false)}
+                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/club' ? 'bg-red-50 text-red-600' : ''}`}
+                                    >
+                                        Tournaments
+                                    </Link>
+                                </>
+                            )}
+
+                            {/* Organizer Links */}
+                            {isOrganizer && (
+                                <>
+                                    <Link
+                                        href="/profile"
+                                        onClick={() => setIsOpen(false)}
+                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/profile' ? 'bg-red-50 text-red-600' : ''}`}
+                                    >
+                                        Profile
+                                    </Link>
+                                    <Link
+                                        href="/manage"
+                                        onClick={() => setIsOpen(false)}
+                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/manage' ? 'bg-red-50 text-red-600' : ''}`}
+                                    >
+                                        Dashboard
+                                    </Link>
+                                </>
+                            )}
+
+                            {/* Admin Link */}
+                            {role === 'ADMIN' && (
+                                <Link
+                                    href="/admin"
+                                    onClick={() => setIsOpen(false)}
+                                    className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname?.startsWith('/admin') ? 'bg-red-50 text-red-600' : ''}`}
+                                >
+                                    Admin Dashboard
+                                </Link>
+                            )}
+                        </div>
 
                         <ClerkSignOutButton redirectUrl="/">
                             <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium">

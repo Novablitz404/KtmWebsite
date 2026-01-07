@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import Link from 'next/link'
 
 export default async function AdminDashboard() {
     // 1. Stats Counts
@@ -23,6 +24,8 @@ export default async function AdminDashboard() {
                 <StatCard title="Club Masters" value={countByRole['CLUB_MASTER'] || 0} icon="🏫" color="bg-purple-500" />
                 <StatCard title="Athletes" value={countByRole['ATHLETE'] || 0} icon="🥋" color="bg-indigo-500" />
             </div>
+
+
 
             {/* Graphs Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

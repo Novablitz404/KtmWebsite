@@ -28,6 +28,7 @@ export default async function AdminLayout({
                     <SidebarItem href="/admin" label="Stats Dashboard" />
                     <SidebarItem href="/admin/users" label="User Management" />
                     <SidebarItem href="/admin/tournaments" label="Tournaments" />
+                    <SidebarItem href="/admin/api-keys" label="Access Keys" />
                     <SidebarItem href="/admin/profile" label="Profile" />
                 </nav>
 
