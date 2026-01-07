@@ -1,7 +1,7 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { currentUser, clerkClient } from '@clerk/nextjs/server'
+import { currentUser } from '@clerk/nextjs/server'
 import { revalidatePath } from 'next/cache'
 
 // ==========================================
@@ -42,17 +42,7 @@ export async function inviteClubAssistant(formData: FormData) {
         }
     })
 
-    // 5. Send Clerk Invitation
-    try {
-        const client = await clerkClient()
-        await client.invitations.createInvitation({
-            emailAddress: email,
-            redirectUrl: process.env.NEXT_PUBLIC_CLERK_SIGN_UP_URL || 'http://localhost:3000/sign-up',
-            ignoreExisting: true
-        })
-    } catch (error) {
-        console.error('Clerk Invite Error:', error)
-    }
+    // TODO: Send actual email via Resend/SendGrid (Future)
 
     revalidatePath('/members')
 }
@@ -145,18 +135,6 @@ export async function inviteTournamentManager(formData: FormData) {
             invitedBy: dbUser.id
         }
     })
-
-    // Send Clerk Invitation
-    try {
-        const client = await clerkClient()
-        await client.invitations.createInvitation({
-            emailAddress: email,
-            redirectUrl: process.env.NEXT_PUBLIC_CLERK_SIGN_UP_URL || 'http://localhost:3000/sign-up',
-            ignoreExisting: true
-        })
-    } catch (error) {
-        console.error('Clerk Invite Error:', error)
-    }
 
     revalidatePath(`/tournament/${tournamentId}`)
     return { message: 'Invite sent to new user' }
