@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { Upload, X } from 'lucide-react'
 import { approveRegistrations, unapproveRegistration, deleteRegistration, updatePlayerDetails, bulkUnapproveRegistrations, bulkDeleteRegistrations } from '@/app/actions'
 import { useRouter } from 'next/navigation'
 import CustomSelect from '@/app/components/ui/CustomSelect'
 import { toast } from 'sonner'
+import ClubSettingsButton from '@/app/components/ClubSettingsButton'
 
 interface Player {
     id: string
@@ -43,9 +45,13 @@ interface ClubDashboardProps {
     clubId: string
     avatars: Record<string, string>
     clubTournaments: TournamentStats[]
+    clubLogo?: string | null
+    clubAddress?: string | null
+    clubPhone?: string | null
+    userRole: string
 }
 
-export default function ClubDashboard({ pendingPlayers, approvedPlayers, clubId, avatars, clubTournaments }: ClubDashboardProps) {
+export default function ClubDashboard({ pendingPlayers, approvedPlayers, clubId, avatars, clubTournaments, clubLogo, clubAddress, clubPhone, userRole }: ClubDashboardProps) {
     const router = useRouter()
     const [submitting, setSubmitting] = useState(false)
 
@@ -54,6 +60,7 @@ export default function ClubDashboard({ pendingPlayers, approvedPlayers, clubId,
     const [tournamentPage, setTournamentPage] = useState(1)
     const [registrationsPage, setRegistrationsPage] = useState(1)
     const [activeTab, setActiveTab] = useState<'ALL' | 'PENDING' | 'APPROVED'>('ALL')
+
 
     // Selection State
     const [selectedRegistrationIds, setSelectedRegistrationIds] = useState<Set<string>>(new Set())
@@ -161,7 +168,7 @@ export default function ClubDashboard({ pendingPlayers, approvedPlayers, clubId,
         }
     }
 
-    const handleSaveEdit = async (data: { height?: number, weight?: number, belt?: string }) => {
+    const handleSaveEdit = async (data: { height?: number, weight?: number, belt?: string, skillLevel?: string }) => {
         if (!editingPlayer) return
         setSubmitting(true)
         try {
@@ -235,7 +242,30 @@ export default function ClubDashboard({ pendingPlayers, approvedPlayers, clubId,
     }
 
     return (
-        <div className="space-y-12">
+        <div className="space-y-12 relative">
+            {/* Header / Settings Button */}
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    {clubLogo && (
+                        <div className="w-16 h-16 rounded-xl border border-gray-200 p-1 bg-white shadow-sm">
+                            <img src={clubLogo} alt="Club Logo" className="w-full h-full object-contain rounded-lg" />
+                        </div>
+                    )}
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-900">Club Dashboard</h1>
+                        <p className="text-gray-500">Manage your club, tournaments, and athletes</p>
+                    </div>
+                </div>
+                {userRole === 'CLUB_MASTER' && (
+                    <ClubSettingsButton
+                        clubId={clubId}
+                        clubLogo={clubLogo}
+                        address={clubAddress}
+                        phone={clubPhone}
+                        buttonText="Club Settings"
+                    />
+                )}
+            </div>
 
             {/* 🏆 My Tournaments Section */}
             <section>
@@ -669,7 +699,8 @@ export default function ClubDashboard({ pendingPlayers, approvedPlayers, clubId,
                                 handleSaveEdit({
                                     weight: Number(formData.get('weight')),
                                     height: Number(formData.get('height')),
-                                    belt: formData.get('belt') as string
+                                    belt: formData.get('belt') as string,
+                                    skillLevel: formData.get('skillLevel') as string
                                 })
                             }}
                             className="space-y-4"
@@ -681,10 +712,23 @@ export default function ClubDashboard({ pendingPlayers, approvedPlayers, clubId,
                                     onChange={(val) => {
                                         setEditingPlayer({ ...editingPlayer, belt: val })
                                     }}
-                                    options={['White', 'Yellow', 'Green', 'Blue', 'Red', 'Black']}
+                                    options={['White', 'Yellow', 'Blue', 'Red', 'Brown', 'Black']}
                                     className="w-full"
                                 />
                                 <input type="hidden" name="belt" value={editingPlayer.belt || 'White'} />
+                            </div>
+
+                            <div>
+                                <CustomSelect
+                                    label="Skill Level"
+                                    value={editingPlayer.skillLevel || 'Novice'}
+                                    onChange={(val) => {
+                                        setEditingPlayer({ ...editingPlayer, skillLevel: val })
+                                    }}
+                                    options={['Novice', 'Advance']}
+                                    className="w-full"
+                                />
+                                <input type="hidden" name="skillLevel" value={editingPlayer.skillLevel || 'Novice'} />
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
@@ -720,9 +764,17 @@ export default function ClubDashboard({ pendingPlayers, approvedPlayers, clubId,
                                 <button
                                     type="submit"
                                     disabled={submitting}
-                                    className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 disabled:opacity-50"
+                                    className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                 >
-                                    {submitting ? 'Saving...' : 'Save Changes'}
+                                    {submitting ? (
+                                        <>
+                                            <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            <span>Saving...</span>
+                                        </>
+                                    ) : 'Save Changes'}
                                 </button>
                             </div>
                         </form>
@@ -781,6 +833,7 @@ export default function ClubDashboard({ pendingPlayers, approvedPlayers, clubId,
                     </div>
                 </div>
             )}
+
         </div>
     )
 }

@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { UserButton, SignOutButton } from '@clerk/nextjs'
 import { Menu, X } from 'lucide-react'
+import { getSidebarStats } from './actions'
 
 interface AdminShellProps {
     children: React.ReactNode
@@ -16,12 +17,45 @@ interface AdminShellProps {
 
 export default function AdminShell({ children, user }: AdminShellProps) {
     const [isSidebarOpen, setSidebarOpen] = useState(false)
+    const [stats, setStats] = useState({ users: 0, tournaments: 0, apiKeys: 0 })
     const pathname = usePathname()
+    const router = useRouter()
 
     // Close sidebar on route change (mobile)
     useEffect(() => {
         setSidebarOpen(false)
     }, [pathname])
+
+    // Initial Fetch
+    useEffect(() => {
+        getSidebarStats().then(setStats)
+    }, [])
+
+    // Realtime Subscriptions
+    useEffect(() => {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+        if (!supabaseUrl || !supabaseKey) return
+
+        const { createClient } = require('@supabase/supabase-js')
+        const supabase = createClient(supabaseUrl, supabaseKey)
+
+        const refreshStats = () => {
+            getSidebarStats().then(setStats)
+            router.refresh() // Soft reload main content
+        }
+
+        const channel = supabase.channel('admin-global-changes')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'User' }, refreshStats)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'Tournament' }, refreshStats)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'ApiKey' }, refreshStats)
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
+    }, [router])
 
     return (
         <div className="flex h-screen bg-gray-100 font-sans overflow-hidden">
@@ -57,11 +91,11 @@ export default function AdminShell({ children, user }: AdminShellProps) {
 
                 {/* Navigation */}
                 <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-                    <SidebarItem href="/admin" label="Stats Dashboard" icon="📊" active={pathname === '/admin'} />
-                    <SidebarItem href="/admin/users" label="User Management" icon="👥" active={pathname?.startsWith('/admin/users')} />
-                    <SidebarItem href="/admin/tournaments" label="Tournaments" icon="🏆" active={pathname?.startsWith('/admin/tournaments')} />
-                    <SidebarItem href="/admin/api-keys" label="Access Keys" icon="🔑" active={pathname?.startsWith('/admin/api-keys')} />
-                    <SidebarItem href="/admin/profile" label="Profile" icon="👤" active={pathname?.startsWith('/admin/profile')} />
+                    <SidebarItem href="/admin" label="Stats Dashboard" active={pathname === '/admin'} />
+                    <SidebarItem href="/admin/users" label="User Management" active={pathname?.startsWith('/admin/users')} count={stats.users} />
+                    <SidebarItem href="/admin/tournaments" label="Tournaments" active={pathname?.startsWith('/admin/tournaments')} count={stats.tournaments} />
+                    <SidebarItem href="/admin/api-keys" label="Access Keys" active={pathname?.startsWith('/admin/api-keys')} count={stats.apiKeys} />
+                    <SidebarItem href="/admin/profile" label="Profile" active={pathname?.startsWith('/admin/profile')} />
                 </nav>
 
                 {/* User Footer */}
@@ -116,17 +150,21 @@ export default function AdminShell({ children, user }: AdminShellProps) {
     )
 }
 
-function SidebarItem({ href, label, icon, active }: { href: string, label: string, icon?: string, active?: boolean }) {
+function SidebarItem({ href, label, active, count }: { href: string, label: string, active?: boolean, count?: number }) {
     return (
         <Link
             href={href}
             className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all group ${active
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-gray-300 hover:bg-gray-800 hover:text-white'
                 }`}
         >
-            {icon && <span className="text-lg opacity-80">{icon}</span>}
-            <span className="font-medium">{label}</span>
+            <span className="font-medium flex-1">{label}</span>
+            {count !== undefined && count > 0 && (
+                <span className={`text-xs px-2 py-0.5 rounded-full ${active ? 'bg-indigo-500 text-white' : 'bg-gray-700 text-gray-300 group-hover:bg-gray-600'}`}>
+                    {count}
+                </span>
+            )}
         </Link>
     )
 }

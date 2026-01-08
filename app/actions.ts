@@ -467,7 +467,8 @@ export async function completeOnboarding(formData: FormData) {
     const clubMasterInvite = await prisma.clubMasterInvite.findUnique({ where: { email: userEmail } })
     if (clubMasterInvite) {
         assignedRole = 'CLUB_MASTER'
-        assignedClubName = clubMasterInvite.clubName
+        // Club Name will be provided by the user in the form if they are going through this flow
+        // effectively treating them as a self-registered club master if they somehow bypassed the dedicated flow
         await prisma.clubMasterInvite.delete({ where: { email: userEmail } })
     }
 
@@ -516,6 +517,96 @@ export async function completeOnboarding(formData: FormData) {
             await prisma.tournamentManagerInvite.delete({ where: { id: invite.id } })
         }
     }
+}
+
+export async function completeClubMasterOnboarding(formData: FormData) {
+    const user = await currentUser()
+    if (!user) throw new Error('Not authenticated')
+
+    const firstName = formData.get('firstName') as string
+    const lastName = formData.get('lastName') as string
+    const birthDateStr = formData.get('birthDate') as string
+    const gender = formData.get('gender') as string
+    const belt = formData.get('belt') as string
+    const clubName = formData.get('clubName') as string
+
+    // Validation
+    if (!firstName || !lastName || !birthDateStr || !gender || !clubName) {
+        throw new Error('All fields are required')
+    }
+
+    const birthDate = new Date(birthDateStr)
+    const userEmail = user.emailAddresses[0].emailAddress
+
+    // Check for Club Master Invite
+    const clubMasterInvite = await prisma.clubMasterInvite.findUnique({ where: { email: userEmail } })
+    if (!clubMasterInvite) {
+        throw new Error('No pending club master invite found for this email')
+    }
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findFirst({
+        where: {
+            OR: [
+                { clerkId: user.id },
+                { email: userEmail }
+            ]
+        }
+    })
+
+    if (existingUser) {
+        throw new Error('User already exists')
+    }
+
+    // Check if club name already exists
+    const existingClub = await prisma.club.findFirst({
+        where: { name: clubName }
+    })
+
+    if (existingClub) {
+        throw new Error('A club with this name already exists. Please choose a different name.')
+    }
+
+    // Generate unique 5-digit ID
+    const generate5DigitId = async (): Promise<string> => {
+        let attempts = 0;
+        while (attempts < 100) {
+            const randomNum = Math.floor(Math.random() * 100000);
+            const id = randomNum.toString().padStart(5, '0');
+            const exists = await prisma.user.findUnique({ where: { id } });
+            if (!exists) return id;
+            attempts++;
+        }
+        throw new Error('Could not generate unique ID after 100 attempts');
+    };
+
+    const newUserId = await generate5DigitId();
+
+    // Create the User record
+    const dbUser = await prisma.user.create({
+        data: {
+            id: newUserId,
+            clerkId: user.id,
+            email: userEmail,
+            role: 'CLUB_MASTER',
+            name: `${firstName} ${lastName}`,
+            clubName: clubName,
+            birthDate: birthDate,
+            gender: gender,
+            belt: belt // Should be 'Black' as default for club masters
+        }
+    })
+
+    // Create the Club
+    await prisma.club.create({
+        data: {
+            name: clubName,
+            masterId: dbUser.id
+        }
+    })
+
+    // Delete the invite
+    await prisma.clubMasterInvite.delete({ where: { email: userEmail } })
 }
 
 export async function updateProfile(formData: FormData) {
@@ -676,6 +767,22 @@ export async function registerForTournamentAuto(input: RegisterAutoInput) {
         throw new Error('Could not generate unique player ID')
     }
 
+    // Backend Date Enforcement
+    const tournament = await prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        select: { registrationStart: true, registrationEnd: true }
+    })
+
+    if (!tournament) return { error: 'Tournament not found' }
+
+    const now = new Date()
+    if (tournament.registrationStart && now < tournament.registrationStart) {
+        return { error: 'Registration has not started yet' }
+    }
+    if (tournament.registrationEnd && now > tournament.registrationEnd) {
+        return { error: 'Registration is closed' }
+    }
+
     // Find or create the category for this tournament
     let category = await prisma.category.findFirst({
         where: {
@@ -779,25 +886,23 @@ export async function selectGuidelineTemplate(tournamentId: string, templateId: 
             where: { tournamentId }
         })
 
-        // Create categories from template
-        let categoriesCreated = 0
+        // Build all categories first, then batch insert
+        const categoriesToCreate: { name: string; tournamentId: string }[] = []
 
         for (const division of template.divisions) {
             for (const weightCat of division.categories) {
-                // Create category name: "Division Gender WeightClass"
-                // e.g., "Cadet Male FIN" or "Junior Female Under 58kg"
                 const genderLabel = weightCat.gender === 'Both' ? '' : weightCat.gender
                 const categoryName = `${division.name} ${genderLabel} ${weightCat.name}`.replace(/\s+/g, ' ').trim()
-
-                await prisma.category.create({
-                    data: {
-                        name: categoryName,
-                        tournamentId
-                    }
-                })
-                categoriesCreated++
+                categoriesToCreate.push({ name: categoryName, tournamentId })
             }
         }
+
+        // Batch insert all categories in one query
+        await prisma.category.createMany({
+            data: categoriesToCreate
+        })
+
+        const categoriesCreated = categoriesToCreate.length
 
         // Update tournament to link to this template
         await prisma.tournament.update({
@@ -891,16 +996,18 @@ interface UpdatePlayerDetailsInput {
     height?: number
     weight?: number
     belt?: string
+    skillLevel?: string
 }
 
-export async function updatePlayerDetails({ playerId, height, weight, belt }: UpdatePlayerDetailsInput) {
+export async function updatePlayerDetails({ playerId, height, weight, belt, skillLevel }: UpdatePlayerDetailsInput) {
     try {
         await prisma.player.update({
             where: { id: playerId },
             data: {
                 ...(height !== undefined && { height }),
                 ...(weight !== undefined && { weight }),
-                ...(belt !== undefined && { belt })
+                ...(belt !== undefined && { belt }),
+                ...(skillLevel !== undefined && { skillLevel })
             }
         })
         revalidatePath('/club')
@@ -970,5 +1077,120 @@ export async function createCategory(tournamentId: string, name: string, type: s
     } catch (error) {
         console.error('Create Category Error:', error)
         return { error: 'Failed to create category' }
+    }
+}
+
+export async function getTournamentPlayers(tournamentId: string) {
+    return await prisma.player.findMany({
+        where: {
+            category: {
+                tournamentId
+            }
+        },
+        include: {
+            category: {
+                select: { id: true, name: true, type: true, tournamentId: true, court: true }
+            },
+            club: {
+                select: { id: true, name: true }
+            }
+        },
+        orderBy: {
+            category: {
+                name: 'asc'
+            }
+        }
+    })
+}
+
+// ----------------------------------------------------------------------
+// CLUB MANAGEMENT ACTIONS
+// ----------------------------------------------------------------------
+
+export async function updateClubSettings(formData: FormData) {
+    try {
+        const clubId = formData.get('clubId') as string
+        const logoFile = formData.get('logo') as File | null
+        const address = formData.get('address') as string | null
+        const phone = formData.get('phone') as string | null
+
+        if (!clubId) return { error: 'Club ID is required' }
+
+        const user = await currentUser()
+        if (!user) return { error: 'Unauthorized' }
+
+        const dbUser = await prisma.user.findUnique({
+            where: { clerkId: user.id },
+            select: { role: true, id: true, club: true, clubName: true }
+        })
+
+        if (!dbUser || dbUser.role !== 'CLUB_MASTER') {
+            return { error: 'Insufficient permissions' }
+        }
+
+        // Find the club first to check auth
+        const club = await prisma.club.findUnique({ where: { id: clubId } })
+        if (!club) return { error: 'Club not found' }
+
+        const isMaster = club.masterId === dbUser.id
+
+        if (!isMaster) {
+            return { error: 'Only the Club Master can edit the club settings' }
+        }
+
+        const updateData: any = {}
+        if (address !== null) updateData.address = address
+        if (phone !== null) updateData.phone = phone
+
+        // Handle File Upload
+        if (logoFile && logoFile.size > 0) {
+            // Validate file type (image only)
+            if (!logoFile.type.startsWith('image/')) {
+                return { error: 'File must be an image' }
+            }
+            // Validate size (e.g., 5MB)
+            if (logoFile.size > 5 * 1024 * 1024) {
+                return { error: 'Image size must be less than 5MB' }
+            }
+
+            const bytes = await logoFile.arrayBuffer()
+            const buffer = Buffer.from(bytes)
+
+            // Unique filename: club-logo-{clubId}-{timestamp}-{cleanName}
+            const timestamp = Date.now()
+            const safeName = logoFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+            const filename = `club-logo-${clubId}-${timestamp}-${safeName}`
+
+            const { error: uploadError } = await supabase.storage
+                .from('uploads')
+                .upload(filename, buffer, {
+                    contentType: logoFile.type,
+                    upsert: false
+                })
+
+            if (uploadError) {
+                console.error('Supabase upload error:', uploadError)
+                return { error: 'Failed to upload image' }
+            }
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('uploads')
+                .getPublicUrl(filename)
+
+            updateData.logoUrl = publicUrl
+        }
+
+        if (Object.keys(updateData).length > 0) {
+            await prisma.club.update({
+                where: { id: clubId },
+                data: updateData
+            })
+        }
+
+        revalidatePath('/club')
+        return { success: true }
+    } catch (error) {
+        console.error('Failed to update club settings:', error)
+        return { error: 'Failed to update settings' }
     }
 }

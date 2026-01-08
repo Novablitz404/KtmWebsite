@@ -155,6 +155,9 @@ model Club {
   masterId  String   @unique
   master    User     @relation(fields: [masterId], references: [id])
   students  Player[]
+  logoUrl   String?
+  address   String?
+  phone     String?
 }
 
 // ============================================
@@ -216,8 +219,6 @@ model OrganizerInvite {
 model ClubMasterInvite {
   id        String   @id @default(cuid())
   email     String   @unique
-  name      String?  // Optional: Pre-fill name for the user
-  clubName  String   // Required: The club they will manage
   createdAt DateTime @default(now())
   invitedBy String   // Admin user ID who created invite
 }

@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { currentUser } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import OnboardingForm from './OnboardingForm'
+import ClubMasterOnboardingForm from './ClubMasterOnboardingForm'
 
 export default async function OnboardingPage() {
     const clerkUser = await currentUser()
@@ -19,17 +20,22 @@ export default async function OnboardingPage() {
         redirect('/')
     }
 
-    // Fetch all clubs for dropdown
+    const userEmail = clerkUser.emailAddresses[0].emailAddress
+
+    // Check for Club Master Invite first - they get a different onboarding flow
+    const clubMasterInvite = await prisma.clubMasterInvite.findUnique({ where: { email: userEmail } })
+    if (clubMasterInvite) {
+        return <ClubMasterOnboardingForm />
+    }
+
+    // Fetch all clubs for dropdown (for athletes)
     const clubs = await prisma.club.findMany({
         orderBy: { name: 'asc' },
         select: { id: true, name: true }
     })
 
-    // Check for Invites to pre-fill content
-    const userEmail = clerkUser.emailAddresses[0].emailAddress
+    // Check for other Invites to pre-fill content
     const clubAssistantInvite = await prisma.clubAssistantInvite.findUnique({ where: { email: userEmail } })
-    const clubMasterInvite = await prisma.clubMasterInvite.findUnique({ where: { email: userEmail } })
-    // We could check Organizer invite too to lock role, but usually Admin invites imply trust.
 
     let prefilledClubName = undefined
     let lockedRole = undefined
@@ -37,9 +43,6 @@ export default async function OnboardingPage() {
     if (clubAssistantInvite) {
         prefilledClubName = clubAssistantInvite.clubName
         lockedRole = 'ASSISTANT_CLUB_MASTER'
-    } else if (clubMasterInvite) {
-        prefilledClubName = clubMasterInvite.clubName
-        lockedRole = 'CLUB_MASTER'
     }
 
     return <OnboardingForm
@@ -48,3 +51,4 @@ export default async function OnboardingPage() {
         lockedRole={lockedRole}
     />
 }
+

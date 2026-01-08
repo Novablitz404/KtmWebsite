@@ -2,15 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { UserButton, useUser, SignInButton, SignOutButton as ClerkSignOutButton } from '@clerk/nextjs'
 
 export default function Header() {
     const { user, isLoaded } = useUser()
     const pathname = usePathname()
-    const router = useRouter()
-    const wasSignedOut = useRef(true)
-    const [isRedirecting, setIsRedirecting] = useState(false)
 
     // Client-side role fetching
     const [role, setRole] = useState<string | null>(null)
@@ -28,40 +25,6 @@ export default function Header() {
         }
     }, [isLoaded, user])
 
-    // Detect sign-in and refresh page to trigger server-side admin redirect
-    useEffect(() => {
-        if (isLoaded) {
-            if (user && wasSignedOut.current) {
-                // User just signed in, show loading and refresh
-                wasSignedOut.current = false
-                setIsRedirecting(true)
-                router.refresh()
-            } else if (!user) {
-                wasSignedOut.current = true
-                setIsRedirecting(false)
-            }
-        }
-    }, [isLoaded, user, router])
-
-    // Clear redirecting state when we've navigated away
-    useEffect(() => {
-        if (pathname?.startsWith('/admin') || pathname?.startsWith('/club') || pathname?.startsWith('/manage')) {
-            setIsRedirecting(false)
-        }
-    }, [pathname])
-
-    // Show full-screen loading overlay during redirect (only on homepage)
-    if (isRedirecting && pathname === '/') {
-        return (
-            <div className="fixed inset-0 bg-white z-[100] flex items-center justify-center">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-                    <p className="mt-4 text-gray-600 font-medium">Signing you in...</p>
-                </div>
-            </div>
-        )
-    }
-
     // Hide header on auth pages and Admin Panel
     if (pathname?.startsWith('/sign-in') || pathname?.startsWith('/sign-up') || pathname?.startsWith('/onboarding') || pathname?.startsWith('/admin')) {
         return null
@@ -71,8 +34,8 @@ export default function Header() {
     // Admins should also see Organizer links (Profile, Dashboard) to manage tournaments
     const isOrganizer = role === 'ORGANIZER' || role === 'MANAGER' || role === 'ADMIN'
     const isClubMaster = role === 'CLUB_MASTER' || role === 'ASSISTANT_CLUB_MASTER'
-    // Athlete is strictly ATHLETE or someone who has no other role (role is null/undefined)
-    const isAthlete = role === 'ATHLETE' || (!role)
+    // Athlete is strictly ATHLETE
+    const isAthlete = role === 'ATHLETE'
 
     return (
         <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -86,9 +49,15 @@ export default function Header() {
                         </Link>
 
                         {/* Navigation - Hide on Homepage */}
-                        {!isHomePage && user && (
+                        {!isHomePage && (
                             <nav className="hidden md:flex items-center gap-8">
-                                {/* Athlete Links */}
+                                <Link
+                                    href="/"
+                                    className="text-base font-semibold text-gray-600 hover:text-gray-900"
+                                >
+                                    Home
+                                </Link>
+
                                 {isAthlete && (
                                     <>
                                         <Link
@@ -161,14 +130,6 @@ export default function Header() {
                                     </Link>
                                 )}
 
-                                {/* Always show Admin Dashboard link for Admin if they are NOT on /manage, or keep it standard? 
-                                    User said: "The admin Dashboard will only appear when the admin is accessing the manage page." 
-                                    This implies it should be HIDDEN otherwise if they are acting as an organizer? 
-                                    But usually Admins need to get back to Admin land. 
-                                    I will interpret "only appear... accessing manage page" as a strict requirement for this context, 
-                                    but standard Admin navigation usually requires a permanent link. 
-                                    However, sticking to strict user request: */}
-
                                 {role === 'ADMIN' && !pathname?.startsWith('/manage') && (
                                     <Link
                                         href="/admin"
@@ -201,7 +162,7 @@ export default function Header() {
                     </div>
                 </div>
             </div>
-        </header>
+        </header >
     )
 }
 
@@ -215,7 +176,7 @@ function UserDropdown({ user, dbName, role }: { user: UserResource, dbName?: str
     // Determine roles for dropdown links
     const isOrganizer = role === 'ORGANIZER' || role === 'MANAGER' || role === 'ADMIN'
     const isClubMaster = role === 'CLUB_MASTER' || role === 'ASSISTANT_CLUB_MASTER'
-    const isAthlete = role === 'ATHLETE' || (!role)
+    const isAthlete = role === 'ATHLETE'
 
     // Close dropdown when clicking outside
     useEffect(() => {

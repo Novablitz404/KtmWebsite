@@ -20,6 +20,7 @@ export const metadata: Metadata = {
 import { ClerkProvider } from '@clerk/nextjs'
 import Header from '@/components/Header'
 import { Toaster } from 'sonner'
+import AuthLoadingWrapper from '@/components/AuthLoadingWrapper'
 
 export default function RootLayout({
   children,
@@ -33,8 +34,10 @@ export default function RootLayout({
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         >
           <Toaster position="top-center" richColors />
-          <Header />
-          {children}
+          <AuthLoadingWrapper>
+            <Header />
+            {children}
+          </AuthLoadingWrapper>
         </body>
       </html>
     </ClerkProvider>

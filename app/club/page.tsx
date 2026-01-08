@@ -227,6 +227,10 @@ export default async function ClubPage() {
                     pendingPlayers={pendingPlayers}
                     approvedPlayers={approvedPlayers}
                     clubId={targetClub.id}
+                    clubLogo={targetClub.logoUrl}
+                    clubAddress={targetClub.address}
+                    clubPhone={targetClub.phone}
+                    userRole={dbUser.role}
                     avatars={avatars}
                     clubTournaments={clubTournaments}
                 />

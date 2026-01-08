@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { updateProfile } from '@/app/actions'
 import CustomSelect from '@/app/components/ui/CustomSelect'
+import LoadingButton from '@/components/ui/LoadingButton'
 import { toast } from 'sonner'
 
 interface ProfileFormProps {
@@ -170,7 +171,7 @@ export default function ProfileForm({ user, initialImageUrl }: ProfileFormProps)
                                         name="belt"
                                         value={belt}
                                         onChange={setBelt}
-                                        options={['Black', 'Color']}
+                                        options={['White', 'Yellow', 'Blue', 'Red', 'Brown', 'Black']}
                                     />
                                 </div>
                                 <div>
@@ -218,13 +219,15 @@ export default function ProfileForm({ user, initialImageUrl }: ProfileFormProps)
                                 >
                                     Cancel
                                 </button>
-                                <button
+                                <LoadingButton
                                     type="submit"
-                                    disabled={saving}
-                                    className="px-6 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-xl hover:shadow-lg hover:opacity-90 disabled:opacity-50 font-medium transition-all"
+                                    isLoading={saving}
+                                    loadingText="Saving..."
+                                    variant="warning"
+                                    className="px-6 bg-gradient-to-r from-orange-500 to-amber-600 border-0 hover:opacity-90 hover:shadow-lg"
                                 >
-                                    {saving ? 'Saving...' : 'Save Changes'}
-                                </button>
+                                    Save Changes
+                                </LoadingButton>
                             </div>
                         </form>
                     </div>

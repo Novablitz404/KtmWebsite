@@ -103,11 +103,8 @@ export async function inviteClubMaster(formData: FormData) {
     if (dbUser?.role !== 'ADMIN') throw new Error('Unauthorized')
 
     const email = formData.get('email') as string
-    const name = formData.get('name') as string | null
-    const clubName = formData.get('clubName') as string
 
     if (!email) throw new Error('Email required')
-    if (!clubName) throw new Error('Club name required')
 
     // Check if email already exists in system
     const existingUser = await prisma.user.findUnique({ where: { email } })
@@ -120,8 +117,6 @@ export async function inviteClubMaster(formData: FormData) {
     await prisma.clubMasterInvite.create({
         data: {
             email,
-            name: name || null,
-            clubName,
             invitedBy: dbUser.id
         }
     })
@@ -224,4 +219,18 @@ export async function deleteUser(formData: FormData) {
     await prisma.user.delete({ where: { id: targetUserId } })
 
     revalidatePath('/admin/users')
+}
+
+export async function getSidebarStats() {
+    const [userCount, tournamentCount, apiKeyCount] = await Promise.all([
+        prisma.user.count(),
+        prisma.tournament.count(),
+        prisma.apiKey.count()
+    ])
+
+    return {
+        users: userCount,
+        tournaments: tournamentCount,
+        apiKeys: apiKeyCount
+    }
 }

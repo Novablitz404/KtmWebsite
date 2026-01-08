@@ -15,8 +15,6 @@ interface InviteActionsProps {
     pendingClubMasterInvites: {
         id: string
         email: string
-        name: string | null
-        clubName: string
         createdAt: Date
     }[]
 }
@@ -32,11 +30,7 @@ export default function InviteActions({ pendingOrganizerInvites, pendingClubMast
         try {
             await inviteOrganizer(formData)
             toast.success('Organizer invite sent!')
-            // Optional: close modal or keep open to send more
-            // setIsOrgModalOpen(false) 
-            // We'll reset the form manually or just let the loading state finish
-            const form = document.getElementById('org-invite-form') as HTMLFormElement
-            form?.reset()
+            setIsOrgModalOpen(false)
         } catch (error) {
             toast.error(error instanceof Error ? error.message : 'Failed to send invite')
         } finally {
@@ -49,8 +43,7 @@ export default function InviteActions({ pendingOrganizerInvites, pendingClubMast
         try {
             await inviteClubMaster(formData)
             toast.success('Club Master invite sent!')
-            const form = document.getElementById('cm-invite-form') as HTMLFormElement
-            form?.reset()
+            setIsCmModalOpen(false)
         } catch (error) {
             toast.error(error instanceof Error ? error.message : 'Failed to send invite')
         } finally {
@@ -118,7 +111,11 @@ export default function InviteActions({ pendingOrganizerInvites, pendingClubMast
                         </div>
 
                         <div className="p-6 overflow-y-auto">
-                            <form id="org-invite-form" action={handleInviteOrganizer} className="space-y-4 mb-8">
+                            <form id="org-invite-form" onSubmit={async (e) => {
+                                e.preventDefault()
+                                const formData = new FormData(e.currentTarget)
+                                await handleInviteOrganizer(formData)
+                            }} className="space-y-4 mb-8">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
                                     <input
@@ -205,7 +202,11 @@ export default function InviteActions({ pendingOrganizerInvites, pendingClubMast
                         </div>
 
                         <div className="p-6 overflow-y-auto">
-                            <form id="cm-invite-form" action={handleInviteClubMaster} className="space-y-4 mb-8">
+                            <form id="cm-invite-form" onSubmit={async (e) => {
+                                e.preventDefault()
+                                const formData = new FormData(e.currentTarget)
+                                await handleInviteClubMaster(formData)
+                            }} className="space-y-4 mb-8">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
                                     <input
@@ -215,27 +216,9 @@ export default function InviteActions({ pendingOrganizerInvites, pendingClubMast
                                         placeholder="master@club.com"
                                         className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all"
                                     />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Name (Optional)</label>
-                                        <input
-                                            name="name"
-                                            type="text"
-                                            placeholder="Jane Smith"
-                                            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Club Name</label>
-                                        <input
-                                            name="clubName"
-                                            type="text"
-                                            required
-                                            placeholder="Tiger Academy"
-                                            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all"
-                                        />
-                                    </div>
+                                    <p className="mt-2 text-xs text-gray-500">
+                                        The club master will provide their name and club details during onboarding.
+                                    </p>
                                 </div>
                                 <button
                                     type="submit"

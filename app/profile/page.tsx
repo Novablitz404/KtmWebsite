@@ -40,6 +40,16 @@ export default async function ProfilePage() {
         redirect('/onboarding')
     }
 
+    // Attempt to find Club Logo if clubName exists
+    let clubLogoUrl: string | undefined = undefined
+    if (dbUser.clubName) {
+        const club = await prisma.club.findFirst({
+            where: { name: { equals: dbUser.clubName, mode: 'insensitive' } },
+            select: { logoUrl: true }
+        })
+        if (club?.logoUrl) clubLogoUrl = club.logoUrl
+    }
+
     // Admin View
     if (dbUser.role === 'ADMIN') {
         return (
@@ -130,6 +140,7 @@ export default async function ProfilePage() {
                 <AthleteProfileView
                     dbUser={dbUser}
                     clerkImageUrl={clerkUser.imageUrl}
+                    clubLogoUrl={clubLogoUrl}
                 />
             </div>
         </main>

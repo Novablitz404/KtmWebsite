@@ -63,32 +63,9 @@ export default async function Home() {
       redirect('/manage')
     }
 
-    // Handle pending Club Master invite
+    // Handle pending Club Master invite - redirect to onboarding to collect their details
     if (pendingClubMasterInvite && userEmail) {
-      const generateId = () => String(Math.floor(10000 + Math.random() * 90000))
-      let newId = generateId()
-      while (await prisma.user.findUnique({ where: { id: newId } })) {
-        newId = generateId()
-      }
-
-      await prisma.user.create({
-        data: {
-          id: newId,
-          clerkId: user.id,
-          email: userEmail,
-          name: pendingClubMasterInvite.name || user.firstName ? `${user.firstName} ${user.lastName}` : 'Club Master',
-          role: 'CLUB_MASTER',
-          clubName: pendingClubMasterInvite.clubName
-        }
-      })
-      await prisma.club.create({
-        data: {
-          name: pendingClubMasterInvite.clubName,
-          masterId: newId
-        }
-      })
-      await prisma.clubMasterInvite.delete({ where: { id: pendingClubMasterInvite.id } })
-      redirect('/profile')
+      redirect('/onboarding')
     }
 
     // Existing user redirects
@@ -169,6 +146,38 @@ export default async function Home() {
             <div className="grid gap-6 md:grid-cols-3">
               {upcomingTournaments.map((tournament, index) => {
                 const isCancelled = tournament.status === 'CANCELLED'
+                // Calculate Registration Status
+                const now = new Date()
+                const regStart = tournament.registrationStart ? new Date(tournament.registrationStart) : null
+                const regEnd = tournament.registrationEnd ? new Date(tournament.registrationEnd) : null
+
+                let statusBadge = null
+                if (isCancelled) {
+                  statusBadge = (
+                    <span className="bg-red-600 text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm">
+                      Cancelled
+                    </span>
+                  )
+                } else if (regEnd && now > regEnd) {
+                  statusBadge = (
+                    <span className="bg-gray-600 text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm">
+                      Closed
+                    </span>
+                  )
+                } else if (regStart && now < regStart) {
+                  statusBadge = (
+                    <span className="bg-blue-500 text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm">
+                      Opening Soon
+                    </span>
+                  )
+                } else {
+                  statusBadge = (
+                    <span className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm">
+                      Registration Open
+                    </span>
+                  )
+                }
+
                 const CardContent = (
                   <>
                     <div className={`h-32 bg-gray-100 relative ${isCancelled ? 'grayscale opacity-75' : ''}`}>
@@ -186,13 +195,9 @@ export default async function Home() {
                           🏆
                         </div>
                       )}
-                      {isCancelled && (
-                        <div className="absolute inset-0 bg-black/10 flex items-center justify-center backdrop-blur-[1px]">
-                          <span className="bg-red-600 text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm">
-                            Cancelled
-                          </span>
-                        </div>
-                      )}
+                      <div className="absolute top-2 right-2">
+                        {statusBadge}
+                      </div>
                     </div>
                     <div className="p-6">
                       <h3 className={`font-bold text-lg truncate ${isCancelled ? 'text-gray-500' : 'text-gray-900 group-hover:text-indigo-600'}`}>
@@ -221,7 +226,7 @@ export default async function Home() {
                 return (
                   <Link
                     key={tournament.id}
-                    href={`/tournament/${tournament.id}/register`}
+                    href={`/tournament/${tournament.id}`}
                     className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-all group block"
                   >
                     {CardContent}

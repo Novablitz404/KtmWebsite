@@ -1,33 +1,30 @@
-import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer';
-
-// Register a nice font if possible, or use standard ones
-// Font.register({ family: 'Inter', src: 'https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff' });
+import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
 
 const styles = StyleSheet.create({
     page: {
-        padding: 40,
-        fontSize: 11,
+        padding: 30, // Reduced padding to ensure single page
+        fontSize: 10, // Slightly smaller font
         fontFamily: 'Helvetica',
-        lineHeight: 1.5,
+        lineHeight: 1.4,
     },
     header: {
-        fontSize: 16,
+        fontSize: 14,
         fontFamily: 'Helvetica-Bold',
-        marginBottom: 20,
-        marginTop: 10,
+        marginBottom: 15,
+        marginTop: 5,
         textAlign: 'center',
         textTransform: 'uppercase',
     },
     paragraph: {
-        marginBottom: 10,
+        marginBottom: 8,
         textAlign: 'justify',
     },
     listItem: {
-        marginBottom: 10,
+        marginBottom: 8,
         flexDirection: 'row',
     },
     bullet: {
-        width: 25,
+        width: 20,
         fontWeight: 'bold',
     },
     listContent: {
@@ -38,42 +35,56 @@ const styles = StyleSheet.create({
         fontFamily: 'Helvetica-Bold',
     },
     footer: {
-        marginTop: 30,
+        marginTop: 20,
         borderTopWidth: 1,
         borderColor: '#000',
-        paddingTop: 20,
+        paddingTop: 15,
     },
     signatureRow: {
         flexDirection: 'row',
-        marginBottom: 20,
+        marginBottom: 15,
+        alignItems: 'flex-end', // Align bottom for signature line
     },
     signatureLabel: {
-        width: 150,
+        width: 130,
         fontFamily: 'Helvetica-Bold',
+        fontSize: 9,
     },
-    signatureValue: {
+    signatureArea: {
         flex: 1,
         borderBottomWidth: 1,
         borderColor: '#000',
         paddingBottom: 2,
+        height: 40, // Height for signature
+        justifyContent: 'flex-end',
+    },
+    signatureImage: {
+        height: 35,
+        objectFit: 'contain',
+    },
+    signatureValue: {
         fontFamily: 'Helvetica-Oblique',
+        fontSize: 9,
     },
     signatureDate: {
-        width: 60,
+        width: 50,
         fontFamily: 'Helvetica-Bold',
-        marginLeft: 20,
+        marginLeft: 15,
+        fontSize: 9,
     },
     dateValue: {
-        width: 100,
+        width: 80,
         borderBottomWidth: 1,
         borderColor: '#000',
         paddingBottom: 2,
+        fontSize: 9,
     },
     digitalStamp: {
-        marginTop: 5,
-        fontSize: 8,
+        marginTop: 10,
+        fontSize: 7,
         color: '#666',
         fontStyle: 'italic',
+        textAlign: 'center',
     }
 });
 
@@ -81,14 +92,13 @@ interface WaiverDocumentProps {
     athleteName: string;
     tournamentName: string;
     registrationDate: Date | string;
+    signatureImage?: string;
 }
 
-const WaiverDocument = ({ athleteName, tournamentName, registrationDate }: WaiverDocumentProps) => {
+const WaiverDocument = ({ athleteName, tournamentName, registrationDate, signatureImage }: WaiverDocumentProps) => {
     const dateStr = registrationDate instanceof Date
         ? registrationDate.toLocaleDateString()
         : String(registrationDate);
-
-    const digitalSignature = `${athleteName} (Digitally Signed)`;
 
     return (
         <Document>
@@ -155,7 +165,7 @@ const WaiverDocument = ({ athleteName, tournamentName, registrationDate }: Waive
                     </Text>
                 </View>
 
-                <Text style={{ ...styles.paragraph, marginTop: 10 }}>
+                <Text style={{ ...styles.paragraph, marginTop: 5 }}>
                     I have read this waiver and fully understand its terms. I understand that I am giving up substantial rights,
                     including my right to sue. I acknowledge that I am signing this waiver freely and voluntarily, and intend
                     by my signature to be a complete and unconditional release of all liability to the greatest extent allowed
@@ -166,22 +176,34 @@ const WaiverDocument = ({ athleteName, tournamentName, registrationDate }: Waive
 
                     <View style={styles.signatureRow}>
                         <Text style={styles.signatureLabel}>Participant's Signature:</Text>
-                        <Text style={styles.signatureValue}>{digitalSignature}</Text>
+                        <View style={styles.signatureArea}>
+                            {signatureImage ? (
+                                <Image src={signatureImage} style={styles.signatureImage} />
+                            ) : (
+                                <Text style={styles.signatureValue}>(Not Signed)</Text>
+                            )}
+                        </View>
                     </View>
 
                     <View style={styles.signatureRow}>
                         <Text style={styles.signatureLabel}>Printed Name:</Text>
-                        <Text style={styles.signatureValue}>{athleteName}</Text>
+                        <View style={styles.signatureArea}>
+                            <Text style={styles.signatureValue}>{athleteName}</Text>
+                        </View>
                     </View>
 
                     <View style={styles.signatureRow}>
                         <Text style={styles.signatureLabel}>Date:</Text>
-                        <Text style={styles.dateValue}>{dateStr}</Text>
+                        <View style={styles.dateValue}>
+                            <Text style={styles.signatureValue}>{dateStr}</Text>
+                        </View>
                     </View>
 
-                    <View style={{ ...styles.signatureRow, marginTop: 20 }}>
-                        <Text style={{ ...styles.signatureLabel, width: 250 }}>Parent's/Guardian's Name and Signature:</Text>
-                        <Text style={styles.signatureValue}>(Required if under 18)</Text>
+                    <View style={{ ...styles.signatureRow, marginTop: 15 }}>
+                        <Text style={{ ...styles.signatureLabel, width: 220 }}>Parent's/Guardian's Name and Signature:</Text>
+                        <View style={styles.signatureArea}>
+                            <Text style={styles.signatureValue}>(Required if under 18)</Text>
+                        </View>
                     </View>
 
                     <Text style={styles.digitalStamp}>

@@ -86,10 +86,10 @@ export default async function AdminUsersPage({
         })),
         ...cmInvites.map(i => ({
             id: i.id,
-            name: i.name,
+            name: null,
             email: i.email,
             role: 'CLUB_MASTER',
-            clubName: i.clubName,
+            clubName: null,
             status: 'PENDING' as const,
             type: 'INVITE_CM' as const
         }))

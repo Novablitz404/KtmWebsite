@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { registerForTournamentAuto } from '@/app/actions'
 import WaiverDocument from '@/components/WaiverDocument'
+import SignatureCanvas from 'react-signature-canvas'
 
 // Dynamically import PDFDownloadLink to avoid SSR issues
 const PDFDownloadLink = dynamic(
@@ -50,7 +51,6 @@ interface RegisterConfirmProps {
     poomsaeCategories: Category[]
     existingRegistrations?: ExistingRegistration[]
 }
-
 export default function RegisterConfirm({
     tournament,
     user,
@@ -63,18 +63,22 @@ export default function RegisterConfirm({
     const [success, setSuccess] = useState(false)
     const [error, setError] = useState('')
 
-    // Selection State
-    // Default to Kyorugi if available, ensuring we don't default to something already registered
+    // Signature State
+    const [signatureData, setSignatureData] = useState<string | null>(null)
+    const sigCanvas = useRef<SignatureCanvas>(null)
+
+    // ... existing selection state ...
     const kyorugiRegistered = placement && existingRegistrations.some(r => r.category.name === placement.categoryName)
     const [selectedOption, setSelectedOption] = useState<string>(
         (placement && !kyorugiRegistered) ? 'kyorugi' : 'poomsae'
     )
 
-    // Calculate age
+    // ... existing helpers ...
     const age = user.birthDate
         ? Math.floor((Date.now() - new Date(user.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
         : 0
 
+    // ... existing handleRegister ...
     const handleRegister = async () => {
         setSubmitting(true)
         setError('')
@@ -120,6 +124,19 @@ export default function RegisterConfirm({
         }
     }
 
+    const clearSignature = () => {
+        sigCanvas.current?.clear()
+    }
+
+    const saveSignature = () => {
+        if (sigCanvas.current?.isEmpty()) {
+            setError('Please sign the waiver before continuing.')
+            return
+        }
+        setSignatureData(sigCanvas.current?.toDataURL() || null)
+        setError('')
+    }
+
     const isRegisteredForPoomsae = existingRegistrations.some(r => r.category.type === 'POOMSAE')
 
     if (success) {
@@ -136,46 +153,92 @@ export default function RegisterConfirm({
                     You have successfully registered for <span className="font-semibold text-gray-900">{tournament.name}</span>.
                 </p>
 
-                <div className="space-y-4">
-                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-6">
-                        <h3 className="text-lg font-semibold text-blue-900 mb-2">Important: Download Your Waiver</h3>
-                        <p className="text-sm text-blue-700 mb-4">
-                            Please download, print, and sign your waiver. You will need to present this at the venue.
-                        </p>
+                <div className="space-y-6">
+                    {!signatureData ? (
+                        <div className="bg-orange-50 border border-orange-100 rounded-xl p-6">
+                            <h3 className="text-lg font-semibold text-orange-900 mb-2">Digital Signature Required</h3>
+                            <p className="text-sm text-orange-700 mb-4">
+                                Please sign below to acknowledge the waiver. This signature will be added to your generated PDF document.
+                            </p>
 
-                        <div className="inline-block">
-                            <PDFDownloadLink
-                                document={
-                                    <WaiverDocument
-                                        athleteName={user.name || 'Athlete'}
-                                        tournamentName={tournament.name}
-                                        registrationDate={new Date()}
-                                    />
-                                }
-                                fileName={`Waiver_${user.name?.replace(/\s+/g, '_')}_${tournament.name.replace(/\s+/g, '_')}.pdf`}
-                                className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-                            >
+                            <div className="border-2 border-dashed border-orange-300 rounded-xl bg-white overflow-hidden mb-4">
+                                <SignatureCanvas
+                                    ref={sigCanvas}
+                                    penColor="black"
+                                    canvasProps={{
+                                        className: 'w-full h-80 cursor-crosshair'
+                                    }}
+                                    backgroundColor="rgba(255, 255, 255, 1)"
+                                />
+                            </div>
 
-                                {({ blob, url, loading, error }) => (
-                                    loading ? 'Generating PDF...' : (
-                                        <>
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 01-2-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                            </svg>
-                                            Download Waiver PDF
-                                        </>
-                                    )
-                                )}
-                            </PDFDownloadLink>
+                            {error && <p className="text-red-600 text-sm mb-3 font-medium">{error}</p>}
+
+                            <div className="flex gap-3 justify-center">
+                                <button
+                                    onClick={clearSignature}
+                                    className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+                                >
+                                    Clear
+                                </button>
+                                <button
+                                    onClick={saveSignature}
+                                    className="px-6 py-2 text-sm text-white bg-orange-600 rounded-lg hover:bg-orange-700 font-medium shadow-sm"
+                                >
+                                    Confirm Signature
+                                </button>
+                            </div>
                         </div>
-                    </div>
+                    ) : (
+                        <div className="bg-blue-50 border border-blue-100 rounded-xl p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <h3 className="text-lg font-semibold text-blue-900 mb-2">Download Your Waiver</h3>
+                            <p className="text-sm text-blue-700 mb-4">
+                                Your waiver has been digitally signed. Please download, print, and present it at the venue.
+                            </p>
+
+                            <div className="inline-block">
+                                <PDFDownloadLink
+                                    document={
+                                        <WaiverDocument
+                                            athleteName={user.name || 'Athlete'}
+                                            tournamentName={tournament.name}
+                                            registrationDate={new Date()}
+                                            signatureImage={signatureData}
+                                        />
+                                    }
+                                    fileName={`Waiver_${user.name?.replace(/\s+/g, '_')}_${tournament.name.replace(/\s+/g, '_')}.pdf`}
+                                    className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                                >
+
+                                    {({ blob, url, loading, error }) => (
+                                        loading ? 'Generating PDF...' : (
+                                            <>
+                                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 01-2-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                </svg>
+                                                Download Waiver PDF
+                                            </>
+                                        )
+                                    )}
+                                </PDFDownloadLink>
+                            </div>
+                            <div className="mt-4">
+                                <button
+                                    onClick={() => setSignatureData(null)}
+                                    className="text-xs text-blue-500 hover:text-blue-700 underline"
+                                >
+                                    Re-sign document
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="pt-4">
                         <button
                             onClick={() => router.push(`/tournaments?registered=true`)}
                             className="text-gray-500 hover:text-gray-900 font-medium text-sm"
                         >
-                            Skip & Go to Dashboard
+                            {signatureData ? "Done - Go to Dashboard" : "Skip Signature & Go to Dashboard"}
                         </button>
                     </div>
                 </div>
