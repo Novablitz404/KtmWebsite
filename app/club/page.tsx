@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import ClubDashboard from './ClubDashboard'
 
+// Revalidate every 30 seconds for faster page loads
+export const revalidate = 30
+
 export default async function ClubPage() {
     const clerkUser = await currentUser()
 
@@ -10,11 +13,22 @@ export default async function ClubPage() {
         redirect('/sign-in')
     }
 
-    // Get user and check role
+    // Get user with minimal data needed
     const dbUser = await prisma.user.findUnique({
         where: { clerkId: clerkUser.id },
-        include: {
-            club: true
+        select: {
+            id: true,
+            role: true,
+            clubName: true,
+            club: {
+                select: {
+                    id: true,
+                    name: true,
+                    logoUrl: true,
+                    address: true,
+                    phone: true
+                }
+            }
         }
     })
 
@@ -26,7 +40,14 @@ export default async function ClubPage() {
     let targetClub = dbUser.club
     if (!targetClub && dbUser.role === 'ASSISTANT_CLUB_MASTER' && dbUser.clubName) {
         targetClub = await prisma.club.findFirst({
-            where: { name: dbUser.clubName }
+            where: { name: dbUser.clubName },
+            select: {
+                id: true,
+                name: true,
+                logoUrl: true,
+                address: true,
+                phone: true
+            }
         })
     }
 
@@ -49,74 +70,160 @@ export default async function ClubPage() {
         )
     }
 
-    // Get pending registrations for this club
-    const pendingPlayers = await prisma.player.findMany({
-        where: {
-            clubId: targetClub.id,
-            registrationStatus: 'PENDING'
-        },
-        include: {
-            category: {
-                include: {
-                    tournament: true
+    // Run ALL queries in parallel for maximum speed
+    const [pendingPlayers, approvedPlayers, participatingTournaments] = await Promise.all([
+        // Pending players - only select needed fields
+        prisma.player.findMany({
+            where: {
+                clubId: targetClub.id,
+                registrationStatus: 'PENDING'
+            },
+            select: {
+                id: true,
+                name: true,
+                gender: true,
+                belt: true,
+                weight: true,
+                height: true,
+                skillLevel: true,
+                registrationStatus: true,
+                category: {
+                    select: {
+                        name: true,
+                        tournament: {
+                            select: {
+                                name: true,
+                                startDate: true
+                            }
+                        }
+                    }
+                },
+                user: {
+                    select: {
+                        name: true,
+                        email: true,
+                        clerkId: true
+                    }
                 }
             },
-            user: true
-        },
-        orderBy: {
-            category: {
-                tournament: {
-                    startDate: 'asc'
+            orderBy: {
+                category: {
+                    tournament: {
+                        startDate: 'asc'
+                    }
                 }
             }
-        }
-    })
+        }),
 
-    // Get approved registrations
-    const approvedPlayers = await prisma.player.findMany({
-        where: {
-            clubId: targetClub.id,
-            registrationStatus: 'APPROVED'
-        },
-        include: {
-            category: {
-                include: {
-                    tournament: true
+        // Approved players - only select needed fields
+        prisma.player.findMany({
+            where: {
+                clubId: targetClub.id,
+                registrationStatus: 'APPROVED'
+            },
+            select: {
+                id: true,
+                name: true,
+                gender: true,
+                belt: true,
+                weight: true,
+                height: true,
+                skillLevel: true,
+                registrationStatus: true,
+                category: {
+                    select: {
+                        name: true,
+                        tournament: {
+                            select: {
+                                name: true,
+                                startDate: true
+                            }
+                        }
+                    }
+                },
+                user: {
+                    select: {
+                        name: true,
+                        email: true,
+                        clerkId: true
+                    }
                 }
             },
-            user: true
-        },
-        orderBy: {
-            category: {
-                tournament: {
-                    startDate: 'desc'
+            orderBy: {
+                category: {
+                    tournament: {
+                        startDate: 'desc'
+                    }
                 }
-            }
-        },
-        take: 20
-    })
+            },
+            take: 20
+        }),
 
-    // Get clerk IDs for all players to fetch avatars
+        // Tournament stats - simplified query
+        prisma.tournament.findMany({
+            where: {
+                categories: {
+                    some: {
+                        players: {
+                            some: {
+                                clubId: targetClub.id,
+                                registrationStatus: 'APPROVED'
+                            }
+                        }
+                    }
+                }
+            },
+            select: {
+                id: true,
+                name: true,
+                startDate: true,
+                categories: {
+                    select: {
+                        players: {
+                            where: {
+                                clubId: targetClub.id,
+                                registrationStatus: 'APPROVED'
+                            },
+                            select: {
+                                id: true,
+                                name: true
+                            }
+                        },
+                        matches: {
+                            where: {
+                                winner: { not: null }
+                            },
+                            select: {
+                                player1: true,
+                                player2: true,
+                                winner: true,
+                                nextMatchId: true,
+                                id: true
+                            }
+                        }
+                    }
+                }
+            },
+            orderBy: { startDate: 'desc' },
+            take: 10 // Limit to last 10 tournaments for speed
+        })
+    ])
+
+    // Fetch avatars in parallel with a small batch
     const allPlayers = [...pendingPlayers, ...approvedPlayers]
-    const clerkIds = allPlayers
-        .map(p => p.user?.clerkId)
-        .filter((id): id is string => !!id)
-
-    // Fetch user details from Clerk
-    // We fetch in chunks if needed, but for now we'll just fetch by ID list if supported,
-    // or we might need to rely on the fact that we can't easily fetch a list by IDs in one go efficiently without potentially hitting limits if many.
-    // However, getUserList supports `userId` array.
+    const clerkIds = [...new Set(
+        allPlayers
+            .map(p => p.user?.clerkId)
+            .filter((id): id is string => !!id)
+    )]
 
     let avatars: Record<string, string> = {}
-    if (clerkIds.length > 0) {
+    if (clerkIds.length > 0 && clerkIds.length <= 50) {
         try {
-            // Deduplicate IDs
-            const uniqueIds = Array.from(new Set(clerkIds))
             const users = await (await clerkClient()).users.getUserList({
-                userId: uniqueIds,
-                limit: 100
+                userId: clerkIds,
+                limit: 50
             })
-
             users.data.forEach(user => {
                 avatars[user.id] = user.imageUrl
             })
@@ -125,65 +232,26 @@ export default async function ClubPage() {
         }
     }
 
-    // Get all tournaments the club is participating in (via approved players)
-    const participatingTournaments = await prisma.tournament.findMany({
-        where: {
-            categories: {
-                some: {
-                    players: {
-                        some: {
-                            clubId: targetClub.id,
-                            registrationStatus: 'APPROVED'
-                        }
-                    }
-                }
-            }
-        },
-        include: {
-            categories: {
-                include: {
-                    players: {
-                        where: {
-                            clubId: targetClub.id,
-                            registrationStatus: 'APPROVED'
-                        }
-                    },
-                    matches: {
-                        include: {
-                            nextMatch: true
-                        }
-                    }
-                }
-            }
-        },
-        orderBy: { startDate: 'desc' }
-    })
-
-    // Calculate stats for each tournament
+    // Calculate stats for each tournament (simplified)
     const clubTournaments = participatingTournaments.map(tournament => {
         let gold = 0
         let silver = 0
         let bronze = 0
         let athleteCount = 0
 
-        // Get all club athlete names for this tournament to match against match results
         const clubAthleteNames = new Set<string>()
 
         tournament.categories.forEach(category => {
-            // Count athletes
             athleteCount += category.players.length
             category.players.forEach(p => clubAthleteNames.add(p.name))
 
-            // Calculate medals from matches
-            // We need to identify Finals and Semi-Finals
+            // Finals: matches with no nextMatchId
             const finals = category.matches.filter(m => !m.nextMatchId)
 
             finals.forEach(finalMatch => {
-                // Gold: Winner is club athlete
                 if (finalMatch.winner && clubAthleteNames.has(finalMatch.winner)) {
                     gold++
                 }
-                // Silver: Loser is club athlete (Game must be finished/have a winner)
                 if (finalMatch.winner) {
                     const loser = finalMatch.winner === finalMatch.player1 ? finalMatch.player2 : finalMatch.player1
                     if (clubAthleteNames.has(loser)) {
@@ -192,8 +260,7 @@ export default async function ClubPage() {
                 }
             })
 
-            // Bronze: Losers of matches that feed into the Final (Semi-Finals)
-            // A semi-final is any match whose `nextMatch` is a Final.
+            // Semi-finals: matches whose nextMatch is a final
             const semiFinals = category.matches.filter(m =>
                 m.nextMatchId && finals.some(f => f.id === m.nextMatchId)
             )
@@ -222,7 +289,6 @@ export default async function ClubPage() {
     return (
         <main className="min-h-[calc(100vh-4rem)] bg-gray-50 pb-2">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2">
-
                 <ClubDashboard
                     pendingPlayers={pendingPlayers}
                     approvedPlayers={approvedPlayers}

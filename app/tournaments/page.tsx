@@ -3,6 +3,9 @@ import { currentUser } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 
+// Revalidate every 30 seconds for faster page loads
+export const revalidate = 30
+
 export default async function TournamentsPage() {
     const clerkUser = await currentUser()
 

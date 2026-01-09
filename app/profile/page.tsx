@@ -6,6 +6,9 @@ import ClubMasterProfileView from './ClubMasterProfileView'
 import AthleteProfileView from './AthleteProfileView'
 import OrganizerProfileView from './OrganizerProfileView'
 
+// Revalidate every 30 seconds for faster page loads
+export const revalidate = 30
+
 export default async function ProfilePage() {
     const clerkUser = await currentUser()
 
@@ -13,15 +16,35 @@ export default async function ProfilePage() {
         redirect('/sign-in')
     }
 
-    // Find user in our database
+    // Find user in our database with only needed fields
     const dbUser = await prisma.user.findUnique({
         where: { clerkId: clerkUser.id },
-        include: {
+        select: {
+            id: true,
+            name: true,
+            email: true,
+            clubName: true,
+            belt: true,
+            gender: true,
+            weight: true,
+            height: true,
+            birthDate: true,
+            role: true,
             players: {
-                include: {
+                select: {
+                    id: true,
+                    belt: true,
                     category: {
-                        include: {
-                            tournament: true
+                        select: {
+                            id: true,
+                            name: true,
+                            tournament: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                    startDate: true
+                                }
+                            }
                         }
                     }
                 },
@@ -31,7 +54,8 @@ export default async function ProfilePage() {
                             startDate: 'desc'
                         }
                     }
-                }
+                },
+                take: 10 // Limit to last 10 tournament registrations
             }
         }
     })
@@ -40,9 +64,9 @@ export default async function ProfilePage() {
         redirect('/onboarding')
     }
 
-    // Attempt to find Club Logo if clubName exists
+    // Fetch club logo only if needed (athletes and club masters)
     let clubLogoUrl: string | undefined = undefined
-    if (dbUser.clubName) {
+    if (dbUser.clubName && (dbUser.role === 'ATHLETE' || dbUser.role === 'CLUB_MASTER' || dbUser.role === 'ASSISTANT_CLUB_MASTER')) {
         const club = await prisma.club.findFirst({
             where: { name: { equals: dbUser.clubName, mode: 'insensitive' } },
             select: { logoUrl: true }

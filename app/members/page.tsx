@@ -4,6 +4,9 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import InviteActions from './InviteActions'
 
+// Revalidate every 30 seconds for faster page loads
+export const revalidate = 30
+
 export default async function MembersPage(props: { searchParams: Promise<{ page?: string }> }) {
     const searchParams = await props.searchParams
     const clerkUser = await currentUser()

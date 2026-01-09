@@ -35,8 +35,35 @@ export default function PublicTournamentView({ tournament, players }: PublicTour
     const displayedPlayers = players.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
     return (
-        <div className="space-y-12">
-            {/* Tournament Details Header - (Already in Page, but we can add Description/Stats here) */}
+        <div className="space-y-8">
+            {/* Tournament Banner */}
+            {tournament.headerImageUrl && (
+                <div className="relative h-48 md:h-64 rounded-2xl overflow-hidden shadow-lg">
+                    <img
+                        src={tournament.headerImageUrl}
+                        alt={tournament.name}
+                        className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                    <div className="absolute bottom-0 left-0 right-0 p-6">
+                        <h1 className="text-2xl md:text-3xl font-black text-white drop-shadow-lg">
+                            {tournament.name}
+                        </h1>
+                        <div className="flex flex-wrap gap-4 mt-2 text-sm text-white/90">
+                            <span className="flex items-center gap-1.5">
+                                📅 {new Date(tournament.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                            {tournament.venue && (
+                                <span className="flex items-center gap-1.5">
+                                    📍 {tournament.venue}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center">
                     <span className="text-4xl font-bold text-indigo-600 block mb-1">{teams.length}</span>
