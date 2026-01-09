@@ -130,6 +130,12 @@ export default function Header() {
                                         >
                                             Members
                                         </Link>
+                                        <Link
+                                            href="/club/attendance"
+                                            className={`text-base font-semibold transition-colors ${pathname === '/club/attendance' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
+                                        >
+                                            Attendance
+                                        </Link>
                                     </>
                                 )}
 

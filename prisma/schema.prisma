@@ -111,6 +111,9 @@ model User {
   height    Float?    // Height in cm for Toddler/Grade School divisions
   clubName  String?
   
+  // Face Recognition (for attendance)
+  faceDescriptor String?  // JSON array of 128 floats for face recognition
+  
   // Relations
   players   Player[]
   club      Club?
@@ -121,6 +124,9 @@ model User {
   
   // API Keys
   apiKeys   ApiKey[]
+  
+  // Attendance Records
+  attendanceRecords AttendanceRecord[]
 }
 
 model Player {
@@ -158,6 +164,13 @@ model Club {
   logoUrl   String?
   address   String?
   phone     String?
+  
+  // Kiosk Access Control
+  kioskToken String?  @unique  // Secret URL token for kiosk access
+  kioskPin   String?           // 6-digit PIN for kiosk entry
+  
+  // Attendance
+  attendanceRecords AttendanceRecord[]
 }
 
 // ============================================
@@ -254,4 +267,26 @@ model ApiKey {
   description String?  // e.g. "Court Laptop 1"
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
+}
+
+// ============================================
+// ATTENDANCE (Face Recognition)
+// ============================================
+
+model AttendanceRecord {
+  id          String   @id @default(cuid())
+  
+  clubId      String
+  club        Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  date        DateTime @db.Date  // Date only (for unique constraint)
+  checkInTime DateTime @default(now())  // Exact check-in timestamp
+  confidence  Float?   // Face match confidence (0-1)
+  
+  @@unique([clubId, userId, date])  // One check-in per day per user per club
+  @@index([clubId, date])
+  @@index([userId])
 }

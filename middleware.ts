@@ -11,6 +11,7 @@ const isPublicRoute = createRouteMatcher([
     '/ranking',
     '/privacy',
     '/terms',
+    '/attendance(.*)',  // Kiosk attendance page
 ])
 
 export default clerkMiddleware(async (auth, request) => {
