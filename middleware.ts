@@ -12,6 +12,7 @@ const isPublicRoute = createRouteMatcher([
     '/privacy',
     '/terms',
     '/attendance(.*)',  // Kiosk attendance page
+    '/models(.*)',      // Face detection models
 ])
 
 export default clerkMiddleware(async (auth, request) => {
