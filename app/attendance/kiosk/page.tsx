@@ -118,6 +118,16 @@ export default function AttendanceKioskPage() {
 
     // Handle PIN submission
     const handlePinSubmit = async () => {
+        // Resolve token again
+        const urlToken = searchParams.get('token')
+        const activeToken = urlToken || localStorage.getItem('kiosk_token')
+
+        if (!activeToken) {
+            setStep('error')
+            setStatusMessage('Session expired. Please re-open the kiosk link.')
+            return
+        }
+
         if (pin.length !== 6) {
             setPinError('PIN must be 6 digits')
             return
@@ -127,7 +137,7 @@ export default function AttendanceKioskPage() {
         setStatusMessage('Validating...')
 
         try {
-            const result = await validateKiosk(token!, pin)
+            const result = await validateKiosk(activeToken, pin)
 
             if (!result.valid) {
                 setPinError(result.error || 'Invalid PIN')
@@ -141,7 +151,7 @@ export default function AttendanceKioskPage() {
             }
 
             setClubData(clubInfo)
-            localStorage.setItem(`club_data_${token}`, JSON.stringify(clubInfo))
+            localStorage.setItem(`club_data_${activeToken}`, JSON.stringify(clubInfo))
 
             // Load face data
             setStatusMessage('Loading member faces...')
@@ -160,7 +170,7 @@ export default function AttendanceKioskPage() {
             setStep('camera')
         } catch (e) {
             // Offline fallback for login
-            const cachedClub = localStorage.getItem(`club_data_${token}`)
+            const cachedClub = localStorage.getItem(`club_data_${activeToken}`)
             if (cachedClub) {
                 const club = JSON.parse(cachedClub)
                 // Basic PIN check against cached PIN would be insecure/complex without storing PIN
