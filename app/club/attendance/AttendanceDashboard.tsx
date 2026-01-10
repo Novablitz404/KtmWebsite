@@ -53,6 +53,7 @@ export default function AttendanceDashboard({
     const [isGenerating, setIsGenerating] = useState(false)
     const [isSavingPin, setIsSavingPin] = useState(false)
     const [copied, setCopied] = useState(false)
+    const [showManualCheckIn, setShowManualCheckIn] = useState(false)
 
     // Navigation Handlers
     const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -321,13 +322,127 @@ export default function AttendanceDashboard({
                                         <span>{new Date(record.checkInTime).toLocaleTimeString()}</span>
                                     </div>
                                 </div>
-                                {record.confidence && (
-                                    <span className="text-xs text-gray-400">
+                                {record.confidence !== null ? (
+                                    <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded border border-green-200">
                                         {Math.round(record.confidence * 100)}% match
+                                    </span>
+                                ) : (
+                                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded border border-gray-200">
+                                        Manual
                                     </span>
                                 )}
                             </div>
                         ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Manual Check-in Button (Desktop) */}
+            <div className="flex justify-end">
+                <button
+                    onClick={() => setShowManualCheckIn(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 shadow-sm font-medium transition"
+                >
+                    📝 Manual Check-In
+                </button>
+            </div>
+
+            {/* Manual Check-in Modal */}
+            {showManualCheckIn && (
+                <ManualCheckInModal
+                    clubId={club.id}
+                    onClose={() => setShowManualCheckIn(false)}
+                />
+            )}
+        </div>
+    )
+}
+
+import { searchMembers, manualCheckIn } from '@/app/actions/attendance'
+
+function ManualCheckInModal({ clubId, onClose }: { clubId: string, onClose: () => void }) {
+    const [query, setQuery] = useState('')
+    const [results, setResults] = useState<{ id: string, name: string | null }[]>([])
+    const [loading, setLoading] = useState(false)
+    const [message, setMessage] = useState<string | null>(null)
+
+    const handleSearch = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value
+        setQuery(val)
+        if (val.length < 2) {
+            setResults([])
+            return
+        }
+
+        setLoading(true)
+        try {
+            const members = await searchMembers(clubId, val)
+            setResults(members)
+        } catch (e) {
+            console.error(e)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const handleCheckIn = async (userId: string, name: string) => {
+        try {
+            const result = await manualCheckIn(clubId, userId)
+            if (result.success) {
+                setMessage(`✓ Checked in ${name}`)
+                setTimeout(onClose, 1000)
+            } else {
+                setMessage(`❌ ${result.error}`)
+            }
+        } catch (e) {
+            setMessage('❌ Failed to check in')
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-xl p-6">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-gray-900">Manual Check-In</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 font-bold text-2xl">&times;</button>
+                </div>
+
+                <div className="mb-4">
+                    <input
+                        type="text"
+                        autoFocus
+                        placeholder="Search member name..."
+                        value={query}
+                        onChange={handleSearch}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                    />
+                </div>
+
+                <div className="min-h-[200px] max-h-[300px] overflow-y-auto space-y-2">
+                    {loading && <p className="text-center text-gray-500 py-4">Searching...</p>}
+
+                    {!loading && results.length === 0 && query.length >= 2 && (
+                        <p className="text-center text-gray-500 py-4">No members found</p>
+                    )}
+
+                    {results.map(member => (
+                        <button
+                            key={member.id}
+                            onClick={() => handleCheckIn(member.id, member.name || 'Member')}
+                            className="w-full flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg group transition-colors text-left"
+                        >
+                            <span className="font-medium text-gray-700 group-hover:text-gray-900">{member.name}</span>
+                            <span className="text-sm text-red-600 font-medium px-3 py-1 bg-red-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                Check In
+                            </span>
+                        </button>
+                    ))}
+                </div>
+
+                {message && (
+                    <div className={`mt-4 p-3 rounded-lg text-center font-medium ${message.includes('✓') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {message}
                     </div>
                 )}
             </div>

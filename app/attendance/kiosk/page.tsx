@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { validateKiosk, getClubFaceData, checkInByFace } from '@/app/actions/attendance'
+import { validateKiosk, getClubFaceData, checkInByFace, enrollFace, searchMembers } from '@/app/actions/attendance'
 import * as faceapi from 'face-api.js'
 import { Maximize, Minimize } from 'lucide-react'
 
@@ -17,7 +17,7 @@ export default function AttendanceKioskPage() {
     const token = searchParams.get('token')
 
     // States
-    const [step, setStep] = useState<'loading' | 'pin' | 'camera' | 'error'>('loading')
+    const [step, setStep] = useState<'loading' | 'pin' | 'camera' | 'error' | 'admin_pin' | 'admin_dashboard' | 'enroll_camera'>('loading')
     const [pin, setPin] = useState('')
     const [pinError, setPinError] = useState<string | null>(null)
     const [clubData, setClubData] = useState<{ id: string; name: string; logo: string | null } | null>(null)
@@ -27,6 +27,35 @@ export default function AttendanceKioskPage() {
     const [statusMessage, setStatusMessage] = useState('Initializing...')
     const [isFullscreen, setIsFullscreen] = useState(false)
     const [isOffline, setIsOffline] = useState(false)
+    const [flashSuccess, setFlashSuccess] = useState(false)
+
+    // Admin Mode States
+    const [adminPin, setAdminPin] = useState('')
+    const [searchResults, setSearchResults] = useState<{ id: string, name: string | null, hasFace: boolean }[]>([])
+    const [enrollTarget, setEnrollTarget] = useState<{ id: string, name: string | null } | null>(null)
+
+    const handleAdminPinSubmit = () => {
+        // Reuse the clubData PIN logic or current cached PIN
+        // If we are in kiosk mode, we might not have the raw PIN stored securely unless we trust client
+        // But validateKiosk action can verify it.
+        // For simplicity/speed, let's verify against the stored local club data (which might not have PIN?)
+        // Wait, validateKiosk returns `kioskPin` in `club` model? No, security risk.
+        // We should verify against the server action `validateKiosk` again or use a new `verifyPin` action.
+        // Or simply compare with `pin` state if we just logged in? No, `pin` state is cleared.
+        // Let's assume the user knows the PIN. We'll verify it via `validateKiosk` with current token.
+
+        const token = localStorage.getItem('kiosk_token')
+        if (!token) return
+
+        validateKiosk(token, adminPin).then(res => {
+            if (res.valid) {
+                setStep('admin_dashboard')
+                setAdminPin('')
+            } else {
+                alert('Invalid PIN')
+            }
+        })
+    }
 
     // Camera refs
     const videoRef = useRef<HTMLVideoElement>(null)
@@ -294,19 +323,8 @@ export default function AttendanceKioskPage() {
                 if (detection) {
                     const resizedDetections = faceapi.resizeResults(detection, displaySize)
 
-                    // Draw face box
-                    const { x, y, width, height } = resizedDetections.detection.box
-                    // ctx.strokeStyle = '#22C55E'
-                    // ctx.lineWidth = 4
-                    // ctx.strokeRect(x, y, width, height)
-
                     // Match face
                     if (!isProcessingRef.current) {
-                        isProcessingRef.current = true
-
-                        // We need access to members here, but it's in state. 
-                        // Since this is a closure, we need to be careful.
-                        // Ideally findMatch should be inside or passed via ref, but let's assume it works because members is a dependency of useCallback
 
                         // Note: findMatch depends on 'members' state which is in the dependency array
                         // But we need to call it here. To fix the 'findMatch' not available in this scope if defined outside:
@@ -379,9 +397,9 @@ export default function AttendanceKioskPage() {
                                 setTodayCount(c => c + 1)
                                 if (navigator.onLine) setStatusMessage(`✓ Welcome, ${userName}!`)
 
-                                // Show success briefly
-                                ctx.fillStyle = 'rgba(34, 197, 94, 0.3)'
-                                ctx.fillRect(x, y, width, height)
+                                // Trigger Full Screen Flash
+                                setFlashSuccess(true)
+                                setTimeout(() => setFlashSuccess(false), 500) // Flash for 0.5s
 
                                 // Reset after delay
                                 setTimeout(() => {
@@ -512,7 +530,12 @@ export default function AttendanceKioskPage() {
 
             {/* Camera View */}
             <div className="flex-1 flex items-center justify-center p-4 sm:p-8 relative overflow-hidden">
-                <div className="relative w-full max-w-3xl aspect-[4/3] rounded-3xl overflow-hidden bg-gray-900 shadow-2xl border border-white/10">
+                <div className="relative w-full h-full max-w-[90vw] max-h-[85vh] aspect-[3/4] md:aspect-[4/3] lg:aspect-video bg-black rounded-3xl overflow-hidden shadow-2xl border-4 border-gray-800">
+                    {/* Success Flash Overlay */}
+                    <div
+                        className={`absolute inset-0 z-50 bg-green-500 pointer-events-none transition-opacity duration-500 ease-out ${flashSuccess ? 'opacity-60' : 'opacity-0'}`}
+                    />
+
                     <video
                         ref={videoRef}
                         autoPlay
@@ -524,37 +547,210 @@ export default function AttendanceKioskPage() {
                         ref={canvasRef}
                         width={640}
                         height={480}
-                        className="absolute inset-0 w-full h-full transform scale-x-[-1]" // Mirror canvas too
+                        className="absolute inset-0 w-full h-full transform scale-x-[-1] object-cover" // Mirror canvas too
                     />
 
                     {/* Overlay guides */}
-                    <div className="absolute inset-0 pointer-events-none">
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-80 border-4 border-dashed border-white/30 rounded-[40%] shadow-[0_0_100px_rgba(0,0,0,0.5)_inset]" />
+                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                        {/* Portrait Guide */}
+                        <div className="w-[60%] h-[70%] border-4 border-dashed border-white/30 rounded-[40%] shadow-[0_0_100px_rgba(0,0,0,0.5)_inset]" />
                     </div>
 
                     {/* Status Pill in Camera */}
-                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur px-6 py-2 rounded-full text-white font-medium border border-white/10">
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur px-6 py-2 rounded-full text-white font-medium border border-white/10 whitespace-nowrap z-40">
                         Look at the camera
                     </div>
                 </div>
             </div>
 
             {/* Status Bar */}
-            <footer className="bg-gray-900/80 backdrop-blur px-6 py-6 text-center z-10 border-t border-white/5">
-                <p className={`text-2xl font-medium transition-colors duration-300 ${statusMessage.includes('✓') ? 'text-green-400' :
+            <footer className="bg-gray-900/80 backdrop-blur px-6 py-4 text-center z-10 border-t border-white/5 shrink-0">
+                <p className={`text-xl md:text-2xl font-medium transition-colors duration-300 ${statusMessage.includes('✓') ? 'text-green-400' :
                     statusMessage.includes('⚠️') ? 'text-yellow-400' : 'text-white'
                     }`}>
                     {statusMessage}
                 </p>
 
                 {lastCheckIn && (
-                    <p className="text-gray-400 mt-2 flex items-center justify-center gap-2">
+                    <p className="text-gray-400 mt-1 flex items-center justify-center gap-2 text-sm md:text-base">
                         <span className="w-2 h-2 rounded-full bg-green-500"></span>
                         Last: <span className="text-white font-medium">{lastCheckIn.name}</span>
                         at {lastCheckIn.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>
                 )}
             </footer>
+
+            {/* Admin Toggle */}
+            <button
+                onClick={() => setStep('admin_pin')}
+                className="fixed bottom-4 right-4 p-2 bg-gray-800/50 text-gray-500 rounded-lg hover:bg-gray-800 hover:text-white transition z-20"
+                title="Admin Mode"
+            >
+                ⚙️
+            </button>
+
+            {/* Admin PIN Entry */}
+            {
+                step === 'admin_pin' && (
+                    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur flex items-center justify-center p-4">
+                        <div className="bg-gray-900 rounded-2xl p-8 w-full max-w-sm border border-gray-800 text-center">
+                            <h3 className="text-xl font-bold text-white mb-4">Admin Access</h3>
+                            <input
+                                type="password"
+                                inputMode="numeric"
+                                maxLength={6}
+                                autoFocus
+                                value={adminPin}
+                                onChange={(e) => setAdminPin(e.target.value.replace(/\D/g, ''))}
+                                placeholder="Enter Kiosk PIN"
+                                className="w-full text-center text-2xl bg-gray-800 border-b-2 border-gray-700 text-white py-2 focus:outline-none focus:border-red-500 mb-6"
+                            />
+                            <div className="flex gap-4">
+                                <button
+                                    onClick={() => { setStep('camera'); setAdminPin('') }}
+                                    className="flex-1 py-3 bg-gray-800 text-gray-300 rounded-xl"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleAdminPinSubmit}
+                                    className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold"
+                                >
+                                    Verify
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Admin Dashboard (Search & Enroll) */}
+            {
+                step === 'admin_dashboard' && (
+                    <div className="fixed inset-0 z-50 bg-black flex flex-col">
+                        <div className="p-6 border-b border-gray-800 flex justify-between items-center bg-gray-900">
+                            <h2 className="text-xl font-bold text-white">Kiosk Admin</h2>
+                            <button
+                                onClick={() => setStep('camera')}
+                                className="px-4 py-2 bg-gray-800 text-gray-300 rounded-lg"
+                            >
+                                Exit
+                            </button>
+                        </div>
+
+                        <div className="flex-1 p-6 overflow-y-auto">
+                            <div className="max-w-xl mx-auto space-y-8">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-300 mb-4">Enroll Face</h3>
+                                    <input
+                                        type="text"
+                                        placeholder="Search member to enroll..."
+                                        className="w-full px-4 py-3 bg-gray-900 border border-gray-800 rounded-xl text-white focus:ring-2 focus:ring-red-600 focus:border-transparent mb-4"
+                                        onChange={async (e) => {
+                                            const val = e.target.value
+                                            if (val.length < 2) {
+                                                setSearchResults([])
+                                                return
+                                            }
+                                            const results = await searchMembers(clubData!.id, val)
+                                            setSearchResults(results)
+                                        }}
+                                    />
+
+                                    <div className="space-y-2">
+                                        {searchResults.map(member => (
+                                            <div key={member.id} className="flex items-center justify-between p-4 bg-gray-900 rounded-xl border border-gray-800">
+                                                <span className="text-white font-medium">{member.name}</span>
+                                                {member.hasFace ? (
+                                                    <span className="text-xs text-green-500 bg-green-900/20 px-2 py-1 rounded">Enrolled</span>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => {
+                                                            setEnrollTarget(member)
+                                                            setStep('enroll_camera')
+                                                        }}
+                                                        className="px-3 py-1.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-500"
+                                                    >
+                                                        Enroll Face
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Enrollment Camera */}
+            {
+                step === 'enroll_camera' && enrollTarget && (
+                    <EnrollmentCamera
+                        member={enrollTarget}
+                        onCancel={() => setStep('admin_dashboard')}
+                        onSuccess={() => {
+                            setStep('admin_dashboard')
+                            setStatusMessage(`Enrolled ${enrollTarget.name}`)
+                            setTimeout(() => setStatusMessage('Ready'), 3000)
+                        }}
+                    />
+                )
+            }
+        </div >
+    )
+}
+
+function EnrollmentCamera({ member, onCancel, onSuccess }: { member: { id: string, name: string | null }, onCancel: () => void, onSuccess: () => void }) {
+    const videoRef = useRef<HTMLVideoElement>(null)
+    const [capturing, setCapturing] = useState(false)
+
+    useEffect(() => {
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
+            .then(stream => {
+                if (videoRef.current) videoRef.current.srcObject = stream
+            })
+    }, [])
+
+    const handleCapture = async () => {
+        if (!videoRef.current) return
+        setCapturing(true)
+
+        try {
+            const detection = await faceapi.detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor()
+
+            if (detection) {
+                const descriptor = Array.from(detection.descriptor)
+                await enrollFace(member.id, descriptor)
+                onSuccess()
+            } else {
+                alert('No face detected. Please try again.')
+            }
+        } catch (e) {
+            console.error(e)
+            alert('Failed to enroll face')
+        } finally {
+            setCapturing(false)
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-[60] bg-black flex flex-col items-center justify-center">
+            <h3 className="text-white text-xl font-bold mb-4">Enroll: {member.name}</h3>
+            <div className="relative w-full max-w-lg aspect-video bg-gray-900 rounded-xl overflow-hidden mb-8 border border-gray-800">
+                <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover transform scale-x-[-1]" />
+            </div>
+            <div className="flex gap-4">
+                <button onClick={onCancel} className="px-6 py-3 bg-gray-800 text-white rounded-xl">Cancel</button>
+                <button
+                    onClick={handleCapture}
+                    disabled={capturing}
+                    className="px-6 py-3 bg-red-600 text-white rounded-xl font-bold disabled:opacity-50"
+                >
+                    {capturing ? 'Saving...' : 'Capture & Save'}
+                </button>
+            </div>
         </div>
     )
 }

@@ -335,3 +335,84 @@ export async function getClubAttendanceStats(clubId: string) {
 
     return { totalMembers, enrolledMembers, todayCount }
 }
+
+// =============================================
+// MANUAL CHECK-IN & MANAGEMENT
+// =============================================
+
+/**
+ * Search members by name for manual check-in or enrollment
+ */
+export async function searchMembers(clubId: string, query: string) {
+    if (!query || query.length < 2) return []
+
+    // Get club name first
+    const club = await prisma.club.findUnique({
+        where: { id: clubId },
+        select: { name: true }
+    })
+
+    if (!club) throw new Error('Club not found')
+
+    const members = await prisma.user.findMany({
+        where: {
+            clubName: club.name,
+            role: 'ATHLETE',
+            name: {
+                contains: query,
+                mode: 'insensitive' // Requires Prisma Postgres mode, or simple contains for others
+            }
+        },
+        select: {
+            id: true,
+            name: true,
+            faceDescriptor: true
+        },
+        take: 10
+    })
+
+    return members.map(m => ({
+        id: m.id,
+        name: m.name,
+        hasFace: !!m.faceDescriptor
+    }))
+}
+
+/**
+ * Manually check in a user (Club Master override)
+ */
+export async function manualCheckIn(clubId: string, userId: string) {
+    // Get today's date (without time)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    // Check if already checked in
+    const existing = await prisma.attendanceRecord.findUnique({
+        where: {
+            clubId_userId_date: {
+                clubId,
+                userId,
+                date: today
+            }
+        }
+    })
+
+    if (existing) {
+        return { success: false, error: 'Already checked in today' }
+    }
+
+    // Record check-in with Special Confidence (e.g., -1 or null) or just null
+    // Let's use 1.0 (100%) or leave it null to signify manual?
+    // The previous implementation used Float? so null is perfect for manual.
+    await prisma.attendanceRecord.create({
+        data: {
+            clubId,
+            userId,
+            date: today,
+            confidence: null // Null implies manual check-in
+        }
+    })
+
+    revalidatePath('/club/attendance')
+    return { success: true }
+}
