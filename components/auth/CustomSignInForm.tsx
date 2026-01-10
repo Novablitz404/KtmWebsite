@@ -39,10 +39,27 @@ export default function CustomSignInForm() {
                 await setActive({ session: result.createdSessionId })
                 router.push('/')
             } else if (result.status === 'needs_first_factor') {
-                setStep('verification')
+                // User needs to verify via email code - prepare and send the code
+                const emailFactor = result.supportedFirstFactors?.find(
+                    (factor) => factor.strategy === 'email_code'
+                )
+
+                if (emailFactor && 'emailAddressId' in emailFactor) {
+                    await signIn.prepareFirstFactor({
+                        strategy: 'email_code',
+                        emailAddressId: emailFactor.emailAddressId,
+                    })
+                    setStep('verification')
+                } else {
+                    // Fallback: No email code factor available
+                    setError('Email verification required but not available. Please contact support.')
+                }
+            } else if (result.status === 'needs_second_factor') {
+                // 2FA - For now, show a message (can be expanded later)
+                setError('Two-factor authentication is enabled. Please use the standard sign-in page.')
             } else {
                 console.error('Sign in process incomplete', result)
-                setError('Sign in incomplete. Check email verification.')
+                setError('Sign in incomplete. Please try again or contact support.')
             }
         } catch (err: any) {
             console.error('Sign in error', err)

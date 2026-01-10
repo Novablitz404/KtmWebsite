@@ -34,6 +34,15 @@ export default function Header() {
         return null
     }
 
+    // Hide header for Mobile Standalone PWA Users who are NOT logged in (showing Sign In on Home)
+    const isMobileStandalone = typeof window !== 'undefined' &&
+        (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true)
+    const isMobileWidth = typeof window !== 'undefined' && window.innerWidth < 768
+
+    if (isMobileWidth && isMobileStandalone && isLoaded && !user) {
+        return null
+    }
+
     const isHomePage = pathname === '/'
     const isPublicPage = pathname === '/' || pathname === '/about' || pathname === '/events' || pathname === '/ranking' || pathname?.startsWith('/tournament/') || pathname === '/privacy' || pathname === '/terms'
     // Admins should also see Organizer links (Profile, Dashboard) to manage tournaments
