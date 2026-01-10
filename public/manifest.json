@@ -1,11 +1,11 @@
 {
-    "name": "KTM Kiosk",
-    "short_name": "KTM Kiosk",
-    "description": "Attendance Kiosk for KTM Clubs",
-    "start_url": "/attendance/kiosk",
+    "name": "KTM Tournament Manager",
+    "short_name": "KTM Manager",
+    "description": "The Professional Taekwondo Tournament Platform",
+    "start_url": "/",
     "display": "standalone",
-    "background_color": "#000000",
-    "theme_color": "#000000",
+    "background_color": "#ffffff",
+    "theme_color": "#dc2626",
     "icons": [
         {
             "src": "/KTMLogo.png",
