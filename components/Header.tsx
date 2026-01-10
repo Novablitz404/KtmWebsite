@@ -2,12 +2,16 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { UserButton, useUser, SignInButton, SignOutButton as ClerkSignOutButton } from '@clerk/nextjs'
 
 export default function Header() {
     const { user, isLoaded } = useUser()
     const pathname = usePathname()
+    const router = useRouter()
+
+    // Hide header on Kiosk page
+    if (pathname?.startsWith('/attendance/kiosk')) return null
 
     // Client-side role fetching
     const [role, setRole] = useState<string | null>(null)

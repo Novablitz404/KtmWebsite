@@ -13,6 +13,9 @@ const isPublicRoute = createRouteMatcher([
     '/terms',
     '/attendance(.*)',  // Kiosk attendance page
     '/models(.*)',      // Face detection models
+    '/manifest.json',   // PWA Manifest
+    '/sw.js',           // PWA Service Worker
+    '/workbox-(.*)',    // Workbox assets
 ])
 
 export default clerkMiddleware(async (auth, request) => {
