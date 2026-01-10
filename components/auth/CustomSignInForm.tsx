@@ -5,11 +5,13 @@ import { useSignIn } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react'
+import { Eye, EyeOff, Loader2, ArrowLeft, ShieldCheck } from 'lucide-react'
+
+type Step = 'credentials' | 'verification' | '2fa'
 
 export default function CustomSignInForm() {
     const { isLoaded, signIn, setActive } = useSignIn()
-    const [step, setStep] = useState<'credentials' | 'verification'>('credentials')
+    const [step, setStep] = useState<Step>('credentials')
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [code, setCode] = useState('')
@@ -35,6 +37,12 @@ export default function CustomSignInForm() {
                 password,
             })
 
+            console.log('Sign in result:', {
+                status: result.status,
+                supportedFirstFactors: result.supportedFirstFactors,
+                supportedSecondFactors: result.supportedSecondFactors,
+            })
+
             if (result.status === 'complete') {
                 await setActive({ session: result.createdSessionId })
                 router.push('/')
@@ -44,6 +52,8 @@ export default function CustomSignInForm() {
                     (factor) => factor.strategy === 'email_code'
                 )
 
+                console.log('Email factor found:', emailFactor)
+
                 if (emailFactor && 'emailAddressId' in emailFactor) {
                     await signIn.prepareFirstFactor({
                         strategy: 'email_code',
@@ -51,15 +61,33 @@ export default function CustomSignInForm() {
                     })
                     setStep('verification')
                 } else {
-                    // Fallback: No email code factor available
-                    setError('Email verification required but not available. Please contact support.')
+                    // Maybe password is the first factor and we need to check other strategies
+                    console.log('Available first factors:', result.supportedFirstFactors)
+                    setError(`Email verification not available. Available methods: ${result.supportedFirstFactors?.map(f => f.strategy).join(', ') || 'none'}`)
                 }
             } else if (result.status === 'needs_second_factor') {
-                // 2FA - For now, show a message (can be expanded later)
-                setError('Two-factor authentication is enabled. Please use the standard sign-in page.')
+                // Second factor required - could be email_code (new device) or TOTP (2FA)
+                console.log('Second factors available:', result.supportedSecondFactors)
+
+                // Check if email_code is available as second factor (new device verification)
+                const emailSecondFactor = result.supportedSecondFactors?.find(
+                    (factor: any) => factor.strategy === 'email_code'
+                )
+
+                if (emailSecondFactor && 'emailAddressId' in emailSecondFactor) {
+                    // Prepare email code verification
+                    await signIn.prepareSecondFactor({
+                        strategy: 'email_code',
+                        emailAddressId: emailSecondFactor.emailAddressId,
+                    })
+                    setStep('verification') // Reuse the email verification UI
+                } else {
+                    // Fall back to TOTP 2FA
+                    setStep('2fa')
+                }
             } else {
                 console.error('Sign in process incomplete', result)
-                setError('Sign in incomplete. Please try again or contact support.')
+                setError(`Sign in incomplete. Status: ${result.status}. Please try again or contact support.`)
             }
         } catch (err: any) {
             console.error('Sign in error', err)
@@ -81,14 +109,29 @@ export default function CustomSignInForm() {
         setError(null)
 
         try {
-            const result = await signIn.attemptFirstFactor({
-                strategy: 'email_code',
-                code,
-            })
+            // Try first factor first
+            let result;
+            try {
+                result = await signIn.attemptFirstFactor({
+                    strategy: 'email_code',
+                    code,
+                })
+            } catch (firstFactorErr: any) {
+                // If first factor fails, try second factor (new device verification)
+                console.log('First factor failed, trying second factor...')
+                result = await signIn.attemptSecondFactor({
+                    strategy: 'email_code',
+                    code,
+                })
+            }
 
             if (result.status === 'complete') {
                 await setActive({ session: result.createdSessionId })
                 router.push('/')
+            } else if (result.status === 'needs_second_factor') {
+                // After first factor, 2FA is also required
+                setCode('')
+                setStep('2fa')
             } else {
                 console.error('Verification incomplete', result)
                 setError('Verification failed. Please try again.')
@@ -99,6 +142,39 @@ export default function CustomSignInForm() {
                 setError(err.errors[0].longMessage || err.errors[0].message)
             } else {
                 setError('Invalid code. Please try again.')
+            }
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const handle2FA = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!isLoaded) return
+
+        setLoading(true)
+        setError(null)
+
+        try {
+            // Try TOTP first (authenticator app)
+            const result = await signIn.attemptSecondFactor({
+                strategy: 'totp',
+                code,
+            })
+
+            if (result.status === 'complete') {
+                await setActive({ session: result.createdSessionId })
+                router.push('/')
+            } else {
+                console.error('2FA incomplete', result)
+                setError('2FA verification failed. Please try again.')
+            }
+        } catch (err: any) {
+            console.error('2FA error', err)
+            if (err.errors && err.errors.length > 0) {
+                setError(err.errors[0].longMessage || err.errors[0].message)
+            } else {
+                setError('Invalid authenticator code. Please try again.')
             }
         } finally {
             setLoading(false)
@@ -118,13 +194,74 @@ export default function CustomSignInForm() {
         }
     }
 
-    // VERIFICATION STEP UI
+    // 2FA STEP UI
+    if (step === '2fa') {
+        return (
+            <div className="w-full max-w-md mx-auto p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100 flex flex-col justify-center min-h-[80vh] md:min-h-0">
+                <div className="mb-8">
+                    <button
+                        onClick={() => { setStep('credentials'); setCode(''); }}
+                        className="flex items-center text-gray-500 hover:text-gray-900 transition-colors mb-6"
+                    >
+                        <ArrowLeft size={20} className="mr-1" /> Back
+                    </button>
+                    <div className="relative w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
+                        <ShieldCheck size={32} className="text-green-600" />
+                    </div>
+                    <h1 className="text-2xl font-black text-center text-gray-900 tracking-tight">Two-Factor Authentication</h1>
+                    <p className="text-gray-500 text-center mt-2">
+                        Enter the 6-digit code from your authenticator app
+                    </p>
+                </div>
+
+                <form onSubmit={handle2FA} className="space-y-5">
+                    <div>
+                        <input
+                            type="text"
+                            value={code}
+                            onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                            className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-gray-900 text-center text-2xl tracking-widest font-bold placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all"
+                            placeholder="000000"
+                            maxLength={6}
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            required
+                        />
+                    </div>
+
+                    {error && (
+                        <div className="p-4 bg-red-50 border border-red-100 rounded-2xl">
+                            <p className="text-sm text-red-600 font-medium flex items-center gap-2">
+                                <span className="text-lg">⚠️</span> {error}
+                            </p>
+                        </div>
+                    )}
+
+                    <button
+                        type="submit"
+                        disabled={loading || code.length !== 6}
+                        className="w-full py-4 bg-green-600 text-white font-bold rounded-2xl shadow-lg shadow-green-600/20 hover:bg-green-700 hover:shadow-green-700/30 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-lg"
+                    >
+                        {loading ? (
+                            <>
+                                <Loader2 className="animate-spin" /> Verifying...
+                            </>
+                        ) : (
+                            'Verify & Sign In'
+                        )}
+                    </button>
+                </form>
+            </div>
+        )
+    }
+
+    // VERIFICATION STEP UI (Email Code)
     if (step === 'verification') {
         return (
             <div className="w-full max-w-md mx-auto p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100 flex flex-col justify-center min-h-[80vh] md:min-h-0">
                 <div className="mb-8">
                     <button
-                        onClick={() => setStep('credentials')}
+                        onClick={() => { setStep('credentials'); setCode(''); }}
                         className="flex items-center text-gray-500 hover:text-gray-900 transition-colors mb-6"
                     >
                         <ArrowLeft size={20} className="mr-1" /> Back
