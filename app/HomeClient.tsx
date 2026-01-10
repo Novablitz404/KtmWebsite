@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import LandingPage from '@/components/LandingPage'
 import MobileSplashScreen from '@/components/MobileSplashScreen'
+import InstallGuide from '@/components/InstallGuide'
 
 interface HomeClientProps {
     upcomingTournaments: any[]
@@ -11,6 +12,7 @@ interface HomeClientProps {
 
 export default function HomeClient({ upcomingTournaments, user }: HomeClientProps) {
     const [isMobile, setIsMobile] = useState(false)
+    const [isStandalone, setIsStandalone] = useState(false)
     const [mounted, setMounted] = useState(false)
 
     useEffect(() => {
@@ -19,7 +21,16 @@ export default function HomeClient({ upcomingTournaments, user }: HomeClientProp
             setIsMobile(window.innerWidth < 768) // Standard md breakpoint
         }
 
+        // Check if running in standalone mode (PWA)
+        const checkStandalone = () => {
+            const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches ||
+                (window.navigator as any).standalone === true
+            setIsStandalone(isStandaloneMode)
+        }
+
         checkMobile()
+        checkStandalone()
+
         window.addEventListener('resize', checkMobile)
         return () => window.removeEventListener('resize', checkMobile)
     }, [])
@@ -29,7 +40,12 @@ export default function HomeClient({ upcomingTournaments, user }: HomeClientProp
         return <LandingPage upcomingTournaments={upcomingTournaments} user={user} />
     }
 
-    // If Mobile AND user is NOT logged in, show Splash Screen flow
+    // If Mobile AND NOT Standalone (Browser) -> Force Install Guide
+    if (isMobile && !isStandalone) {
+        return <InstallGuide />
+    }
+
+    // If Mobile AND Standalone AND user is NOT logged in -> Splash Screen Flow
     if (isMobile && !user) {
         return <MobileSplashScreen />
     }
