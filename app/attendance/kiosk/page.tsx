@@ -276,7 +276,7 @@ export default function AttendanceKioskPage() {
     // Find matching member
     const findMatch = (descriptor: Float32Array): { id: string; confidence: number } | null => {
         let bestMatch: { id: string; confidence: number } | null = null
-        let minDistance = 0.6 // Threshold for match
+        let minDistance = 0.4 // Threshold for match
 
         for (const member of members) {
             const distance = faceapi.euclideanDistance(descriptor, new Float32Array(member.descriptor))
@@ -530,7 +530,7 @@ export default function AttendanceKioskPage() {
 
             {/* Camera View */}
             <div className="flex-1 flex items-center justify-center p-4 sm:p-8 relative overflow-hidden">
-                <div className="relative w-full h-full max-w-[90vw] max-h-[85vh] aspect-[3/4] md:aspect-[4/3] lg:aspect-video bg-black rounded-3xl overflow-hidden shadow-2xl border-4 border-gray-800">
+                <div className="relative w-full h-full max-w-4xl max-h-[80vh] bg-black rounded-3xl overflow-hidden shadow-2xl border-4 border-gray-800">
                     {/* Success Flash Overlay */}
                     <div
                         className={`absolute inset-0 z-50 bg-green-500 pointer-events-none transition-opacity duration-500 ease-out ${flashSuccess ? 'opacity-60' : 'opacity-0'}`}
@@ -547,32 +547,28 @@ export default function AttendanceKioskPage() {
                         ref={canvasRef}
                         width={640}
                         height={480}
-                        className="absolute inset-0 w-full h-full transform scale-x-[-1] object-cover" // Mirror canvas too
+                        className="absolute inset-0 w-full h-full transform scale-x-[-1]" // Mirror canvas too
                     />
 
-                    {/* Overlay guides */}
-                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                        {/* Portrait Guide */}
-                        <div className="w-[60%] h-[70%] border-4 border-dashed border-white/30 rounded-[40%] shadow-[0_0_100px_rgba(0,0,0,0.5)_inset]" />
-                    </div>
+
 
                     {/* Status Pill in Camera */}
-                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur px-6 py-2 rounded-full text-white font-medium border border-white/10 whitespace-nowrap z-40">
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur px-6 py-2 rounded-full text-white font-medium border border-white/10">
                         Look at the camera
                     </div>
                 </div>
             </div>
 
             {/* Status Bar */}
-            <footer className="bg-gray-900/80 backdrop-blur px-6 py-4 text-center z-10 border-t border-white/5 shrink-0">
-                <p className={`text-xl md:text-2xl font-medium transition-colors duration-300 ${statusMessage.includes('✓') ? 'text-green-400' :
+            <footer className="bg-gray-900/80 backdrop-blur px-6 py-6 text-center z-10 border-t border-white/5">
+                <p className={`text-2xl font-medium transition-colors duration-300 ${statusMessage.includes('✓') ? 'text-green-400' :
                     statusMessage.includes('⚠️') ? 'text-yellow-400' : 'text-white'
                     }`}>
                     {statusMessage}
                 </p>
 
                 {lastCheckIn && (
-                    <p className="text-gray-400 mt-1 flex items-center justify-center gap-2 text-sm md:text-base">
+                    <p className="text-gray-400 mt-2 flex items-center justify-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-green-500"></span>
                         Last: <span className="text-white font-medium">{lastCheckIn.name}</span>
                         at {lastCheckIn.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
