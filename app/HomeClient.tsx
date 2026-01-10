@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import LandingPage from '@/components/LandingPage'
-import MobileSplashScreen from '@/components/MobileSplashScreen'
+import CustomSignInForm from '@/components/auth/CustomSignInForm'
 import InstallGuide from '@/components/InstallGuide'
 
 interface HomeClientProps {
@@ -16,7 +16,6 @@ export default function HomeClient({ upcomingTournaments, user }: HomeClientProp
     const [mounted, setMounted] = useState(false)
 
     useEffect(() => {
-        setMounted(true)
         const checkMobile = () => {
             setIsMobile(window.innerWidth < 768) // Standard md breakpoint
         }
@@ -30,14 +29,16 @@ export default function HomeClient({ upcomingTournaments, user }: HomeClientProp
 
         checkMobile()
         checkStandalone()
+        setMounted(true)
 
         window.addEventListener('resize', checkMobile)
         return () => window.removeEventListener('resize', checkMobile)
     }, [])
 
     if (!mounted) {
-        // Server-side render match (defaults to desktop/landing view to be safe/SEO friendly)
-        return <LandingPage upcomingTournaments={upcomingTournaments} user={user} />
+        // Prevent FOUC (Flash of Unstyled Content/Desktop Site) on mobile by returning null
+        // until we confirm the device type and display mode.
+        return null
     }
 
     // If Mobile AND NOT Standalone (Browser) -> Force Install Guide
@@ -45,9 +46,13 @@ export default function HomeClient({ upcomingTournaments, user }: HomeClientProp
         return <InstallGuide />
     }
 
-    // If Mobile AND Standalone AND user is NOT logged in -> Splash Screen Flow
+    // If Mobile AND Standalone AND user is NOT logged in -> Direct Sign In (No Extra Splash)
     if (isMobile && !user) {
-        return <MobileSplashScreen />
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <CustomSignInForm />
+            </div>
+        )
     }
 
     // Otherwise (Desktop OR Mobile Logged In User), show Landing Page

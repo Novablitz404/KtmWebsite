@@ -5,12 +5,14 @@ import { useSignIn } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react'
 
 export default function CustomSignInForm() {
     const { isLoaded, signIn, setActive } = useSignIn()
+    const [step, setStep] = useState<'credentials' | 'verification'>('credentials')
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
+    const [code, setCode] = useState('')
     const [showPassword, setShowPassword] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
@@ -36,6 +38,8 @@ export default function CustomSignInForm() {
             if (result.status === 'complete') {
                 await setActive({ session: result.createdSessionId })
                 router.push('/')
+            } else if (result.status === 'needs_first_factor') {
+                setStep('verification')
             } else {
                 console.error('Sign in process incomplete', result)
                 setError('Sign in incomplete. Check email verification.')
@@ -46,6 +50,38 @@ export default function CustomSignInForm() {
                 setError(err.errors[0].longMessage || err.errors[0].message)
             } else {
                 setError('Something went wrong. Please try again.')
+            }
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const handleVerification = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!isLoaded) return
+
+        setLoading(true)
+        setError(null)
+
+        try {
+            const result = await signIn.attemptFirstFactor({
+                strategy: 'email_code',
+                code,
+            })
+
+            if (result.status === 'complete') {
+                await setActive({ session: result.createdSessionId })
+                router.push('/')
+            } else {
+                console.error('Verification incomplete', result)
+                setError('Verification failed. Please try again.')
+            }
+        } catch (err: any) {
+            console.error('Verification error', err)
+            if (err.errors && err.errors.length > 0) {
+                setError(err.errors[0].longMessage || err.errors[0].message)
+            } else {
+                setError('Invalid code. Please try again.')
             }
         } finally {
             setLoading(false)
@@ -65,6 +101,72 @@ export default function CustomSignInForm() {
         }
     }
 
+    // VERIFICATION STEP UI
+    if (step === 'verification') {
+        return (
+            <div className="w-full max-w-md mx-auto p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100 flex flex-col justify-center min-h-[80vh] md:min-h-0">
+                <div className="mb-8">
+                    <button
+                        onClick={() => setStep('credentials')}
+                        className="flex items-center text-gray-500 hover:text-gray-900 transition-colors mb-6"
+                    >
+                        <ArrowLeft size={20} className="mr-1" /> Back
+                    </button>
+                    <div className="relative w-16 h-16 mx-auto mb-4">
+                        <Image
+                            src="/KTMLogo.png"
+                            alt="KTM Logo"
+                            fill
+                            className="object-contain"
+                            priority
+                        />
+                    </div>
+                    <h1 className="text-2xl font-black text-center text-gray-900 tracking-tight">Enter Verification Code</h1>
+                    <p className="text-gray-500 text-center mt-2">
+                        We sent a code to <span className="font-semibold text-gray-900">{email}</span>
+                    </p>
+                </div>
+
+                <form onSubmit={handleVerification} className="space-y-5">
+                    <div>
+                        <input
+                            type="text"
+                            value={code}
+                            onChange={(e) => setCode(e.target.value)}
+                            className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-gray-900 text-center text-2xl tracking-widest font-bold placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
+                            placeholder="123456"
+                            maxLength={6}
+                            required
+                        />
+                    </div>
+
+                    {error && (
+                        <div className="p-4 bg-red-50 border border-red-100 rounded-2xl">
+                            <p className="text-sm text-red-600 font-medium flex items-center gap-2">
+                                <span className="text-lg">⚠️</span> {error}
+                            </p>
+                        </div>
+                    )}
+
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full py-4 bg-red-600 text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 hover:bg-red-700 hover:shadow-red-700/30 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-lg"
+                    >
+                        {loading ? (
+                            <>
+                                <Loader2 className="animate-spin" /> Verifying...
+                            </>
+                        ) : (
+                            'Verify & Sign In'
+                        )}
+                    </button>
+                </form>
+            </div>
+        )
+    }
+
+    // CREDENTIALS STEP UI
     return (
         <div className="w-full max-w-md mx-auto p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100 flex flex-col justify-center min-h-[80vh] md:min-h-0">
 
