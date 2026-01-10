@@ -80,19 +80,31 @@ export default function AttendanceKioskPage() {
 
     // Validate token on load
     useEffect(() => {
-        if (!token) {
+        const urlToken = searchParams.get('token')
+        let activeToken = urlToken
+
+        // Prioritize URL token and save it
+        if (urlToken) {
+            localStorage.setItem('kiosk_token', urlToken)
+        } else {
+            // Fallback to saved token if no URL token (PWA mode)
+            activeToken = localStorage.getItem('kiosk_token')
+        }
+
+        if (!activeToken) {
             setStep('error')
             setStatusMessage('Invalid kiosk link. Please contact your Club Master.')
             return
         }
+
         setStep('pin')
 
         // Load cached club data if available
-        const cachedClub = localStorage.getItem(`club_data_${token}`)
+        const cachedClub = localStorage.getItem(`club_data_${activeToken}`)
         if (cachedClub) {
             setClubData(JSON.parse(cachedClub))
         }
-    }, [token])
+    }, [searchParams])
 
     // Handle fullscreen toggle
     const toggleFullScreen = () => {
