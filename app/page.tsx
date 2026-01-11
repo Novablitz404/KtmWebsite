@@ -67,7 +67,24 @@ export default async function Home() {
       redirect('/onboarding')
     }
 
-    // Existing user - let them view the home page
+    // Existing user - redirect based on role
+    if (existingUser) {
+      switch (existingUser.role) {
+        case 'ATHLETE':
+          redirect('/athlete/home')
+        case 'CLUB_MASTER':
+        case 'ASSISTANT':
+          redirect('/club')
+        case 'ORGANIZER':
+        case 'MANAGER':
+          redirect('/manage')
+        default:
+          // For other roles, let them view the home page
+          break
+      }
+    }
+
+    // New user without invite - redirect to onboarding
     if (!existingUser) {
       redirect('/onboarding')
     }

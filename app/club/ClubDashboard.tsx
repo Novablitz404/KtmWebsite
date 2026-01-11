@@ -242,9 +242,9 @@ export default function ClubDashboard({ pendingPlayers, approvedPlayers, clubId,
     }
 
     return (
-        <div className="space-y-12 relative">
-            {/* Header / Settings Button */}
-            <div className="flex items-center justify-between">
+        <div className="space-y-8 sm:space-y-12 relative">
+            {/* Header / Settings Button - Desktop Only */}
+            <div className="hidden sm:flex items-center justify-between">
                 <div className="flex items-center gap-4">
                     {clubLogo && (
                         <div className="w-16 h-16 rounded-xl border border-gray-200 p-1 bg-white shadow-sm">
@@ -269,111 +269,135 @@ export default function ClubDashboard({ pendingPlayers, approvedPlayers, clubId,
 
             {/* 🏆 My Tournaments Section */}
             <section>
-                <div className="flex items-center gap-2 mb-6">
-                    <h2 className="text-2xl font-bold text-gray-900">My Tournaments</h2>
-                    <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold">
-                        {clubTournaments.length}
-                    </span>
+                <div className="flex items-center justify-between mb-4 sm:mb-6">
+                    <div className="flex items-center gap-2">
+                        <h2 className="text-lg sm:text-2xl font-bold text-gray-900">Tournaments</h2>
+                        <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold">
+                            {clubTournaments.length}
+                        </span>
+                    </div>
                 </div>
 
                 {clubTournaments.length === 0 ? (
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 text-center text-gray-500">
-                        <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">🏆</div>
-                        <h3 className="text-lg font-semibold text-gray-900">No Tournament History</h3>
-                        <p className="text-gray-500 mt-1">Join upcoming tournaments to start building your club's legacy!</p>
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 sm:p-12 text-center text-gray-500">
+                        <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl sm:text-3xl">🏆</div>
+                        <h3 className="text-base sm:text-lg font-semibold text-gray-900">No Tournament History</h3>
+                        <p className="text-gray-500 mt-1 text-sm">Join upcoming tournaments to start!</p>
                     </div>
                 ) : (
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-100">
-                                <thead className="bg-gray-50/50">
-                                    <tr>
-                                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tournament</th>
-                                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
-                                        <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Performance</th>
-                                        <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Athletes</th>
-                                        <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-50">
-                                    {currentTournaments.map(tournament => {
-                                        const isUpcoming = new Date(tournament.startDate) > new Date()
-                                        return (
-                                            <tr
-                                                key={tournament.id}
-                                                onClick={() => setSelectedTournament(tournament)}
-                                                className="hover:bg-gray-50/50 transition-colors cursor-pointer group"
-                                            >
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="flex flex-col">
-                                                        <span className="font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
-                                                            {tournament.name}
-                                                        </span>
-                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium w-fit mt-1 border ${isUpcoming
-                                                            ? 'bg-blue-50 text-blue-700 border-blue-100'
-                                                            : 'bg-gray-100 text-gray-600 border-gray-200'
-                                                            }`}>
-                                                            {isUpcoming ? 'Upcoming' : 'Completed'}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="text-sm text-gray-500">
-                                                        {new Date(tournament.startDate).toLocaleDateString(undefined, {
-                                                            month: 'short',
-                                                            day: 'numeric',
-                                                            year: 'numeric'
-                                                        })}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="flex items-center justify-center gap-3">
-                                                        <div className="flex items-center gap-1" title="Gold">
-                                                            <span className="text-lg">🥇</span>
-                                                            <span className="font-semibold text-gray-700">{tournament.gold}</span>
-                                                        </div>
-                                                        <div className="flex items-center gap-1" title="Silver">
-                                                            <span className="text-lg">🥈</span>
-                                                            <span className="font-semibold text-gray-700">{tournament.silver}</span>
-                                                        </div>
-                                                        <div className="flex items-center gap-1" title="Bronze">
-                                                            <span className="text-lg">🥉</span>
-                                                            <span className="font-semibold text-gray-700">{tournament.bronze}</span>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-center">
-                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                                        {tournament.athleteCount}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                    <span className="text-indigo-600 hover:text-indigo-900 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        View Stats →
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        )
-                                    })}
-                                    {/* Empty Rows Padding */}
-                                    {Array.from({ length: Math.max(0, tournamentsPerPage - currentTournaments.length) }).map((_, i) => (
-                                        <tr key={`empty-${i}`} className="pointer-events-none">
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="flex flex-col opacity-0">
-                                                    <span className="font-bold">Placeholder</span>
-                                                    <span className="mt-1 text-[10px]">Placeholder</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-transparent">Placeholder</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-transparent">Placeholder</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-center text-transparent">0</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-transparent">Select</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                    <>
+                        {/* Mobile Cards */}
+                        <div className="sm:hidden space-y-3">
+                            {currentTournaments.map(tournament => {
+                                const isUpcoming = new Date(tournament.startDate) > new Date()
+                                return (
+                                    <div
+                                        key={tournament.id}
+                                        onClick={() => setSelectedTournament(tournament)}
+                                        className="bg-white rounded-xl border border-gray-200 p-4 active:scale-[0.98] transition-transform"
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="font-semibold text-gray-900 truncate">{tournament.name}</h3>
+                                                <p className="text-xs text-gray-500 mt-0.5">
+                                                    {new Date(tournament.startDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                                </p>
+                                            </div>
+                                            <span className={`flex-shrink-0 px-2 py-0.5 rounded text-[10px] font-medium ${isUpcoming ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
+                                                {isUpcoming ? 'Upcoming' : 'Done'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                                            <div className="flex items-center gap-3">
+                                                <span className="flex items-center gap-1 text-sm">🥇 {tournament.gold}</span>
+                                                <span className="flex items-center gap-1 text-sm">🥈 {tournament.silver}</span>
+                                                <span className="flex items-center gap-1 text-sm">🥉 {tournament.bronze}</span>
+                                            </div>
+                                            <span className="text-xs text-gray-500">{tournament.athleteCount} athletes</span>
+                                        </div>
+                                    </div>
+                                )
+                            })}
                         </div>
-                    </div>
+
+                        {/* Desktop Table */}
+                        <div className="hidden sm:block bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-100">
+                                    <thead className="bg-gray-50/50">
+                                        <tr>
+                                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tournament</th>
+                                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                                            <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Performance</th>
+                                            <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Athletes</th>
+                                            <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-50">
+                                        {currentTournaments.map(tournament => {
+                                            const isUpcoming = new Date(tournament.startDate) > new Date()
+                                            return (
+                                                <tr
+                                                    key={tournament.id}
+                                                    onClick={() => setSelectedTournament(tournament)}
+                                                    className="hover:bg-gray-50/50 transition-colors cursor-pointer group"
+                                                >
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="flex flex-col">
+                                                            <span className="font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
+                                                                {tournament.name}
+                                                            </span>
+                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium w-fit mt-1 border ${isUpcoming
+                                                                ? 'bg-blue-50 text-blue-700 border-blue-100'
+                                                                : 'bg-gray-100 text-gray-600 border-gray-200'
+                                                                }`}>
+                                                                {isUpcoming ? 'Upcoming' : 'Completed'}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="text-sm text-gray-500">
+                                                            {new Date(tournament.startDate).toLocaleDateString(undefined, {
+                                                                month: 'short',
+                                                                day: 'numeric',
+                                                                year: 'numeric'
+                                                            })}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="flex items-center justify-center gap-3">
+                                                            <div className="flex items-center gap-1" title="Gold">
+                                                                <span className="text-lg">🥇</span>
+                                                                <span className="font-semibold text-gray-700">{tournament.gold}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1" title="Silver">
+                                                                <span className="text-lg">🥈</span>
+                                                                <span className="font-semibold text-gray-700">{tournament.silver}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1" title="Bronze">
+                                                                <span className="text-lg">🥉</span>
+                                                                <span className="font-semibold text-gray-700">{tournament.bronze}</span>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                                            {tournament.athleteCount}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                        <span className="text-indigo-600 hover:text-indigo-900 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            View Stats →
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </>
                 )}
 
                 {/* Tournament Pagination Controls */}
@@ -422,19 +446,19 @@ export default function ClubDashboard({ pendingPlayers, approvedPlayers, clubId,
                 )}
             </section>
 
-            {/* 📋 Unified Registrations Table */}
+            {/* 📋 Registrations Section */}
             <section>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
                     <div>
-                        <h2 className="text-2xl font-bold text-gray-900">Registrations</h2>
-                        <p className="text-gray-500 text-sm mt-1">Manage pending approvals and view all registered athletes.</p>
+                        <h2 className="text-lg sm:text-2xl font-bold text-gray-900">Registrations</h2>
+                        <p className="hidden sm:block text-gray-500 text-sm mt-1">Manage pending approvals and view all registered athletes.</p>
                     </div>
 
                     {/* Status Filters */}
-                    <div className="flex items-center gap-4">
-                        {/* Bulk Actions Overlay (Visible when items selected) */}
+                    <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
+                        {/* Bulk Actions Overlay (Desktop only) */}
                         {selectedRegistrationIds.size > 0 && (
-                            <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4">
+                            <div className="hidden sm:flex items-center gap-2 animate-in fade-in slide-in-from-right-4">
                                 <span className="text-sm font-medium text-gray-600 mr-2">{selectedRegistrationIds.size} selected</span>
                                 <button
                                     onClick={handleBulkApprove}
@@ -467,9 +491,9 @@ export default function ClubDashboard({ pendingPlayers, approvedPlayers, clubId,
                                     onClick={() => {
                                         setActiveTab(tab)
                                         setRegistrationsPage(1)
-                                        setSelectedRegistrationIds(new Set()) // Clear selection on tab change
+                                        setSelectedRegistrationIds(new Set())
                                     }}
-                                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === tab
+                                    className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all ${activeTab === tab
                                         ? 'bg-white text-gray-900 shadow-sm'
                                         : 'text-gray-500 hover:text-gray-700'
                                         }`}
@@ -481,152 +505,212 @@ export default function ClubDashboard({ pendingPlayers, approvedPlayers, clubId,
                     </div>
                 </div>
 
-
-
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-100">
-                            <thead className="bg-gray-50/50">
-                                <tr>
-                                    <th className="px-6 py-4 text-left">
-                                        <input
-                                            type="checkbox"
-                                            checked={currentRegistrations.length > 0 && selectedRegistrationIds.size === currentRegistrations.length}
-                                            onChange={toggleSelectAll}
-                                            className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer"
-                                        />
-                                    </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Athlete</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Competing In</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Details</th>
-                                    <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                                    <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-50">
-                                {currentRegistrations.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
-                                            No registrations found.
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    currentRegistrations.map(player => {
-                                        const avatar = getPlayerAvatar(player)
-                                        const isPending = player.registrationStatus === 'PENDING'
-                                        return (
-                                            <tr key={player.id} className="hover:bg-gray-50/50 transition-colors">
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div onClick={(e) => e.stopPropagation()}>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedRegistrationIds.has(player.id)}
-                                                            // @ts-ignore
-                                                            onChange={(e) => toggleSelect(player.id, e)}
-                                                            className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer"
-                                                        />
+                {currentRegistrations.length === 0 ? (
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 sm:p-12 text-center">
+                        <div className="text-4xl mb-3">📋</div>
+                        <p className="text-gray-500">No registrations found.</p>
+                    </div>
+                ) : (
+                    <>
+                        {/* Mobile Cards */}
+                        <div className="sm:hidden space-y-3">
+                            {currentRegistrations.map(player => {
+                                const avatar = getPlayerAvatar(player)
+                                const isPending = player.registrationStatus === 'PENDING'
+                                return (
+                                    <div
+                                        key={player.id}
+                                        className="bg-white rounded-xl border border-gray-200 p-4"
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            {avatar ? (
+                                                <img src={avatar} alt={player.name} className="w-10 h-10 rounded-full object-cover border border-gray-100 flex-shrink-0" />
+                                            ) : (
+                                                <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                                                    {player.name.charAt(0)}
+                                                </div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div>
+                                                        <h3 className="font-semibold text-gray-900 text-sm">{player.name}</h3>
+                                                        <p className="text-xs text-gray-500 truncate">{player.category.tournament.name}</p>
                                                     </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div
-                                                        className="flex items-center gap-3 cursor-pointer group"
-                                                        onClick={() => setEditingPlayer(player)}
-                                                    >
-                                                        {avatar ? (
-                                                            <img src={avatar} alt={player.name} className="w-9 h-9 rounded-full object-cover border border-gray-100" />
-                                                        ) : (
-                                                            <div className="w-9 h-9 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm font-bold border border-indigo-100">
-                                                                {player.name.charAt(0)}
-                                                            </div>
-                                                        )}
-                                                        <div>
-                                                            <span className="font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">
-                                                                {player.name}
-                                                            </span>
-                                                            <p className="text-xs text-gray-400 group-hover:text-indigo-400">Click to edit</p>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="text-sm font-medium text-gray-900">{player.category.tournament.name}</div>
-                                                    <div className="text-xs text-gray-500">{player.category.name}</div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="flex flex-col text-xs text-gray-500">
-                                                        <span>Belt: <span className="font-medium text-gray-700">{player.belt || 'N/A'}</span></span>
-                                                        <span>Weight: <span className="font-medium text-gray-700">{player.weight ? `${player.weight}kg` : 'N/A'}</span></span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-center">
                                                     {isPending ? (
-                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 border border-yellow-200">
-                                                            <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse"></span>
+                                                        <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-yellow-50 text-yellow-700">
+                                                            <span className="w-1 h-1 rounded-full bg-yellow-500 animate-pulse" />
                                                             Pending
                                                         </span>
                                                     ) : (
-                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
-                                                            <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                                                            Approved
+                                                        <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-700">
+                                                            ✓
                                                         </span>
                                                     )}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                    <div className="flex items-center justify-end gap-2">
-                                                        {isPending ? (
-                                                            <button
-                                                                onClick={() => handleApprove(player)}
-                                                                disabled={submitting}
-                                                                className="text-xs font-medium bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 transition-colors shadow-sm disabled:opacity-50"
-                                                            >
-                                                                Approve
-                                                            </button>
-                                                        ) : (
-                                                            <button
-                                                                onClick={() => handleUnapprove(player.id)}
-                                                                disabled={submitting}
-                                                                className="text-xs font-medium bg-white border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-                                                            >
-                                                                Unapprove
-                                                            </button>
-                                                        )}
-                                                        <button
-                                                            onClick={() => handleDelete(player.id)}
-                                                            disabled={submitting}
-                                                            className="text-xs font-medium bg-white border border-red-100 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
-                                                        >
-                                                            Delete
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        )
-                                    })
-                                )}
-                                {/* Empty Rows Padding for Registrations */}
-                                {Array.from({ length: Math.max(0, registrationsPerPage - currentRegistrations.length) }).map((_, i) => (
-                                    <tr key={`empty-reg-${i}`} className="pointer-events-none">
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="w-4 h-4 rounded border-gray-200 border opacity-0"></div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center gap-3 opacity-0">
-                                                <div className="w-9 h-9 rounded-full bg-gray-100"></div>
-                                                <div>
-                                                    <span className="font-semibold text-transparent">Placeholder</span>
-                                                    <p className="text-xs text-transparent">Placeholder</p>
+                                                </div>
+                                                <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                                                    <span>{player.category.name}</span>
+                                                    <span>•</span>
+                                                    <span>{player.belt || 'N/A'}</span>
+                                                    <span>•</span>
+                                                    <span>{player.weight ? `${player.weight}kg` : 'N/A'}</span>
                                                 </div>
                                             </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-transparent">Placeholder</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-transparent">Placeholder</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center text-transparent">Placeholder</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-transparent">Action</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+                                            {isPending ? (
+                                                <button
+                                                    onClick={() => handleApprove(player)}
+                                                    disabled={submitting}
+                                                    className="flex-1 text-xs font-medium bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 disabled:opacity-50"
+                                                >
+                                                    Approve
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleUnapprove(player.id)}
+                                                    disabled={submitting}
+                                                    className="flex-1 text-xs font-medium bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                                                >
+                                                    Unapprove
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => setEditingPlayer(player)}
+                                                className="px-3 py-2 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(player.id)}
+                                                disabled={submitting}
+                                                className="px-3 py-2 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 disabled:opacity-50"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+
+                        {/* Desktop Table */}
+                        <div className="hidden sm:block bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-100">
+                                    <thead className="bg-gray-50/50">
+                                        <tr>
+                                            <th className="px-6 py-4 text-left">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={currentRegistrations.length > 0 && selectedRegistrationIds.size === currentRegistrations.length}
+                                                    onChange={toggleSelectAll}
+                                                    className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer"
+                                                />
+                                            </th>
+                                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Athlete</th>
+                                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Competing In</th>
+                                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Details</th>
+                                            <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                                            <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-50">
+                                        {currentRegistrations.map(player => {
+                                            const avatar = getPlayerAvatar(player)
+                                            const isPending = player.registrationStatus === 'PENDING'
+                                            return (
+                                                <tr key={player.id} className="hover:bg-gray-50/50 transition-colors">
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div onClick={(e) => e.stopPropagation()}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedRegistrationIds.has(player.id)}
+                                                                // @ts-ignore
+                                                                onChange={(e) => toggleSelect(player.id, e)}
+                                                                className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer"
+                                                            />
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div
+                                                            className="flex items-center gap-3 cursor-pointer group"
+                                                            onClick={() => setEditingPlayer(player)}
+                                                        >
+                                                            {avatar ? (
+                                                                <img src={avatar} alt={player.name} className="w-9 h-9 rounded-full object-cover border border-gray-100" />
+                                                            ) : (
+                                                                <div className="w-9 h-9 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm font-bold border border-indigo-100">
+                                                                    {player.name.charAt(0)}
+                                                                </div>
+                                                            )}
+                                                            <div>
+                                                                <span className="font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">
+                                                                    {player.name}
+                                                                </span>
+                                                                <p className="text-xs text-gray-400 group-hover:text-indigo-400">Click to edit</p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="text-sm font-medium text-gray-900">{player.category.tournament.name}</div>
+                                                        <div className="text-xs text-gray-500">{player.category.name}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="flex flex-col text-xs text-gray-500">
+                                                            <span>Belt: <span className="font-medium text-gray-700">{player.belt || 'N/A'}</span></span>
+                                                            <span>Weight: <span className="font-medium text-gray-700">{player.weight ? `${player.weight}kg` : 'N/A'}</span></span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                                                        {isPending ? (
+                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 border border-yellow-200">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse"></span>
+                                                                Pending
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                                                                Approved
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            {isPending ? (
+                                                                <button
+                                                                    onClick={() => handleApprove(player)}
+                                                                    disabled={submitting}
+                                                                    className="text-xs font-medium bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 transition-colors shadow-sm disabled:opacity-50"
+                                                                >
+                                                                    Approve
+                                                                </button>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => handleUnapprove(player.id)}
+                                                                    disabled={submitting}
+                                                                    className="text-xs font-medium bg-white border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                                                                >
+                                                                    Unapprove
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                onClick={() => handleDelete(player.id)}
+                                                                disabled={submitting}
+                                                                className="text-xs font-medium bg-white border border-red-100 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+                                                            >
+                                                                Delete
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </>
+                )}
 
                 {/* Registration Pagination Controls */}
                 {totalRegistrationPages > 1 && (

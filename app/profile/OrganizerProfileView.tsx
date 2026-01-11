@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import ProfileForm from './ProfileForm'
 import Link from 'next/link'
+import LogoutButton from '@/components/LogoutButton'
 
 interface OrganizerProfileViewProps {
     dbUser: {
@@ -174,6 +175,11 @@ export default async function OrganizerProfileView({ dbUser, clerkImageUrl }: Or
                         </p>
                     </div>
                 </div>
+            </div>
+
+            {/* Logout Button - Mobile Only */}
+            <div className="sm:hidden px-4 pb-6">
+                <LogoutButton />
             </div>
         </div>
     )

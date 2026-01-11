@@ -10,12 +10,30 @@ export default function Header() {
     const pathname = usePathname()
     const router = useRouter()
 
-    // Hide header on Kiosk page
-    if (pathname?.startsWith('/attendance/kiosk')) return null
-
     // Client-side role fetching
     const [role, setRole] = useState<string | null>(null)
     const [userName, setUserName] = useState<string | null>(null)
+
+    // PWA detection state - starts as false, updated on client
+    const [isMobilePWA, setIsMobilePWA] = useState(false)
+
+    useEffect(() => {
+        // Check if running as installed PWA on mobile
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+        const isIOSStandalone = (window.navigator as any).standalone === true
+        const isMobileWidth = window.innerWidth < 768
+
+        setIsMobilePWA((isStandalone || isIOSStandalone) && isMobileWidth)
+
+        // Listen for resize
+        const handleResize = () => {
+            const newIsMobile = window.innerWidth < 768
+            setIsMobilePWA((isStandalone || isIOSStandalone) && newIsMobile)
+        }
+
+        window.addEventListener('resize', handleResize)
+        return () => window.removeEventListener('resize', handleResize)
+    }, [])
 
     useEffect(() => {
         if (isLoaded && user) {
@@ -29,17 +47,16 @@ export default function Header() {
         }
     }, [isLoaded, user])
 
+    // Hide header on Kiosk page
+    if (pathname?.startsWith('/attendance/kiosk')) return null
+
     // Hide header on auth pages and Admin Panel
     if (pathname?.startsWith('/sign-in') || pathname?.startsWith('/sign-up') || pathname?.startsWith('/onboarding') || pathname?.startsWith('/admin')) {
         return null
     }
 
-    // Hide header for Mobile Standalone PWA Users who are NOT logged in (showing Sign In on Home)
-    const isMobileStandalone = typeof window !== 'undefined' &&
-        (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true)
-    const isMobileWidth = typeof window !== 'undefined' && window.innerWidth < 768
-
-    if (isMobileWidth && isMobileStandalone && isLoaded && !user) {
+    // Hide header for ALL Mobile Standalone PWA Users (they use bottom tab bar instead)
+    if (isMobilePWA) {
         return null
     }
 
@@ -433,7 +450,7 @@ function UserDropdown({ user, dbName, role }: { user: UserResource, dbName?: str
                             )}
                         </div>
 
-                        <ClerkSignOutButton redirectUrl="/">
+                        <ClerkSignOutButton redirectUrl="/sign-in">
                             <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

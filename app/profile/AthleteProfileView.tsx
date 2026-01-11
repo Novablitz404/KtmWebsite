@@ -1,5 +1,6 @@
 import ProfileForm from './ProfileForm'
 import Link from 'next/link'
+import LogoutButton from '@/components/LogoutButton'
 
 interface Player {
     id: string
@@ -210,6 +211,11 @@ export default function AthleteProfileView({ dbUser, clerkImageUrl, clubLogoUrl 
                         ))
                     )}
                 </div>
+            </div>
+
+            {/* Logout Button - Mobile Only */}
+            <div className="sm:hidden px-4 pb-6">
+                <LogoutButton />
             </div>
         </div>
     )

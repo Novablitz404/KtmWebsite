@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import ProfileForm from './ProfileForm'
 import ClubSettingsButton from '@/app/components/ClubSettingsButton'
-import Link from 'next/link'
+import LogoutButton from '@/components/LogoutButton'
 
 interface ClubMasterProfileViewProps {
     dbUser: {
@@ -144,57 +144,6 @@ export default async function ClubMasterProfileView({ dbUser, clerkImageUrl }: C
                 </div>
             </div>
 
-            {/* Quick Actions - Mobile Only */}
-            <div className="sm:hidden px-4 space-y-3">
-                <Link
-                    href="/club"
-                    className="flex items-center gap-4 bg-white rounded-2xl shadow-sm border border-gray-100 p-4 active:scale-[0.98] transition-transform"
-                >
-                    <div className="w-11 h-11 rounded-xl bg-orange-50 flex items-center justify-center text-xl">
-                        📊
-                    </div>
-                    <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900 text-sm">Dashboard</h3>
-                        <p className="text-xs text-gray-500">Manage registrations</p>
-                    </div>
-                    <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                </Link>
-
-                <Link
-                    href="/members"
-                    className="flex items-center gap-4 bg-white rounded-2xl shadow-sm border border-gray-100 p-4 active:scale-[0.98] transition-transform"
-                >
-                    <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center text-xl">
-                        👥
-                    </div>
-                    <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900 text-sm">Members</h3>
-                        <p className="text-xs text-gray-500">View club roster</p>
-                    </div>
-                    <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                </Link>
-
-                <Link
-                    href="/club/attendance"
-                    className="flex items-center gap-4 bg-white rounded-2xl shadow-sm border border-gray-100 p-4 active:scale-[0.98] transition-transform"
-                >
-                    <div className="w-11 h-11 rounded-xl bg-green-50 flex items-center justify-center text-xl">
-                        📅
-                    </div>
-                    <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900 text-sm">Attendance</h3>
-                        <p className="text-xs text-gray-500">Track member attendance</p>
-                    </div>
-                    <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                </Link>
-            </div>
-
             {/* Club Details - Desktop and Mobile */}
             <div className="bg-white sm:rounded-xl shadow-sm border-y sm:border border-gray-200">
                 <div className="px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-100 flex justify-between items-center">
@@ -242,6 +191,11 @@ export default async function ClubMasterProfileView({ dbUser, clerkImageUrl }: C
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* Logout Button - Mobile Only */}
+            <div className="sm:hidden px-4 pb-6">
+                <LogoutButton />
             </div>
         </div>
     )
