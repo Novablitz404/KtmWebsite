@@ -119,20 +119,20 @@ export default function CustomSignInForm() {
         setError(null)
 
         try {
-            // Try first factor first
+            // conditionally call based on status to avoid 400 errors
             let result;
-            try {
+            if (signIn.status === 'needs_first_factor') {
                 result = await signIn.attemptFirstFactor({
                     strategy: 'email_code',
                     code,
                 })
-            } catch (firstFactorErr: any) {
-                // If first factor fails, try second factor (new device verification)
-                console.log('First factor failed, trying second factor...')
+            } else if (signIn.status === 'needs_second_factor') {
                 result = await signIn.attemptSecondFactor({
                     strategy: 'email_code',
                     code,
                 })
+            } else {
+                throw new Error(`Unexpected status during verification: ${signIn.status}`)
             }
 
             if (result.status === 'complete') {

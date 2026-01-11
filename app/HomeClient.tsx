@@ -41,10 +41,11 @@ export default function HomeClient({ upcomingTournaments, user }: HomeClientProp
         return null
     }
 
-    // If Mobile AND NOT Standalone (Browser) -> Force Install Guide
-    if (isMobile && !isStandalone) {
-        return <InstallGuide />
-    }
+    // If Mobile AND NOT Standalone (Browser) -> Should typically show Install Guide
+    // User requested to disable this wall to allow mobile browser access.
+    // if (isMobile && !isStandalone) {
+    //    return <InstallGuide />
+    // }
 
     // If Mobile AND Standalone AND user is NOT logged in -> Direct Sign In (No Extra Splash)
     if (isMobile && !user) {
