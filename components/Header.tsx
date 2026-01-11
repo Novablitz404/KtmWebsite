@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { UserButton, useUser, SignInButton, SignOutButton as ClerkSignOutButton } from '@clerk/nextjs'
+import NotificationBell from './NotificationBell'
 
 export default function Header() {
     const { user, isLoaded } = useUser()
@@ -13,6 +14,7 @@ export default function Header() {
     // Client-side role fetching
     const [role, setRole] = useState<string | null>(null)
     const [userName, setUserName] = useState<string | null>(null)
+    const [userId, setUserId] = useState<string | null>(null)
 
     // PWA detection state - starts as false, updated on client
     const [isMobilePWA, setIsMobilePWA] = useState(false)
@@ -42,6 +44,7 @@ export default function Header() {
                 .then(data => {
                     setRole(data.role)
                     setUserName(data.userName)
+                    setUserId(data.id)
                 })
                 .catch(console.error)
         }
@@ -218,6 +221,8 @@ export default function Header() {
 
                         {isLoaded && user ? (
                             <>
+                                {userId && <NotificationBell userId={userId} />}
+
                                 <span className="hidden sm:inline text-sm text-gray-500">
                                     {user.firstName}
                                 </span>

@@ -8,6 +8,7 @@ import { useMobilePWA } from '@/hooks/usePWA'
 interface MobileAppShellProps {
     children: React.ReactNode
     role: string | null
+    userId: string | null
 }
 
 // Pages that should NOT show the bottom tab bar
@@ -19,7 +20,7 @@ const EXCLUDED_PATHS = [
     '/attendance/kiosk',
 ]
 
-export default function MobileAppShell({ children, role }: MobileAppShellProps) {
+export default function MobileAppShell({ children, role, userId }: MobileAppShellProps) {
     const isMobilePWA = useMobilePWA()
     const pathname = usePathname()
 
@@ -40,7 +41,7 @@ export default function MobileAppShell({ children, role }: MobileAppShellProps) 
 
             {/* Bottom Tab Bar */}
             {shouldShowTabBar && role && (
-                <BottomTabBar role={role} />
+                <BottomTabBar role={role} userId={userId} />
             )}
         </div>
     )

@@ -127,6 +127,10 @@ model User {
   
   // Attendance Records
   attendanceRecords AttendanceRecord[]
+  
+  // Push Notifications
+  pushSubscriptions PushSubscription[]
+  notifications     Notification[]
 }
 
 model Player {
@@ -289,4 +293,35 @@ model AttendanceRecord {
   @@unique([clubId, userId, date])  // One check-in per day per user per club
   @@index([clubId, date])
   @@index([userId])
+}
+
+// ============================================
+// PUSH NOTIFICATIONS
+// ============================================
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @db.Text
+  p256dh    String   // Public key
+  auth      String   // Auth secret
+  createdAt DateTime @default(now())
+  
+  @@unique([userId, endpoint])
+  @@index([userId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  url       String?  // Where to navigate when clicked
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  @@index([userId, read])
+  @@index([userId, createdAt])
 }

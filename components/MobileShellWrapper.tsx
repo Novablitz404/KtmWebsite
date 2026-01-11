@@ -10,6 +10,7 @@ interface MobileShellWrapperProps {
 
 export default function MobileShellWrapper({ children }: MobileShellWrapperProps) {
     const [role, setRole] = useState<string | null>(null)
+    const [userId, setUserId] = useState<string | null>(null)
     const [isLoading, setIsLoading] = useState(true)
     const isMobilePWA = useMobilePWA()
 
@@ -20,6 +21,7 @@ export default function MobileShellWrapper({ children }: MobileShellWrapperProps
                 .then(res => res.json())
                 .then(data => {
                     setRole(data.role || null)
+                    setUserId(data.id || null)
                     setIsLoading(false)
                 })
                 .catch(() => {
@@ -36,7 +38,7 @@ export default function MobileShellWrapper({ children }: MobileShellWrapperProps
     }
 
     return (
-        <MobileAppShell role={role}>
+        <MobileAppShell role={role} userId={userId}>
             {children}
         </MobileAppShell>
     )
