@@ -26,9 +26,9 @@ export default async function ManagePage() {
     // Role verification - Allow Organizers, Managers, and Admins
     if (dbUser.role !== 'ORGANIZER' && dbUser.role !== 'MANAGER' && dbUser.role !== 'ADMIN') {
         return (
-            <main className="min-h-[calc(100vh-4rem)] bg-gray-50 pb-20">
+            <main className="min-h-screen bg-gray-50">
                 <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 text-center">
                         <p className="text-4xl mb-4">👮‍♂️</p>
                         <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
                         <p className="text-gray-600">
@@ -44,10 +44,21 @@ export default async function ManagePage() {
     }
 
     return (
-        <main className="min-h-[calc(100vh-4rem)] bg-gray-50 pb-2">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2 space-y-8">
-                {/* Header & Actions */}
-                <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <main className="min-h-screen bg-gray-50">
+            {/* Mobile Header */}
+            <div className="bg-white border-b border-gray-200 px-4 py-4 sm:hidden sticky top-0 z-10">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
+                        <p className="text-sm text-gray-500 mt-0.5">Manage your tournaments</p>
+                    </div>
+                    <ManagePageActions />
+                </div>
+            </div>
+
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:pt-4 sm:pb-2 space-y-6 sm:space-y-8">
+                {/* Desktop Header & Actions */}
+                <header className="hidden sm:flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
                             Organizer Dashboard
@@ -61,16 +72,16 @@ export default async function ManagePage() {
                     </div>
                 </header>
 
-                {/* Stats Section - Wrapped in Suspense for streaming */}
+                {/* Stats Section */}
                 <section>
                     <Suspense fallback={<StatsCardsSkeleton />}>
                         <DashboardStats />
                     </Suspense>
                 </section>
 
-                {/* Active Tournaments Table - Wrapped in Suspense for streaming */}
-                <section className="space-y-4">
-                    <h2 className="text-xl font-bold text-gray-900">Active Tournaments</h2>
+                {/* Active Tournaments Table */}
+                <section className="space-y-3 sm:space-y-4">
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-900">Active Tournaments</h2>
                     <Suspense fallback={<TournamentsTableSkeleton />}>
                         <TournamentsTable />
                     </Suspense>

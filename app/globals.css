@@ -3,6 +3,11 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Safe area insets for iOS */
+  --safe-area-top: env(safe-area-inset-top);
+  --safe-area-bottom: env(safe-area-inset-bottom);
+  --safe-area-left: env(safe-area-inset-left);
+  --safe-area-right: env(safe-area-inset-right);
 }
 
 @theme inline {
@@ -24,3 +29,41 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Mobile PWA Optimizations */
+@supports (padding-top: env(safe-area-inset-top)) {
+  html {
+    /* Smooth scrolling for mobile */
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Touch-friendly tap highlights */
+@media (pointer: coarse) {
+  * {
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  }
+  
+  button, a, [role="button"] {
+    touch-action: manipulation;
+  }
+}
+
+/* Prevent text selection on interactive elements */
+.no-select {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Mobile card animations */
+@keyframes card-press {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.98); }
+  100% { transform: scale(1); }
+}
+
+.mobile-card-press:active {
+  animation: card-press 0.15s ease-out;
+}
+

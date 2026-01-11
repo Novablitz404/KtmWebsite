@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useSignIn } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
@@ -18,7 +18,17 @@ export default function CustomSignInForm() {
     const [showPassword, setShowPassword] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
+    const [resending, setResending] = useState(false)
+    const [resendCountdown, setResendCountdown] = useState(0)
     const router = useRouter()
+
+    // Countdown timer for resend
+    useEffect(() => {
+        if (resendCountdown > 0) {
+            const timer = setTimeout(() => setResendCountdown(resendCountdown - 1), 1000)
+            return () => clearTimeout(timer)
+        }
+    }, [resendCountdown])
 
     if (!isLoaded) {
         return null
@@ -257,6 +267,72 @@ export default function CustomSignInForm() {
 
     // VERIFICATION STEP UI (Email Code)
     if (step === 'verification') {
+        // Split code into array for individual boxes
+        const codeDigits = code.split('').concat(Array(6 - code.length).fill(''))
+
+        const handleDigitChange = (index: number, value: string) => {
+            if (!/^\d*$/.test(value)) return // Only allow digits
+
+            const newCode = code.split('')
+            newCode[index] = value.slice(-1) // Take only last character
+            const updatedCode = newCode.join('').slice(0, 6)
+            setCode(updatedCode)
+
+            // Auto-focus next input
+            if (value && index < 5) {
+                const nextInput = document.getElementById(`otp-${index + 1}`)
+                nextInput?.focus()
+            }
+        }
+
+        const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+            if (e.key === 'Backspace' && !code[index] && index > 0) {
+                const prevInput = document.getElementById(`otp-${index - 1}`)
+                prevInput?.focus()
+            }
+        }
+
+        const handlePaste = (e: React.ClipboardEvent) => {
+            e.preventDefault()
+            const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+            setCode(pastedData)
+            // Focus the last filled input or the next empty one
+            const focusIndex = Math.min(pastedData.length, 5)
+            const input = document.getElementById(`otp-${focusIndex}`)
+            input?.focus()
+        }
+
+        const handleResendCode = async () => {
+            setError(null)
+            setResending(true)
+            try {
+                // Re-prepare the verification (sends new code)
+                if (signIn.supportedSecondFactors?.some((f: any) => f.strategy === 'email_code')) {
+                    const emailFactor = signIn.supportedSecondFactors?.find((f: any) => f.strategy === 'email_code')
+                    if (emailFactor && 'emailAddressId' in emailFactor) {
+                        await signIn.prepareSecondFactor({
+                            strategy: 'email_code',
+                            emailAddressId: (emailFactor as any).emailAddressId,
+                        })
+                    }
+                } else if (signIn.supportedFirstFactors?.some((f: any) => f.strategy === 'email_code')) {
+                    const emailFactor = signIn.supportedFirstFactors?.find((f: any) => f.strategy === 'email_code')
+                    if (emailFactor && 'emailAddressId' in emailFactor) {
+                        await signIn.prepareFirstFactor({
+                            strategy: 'email_code',
+                            emailAddressId: (emailFactor as any).emailAddressId,
+                        })
+                    }
+                }
+                setResendCountdown(60)
+            } catch (err: any) {
+                console.error('Resend error', err)
+                setError('Failed to resend code. Please try again.')
+            } finally {
+                setResending(false)
+            }
+        }
+
         return (
             <div className="w-full max-w-md mx-auto p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100 flex flex-col justify-center min-h-[80vh] md:min-h-0">
                 <div className="mb-8">
@@ -266,7 +342,7 @@ export default function CustomSignInForm() {
                     >
                         <ArrowLeft size={20} className="mr-1" /> Back
                     </button>
-                    <div className="relative w-16 h-16 mx-auto mb-4">
+                    <div className="relative w-20 h-20 mx-auto mb-4">
                         <Image
                             src="/KTMLogo.png"
                             alt="KTM Logo"
@@ -275,23 +351,30 @@ export default function CustomSignInForm() {
                             priority
                         />
                     </div>
-                    <h1 className="text-2xl font-black text-center text-gray-900 tracking-tight">Enter Verification Code</h1>
-                    <p className="text-gray-500 text-center mt-2">
-                        We sent a code to <span className="font-semibold text-gray-900">{email}</span>
+                    <h1 className="text-2xl font-black text-center text-gray-900 tracking-tight">Verify Your Email</h1>
+                    <p className="text-gray-500 text-center mt-2 text-sm">
+                        Enter the 6-digit code sent to
                     </p>
+                    <p className="text-center font-bold text-gray-900">{email}</p>
                 </div>
 
-                <form onSubmit={handleVerification} className="space-y-5">
-                    <div>
-                        <input
-                            type="text"
-                            value={code}
-                            onChange={(e) => setCode(e.target.value)}
-                            className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-gray-900 text-center text-2xl tracking-widest font-bold placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
-                            placeholder="123456"
-                            maxLength={6}
-                            required
-                        />
+                <form onSubmit={handleVerification} className="space-y-6">
+                    {/* OTP Input Boxes */}
+                    <div className="flex justify-center gap-2 sm:gap-3" onPaste={handlePaste}>
+                        {codeDigits.map((digit, index) => (
+                            <input
+                                key={index}
+                                id={`otp-${index}`}
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={1}
+                                value={digit}
+                                onChange={(e) => handleDigitChange(index, e.target.value)}
+                                onKeyDown={(e) => handleKeyDown(index, e)}
+                                className="w-12 h-14 sm:w-14 sm:h-16 bg-gray-50 border-2 border-gray-200 rounded-xl text-gray-900 text-center text-2xl font-black focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-500 transition-all"
+                                autoComplete={index === 0 ? "one-time-code" : "off"}
+                            />
+                        ))}
                     </div>
 
                     {error && (
@@ -304,7 +387,7 @@ export default function CustomSignInForm() {
 
                     <button
                         type="submit"
-                        disabled={loading}
+                        disabled={loading || code.length !== 6}
                         className="w-full py-4 bg-red-600 text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 hover:bg-red-700 hover:shadow-red-700/30 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-lg"
                     >
                         {loading ? (
@@ -316,6 +399,25 @@ export default function CustomSignInForm() {
                         )}
                     </button>
                 </form>
+
+                {/* Resend Code */}
+                <div className="mt-6 text-center">
+                    <p className="text-sm text-gray-500">
+                        Didn't receive the code?{' '}
+                        {resendCountdown > 0 ? (
+                            <span className="text-gray-400">Resend in {resendCountdown}s</span>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={handleResendCode}
+                                disabled={resending}
+                                className="font-bold text-red-600 hover:text-red-700 disabled:opacity-50"
+                            >
+                                {resending ? 'Sending...' : 'Resend Code'}
+                            </button>
+                        )}
+                    </p>
+                </div>
             </div>
         )
     }

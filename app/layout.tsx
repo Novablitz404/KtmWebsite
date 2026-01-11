@@ -21,6 +21,7 @@ import { ClerkProvider } from '@clerk/nextjs'
 import Header from '@/components/Header'
 import { Toaster } from 'sonner'
 import AuthLoadingWrapper from '@/components/AuthLoadingWrapper'
+import MobileShellWrapper from '@/components/MobileShellWrapper'
 
 export default function RootLayout({
   children,
@@ -43,10 +44,13 @@ export default function RootLayout({
           <Toaster position="top-center" richColors />
           <AuthLoadingWrapper>
             <Header />
-            {children}
+            <MobileShellWrapper>
+              {children}
+            </MobileShellWrapper>
           </AuthLoadingWrapper>
         </body>
       </html>
     </ClerkProvider>
   );
 }
+

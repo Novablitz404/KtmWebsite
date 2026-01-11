@@ -32,7 +32,7 @@ export default async function MembersPage(props: { searchParams: Promise<{ page?
 
     if (!dbUser.clubName) {
         return (
-            <main className="min-h-[calc(100vh-4rem)] bg-gray-50 flex items-center justify-center">
+            <main className="min-h-screen bg-gray-50 flex items-center justify-center">
                 <div className="text-center">
                     <p className="text-gray-500">No club associated with your account.</p>
                 </div>
@@ -105,37 +105,48 @@ export default async function MembersPage(props: { searchParams: Promise<{ page?
     })
 
     return (
-        <main className="min-h-[calc(100vh-4rem)] bg-gray-50 pb-2">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2">
+        <main className="min-h-screen bg-gray-50">
+            {/* Mobile Header */}
+            <div className="bg-white border-b border-gray-200 px-4 py-4 sm:hidden sticky top-0 z-10">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-xl font-bold text-gray-900">Members</h1>
+                        <p className="text-sm text-gray-500 mt-0.5">{dbUser.clubName}</p>
+                    </div>
+                    {dbUser.role === 'CLUB_MASTER' && (
+                        <InviteActions invites={pendingInvites} />
+                    )}
+                </div>
+            </div>
 
-                {/* 📊 Stats Overview */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
-                        <div className="text-3xl font-bold text-gray-900 mb-1">{totalMembers}</div>
-                        <div className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Total Members</div>
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:pt-4 sm:pb-2">
+                {/* 📊 Stats Overview - Compact for mobile */}
+                <div className="grid grid-cols-4 gap-2 sm:gap-4 mb-6 sm:mb-10">
+                    <div className="bg-white p-3 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
+                        <div className="text-xl sm:text-3xl font-bold text-gray-900">{totalMembers}</div>
+                        <div className="text-[9px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wider">Total</div>
                     </div>
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
-                        <div className="text-3xl font-bold text-blue-600 mb-1">{males}</div>
-                        <div className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Male</div>
+                    <div className="bg-white p-3 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
+                        <div className="text-xl sm:text-3xl font-bold text-blue-600">{males}</div>
+                        <div className="text-[9px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wider">Male</div>
                     </div>
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
-                        <div className="text-3xl font-bold text-pink-500 mb-1">{females}</div>
-                        <div className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Female</div>
+                    <div className="bg-white p-3 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center">
+                        <div className="text-xl sm:text-3xl font-bold text-pink-500">{females}</div>
+                        <div className="text-[9px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wider">Female</div>
                     </div>
-                    <div className="bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-800 flex flex-col items-center justify-center">
-                        <div className="text-3xl font-bold text-white mb-1">{blackBelts}</div>
-                        <div className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Black Belts</div>
+                    <div className="bg-gray-900 p-3 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm border border-gray-800 flex flex-col items-center justify-center">
+                        <div className="text-xl sm:text-3xl font-bold text-white">{blackBelts}</div>
+                        <div className="text-[9px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wider">Black</div>
                     </div>
                 </div>
 
-                {/* Actions & Header */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+                {/* Actions & Header - Desktop only */}
+                <div className="hidden sm:flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
                     <div>
                         <h2 className="text-2xl font-bold text-gray-900">Club Roster</h2>
                         <p className="text-gray-500 text-sm mt-1">All registered members of {dbUser.clubName}</p>
                     </div>
                     <div className="flex flex-col items-end gap-2">
-                        {/* Only Club Master (not Assistant) can invite others? Usually yes. */}
                         {dbUser.role === 'CLUB_MASTER' && (
                             <InviteActions invites={pendingInvites} />
                         )}
@@ -145,11 +156,16 @@ export default async function MembersPage(props: { searchParams: Promise<{ page?
                     </div>
                 </div>
 
+                {/* Mobile pagination info */}
+                <div className="sm:hidden text-xs text-gray-500 mb-3 text-center">
+                    Showing {skip + 1}-{Math.min(skip + pageSize, totalMembers)} of {totalMembers} members
+                </div>
+
                 {paginatedMembers.length === 0 ? (
-                    <div className="bg-white rounded-2xl p-16 text-center shadow-sm border border-gray-200">
-                        <div className="text-6xl mb-4">👥</div>
-                        <h3 className="text-xl font-bold text-gray-900 mb-2">No members found</h3>
-                        <p className="text-gray-500">
+                    <div className="bg-white rounded-2xl p-10 sm:p-16 text-center shadow-sm border border-gray-200">
+                        <div className="text-5xl sm:text-6xl mb-4">👥</div>
+                        <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">No members found</h3>
+                        <p className="text-gray-500 text-sm">
                             Invite athletes to join <strong>{dbUser.clubName}</strong> during their signup!
                         </p>
                     </div>

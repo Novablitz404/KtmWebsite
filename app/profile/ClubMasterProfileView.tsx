@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import ProfileForm from './ProfileForm'
 import ClubSettingsButton from '@/app/components/ClubSettingsButton'
+import Link from 'next/link'
 
 interface ClubMasterProfileViewProps {
     dbUser: {
@@ -36,11 +37,11 @@ export default async function ClubMasterProfileView({ dbUser, clerkImageUrl }: C
     ])
 
     return (
-        <div className="">
-            {/* Profile Header Card */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 mb-6">
+        <div className="space-y-4 sm:space-y-6">
+            {/* Profile Header Card - Mobile Optimized */}
+            <div className="bg-white sm:rounded-2xl shadow-sm border-b sm:border border-gray-200">
                 {/* Cover Image */}
-                <div className="h-48 relative rounded-t-2xl overflow-hidden">
+                <div className="h-32 sm:h-48 relative sm:rounded-t-2xl overflow-hidden">
                     {club?.logoUrl ? (
                         <>
                             {/* Sleek Dark Gradient Background */}
@@ -53,11 +54,11 @@ export default async function ClubMasterProfileView({ dbUser, clerkImageUrl }: C
                             }} />
 
                             {/* Club Logo - Prominently Displayed */}
-                            <div className="absolute right-6 top-1/2 -translate-y-1/2 opacity-30">
+                            <div className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2 opacity-30">
                                 <img
                                     src={club.logoUrl}
                                     alt="Club Logo"
-                                    className="h-32 w-32 object-contain drop-shadow-2xl"
+                                    className="h-20 w-20 sm:h-32 sm:w-32 object-contain drop-shadow-2xl"
                                 />
                             </div>
 
@@ -67,85 +68,136 @@ export default async function ClubMasterProfileView({ dbUser, clerkImageUrl }: C
                     ) : (
                         <div className="absolute inset-0 bg-gradient-to-r from-orange-400 via-orange-500 to-amber-500">
                             <div className="absolute inset-0 opacity-20">
-                                <div className="absolute top-4 right-8 text-6xl opacity-30">🥋</div>
-                                <div className="absolute bottom-4 left-8 text-4xl opacity-20">🏆</div>
+                                <div className="absolute top-4 right-8 text-4xl sm:text-6xl opacity-30">🥋</div>
+                                <div className="absolute bottom-4 left-8 text-2xl sm:text-4xl opacity-20">🏆</div>
                             </div>
                         </div>
                     )}
                 </div>
 
                 {/* Profile Info */}
-                <div className="px-4 sm:px-6 pb-6">
-                    <div className="relative flex flex-col sm:flex-row sm:items-end gap-4 -mt-12 sm:-mt-16">
+                <div className="px-4 sm:px-6 pb-4 sm:pb-6">
+                    <div className="relative flex flex-col sm:flex-row sm:items-end gap-3 sm:gap-4 -mt-10 sm:-mt-16">
                         {/* Avatar */}
                         <div className="relative flex-shrink-0">
                             {clerkImageUrl ? (
                                 <img
                                     src={clerkImageUrl}
                                     alt={dbUser.name || 'Club Master'}
-                                    className="w-24 h-24 sm:w-32 sm:h-32 rounded-xl border-4 border-white shadow-lg object-cover bg-white"
+                                    className="w-20 h-20 sm:w-32 sm:h-32 rounded-2xl border-4 border-white shadow-lg object-cover bg-white"
                                 />
                             ) : (
-                                <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-xl bg-gradient-to-br from-orange-100 to-orange-200 border-4 border-white shadow-lg flex items-center justify-center text-3xl sm:text-5xl">
+                                <div className="w-20 h-20 sm:w-32 sm:h-32 rounded-2xl bg-gradient-to-br from-orange-100 to-orange-200 border-4 border-white shadow-lg flex items-center justify-center text-3xl sm:text-5xl">
                                     🏫
                                 </div>
                             )}
                         </div>
 
                         {/* Name & Role */}
-                        <div className="flex-1 pt-2 sm:pt-0 sm:pb-1">
-                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-                                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{dbUser.name || 'Club Master'}</h1>
-                                <span className="self-start sm:self-auto inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-orange-100 text-orange-700">
+                        <div className="flex-1 pt-1 sm:pt-0 sm:pb-1">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
+                                <h1 className="text-lg sm:text-2xl font-bold text-gray-900">{dbUser.name || 'Club Master'}</h1>
+                                <span className="self-start sm:self-auto inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-xs font-semibold bg-orange-100 text-orange-700">
                                     👑 Club Master
                                 </span>
                             </div>
-                            <p className="text-gray-500 text-sm mt-0.5">{dbUser.email}</p>
+                            <p className="text-gray-500 text-xs sm:text-sm mt-0.5 truncate">{dbUser.email}</p>
                         </div>
 
                         {/* Edit Profile Button */}
-                        <div className="sm:ml-auto mb-1">
+                        <div className="sm:ml-auto mt-2 sm:mt-0 sm:mb-1">
                             <ProfileForm user={dbUser} initialImageUrl={clerkImageUrl} />
                         </div>
                     </div>
 
                     {/* Club Badge */}
-                    <div className="mt-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                        <div className="flex-1 w-full flex items-center gap-4">
+                    <div className="mt-4 sm:mt-6 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-gray-50 rounded-xl border border-gray-100">
+                        <div className="flex-1 w-full flex items-center gap-3 sm:gap-4">
                             {club?.logoUrl && (
                                 <img
                                     src={club.logoUrl}
                                     alt="Club Logo"
-                                    className="w-12 h-12 object-contain rounded-lg border border-gray-200 bg-white p-1"
+                                    className="w-10 h-10 sm:w-12 sm:h-12 object-contain rounded-lg border border-gray-200 bg-white p-1"
                                 />
                             )}
                             <div>
-                                <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">Club</p>
-                                <p className="text-base sm:text-lg font-bold text-gray-900 break-words">{dbUser.clubName || 'Not Assigned'}</p>
+                                <p className="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wider font-medium">Club</p>
+                                <p className="text-sm sm:text-lg font-bold text-gray-900 break-words">{dbUser.clubName || 'Not Assigned'}</p>
                             </div>
                         </div>
                         {/* Stats */}
                         <div className="sm:ml-auto flex items-center gap-6 w-full sm:w-auto border-t sm:border-t-0 border-gray-200 pt-3 sm:pt-0 mt-1 sm:mt-0 justify-around sm:justify-start">
                             <div className="text-center">
                                 <p className="text-xl sm:text-2xl font-bold text-gray-900">{playersCount}</p>
-                                <p className="text-xs text-gray-500">Athletes</p>
+                                <p className="text-[10px] sm:text-xs text-gray-500">Athletes</p>
                             </div>
                             <div className="text-center">
                                 <p className="text-xl sm:text-2xl font-bold text-gray-900">{uniqueTournaments}</p>
-                                <p className="text-xs text-gray-500">Events</p>
+                                <p className="text-[10px] sm:text-xs text-gray-500">Events</p>
                             </div>
                             <div className="text-center hidden sm:block">
                                 <p className="text-xl sm:text-2xl font-bold text-amber-500">0</p>
-                                <p className="text-xs text-gray-500">Medals</p>
+                                <p className="text-[10px] sm:text-xs text-gray-500">Medals</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Club Details Only */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 min-h-[300px]">
-                <div className="px-5 py-4 border-b border-gray-100 flex justify-between items-center">
+            {/* Quick Actions - Mobile Only */}
+            <div className="sm:hidden px-4 space-y-3">
+                <Link
+                    href="/club"
+                    className="flex items-center gap-4 bg-white rounded-2xl shadow-sm border border-gray-100 p-4 active:scale-[0.98] transition-transform"
+                >
+                    <div className="w-11 h-11 rounded-xl bg-orange-50 flex items-center justify-center text-xl">
+                        📊
+                    </div>
+                    <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900 text-sm">Dashboard</h3>
+                        <p className="text-xs text-gray-500">Manage registrations</p>
+                    </div>
+                    <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                </Link>
+
+                <Link
+                    href="/members"
+                    className="flex items-center gap-4 bg-white rounded-2xl shadow-sm border border-gray-100 p-4 active:scale-[0.98] transition-transform"
+                >
+                    <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center text-xl">
+                        👥
+                    </div>
+                    <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900 text-sm">Members</h3>
+                        <p className="text-xs text-gray-500">View club roster</p>
+                    </div>
+                    <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                </Link>
+
+                <Link
+                    href="/club/attendance"
+                    className="flex items-center gap-4 bg-white rounded-2xl shadow-sm border border-gray-100 p-4 active:scale-[0.98] transition-transform"
+                >
+                    <div className="w-11 h-11 rounded-xl bg-green-50 flex items-center justify-center text-xl">
+                        📅
+                    </div>
+                    <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900 text-sm">Attendance</h3>
+                        <p className="text-xs text-gray-500">Track member attendance</p>
+                    </div>
+                    <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                </Link>
+            </div>
+
+            {/* Club Details - Desktop and Mobile */}
+            <div className="bg-white sm:rounded-xl shadow-sm border-y sm:border border-gray-200">
+                <div className="px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-100 flex justify-between items-center">
                     <h2 className="font-semibold text-gray-900">
                         Club Details
                     </h2>
@@ -159,41 +211,35 @@ export default async function ClubMasterProfileView({ dbUser, clerkImageUrl }: C
                         />
                     )}
                 </div>
-                <div className="p-8 space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="p-4 sm:p-8">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 sm:gap-6">
                         <div>
-                            <span className="block text-sm text-gray-500 mb-1">Club Name</span>
-                            <span className="font-medium text-gray-900">{dbUser.clubName || '-'}</span>
+                            <span className="block text-[10px] sm:text-sm text-gray-500 mb-0.5 sm:mb-1">Club Name</span>
+                            <span className="font-medium text-gray-900 text-sm sm:text-base">{dbUser.clubName || '-'}</span>
                         </div>
                         <div>
-                            <span className="block text-sm text-gray-500 mb-1">Club Master</span>
-                            <span className="font-medium text-gray-900">{dbUser.name || '-'}</span>
+                            <span className="block text-[10px] sm:text-sm text-gray-500 mb-0.5 sm:mb-1">Club Master</span>
+                            <span className="font-medium text-gray-900 text-sm sm:text-base">{dbUser.name || '-'}</span>
                         </div>
                         <div>
-                            <span className="block text-sm text-gray-500 mb-1">Status</span>
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">
+                            <span className="block text-[10px] sm:text-sm text-gray-500 mb-0.5 sm:mb-1">Status</span>
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium bg-green-50 text-green-700">
                                 <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                                 Active
                             </span>
                         </div>
                         <div>
-                            <span className="block text-sm text-gray-500 mb-1">Email</span>
-                            <span className="font-medium text-gray-900 text-sm overflow-hidden text-ellipsis">{dbUser.email}</span>
+                            <span className="block text-[10px] sm:text-sm text-gray-500 mb-0.5 sm:mb-1">Email</span>
+                            <span className="font-medium text-gray-900 text-xs sm:text-sm truncate block">{dbUser.email}</span>
                         </div>
                         <div>
-                            <span className="block text-sm text-gray-500 mb-1">Phone</span>
-                            <span className="font-medium text-gray-900 text-sm">{club?.phone || '-'}</span>
+                            <span className="block text-[10px] sm:text-sm text-gray-500 mb-0.5 sm:mb-1">Phone</span>
+                            <span className="font-medium text-gray-900 text-sm sm:text-base">{club?.phone || '-'}</span>
                         </div>
-                        <div className="md:col-span-2 lg:col-span-1">
-                            <span className="block text-sm text-gray-500 mb-1">Address</span>
-                            <span className="font-medium text-gray-900 text-sm">{club?.address || '-'}</span>
+                        <div className="col-span-2 sm:col-span-1">
+                            <span className="block text-[10px] sm:text-sm text-gray-500 mb-0.5 sm:mb-1">Address</span>
+                            <span className="font-medium text-gray-900 text-sm sm:text-base">{club?.address || '-'}</span>
                         </div>
-                    </div>
-
-                    <div className="pt-4 mt-2 border-t border-gray-50">
-                        <p className="text-xs text-gray-400">
-                            Contact admin to modify club information
-                        </p>
                     </div>
                 </div>
             </div>

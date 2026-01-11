@@ -287,8 +287,21 @@ export default async function ClubPage() {
     })
 
     return (
-        <main className="min-h-[calc(100vh-4rem)] bg-gray-50 pb-2">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2">
+        <main className="min-h-screen bg-gray-50">
+            {/* Mobile Header */}
+            <div className="bg-white border-b border-gray-200 px-4 py-4 sm:hidden sticky top-0 z-10">
+                <div className="flex items-center gap-3">
+                    {targetClub.logoUrl && (
+                        <img src={targetClub.logoUrl} alt="Club Logo" className="w-10 h-10 rounded-lg border border-gray-200 object-contain bg-white p-0.5" />
+                    )}
+                    <div>
+                        <h1 className="text-lg font-bold text-gray-900">{targetClub.name}</h1>
+                        <p className="text-xs text-gray-500">Club Dashboard</p>
+                    </div>
+                </div>
+            </div>
+
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:pt-4 sm:pb-2">
                 <ClubDashboard
                     pendingPlayers={pendingPlayers}
                     approvedPlayers={approvedPlayers}
