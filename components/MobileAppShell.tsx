@@ -18,6 +18,7 @@ const EXCLUDED_PATHS = [
     '/onboarding',
     '/admin',
     '/attendance/kiosk',
+    '/athlete/home',
 ]
 
 export default function MobileAppShell({ children, role, userId }: MobileAppShellProps) {

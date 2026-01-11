@@ -9,13 +9,19 @@ export default function LogoutButton() {
 
     const handleLogout = async () => {
         setIsLoggingOut(true)
+
+        // Create a promise that rejects after 2 seconds
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Logout timed out')), 2000)
+        )
+
         try {
-            await signOut()
-            // Force a hard refresh/navigation to the sign-in page to clear any PWA state
+            // Race the signOut against the timeout
+            await Promise.race([signOut(), timeoutPromise])
             window.location.href = '/sign-in'
         } catch (error) {
-            console.error('Logout error:', error)
-            // Even if it fails, try to redirect
+            console.error('Logout error or timeout:', error)
+            // Force redirect even on error/timeout
             window.location.href = '/sign-in'
         }
     }
