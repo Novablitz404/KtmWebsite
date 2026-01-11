@@ -157,7 +157,18 @@ export default async function ProfilePage() {
         )
     }
 
-    // Athlete View - Standard Profile
+    // Athlete View - Redirect to Dashboard Home for unified PWA experience
+    // User requested to land on Home, not Profile, even if accessing /profile path.
+    if (dbUser.role === 'ATHLETE') {
+        redirect('/athlete/home')
+    }
+
+    // Fallback? AthleteProfileView shouldn't be reached by ATHLETE here if redirected.
+    // But we might need it for type safety or if redirect fails? Next redirect throws.
+
+    // For safety, or if role is null but code falls through? 
+    // Types say role can be null. Schema logic should catch it.
+
     return (
         <main className="min-h-[calc(100vh-4rem)] bg-gray-50 pb-2">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2">

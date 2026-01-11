@@ -18,6 +18,11 @@ export default async function NotificationsPage() {
         redirect('/onboarding')
     }
 
+    // Redirect Athletes to the PWA Dashboard Alerts tab
+    if (user.role === 'ATHLETE') {
+        redirect('/athlete/home?tab=alerts')
+    }
+
     return (
         <div className="min-h-screen bg-gray-50/50 pb-24">
             {/* Mobile Header */}
