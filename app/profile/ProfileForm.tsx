@@ -20,9 +20,10 @@ interface ProfileFormProps {
         role: string
     }
     initialImageUrl?: string
+    customTrigger?: React.ReactNode
 }
 
-export default function ProfileForm({ user, initialImageUrl }: ProfileFormProps) {
+export default function ProfileForm({ user, initialImageUrl, customTrigger }: ProfileFormProps) {
     const [isEditing, setIsEditing] = useState(false)
     const [saving, setSaving] = useState(false)
     const [previewImage, setPreviewImage] = useState<string | null>(initialImageUrl || null)
@@ -69,6 +70,13 @@ export default function ProfileForm({ user, initialImageUrl }: ProfileFormProps)
     }
 
     if (!isEditing) {
+        if (customTrigger) {
+            return (
+                <div onClick={() => setIsEditing(true)} className="cursor-pointer">
+                    {customTrigger}
+                </div>
+            )
+        }
         return (
             <button
                 onClick={() => setIsEditing(true)}

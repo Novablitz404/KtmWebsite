@@ -1,18 +1,18 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import BottomTabBar from './BottomTabBar'
-import { useMobilePWA } from '@/hooks/usePWA'
 
 interface MobileAppShellProps {
     children: React.ReactNode
     role: string | null
     userId: string | null
+    isMobile: boolean
 }
 
-// Pages that should NOT show the bottom tab bar
+// Pages that should NOT show the bottom tab bar or shell styling
 const EXCLUDED_PATHS = [
+    '/',
     '/sign-in',
     '/sign-up',
     '/onboarding',
@@ -21,27 +21,26 @@ const EXCLUDED_PATHS = [
     '/athlete/home',
 ]
 
-export default function MobileAppShell({ children, role, userId }: MobileAppShellProps) {
-    const isMobilePWA = useMobilePWA()
+export default function MobileAppShell({ children, role, userId, isMobile }: MobileAppShellProps) {
     const pathname = usePathname()
 
     // Check if current path should exclude the tab bar
     const shouldShowTabBar = !EXCLUDED_PATHS.some(path => pathname?.startsWith(path))
 
-    // Only render mobile shell for PWA on mobile devices
-    if (!isMobilePWA) {
+    // Don't render mobile shell for desktop users
+    if (!isMobile) {
         return <>{children}</>
     }
 
     return (
         <div className="min-h-screen bg-gray-50">
-            {/* Main content with bottom padding for tab bar */}
-            <main className={shouldShowTabBar ? 'pb-[calc(3.5rem+env(safe-area-inset-bottom))]' : ''}>
+            {/* Main content with bottom padding for tab bar (4rem + extra for floating circle) */}
+            <main className={shouldShowTabBar ? 'pb-24' : ''}>
                 {children}
             </main>
 
-            {/* Bottom Tab Bar */}
-            {shouldShowTabBar && role && (
+            {/* Bottom Tab Bar - show for all logged-in mobile users */}
+            {shouldShowTabBar && (
                 <BottomTabBar role={role} userId={userId} />
             )}
         </div>

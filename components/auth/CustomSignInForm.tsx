@@ -20,6 +20,7 @@ export default function CustomSignInForm() {
     const [loading, setLoading] = useState(false)
     const [resending, setResending] = useState(false)
     const [resendCountdown, setResendCountdown] = useState(0)
+    // Removed success state to transition directly to skeleton loading
     const router = useRouter()
 
     // Countdown timer for resend
@@ -33,6 +34,13 @@ export default function CustomSignInForm() {
     if (!isLoaded) {
         return null
     }
+
+    if (!isLoaded) {
+        return null
+    }
+
+    // Removed "Authenticating..." intermediate screen to allow immediate transition to 
+    // the destination page's skeleton loading state.
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -54,8 +62,12 @@ export default function CustomSignInForm() {
             })
 
             if (result.status === 'complete') {
+                // Add artificial delay for smoother UX (especially on fast networks)
+                await new Promise(resolve => setTimeout(resolve, 2000))
                 await setActive({ session: result.createdSessionId })
-                router.push('/')
+                // Redirect to root, where app/page.tsx will handle role-based redirection
+                // Force full reload to clear client router cache and ensure correct role-based redirect
+                window.location.href = '/'
             } else if (result.status === 'needs_first_factor') {
                 // User needs to verify via email code - prepare and send the code
                 const emailFactor = result.supportedFirstFactors?.find(
@@ -137,7 +149,8 @@ export default function CustomSignInForm() {
 
             if (result.status === 'complete') {
                 await setActive({ session: result.createdSessionId })
-                router.push('/')
+                // Force full reload to clear client router cache and ensure correct role-based redirect
+                window.location.href = '/'
             } else if (result.status === 'needs_second_factor') {
                 // After first factor, 2FA is also required
                 setCode('')
@@ -174,7 +187,8 @@ export default function CustomSignInForm() {
 
             if (result.status === 'complete') {
                 await setActive({ session: result.createdSessionId })
-                router.push('/')
+                // Force full reload to clear client router cache and ensure correct role-based redirect
+                window.location.href = '/'
             } else {
                 console.error('2FA incomplete', result)
                 setError('2FA verification failed. Please try again.')
@@ -334,89 +348,94 @@ export default function CustomSignInForm() {
         }
 
         return (
-            <div className="w-full max-w-md mx-auto p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100 flex flex-col justify-center min-h-[80vh] md:min-h-0">
-                <div className="mb-8">
-                    <button
-                        onClick={() => { setStep('credentials'); setCode(''); }}
-                        className="flex items-center text-gray-500 hover:text-gray-900 transition-colors mb-6"
-                    >
-                        <ArrowLeft size={20} className="mr-1" /> Back
-                    </button>
-                    <div className="relative w-20 h-20 mx-auto mb-4">
-                        <Image
-                            src="/KTMLogo.png"
-                            alt="KTM Logo"
-                            fill
-                            className="object-contain"
-                            priority
-                        />
-                    </div>
-                    <h1 className="text-2xl font-black text-center text-gray-900 tracking-tight">Verify Your Email</h1>
-                    <p className="text-gray-500 text-center mt-2 text-sm">
-                        Enter the 6-digit code sent to
-                    </p>
-                    <p className="text-center font-bold text-gray-900">{email}</p>
-                </div>
+            <div className="w-full h-full max-w-md mx-auto px-4 py-6 sm:p-8 bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100 flex flex-col">
+                {/* Back button at top */}
+                <button
+                    onClick={() => { setStep('credentials'); setCode(''); }}
+                    className="flex items-center text-gray-500 hover:text-gray-900 transition-colors mb-4 self-start"
+                >
+                    <ArrowLeft size={20} className="mr-1" /> Back
+                </button>
 
-                <form onSubmit={handleVerification} className="space-y-6">
-                    {/* OTP Input Boxes */}
-                    <div className="flex justify-center gap-2 sm:gap-3" onPaste={handlePaste}>
-                        {codeDigits.map((digit, index) => (
-                            <input
-                                key={index}
-                                id={`otp-${index}`}
-                                type="text"
-                                inputMode="numeric"
-                                maxLength={1}
-                                value={digit}
-                                onChange={(e) => handleDigitChange(index, e.target.value)}
-                                onKeyDown={(e) => handleKeyDown(index, e)}
-                                className="w-12 h-14 sm:w-14 sm:h-16 bg-gray-50 border-2 border-gray-200 rounded-xl text-gray-900 text-center text-2xl font-black focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-500 transition-all"
-                                autoComplete={index === 0 ? "one-time-code" : "off"}
+                {/* Centered content */}
+                <div className="flex-1 flex flex-col justify-center">
+                    <div className="mb-6 sm:mb-8">
+                        <div className="relative w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-3 sm:mb-4">
+                            <Image
+                                src="/KTMLogo.png"
+                                alt="KTM Logo"
+                                fill
+                                sizes="80px"
+                                className="object-contain"
                             />
-                        ))}
+                        </div>
+                        <h1 className="text-xl sm:text-2xl font-black text-center text-gray-900 tracking-tight">Verify Your Email</h1>
+                        <p className="text-gray-500 text-center mt-1 sm:mt-2 text-xs sm:text-sm">
+                            Enter the 6-digit code sent to
+                        </p>
+                        <p className="text-center font-bold text-gray-900 text-sm sm:text-base">{email}</p>
                     </div>
 
-                    {error && (
-                        <div className="p-4 bg-red-50 border border-red-100 rounded-2xl">
-                            <p className="text-sm text-red-600 font-medium flex items-center gap-2">
-                                <span className="text-lg">⚠️</span> {error}
-                            </p>
+                    <form onSubmit={handleVerification} className="space-y-6">
+                        {/* OTP Input Boxes */}
+                        <div className="flex justify-center gap-2 sm:gap-3" onPaste={handlePaste}>
+                            {codeDigits.map((digit, index) => (
+                                <input
+                                    key={index}
+                                    id={`otp-${index}`}
+                                    type="text"
+                                    inputMode="numeric"
+                                    maxLength={1}
+                                    value={digit}
+                                    onChange={(e) => handleDigitChange(index, e.target.value)}
+                                    onKeyDown={(e) => handleKeyDown(index, e)}
+                                    className="w-12 h-14 sm:w-14 sm:h-16 bg-gray-50 border-2 border-gray-200 rounded-xl text-gray-900 text-center text-2xl font-black focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-500 transition-all"
+                                    autoComplete={index === 0 ? "one-time-code" : "off"}
+                                />
+                            ))}
                         </div>
-                    )}
 
-                    <button
-                        type="submit"
-                        disabled={loading || code.length !== 6}
-                        className="w-full py-4 bg-red-600 text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 hover:bg-red-700 hover:shadow-red-700/30 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-lg"
-                    >
-                        {loading ? (
-                            <>
-                                <Loader2 className="animate-spin" /> Verifying...
-                            </>
-                        ) : (
-                            'Verify & Sign In'
+                        {error && (
+                            <div className="p-4 bg-red-50 border border-red-100 rounded-2xl">
+                                <p className="text-sm text-red-600 font-medium flex items-center gap-2">
+                                    <span className="text-lg">⚠️</span> {error}
+                                </p>
+                            </div>
                         )}
-                    </button>
-                </form>
 
-                {/* Resend Code */}
-                <div className="mt-6 text-center">
-                    <p className="text-sm text-gray-500">
-                        Didn't receive the code?{' '}
-                        {resendCountdown > 0 ? (
-                            <span className="text-gray-400">Resend in {resendCountdown}s</span>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={handleResendCode}
-                                disabled={resending}
-                                className="font-bold text-red-600 hover:text-red-700 disabled:opacity-50"
-                            >
-                                {resending ? 'Sending...' : 'Resend Code'}
-                            </button>
-                        )}
-                    </p>
+                        <button
+                            type="submit"
+                            disabled={loading || code.length !== 6}
+                            className="w-full py-4 bg-red-600 text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 hover:bg-red-700 hover:shadow-red-700/30 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-lg"
+                        >
+                            {loading ? (
+                                <>
+                                    <Loader2 className="animate-spin" /> Verifying...
+                                </>
+                            ) : (
+                                'Verify & Sign In'
+                            )}
+                        </button>
+                    </form>
+
+                    {/* Resend Code */}
+                    <div className="mt-6 text-center">
+                        <p className="text-sm text-gray-500">
+                            Didn't receive the code?{' '}
+                            {resendCountdown > 0 ? (
+                                <span className="text-gray-400">Resend in {resendCountdown}s</span>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={handleResendCode}
+                                    disabled={resending}
+                                    className="font-bold text-red-600 hover:text-red-700 disabled:opacity-50"
+                                >
+                                    {resending ? 'Sending...' : 'Resend Code'}
+                                </button>
+                            )}
+                        </p>
+                    </div>
                 </div>
             </div>
         )
@@ -424,33 +443,34 @@ export default function CustomSignInForm() {
 
     // CREDENTIALS STEP UI
     return (
-        <div className="w-full max-w-md mx-auto p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100 flex flex-col justify-center min-h-[80vh] md:min-h-0">
+        <div className="w-full max-w-md mx-auto px-4 py-6 sm:p-8 bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100 flex flex-col justify-center">
 
             {/* Mobile-style Header */}
-            <div className="text-center mb-8">
-                <div className="relative w-20 h-20 mx-auto mb-4">
+            <div className="text-center mb-6 sm:mb-8">
+                <div className="relative w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-3 sm:mb-4">
                     <Image
                         src="/KTMLogo.png"
                         alt="KTM Logo"
                         fill
+                        sizes="(max-width: 640px) 64px, 80px"
                         className="object-contain"
                         priority
                     />
                 </div>
-                <h1 className="text-3xl font-black text-gray-900 tracking-tight">Welcome Back!</h1>
-                <p className="text-gray-500 mt-2">Sign in to manage your tournaments</p>
+                <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">Welcome Back!</h1>
+                <p className="text-gray-500 mt-1 sm:mt-2 text-sm sm:text-base">Sign in to manage your tournaments</p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
 
                 {/* Email Input */}
                 <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1 ml-1">Email Address</label>
+                    <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 ml-1">Email Address</label>
                     <input
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
+                        className="w-full px-4 py-3 sm:px-5 sm:py-4 bg-gray-50 border border-gray-200 rounded-xl sm:rounded-2xl text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium text-sm sm:text-base"
                         placeholder="coach@example.com"
                         required
                     />
@@ -458,21 +478,21 @@ export default function CustomSignInForm() {
 
                 {/* Password Input */}
                 <div className="relative">
-                    <label className="block text-sm font-semibold text-gray-700 mb-1 ml-1">Password</label>
+                    <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 ml-1">Password</label>
                     <input
                         type={showPassword ? "text" : "password"}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
+                        className="w-full px-4 py-3 sm:px-5 sm:py-4 bg-gray-50 border border-gray-200 rounded-xl sm:rounded-2xl text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium text-sm sm:text-base"
                         placeholder="••••••••"
                         required
                     />
                     <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-4 top-[38px] text-gray-400 hover:text-gray-600"
+                        className="absolute right-4 top-[32px] sm:top-[38px] text-gray-400 hover:text-gray-600"
                     >
-                        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                        {showPassword ? <EyeOff size={18} className="sm:w-5 sm:h-5" /> : <Eye size={18} className="sm:w-5 sm:h-5" />}
                     </button>
                 </div>
 
@@ -494,11 +514,11 @@ export default function CustomSignInForm() {
                 <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-4 bg-red-600 text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 hover:bg-red-700 hover:shadow-red-700/30 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-lg"
+                    className="w-full py-3 sm:py-4 bg-red-600 text-white font-bold rounded-xl sm:rounded-2xl shadow-lg shadow-red-600/20 hover:bg-red-700 hover:shadow-red-700/30 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base sm:text-lg"
                 >
                     {loading ? (
                         <>
-                            <Loader2 className="animate-spin" /> Signing In...
+                            <Loader2 className="animate-spin w-4 h-4 sm:w-5 sm:h-5" /> Signing In...
                         </>
                     ) : (
                         'Sign In'
@@ -506,9 +526,9 @@ export default function CustomSignInForm() {
                 </button>
             </form>
 
-            <div className="my-8 flex items-center gap-4">
+            <div className="my-5 sm:my-8 flex items-center gap-4">
                 <div className="h-px bg-gray-100 flex-1" />
-                <span className="text-gray-400 text-sm font-medium">OR</span>
+                <span className="text-gray-400 text-xs sm:text-sm font-medium">OR</span>
                 <div className="h-px bg-gray-100 flex-1" />
             </div>
 
@@ -516,9 +536,9 @@ export default function CustomSignInForm() {
             <button
                 type="button"
                 onClick={handleGoogleSignIn}
-                className="w-full py-4 bg-white border-2 border-gray-100 text-gray-700 font-bold rounded-2xl hover:bg-gray-50 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                className="w-full py-3 sm:py-4 bg-white border-2 border-gray-100 text-gray-700 font-bold rounded-xl sm:rounded-2xl hover:bg-gray-50 active:scale-[0.98] transition-all flex items-center justify-center gap-2 sm:gap-3 text-sm sm:text-base"
             >
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" viewBox="0 0 24 24">
                     <path
                         d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
                         fill="#4285F4"
@@ -539,7 +559,7 @@ export default function CustomSignInForm() {
                 Continue with Google
             </button>
 
-            <p className="mt-8 text-center text-sm text-gray-500">
+            <p className="mt-5 sm:mt-8 text-center text-xs sm:text-sm text-gray-500">
                 Don't have an account?{' '}
                 <Link href="/sign-up" className="font-bold text-red-600 hover:text-red-700">
                     Sign Up

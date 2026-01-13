@@ -10,9 +10,9 @@ interface AthleteHomeViewProps {
 
 export default function AthleteHomeView({ dbUser, clerkUser, tournamentsJoined }: AthleteHomeViewProps) {
     return (
-        <main className="min-h-[calc(100vh-80px)] bg-gray-50 pb-20">
+        <main className="min-h-[calc(100vh-64px)] bg-gray-50 overflow-y-auto flex flex-col">
             {/* Hero Section with Avatar */}
-            <div className="bg-gradient-to-br from-red-600 via-red-500 to-orange-500 pt-8 pb-16 px-4">
+            <div className="bg-gradient-to-br from-red-600 via-red-500 to-orange-500 pt-8 pb-16 px-4 flex-shrink-0">
                 <div className="flex flex-col items-center text-center">
                     <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm border-2 border-white/40 flex items-center justify-center mb-3 shadow-lg">
                         {clerkUser.imageUrl ? (
@@ -45,7 +45,7 @@ export default function AthleteHomeView({ dbUser, clerkUser, tournamentsJoined }
             </div>
 
             {/* Stats Cards */}
-            <div className="px-4 -mt-8">
+            <div className="px-4 -mt-8 flex-shrink-0">
                 <div className="grid grid-cols-3 gap-3">
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-center">
                         <div className="text-2xl font-bold text-gray-900">{tournamentsJoined}</div>
@@ -63,7 +63,7 @@ export default function AthleteHomeView({ dbUser, clerkUser, tournamentsJoined }
             </div>
 
             {/* Quick Actions */}
-            <div className="px-4 mt-6">
+            <div className="px-4 mt-6 flex-1 overflow-y-auto pb-4">
                 <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Quick Actions</h2>
                 <div className="space-y-3">
                     <Link

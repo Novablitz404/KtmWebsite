@@ -31,7 +31,7 @@ export default function AuthLoadingWrapper({ children }: { children: React.React
             fetch('/api/user/role')
                 .then(res => res.json())
                 .then(data => {
-                    let redirectTo = '/profile' // Default
+                    let redirectTo = '/athlete/home' // Default now points to Athlete Home
 
                     switch (data.role) {
                         case 'ADMIN':
@@ -47,7 +47,7 @@ export default function AuthLoadingWrapper({ children }: { children: React.React
                             break
                         case 'ATHLETE':
                         default:
-                            redirectTo = '/profile'
+                            redirectTo = '/athlete/home'
                             break
                     }
 
@@ -55,8 +55,8 @@ export default function AuthLoadingWrapper({ children }: { children: React.React
                     router.replace(redirectTo)
                 })
                 .catch(() => {
-                    // On error, just go to profile
-                    router.replace('/profile')
+                    // On error, default to athlete home
+                    router.replace('/athlete/home')
                 })
         }
 
@@ -76,28 +76,7 @@ export default function AuthLoadingWrapper({ children }: { children: React.React
         }
     }, [pathname])
 
-    // Show loading overlay when redirecting after sign-in
-    if (isRedirecting && pathname === '/') {
-        return (
-            <div className="fixed inset-0 bg-white z-[100] flex items-center justify-center">
-                <div className="text-center">
-                    {/* Animated KTM Logo */}
-                    <div className="relative mx-auto w-20 h-20 mb-4">
-                        <img
-                            src="/KTMLogo.png"
-                            alt="KTM"
-                            className="w-20 h-20 object-contain animate-pulse"
-                        />
-                    </div>
-                    <p className="text-gray-600 font-medium">Signing you in...</p>
-                    {/* Subtle loading bar */}
-                    <div className="mt-4 w-48 h-1 bg-gray-200 rounded-full overflow-hidden mx-auto">
-                        <div className="h-full bg-red-600 rounded-full animate-pulse" style={{ width: '60%' }} />
-                    </div>
-                </div>
-            </div>
-        )
-    }
+
 
     return <>{children}</>
 }

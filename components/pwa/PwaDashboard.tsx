@@ -2,29 +2,62 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Bell, Home, User, Calendar } from 'lucide-react'
+import { Bell, Home, Settings, Calendar } from 'lucide-react'
 import AthleteHomeView from './AthleteHomeView'
+import TournamentsListView from './TournamentsListView'
+import MyEventsView from './MyEventsView'
 import NotificationList from '@/app/notifications/NotificationList'
-import AthleteProfileView from '@/app/profile/AthleteProfileView'
+import SettingsView from '@/components/pwa/SettingsView'
 import { getUnreadCount } from '@/app/actions/notifications'
+import PullToRefresh from '@/components/ui/PullToRefresh'
+
+interface Tournament {
+    id: string
+    name: string
+    startDate: Date | null
+    venue: string | null
+    status: string
+    _count: {
+        categories: number
+    }
+}
 
 interface PwaDashboardProps {
     dbUser: any
     clerkUser: any
     tournamentsJoined: number
     clubLogoUrl?: string
+    tournaments?: Tournament[]
+    registeredTournamentIds?: Set<string>
+    homeContent?: React.ReactNode
+    eventsContent?: React.ReactNode
+    registerContent?: React.ReactNode
+    initialTab?: string
+    unreadCount?: number
 }
 
-type Tab = 'home' | 'events' | 'alerts' | 'profile'
+type Tab = 'home' | 'register' | 'events' | 'alerts' | 'settings'
 
-export default function PwaDashboard({ dbUser, clerkUser, tournamentsJoined, clubLogoUrl }: PwaDashboardProps) {
+export default function PwaDashboard({
+    dbUser,
+    clerkUser,
+    tournamentsJoined,
+    clubLogoUrl,
+    tournaments = [],
+    registeredTournamentIds = new Set(),
+    homeContent,
+    eventsContent,
+    registerContent,
+    initialTab: propInitialTab,
+    unreadCount: initialUnreadCount = 0
+}: PwaDashboardProps) {
     const router = useRouter()
     const searchParams = useSearchParams()
 
-    // Initialize tab from query param or default to home
-    const initialTab = (searchParams.get('tab') as Tab) || 'home'
+    // Initialize tab from prop OR query param OR default to home
+    const initialTab = (propInitialTab as Tab) || (searchParams.get('tab') as Tab) || 'home'
     const [activeTab, setActiveTab] = useState<Tab>(initialTab)
-    const [unreadCount, setUnreadCount] = useState(0)
+    const [unreadCount, setUnreadCount] = useState(initialUnreadCount)
 
     // Sync URL when tab changes (shallowly)
     useEffect(() => {
@@ -66,87 +99,106 @@ export default function PwaDashboard({ dbUser, clerkUser, tournamentsJoined, clu
     }, [activeTab])
 
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col">
+        <div className="min-h-screen bg-white flex flex-col">
 
-            {/* Main Content Area - Scrollable */}
-            <div className="flex-1 overflow-y-auto pb-20">
+            {/* Main Content Area */}
+            <div className="flex-1">
                 {activeTab === 'home' && (
-                    <AthleteHomeView
-                        dbUser={dbUser}
-                        clerkUser={clerkUser}
-                        tournamentsJoined={tournamentsJoined}
-                    />
+                    <PullToRefresh className="min-h-[85vh]" mode="overlay">
+                        {homeContent ? homeContent : (
+                            <AthleteHomeView
+                                dbUser={dbUser}
+                                clerkUser={clerkUser}
+                                tournamentsJoined={tournamentsJoined}
+                            />
+                        )}
+                    </PullToRefresh>
+                )}
+
+                {activeTab === 'register' && (
+                    <div className="pb-24">
+                        <PullToRefresh className="min-h-[85vh]" mode="overlay">
+                            {registerContent ? registerContent : (
+                                <TournamentsListView
+                                    tournaments={tournaments}
+                                    registeredTournamentIds={registeredTournamentIds}
+                                />
+                            )}
+                        </PullToRefresh>
+                    </div>
                 )}
 
                 {activeTab === 'events' && (
-                    <div className="p-4 flex flex-col items-center justify-center min-h-[50vh] text-center">
-                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4 text-3xl">
-                            📋
-                        </div>
-                        <h2 className="text-xl font-bold text-gray-900">My Events</h2>
-                        <p className="text-gray-500 mt-2 text-sm max-w-xs">
-                            You'll be able to see your registered events here.
-                            <br />(Coming soon to this view)
-                        </p>
-                        <button
-                            onClick={() => router.push('/athlete/events')}
-                            className="mt-6 text-indigo-600 font-medium text-sm"
-                        >
-                            Go to Full Events Page →
-                        </button>
+                    <div className="pb-24">
+                        <PullToRefresh className="min-h-[85vh]" mode="overlay">
+                            {eventsContent ? eventsContent : (
+                                <MyEventsView players={dbUser.players || []} />
+                            )}
+                        </PullToRefresh>
                     </div>
                 )}
 
                 {activeTab === 'alerts' && (
                     <div className="pb-24">
-                        <div className="bg-white sticky top-0 z-20 border-b border-gray-100 px-4 py-3 flex items-center justify-between shadow-sm">
-                            <h1 className="text-lg font-bold text-gray-900">Notifications</h1>
+                        {/* Header */}
+                        <div className="bg-white border-b border-gray-200 px-4 py-4 sticky top-0 z-10">
+                            <h1 className="text-xl font-bold text-gray-900">Notifications</h1>
+                            <p className="text-sm text-gray-500 mt-0.5">Stay updated on your events</p>
                         </div>
                         <NotificationList userId={dbUser.id} />
                     </div>
                 )}
 
-                {activeTab === 'profile' && (
-                    <div className="pt-4 px-4 pb-24">
-                        <AthleteProfileView
-                            dbUser={dbUser}
-                            clerkImageUrl={clerkUser.imageUrl}
-                            clubLogoUrl={clubLogoUrl}
-                        />
-                    </div>
+                {activeTab === 'settings' && (
+                    <SettingsView
+                        dbUser={dbUser}
+                        clerkImageUrl={clerkUser.imageUrl}
+                    />
                 )}
             </div>
 
             {/* Bottom Navigation Bar */}
             <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 pb-safe z-50 sm:hidden">
-                <nav className="flex items-center justify-around h-16">
+                <nav className="flex items-center justify-around h-16 relative">
+                    {/* Register tab */}
                     <button
-                        onClick={() => setActiveTab('home')}
-                        className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${activeTab === 'home' ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'
-                            }`}
+                        onClick={() => setActiveTab('register')}
+                        className={`flex flex-col items-center justify-center flex-1 h-full space-y-1 ${activeTab === 'register' ? 'text-red-600' : 'text-gray-400 hover:text-gray-600'}`}
                     >
-                        <Home size={24} strokeWidth={activeTab === 'home' ? 2.5 : 2} />
-                        <span className="text-[10px] font-medium">Home</span>
+                        <svg className="w-[22px] h-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={activeTab === 'register' ? 2.5 : 2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                        </svg>
+                        <span className="text-[10px] font-medium">Register</span>
                     </button>
 
                     <button
                         onClick={() => setActiveTab('events')}
-                        className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${activeTab === 'events' ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'
-                            }`}
+                        className={`flex flex-col items-center justify-center flex-1 h-full space-y-1 ${activeTab === 'events' ? 'text-red-600' : 'text-gray-400 hover:text-gray-600'}`}
                     >
-                        <Calendar size={24} strokeWidth={activeTab === 'events' ? 2.5 : 2} />
+                        <Calendar size={22} strokeWidth={activeTab === 'events' ? 2.5 : 2} />
                         <span className="text-[10px] font-medium">Events</span>
                     </button>
 
+                    {/* Center Home Button - Floating Circle */}
                     <button
-                        onClick={() => setActiveTab('alerts')}
-                        className={`flex flex-col items-center justify-center w-full h-full space-y-1 relative ${activeTab === 'alerts' ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'
+                        onClick={() => setActiveTab('home')}
+                        className={`flex items-center justify-center w-14 h-14 rounded-full -mt-6 shadow-lg transition-all active:scale-95 ${activeTab === 'home'
+                            ? 'bg-red-600 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                             }`}
                     >
+                        <Home size={26} strokeWidth={2.5} />
+                    </button>
+
+                    {/* Right side tabs */}
+                    <button
+                        onClick={() => setActiveTab('alerts')}
+                        className={`flex flex-col items-center justify-center flex-1 h-full space-y-1 relative ${activeTab === 'alerts' ? 'text-red-600' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
                         <div className="relative">
-                            <Bell size={24} strokeWidth={activeTab === 'alerts' ? 2.5 : 2} />
+                            <Bell size={22} strokeWidth={activeTab === 'alerts' ? 2.5 : 2} />
                             {unreadCount > 0 && (
-                                <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full border-2 border-white">
+                                <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[16px] h-[16px] px-1 bg-red-500 text-white text-[9px] font-bold rounded-full border-2 border-white">
                                     {unreadCount > 99 ? '99+' : unreadCount}
                                 </span>
                             )}
@@ -155,15 +207,14 @@ export default function PwaDashboard({ dbUser, clerkUser, tournamentsJoined, clu
                     </button>
 
                     <button
-                        onClick={() => setActiveTab('profile')}
-                        className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${activeTab === 'profile' ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'
-                            }`}
+                        onClick={() => setActiveTab('settings')}
+                        className={`flex flex-col items-center justify-center flex-1 h-full space-y-1 ${activeTab === 'settings' ? 'text-red-600' : 'text-gray-400 hover:text-gray-600'}`}
                     >
-                        <User size={24} strokeWidth={activeTab === 'profile' ? 2.5 : 2} />
-                        <span className="text-[10px] font-medium">Profile</span>
+                        <Settings size={22} strokeWidth={activeTab === 'settings' ? 2.5 : 2} />
+                        <span className="text-[10px] font-medium">Settings</span>
                     </button>
                 </nav>
             </div>
-        </div>
+        </div >
     )
 }

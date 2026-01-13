@@ -2,37 +2,12 @@
 
 import { useState, useEffect } from 'react'
 
-export function useIsPWA() {
-    const [isPWA, setIsPWA] = useState(false)
-
-    useEffect(() => {
-        // Check if running as installed PWA (standalone mode)
-        const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-        const isIOSStandalone = (window.navigator as any).standalone === true
-
-        setIsPWA(isStandalone || isIOSStandalone)
-
-        // Listen for display mode changes
-        const mediaQuery = window.matchMedia('(display-mode: standalone)')
-        const handleChange = (e: MediaQueryListEvent) => {
-            setIsPWA(e.matches)
-        }
-
-        mediaQuery.addEventListener('change', handleChange)
-        return () => mediaQuery.removeEventListener('change', handleChange)
-    }, [])
-
-    return isPWA
-}
-
+// Simple mobile detection (screen width < 768px)
 export function useIsMobile() {
     const [isMobile, setIsMobile] = useState(false)
 
     useEffect(() => {
-        const checkMobile = () => {
-            setIsMobile(window.innerWidth < 768)
-        }
-
+        const checkMobile = () => setIsMobile(window.innerWidth < 768)
         checkMobile()
         window.addEventListener('resize', checkMobile)
         return () => window.removeEventListener('resize', checkMobile)
@@ -41,10 +16,20 @@ export function useIsMobile() {
     return isMobile
 }
 
-// Combined hook for mobile PWA detection
-export function useMobilePWA() {
-    const isPWA = useIsPWA()
-    const isMobile = useIsMobile()
+// Check if installed as PWA (for push notification feature gating)
+export function useIsPWA() {
+    const [isPWA, setIsPWA] = useState(false)
 
-    return isPWA && isMobile
+    useEffect(() => {
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+        const isIOSStandalone = (window.navigator as any).standalone === true
+        setIsPWA(isStandalone || isIOSStandalone)
+    }, [])
+
+    return isPWA
+}
+
+// Legacy export for backwards compatibility
+export function useMobilePWA() {
+    return useIsMobile()
 }

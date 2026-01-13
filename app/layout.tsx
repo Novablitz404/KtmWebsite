@@ -22,6 +22,7 @@ import Header from '@/components/Header'
 import { Toaster } from 'sonner'
 import AuthLoadingWrapper from '@/components/AuthLoadingWrapper'
 import MobileShellWrapper from '@/components/MobileShellWrapper'
+import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
 
 export default function RootLayout({
   children,
@@ -42,6 +43,7 @@ export default function RootLayout({
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         >
           <Toaster position="top-center" richColors />
+          <ServiceWorkerRegistration />
           <AuthLoadingWrapper>
             <Header />
             <MobileShellWrapper>

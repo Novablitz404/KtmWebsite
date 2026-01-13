@@ -1,25 +1,39 @@
-import { currentUser, clerkClient } from '@clerk/nextjs/server'
+import { currentUser } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import ClubDashboard from './ClubDashboard'
+import { Suspense } from 'react'
+import { getClubHomeData } from './data'
+import ClubMembersTabContent from '@/components/pwa/ClubMembersTabContent'
+import ClubEventsContent from '@/components/pwa/ClubEventsContent'
+import MembersSkeleton from '@/components/skeletons/MembersSkeleton'
+import ClubEventsSkeleton from '@/components/skeletons/ClubEventsSkeleton'
 
 // Revalidate every 30 seconds for faster page loads
 export const revalidate = 30
 
-export default async function ClubPage() {
+export default async function ClubPage(props: { searchParams: Promise<{ page?: string }> }) {
+    const searchParams = await props.searchParams
     const clerkUser = await currentUser()
 
     if (!clerkUser) {
         redirect('/sign-in')
     }
 
-    // Get user with minimal data needed
+    // Get user with minimal data needed (Auth Check)
     const dbUser = await prisma.user.findUnique({
         where: { clerkId: clerkUser.id },
         select: {
             id: true,
             role: true,
+            name: true,
+            email: true,
             clubName: true,
+            belt: true,
+            gender: true,
+            weight: true,
+            height: true,
+            birthDate: true,
             club: {
                 select: {
                     id: true,
@@ -70,248 +84,67 @@ export default async function ClubPage() {
         )
     }
 
-    // Run ALL queries in parallel for maximum speed
-    const [pendingPlayers, approvedPlayers, participatingTournaments] = await Promise.all([
-        // Pending players - only select needed fields
-        prisma.player.findMany({
-            where: {
-                clubId: targetClub.id,
-                registrationStatus: 'PENDING'
-            },
-            select: {
-                id: true,
-                name: true,
-                gender: true,
-                belt: true,
-                weight: true,
-                height: true,
-                skillLevel: true,
-                registrationStatus: true,
-                category: {
-                    select: {
-                        name: true,
-                        tournament: {
-                            select: {
-                                name: true,
-                                startDate: true
-                            }
-                        }
-                    }
-                },
-                user: {
-                    select: {
-                        name: true,
-                        email: true,
-                        clerkId: true
-                    }
-                }
-            },
-            orderBy: {
-                category: {
-                    tournament: {
-                        startDate: 'asc'
-                    }
-                }
-            }
-        }),
+    // Pagination Params
+    const currentPage = Number(searchParams.page) || 1
+    const pageSize = 8
 
-        // Approved players - only select needed fields
-        prisma.player.findMany({
-            where: {
-                clubId: targetClub.id,
-                registrationStatus: 'APPROVED'
-            },
-            select: {
-                id: true,
-                name: true,
-                gender: true,
-                belt: true,
-                weight: true,
-                height: true,
-                skillLevel: true,
-                registrationStatus: true,
-                category: {
-                    select: {
-                        name: true,
-                        tournament: {
-                            select: {
-                                name: true,
-                                startDate: true
-                            }
-                        }
-                    }
-                },
-                user: {
-                    select: {
-                        name: true,
-                        email: true,
-                        clerkId: true
-                    }
-                }
-            },
-            orderBy: {
-                category: {
-                    tournament: {
-                        startDate: 'desc'
-                    }
-                }
-            },
-            take: 20
-        }),
+    // Start fetching Home Data (Promise) - Cached
+    const homeDataPromise = getClubHomeData(targetClub.id, targetClub.name)
 
-        // Tournament stats - simplified query
-        prisma.tournament.findMany({
-            where: {
-                categories: {
-                    some: {
-                        players: {
-                            some: {
-                                clubId: targetClub.id,
-                                registrationStatus: 'APPROVED'
-                            }
-                        }
-                    }
-                }
-            },
-            select: {
-                id: true,
-                name: true,
-                startDate: true,
-                categories: {
-                    select: {
-                        players: {
-                            where: {
-                                clubId: targetClub.id,
-                                registrationStatus: 'APPROVED'
-                            },
-                            select: {
-                                id: true,
-                                name: true
-                            }
-                        },
-                        matches: {
-                            where: {
-                                winner: { not: null }
-                            },
-                            select: {
-                                player1: true,
-                                player2: true,
-                                winner: true,
-                                nextMatchId: true,
-                                id: true
-                            }
-                        }
-                    }
-                }
-            },
-            orderBy: { startDate: 'desc' },
-            take: 10 // Limit to last 10 tournaments for speed
-        })
-    ])
-
-    // Fetch avatars in parallel with a small batch
-    const allPlayers = [...pendingPlayers, ...approvedPlayers]
-    const clerkIds = [...new Set(
-        allPlayers
-            .map(p => p.user?.clerkId)
-            .filter((id): id is string => !!id)
-    )]
-
-    let avatars: Record<string, string> = {}
-    if (clerkIds.length > 0 && clerkIds.length <= 50) {
-        try {
-            const users = await (await clerkClient()).users.getUserList({
-                userId: clerkIds,
-                limit: 50
-            })
-            users.data.forEach(user => {
-                avatars[user.id] = user.imageUrl
-            })
-        } catch (error) {
-            console.error('Failed to fetch Clerk users:', error)
-        }
-    }
-
-    // Calculate stats for each tournament (simplified)
-    const clubTournaments = participatingTournaments.map(tournament => {
-        let gold = 0
-        let silver = 0
-        let bronze = 0
-        let athleteCount = 0
-
-        const clubAthleteNames = new Set<string>()
-
-        tournament.categories.forEach(category => {
-            athleteCount += category.players.length
-            category.players.forEach(p => clubAthleteNames.add(p.name))
-
-            // Finals: matches with no nextMatchId
-            const finals = category.matches.filter(m => !m.nextMatchId)
-
-            finals.forEach(finalMatch => {
-                if (finalMatch.winner && clubAthleteNames.has(finalMatch.winner)) {
-                    gold++
-                }
-                if (finalMatch.winner) {
-                    const loser = finalMatch.winner === finalMatch.player1 ? finalMatch.player2 : finalMatch.player1
-                    if (clubAthleteNames.has(loser)) {
-                        silver++
-                    }
-                }
-            })
-
-            // Semi-finals: matches whose nextMatch is a final
-            const semiFinals = category.matches.filter(m =>
-                m.nextMatchId && finals.some(f => f.id === m.nextMatchId)
-            )
-
-            semiFinals.forEach(semi => {
-                if (semi.winner) {
-                    const loser = semi.winner === semi.player1 ? semi.player2 : semi.player1
-                    if (clubAthleteNames.has(loser)) {
-                        bronze++
-                    }
-                }
-            })
-        })
-
-        return {
-            id: tournament.id,
-            name: tournament.name,
-            startDate: tournament.startDate,
-            athleteCount,
-            gold,
-            silver,
-            bronze
-        }
-    })
-
+    // Render Dashboard with Streams
     return (
         <main className="min-h-screen bg-gray-50">
-            {/* Mobile Header */}
-            <div className="bg-white border-b border-gray-200 px-4 py-4 sm:hidden sticky top-0 z-10">
-                <div className="flex items-center gap-3">
-                    {targetClub.logoUrl && (
-                        <img src={targetClub.logoUrl} alt="Club Logo" className="w-10 h-10 rounded-lg border border-gray-200 object-contain bg-white p-0.5" />
-                    )}
-                    <div>
-                        <h1 className="text-lg font-bold text-gray-900">{targetClub.name}</h1>
-                        <p className="text-xs text-gray-500">Club Dashboard</p>
-                    </div>
-                </div>
-            </div>
-
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:pt-4 sm:pb-2">
+            <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 sm:py-4 sm:pt-4 sm:pb-2">
                 <ClubDashboard
-                    pendingPlayers={pendingPlayers}
-                    approvedPlayers={approvedPlayers}
+                    // Essential Props
                     clubId={targetClub.id}
+                    clubName={targetClub.name}
                     clubLogo={targetClub.logoUrl}
                     clubAddress={targetClub.address}
                     clubPhone={targetClub.phone}
                     userRole={dbUser.role}
-                    avatars={avatars}
-                    clubTournaments={clubTournaments}
+                    userData={{
+                        ...dbUser,
+                        name: dbUser.name,
+                        email: dbUser.email,
+                        clubName: dbUser.clubName,
+                        belt: dbUser.belt,
+                        gender: dbUser.gender,
+                        weight: dbUser.weight,
+                        height: dbUser.height,
+                        birthDate: dbUser.birthDate,
+                    }}
+                    clerkImageUrl={clerkUser.imageUrl}
+
+                    // Legacy Props (Passed as empty/null since new contents supersede them)
+                    pendingPlayers={[]}
+                    approvedPlayers={[]}
+                    clubTournaments={[]}
+                    avatars={{}}
+                    membersData={undefined}
+                    pagination={{ currentPage: 1, pageSize: 8, totalPages: 1 }}
+
+                    // Streamed Content
+                    homeDataPromise={homeDataPromise}
+
+                    membersContent={
+                        <Suspense fallback={<MembersSkeleton />}>
+                            <ClubMembersTabContent
+                                clubName={targetClub.name}
+                                currentPage={currentPage}
+                                pageSize={pageSize}
+                            />
+                        </Suspense>
+                    }
+
+                    eventsContent={
+                        <Suspense fallback={<ClubEventsSkeleton />}>
+                            <ClubEventsContent
+                                clubId={targetClub.id}
+                                clubName={targetClub.name}
+                            />
+                        </Suspense>
+                    }
                 />
             </div>
         </main>

@@ -159,7 +159,25 @@ export default async function ClubAttendancePage(props: { searchParams: Promise<
 
     return (
         <main className="min-h-[calc(100vh-4rem)] bg-gray-50 pb-8">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+            {/* Mobile Block Message */}
+            <div className="sm:hidden flex flex-col items-center justify-center min-h-[60vh] px-4 text-center">
+                <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mb-4 text-3xl shadow-sm">
+                    💻
+                </div>
+                <h1 className="text-xl font-bold text-gray-900 mb-2">Desktop Only Feature</h1>
+                <p className="text-gray-500 max-w-xs mx-auto text-sm leading-relaxed">
+                    The Attendance Dashboard provides detailed data tables that are best viewed on a larger screen. Please access this page on your computer.
+                </p>
+                <div className="mt-8 p-4 bg-white rounded-xl border border-gray-100 shadow-sm w-full max-w-xs">
+                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-2">Quick Tip</p>
+                    <p className="text-sm text-gray-600">
+                        You can still manage members and tournaments from the mobile dashboard.
+                    </p>
+                </div>
+            </div>
+
+            {/* Desktop Dashboard */}
+            <div className="hidden sm:block max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
                 <AttendanceDashboard
                     club={club}
                     records={attendanceRecords}

@@ -22,6 +22,7 @@ interface MembersGridProps {
     currentPage: number
     totalPages: number
     isClubMaster: boolean
+    baseUrl?: string
 }
 
 export default function MembersGrid({
@@ -29,13 +30,87 @@ export default function MembersGrid({
     avatars,
     currentPage,
     totalPages,
-    isClubMaster
+    isClubMaster,
+    baseUrl = '/members'
 }: MembersGridProps) {
     const [selectedMember, setSelectedMember] = useState<{ id: string; name: string } | null>(null)
 
     return (
         <>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {/* Mobile List View */}
+            {/* Mobile List View */}
+            <div className="sm:hidden divide-y divide-gray-200 bg-white">
+                {members.map(member => {
+                    const avatar = avatars[member.clerkId]
+                    const age = member.birthDate
+                        ? new Date().getFullYear() - new Date(member.birthDate).getFullYear()
+                        : null
+                    const isEnrolled = !!member.faceDescriptor
+
+                    return (
+                        <div key={member.id} className="px-4 py-3 flex items-center gap-3">
+                            {/* Avatar */}
+                            <div className="relative flex-shrink-0">
+                                {avatar ? (
+                                    <img
+                                        src={avatar}
+                                        alt={member.name || 'Member'}
+                                        className="w-10 h-10 rounded-full object-cover bg-gray-100"
+                                    />
+                                ) : (
+                                    <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm font-bold">
+                                        {(member.name || '?').charAt(0)}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                    <h3 className="font-semibold text-gray-900 text-sm truncate">
+                                        {member.name || 'Unnamed Athlete'}
+                                    </h3>
+                                    {member.belt && (
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase shadow-sm ${member.belt === 'Black' ? 'bg-gray-900 text-white' :
+                                            member.belt === 'Red' ? 'bg-red-500 text-white' :
+                                                member.belt === 'Blue' ? 'bg-blue-500 text-white' :
+                                                    member.belt === 'Yellow' ? 'bg-yellow-400 text-gray-900' :
+                                                        member.belt === 'Green' ? 'bg-green-500 text-white' :
+                                                            member.belt === 'Brown' ? 'bg-amber-700 text-white' :
+                                                                member.belt === 'Orange' ? 'bg-orange-500 text-white' :
+                                                                    member.belt === 'White' ? 'bg-white text-gray-700 border border-gray-300' :
+                                                                        member.belt === 'Purple' ? 'bg-purple-500 text-white' :
+                                                                            'bg-gray-300 text-gray-700'
+                                            }`}>
+                                            {member.belt}
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                    {age ? `${age} yrs` : '-'} • {member.gender === 'Male' ? 'Male' : member.gender === 'Female' ? 'Female' : '-'}
+                                </p>
+                            </div>
+
+                            {/* Action */}
+                            {isClubMaster && (
+                                <button
+                                    onClick={() => setSelectedMember({ id: member.id, name: member.name || 'Member' })}
+                                    className={`shrink-0 text-xs font-medium px-2 py-1 rounded transition-colors ${isEnrolled
+                                        ? 'text-green-600'
+                                        : 'text-indigo-600 hover:bg-indigo-50'
+                                        }`}
+                                    title={isEnrolled ? 'Update Face' : 'Enroll Face'}
+                                >
+                                    {isEnrolled ? '✓ Enrolled' : 'Enroll'}
+                                </button>
+                            )}
+                        </div>
+                    )
+                })}
+            </div>
+
+            {/* Desktop Grid View */}
+            <div className="hidden sm:grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {members.map(member => {
                     const avatar = avatars[member.clerkId]
                     const age = member.birthDate
@@ -128,7 +203,7 @@ export default function MembersGrid({
             {totalPages > 1 && (
                 <div className="mt-10 flex justify-center items-center gap-2">
                     <Link
-                        href={`/members?page=${currentPage - 1}`}
+                        href={`${baseUrl}${baseUrl.includes('?') ? '&' : '?'}page=${currentPage - 1}`}
                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${currentPage <= 1
                             ? 'bg-gray-100 text-gray-400 cursor-not-allowed pointer-events-none'
                             : 'bg-white text-gray-700 border border-gray-200 hover:border-red-600 hover:text-red-600'
@@ -140,7 +215,7 @@ export default function MembersGrid({
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
                         <Link
                             key={page}
-                            href={`/members?page=${page}`}
+                            href={`${baseUrl}${baseUrl.includes('?') ? '&' : '?'}page=${page}`}
                             className={`w-10 h-10 flex items-center justify-center rounded-lg text-sm font-medium transition-colors ${currentPage === page
                                 ? 'bg-red-600 text-white shadow-md shadow-red-200'
                                 : 'bg-white text-gray-700 border border-gray-200 hover:border-red-600 hover:text-red-600'
@@ -151,7 +226,7 @@ export default function MembersGrid({
                     ))}
 
                     <Link
-                        href={`/members?page=${currentPage + 1}`}
+                        href={`${baseUrl}${baseUrl.includes('?') ? '&' : '?'}page=${currentPage + 1}`}
                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${currentPage >= totalPages
                             ? 'bg-gray-100 text-gray-400 cursor-not-allowed pointer-events-none'
                             : 'bg-white text-gray-700 border border-gray-200 hover:border-red-600 hover:text-red-600'

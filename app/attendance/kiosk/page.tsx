@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { validateKiosk, getClubFaceData, checkInByFace, enrollFace, searchMembers } from '@/app/actions/attendance'
 import * as faceapi from 'face-api.js'
@@ -12,7 +12,7 @@ interface ClubMember {
     descriptor: number[]
 }
 
-export default function AttendanceKioskPage() {
+function KioskContent() {
     const searchParams = useSearchParams()
     const token = searchParams.get('token')
 
@@ -695,6 +695,14 @@ export default function AttendanceKioskPage() {
                 )
             }
         </div >
+    )
+}
+
+export default function AttendanceKioskPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-black flex items-center justify-center text-white">Loading Kiosk...</div>}>
+            <KioskContent />
+        </Suspense>
     )
 }
 

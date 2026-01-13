@@ -28,6 +28,8 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  overscroll-behavior-y: none;
+  /* Disables pull-to-refresh on Android */
 }
 
 /* Mobile PWA Optimizations */
@@ -44,8 +46,10 @@ body {
   * {
     -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
   }
-  
-  button, a, [role="button"] {
+
+  button,
+  a,
+  [role="button"] {
     touch-action: manipulation;
   }
 }
@@ -58,12 +62,19 @@ body {
 
 /* Mobile card animations */
 @keyframes card-press {
-  0% { transform: scale(1); }
-  50% { transform: scale(0.98); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(0.98);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 .mobile-card-press:active {
   animation: card-press 0.15s ease-out;
 }
-
