@@ -34,7 +34,7 @@ export default async function AdminTournamentsPage({
                     <p className="text-gray-500 mt-1">Manage and monitor all tournaments.</p>
                 </div>
                 <Link
-                    href="/manage" // Organizer Dashboard for creation
+                    href="/organizer-tournaments" // Organizer Dashboard for creation
                     className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors shadow-sm"
                 >
                     <Plus className="w-4 h-4" />

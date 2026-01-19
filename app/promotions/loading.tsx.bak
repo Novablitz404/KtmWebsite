@@ -1,0 +1,93 @@
+import { Plus } from 'lucide-react'
+
+export default function PromotionsLoading() {
+    return (
+        <main className="min-h-screen bg-gray-50">
+            {/* Mobile Header */}
+            <div className="bg-white border-b border-gray-200 px-4 py-4 sm:hidden sticky top-0 z-10">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-xl font-bold text-gray-900">Promotions</h1>
+                        <p className="text-sm text-gray-500 mt-0.5">Manage belt tests</p>
+                    </div>
+                    {/* Action Button Placeholder */}
+                    <div className="w-24 h-10 bg-amber-50 rounded-xl" />
+                </div>
+            </div>
+
+            <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
+                {/* Desktop Header & Actions */}
+                <header className="hidden sm:flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-3">
+                            <span className="text-3xl">🥋</span>
+                            Promotion Tests
+                        </h1>
+                        <p className="mt-1 text-gray-500">
+                            Schedule and manage belt promotion tests for your members.
+                        </p>
+                    </div>
+                    <div>
+                        {/* Action Button Placeholder */}
+                        <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-100 rounded-xl shadow-sm opacity-50">
+                            <Plus className="w-4 h-4 text-amber-300" />
+                            <div className="h-4 w-32 bg-amber-100 rounded" />
+                        </div>
+                    </div>
+                </header>
+
+                {/* Promotions List */}
+                <section>
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse min-w-[700px]">
+                                <thead>
+                                    <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider">
+                                        <th className="px-6 py-4">Test Name</th>
+                                        <th className="px-6 py-4">Date</th>
+                                        <th className="px-6 py-4">Venue</th>
+                                        <th className="px-6 py-4">Fee</th>
+                                        <th className="px-6 py-4">Registrations</th>
+                                        <th className="px-6 py-4">Status</th>
+                                        <th className="px-6 py-4 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 bg-white">
+                                    {[1, 2, 3, 4, 5].map((i) => (
+                                        <tr key={i} className="hover:bg-gray-50/50 transition-colors">
+                                            <td className="px-6 py-4">
+                                                <div className="h-5 w-48 bg-gray-200 rounded animate-pulse mb-1" />
+                                                <div className="h-3 w-64 bg-gray-100 rounded animate-pulse" />
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="h-4 w-32 bg-gray-200 rounded animate-pulse" />
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="h-4 w-32 bg-gray-200 rounded animate-pulse" />
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="h-4 w-12 bg-gray-200 rounded animate-pulse" />
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="h-6 w-20 bg-blue-50 rounded-full animate-pulse" />
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <div className="h-8 w-20 bg-gray-100 rounded-lg animate-pulse" />
+                                                    <div className="h-8 w-24 bg-gray-100 rounded-lg animate-pulse" />
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    )
+}

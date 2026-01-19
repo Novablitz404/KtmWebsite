@@ -45,20 +45,20 @@ export default function MobileNavWrapper({ children }: MobileNavWrapperProps) {
 
                     {/* Center Home Button */}
                     <Link
-                        href="/athlete/home"
+                        href="/athlete/dashboard"
                         className="flex items-center justify-center w-14 h-14 rounded-full -mt-6 shadow-lg bg-gray-100 text-gray-600 active:scale-95 transition-all"
                     >
                         <Home size={26} strokeWidth={2.5} />
                     </Link>
 
                     {/* Alerts */}
-                    <Link href="/athlete/home?tab=alerts" className="flex flex-col items-center justify-center flex-1 h-full space-y-1 text-gray-400">
+                    <Link href="/athlete/dashboard?tab=alerts" className="flex flex-col items-center justify-center flex-1 h-full space-y-1 text-gray-400">
                         <Bell size={22} strokeWidth={2} />
                         <span className="text-[10px] font-medium">Alerts</span>
                     </Link>
 
                     {/* Profile */}
-                    <Link href="/athlete/home?tab=profile" className="flex flex-col items-center justify-center flex-1 h-full space-y-1 text-gray-400">
+                    <Link href="/athlete/dashboard?tab=profile" className="flex flex-col items-center justify-center flex-1 h-full space-y-1 text-gray-400">
                         <User size={22} strokeWidth={2} />
                         <span className="text-[10px] font-medium">Profile</span>
                     </Link>

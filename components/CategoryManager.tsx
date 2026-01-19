@@ -1,14 +1,11 @@
 'use client'
 
+import GlobalDropdown from '@/components/GlobalDropdown'
+
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { selectGuidelineTemplate, deleteAllCategories, createCategory, updateCategory } from '@/app/actions'
+import { createCategory, updateCategory } from '@/app/actions'
 import { Plus, Edit2, X, Check } from 'lucide-react'
-
-interface GuidelineTemplate {
-    id: string
-    name: string
-}
 
 interface Category {
     id: string
@@ -20,22 +17,14 @@ interface Category {
 interface CategoryManagerProps {
     tournamentId: string
     categories: Category[]
-    currentTemplateId: string | null
-    currentTemplateName: string | null
-    availableTemplates: GuidelineTemplate[]
 }
 
 export default function CategoryManager({
     tournamentId,
-    categories,
-    currentTemplateId,
-    currentTemplateName,
-    availableTemplates
+    categories
 }: CategoryManagerProps) {
     const router = useRouter()
-    const [selectedTemplate, setSelectedTemplate] = useState(currentTemplateId || '')
     const [loading, setLoading] = useState(false)
-    const [message, setMessage] = useState('')
 
     // Modal / Edit States
     const [isAddModalOpen, setIsAddModalOpen] = useState(false)
@@ -45,40 +34,6 @@ export default function CategoryManager({
     const [newName, setNewName] = useState('')
     const [newType, setNewType] = useState('KYORUGI')
     const [newCourt, setNewCourt] = useState('')
-
-    const handleTemplateSelect = async () => {
-        if (!selectedTemplate) {
-            setMessage('Please select a template')
-            return
-        }
-
-        const isReapply = selectedTemplate === currentTemplateId
-        const confirmMsg = isReapply
-            ? `Re-applying template will regenerate all categories from template. Continue?`
-            : categories.length > 0
-                ? `Changing template will delete all ${categories.length} existing categories and their players. Are you sure?`
-                : 'Apply this template?'
-
-        const confirmed = confirm(confirmMsg)
-        if (!confirmed) return
-
-        setLoading(true)
-        setMessage('')
-
-        try {
-            const result = await selectGuidelineTemplate(tournamentId, selectedTemplate)
-            if (result.error) {
-                setMessage(result.error)
-            } else {
-                setMessage(`Template applied! ${result.categoriesCreated} categories created.`)
-                router.refresh()
-            }
-        } catch {
-            setMessage('Failed to apply template')
-        } finally {
-            setLoading(false)
-        }
-    }
 
     const openAddModal = () => {
         setNewName('')
@@ -154,58 +109,24 @@ export default function CategoryManager({
 
     return (
         <div className="space-y-6">
-            {/* Action Bar */}
-            <div className="flex justify-between items-center">
+            {/* Header & Actions */}
+            <div className="flex justify-between items-start">
+                <div>
+                    <h2 className="text-xl font-bold text-gray-900">Manage Categories</h2>
+                    <p className="text-gray-500 text-sm mt-1">Create and manage tournament categories and divisions.</p>
+                </div>
                 <button
                     onClick={openAddModal}
-                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
                 >
                     <Plus className="w-5 h-5" />
-                    Add Category
+                    <span>Add Category</span>
                 </button>
-            </div>
-
-            {/* Template Selection */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold">Guideline Template</h3>
-                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
-                        {currentTemplateName || 'None Selected'}
-                    </span>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-4">
-                    <select
-                        value={selectedTemplate}
-                        onChange={(e) => setSelectedTemplate(e.target.value)}
-                        className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-                        disabled={categories.length > 50} // Safety lock if huge? Maybe not needed.
-                    >
-                        <option value="">Select a template...</option>
-                        {availableTemplates.map((template) => (
-                            <option key={template.id} value={template.id}>
-                                {template.name}
-                            </option>
-                        ))}
-                    </select>
-                    <button
-                        onClick={handleTemplateSelect}
-                        disabled={loading || !selectedTemplate}
-                        className="bg-gray-800 hover:bg-gray-900 text-white font-medium px-6 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                        {loading ? 'Processing...' : 'Apply Template'}
-                    </button>
-                </div>
-                {message && (
-                    <p className={`mt-3 text-sm ${message.includes('!') ? 'text-green-600' : 'text-red-600'}`}>
-                        {message}
-                    </p>
-                )}
             </div>
 
             {/* Categories List */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
                     <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
                         Categories ({categories.length})
                     </h3>
@@ -256,8 +177,8 @@ export default function CategoryManager({
             {/* Add/Edit Modal */}
             {(isAddModalOpen || editingCategory) && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg min-h-[325px] flex flex-col animate-in fade-in zoom-in duration-200">
+                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-xl">
                             <h3 className="font-bold text-lg text-gray-900">
                                 {editingCategory ? 'Edit Category' : 'Add New Category'}
                             </h3>
@@ -266,7 +187,7 @@ export default function CategoryManager({
                             </button>
                         </div>
 
-                        <form onSubmit={editingCategory ? handleUpdateCategory : handleAddCategory} className="p-6 space-y-4">
+                        <form onSubmit={editingCategory ? handleUpdateCategory : handleAddCategory} className="p-6 space-y-4 flex-1 flex flex-col">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Category Name</label>
                                 <input
@@ -282,14 +203,15 @@ export default function CategoryManager({
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                                    <select
+                                    <GlobalDropdown
                                         value={newType}
-                                        onChange={e => setNewType(e.target.value)}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                                    >
-                                        <option value="KYORUGI">Kyorugi</option>
-                                        <option value="POOMSAE">Poomsae</option>
-                                    </select>
+                                        onChange={setNewType}
+                                        fullWidth
+                                        options={[
+                                            { label: 'Kyorugi', value: 'KYORUGI' },
+                                            { label: 'Poomsae', value: 'POOMSAE' }
+                                        ]}
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Court</label>
@@ -303,7 +225,7 @@ export default function CategoryManager({
                                 </div>
                             </div>
 
-                            <div className="pt-2 flex justify-end gap-3">
+                            <div className="pt-2 flex justify-end gap-3 mt-auto">
                                 <button
                                     type="button"
                                     onClick={() => { setIsAddModalOpen(false); setEditingCategory(null) }}

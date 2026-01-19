@@ -3,42 +3,29 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createTournament } from '@/app/actions'
-import { Upload, X, Image as ImageIcon } from 'lucide-react'
+import { X, Image as ImageIcon, Check } from 'lucide-react'
+import GlobalDropdown from './GlobalDropdown'
+import ImageCropperModal from './ImageCropperModal'
+import ActionLoadingOverlay from './ActionLoadingOverlay'
 
 interface TournamentFormProps {
     isModal?: boolean
     onSuccess?: () => void
+    templates?: { id: string; name: string }[]
 }
 
-export default function TournamentForm({ isModal, onSuccess }: TournamentFormProps) {
+export default function TournamentForm({ isModal, onSuccess, templates = [] }: TournamentFormProps) {
     const formRef = useRef<HTMLFormElement>(null)
     const router = useRouter()
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [error, setError] = useState('')
-    const [pdfFileName, setPdfFileName] = useState<string | null>(null)
     const [imagePreview, setImagePreview] = useState<string | null>(null)
+    const [selectedTemplate, setSelectedTemplate] = useState('')
 
-    const handlePdfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (file) {
-            if (file.type !== 'application/pdf') {
-                setError('Please upload a PDF file for guidelines')
-                e.target.value = ''
-                setPdfFileName(null)
-                return
-            }
-            if (file.size > 10 * 1024 * 1024) { // 10MB limit
-                setError('PDF file size must be less than 10MB')
-                e.target.value = ''
-                setPdfFileName(null)
-                return
-            }
-            setError('')
-            setPdfFileName(file.name)
-        } else {
-            setPdfFileName(null)
-        }
-    }
+    // Cropper State
+    const [showCropper, setShowCropper] = useState(false)
+    const [tempImage, setTempImage] = useState<string | null>(null) // Original uploaded image to crop
+    const [croppedImageBlob, setCroppedImageBlob] = useState<Blob | null>(null) // Final cropped blob
 
     const handleBackdropChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
@@ -46,26 +33,27 @@ export default function TournamentForm({ isModal, onSuccess }: TournamentFormPro
             if (!file.type.startsWith('image/')) {
                 setError('Please upload an image file')
                 e.target.value = ''
-                setImagePreview(null)
                 return
             }
-            if (file.size > 5 * 1024 * 1024) { // 5MB limit
-                setError('Image size must be less than 5MB')
+            if (file.size > 10 * 1024 * 1024) { // 10MB limit (increased to allow high res upload for cropping)
+                setError('Image size must be less than 10MB')
                 e.target.value = ''
-                setImagePreview(null)
                 return
             }
             setError('')
+
+            // Instead of setting preview immediately, open cropper
             const objectUrl = URL.createObjectURL(file)
-            setImagePreview(objectUrl)
-        } else {
-            setImagePreview(null)
+            setTempImage(objectUrl)
+            setShowCropper(true)
+
+            // Clear input so same file can be selected again
+            e.target.value = ''
         }
     }
 
     const removeImage = () => {
-        const input = document.getElementById('headerImage') as HTMLInputElement
-        if (input) input.value = ''
+        setCroppedImageBlob(null)
         if (imagePreview) URL.revokeObjectURL(imagePreview)
         setImagePreview(null)
     }
@@ -74,14 +62,21 @@ export default function TournamentForm({ isModal, onSuccess }: TournamentFormPro
         setIsSubmitting(true)
         setError('')
 
+        // Manually append the cropped blob if it exists
+        if (croppedImageBlob) {
+            formData.delete('headerImage') // Remove the empty/original field if present (though we clear input)
+            formData.append('headerImage', croppedImageBlob, 'header.jpg')
+        }
+
         try {
             const result = await createTournament(formData)
             if (result?.error) {
                 setError(result.error)
             } else {
                 formRef.current?.reset()
-                setPdfFileName(null)
                 setImagePreview(null)
+                setCroppedImageBlob(null)
+                setSelectedTemplate('') // Reset template
                 router.refresh()
                 if (onSuccess) onSuccess()
             }
@@ -94,6 +89,11 @@ export default function TournamentForm({ isModal, onSuccess }: TournamentFormPro
 
     return (
         <div className={isModal ? '' : "bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8"}>
+            <ActionLoadingOverlay
+                isLoading={isSubmitting}
+                title="Creating tournament..."
+                message="Please wait, do not refresh or close. Setting up brackets and logic."
+            />
             {!isModal && (
                 <h2 className="text-xl font-bold mb-6">Create New Tournament</h2>
             )}
@@ -132,20 +132,52 @@ export default function TournamentForm({ isModal, onSuccess }: TournamentFormPro
                                 <label htmlFor="headerImage" className="w-full h-full flex flex-col items-center justify-center cursor-pointer p-4">
                                     <ImageIcon className="w-10 h-10 text-gray-400 mb-2 group-hover:text-indigo-500 transition-colors" />
                                     <p className="text-sm font-medium text-gray-600">Click to upload header image</p>
-                                    <p className="text-xs text-gray-400 mt-1">PNG, JPG, GIF (Max 5MB)</p>
+                                    <p className="text-xs text-gray-500 mt-1">Recommended: 1200x400</p>
+                                    <p className="text-xs text-gray-400">PNG, JPG, GIF (Max 10MB)</p>
                                 </label>
                             )}
                         </div>
                         <input
                             type="file"
-                            name="headerImage"
                             id="headerImage"
                             accept="image/*"
                             onChange={handleBackdropChange}
                             className="hidden"
                         />
                     </div>
+                    {/* Hidden input to store the cropped file for form submission */}
+                    {croppedImageBlob && (
+                        // Note: We can't set file input value programmatically for security.
+                        // Instead, we will append it to formData in handleSubmit manually.
+                        // But for simplicity if we want to use form action directly, we'd need to use fetch.
+                        // Since we are already using a custom handleSubmit that calls createTournament(formData),
+                        // we can append the blob there.
+                        <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
+                            <Check className="w-3 h-3" /> Image cropped and ready to upload
+                        </p>
+                    )}
                 </div>
+
+                {/* Cropper Modal */}
+                {showCropper && tempImage && (
+                    <ImageCropperModal
+                        imageUrl={tempImage}
+                        aspectRatio={3 / 1}
+                        onClose={() => {
+                            setShowCropper(false)
+                            setTempImage(null)
+                            // Reset file input if cancelled so they can re-select same file
+                            const input = document.getElementById('headerImage') as HTMLInputElement
+                            if (input) input.value = ''
+                        }}
+                        onCropComplete={(croppedBlob) => {
+                            const objectUrl = URL.createObjectURL(croppedBlob)
+                            setImagePreview(objectUrl)
+                            setCroppedImageBlob(croppedBlob)
+                            setShowCropper(false)
+                        }}
+                    />
+                )}
 
                 {/* Tournament Name */}
                 <div>
@@ -214,49 +246,28 @@ export default function TournamentForm({ isModal, onSuccess }: TournamentFormPro
                     </div>
                 </div>
 
-                {/* Guideline PDF Upload */}
+                {/* Guideline Template Selection */}
                 <div>
-                    <label htmlFor="guidelinePdf" className="block text-sm font-medium text-gray-700 mb-1">
-                        Guideline PDF
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Guideline Template
                     </label>
-                    <div className="flex items-center gap-4">
-                        <label className="flex-1 cursor-pointer">
-                            <div className="flex items-center justify-center px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-indigo-400 transition-colors bg-gray-50/50">
-                                <div className="text-center flex flex-col items-center">
-                                    <Upload className="w-5 h-5 text-gray-400 mb-1" />
-                                    {pdfFileName ? (
-                                        <p className="text-sm text-indigo-600 font-medium">{pdfFileName}</p>
-                                    ) : (
-                                        <>
-                                            <p className="text-sm text-gray-600">Click to upload PDF</p>
-                                            <p className="text-xs text-gray-400 mt-1">Max 10MB</p>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                            <input
-                                type="file"
-                                name="guidelinePdf"
-                                id="guidelinePdf"
-                                accept=".pdf,application/pdf"
-                                onChange={handlePdfChange}
-                                className="hidden"
-                            />
-                        </label>
-                        {pdfFileName && (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    const input = document.getElementById('guidelinePdf') as HTMLInputElement
-                                    if (input) input.value = ''
-                                    setPdfFileName(null)
-                                }}
-                                className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-                                title="Remove PDF"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        )}
+                    <div className="relative">
+                        <GlobalDropdown
+                            name="guidelineTemplateId"
+                            fullWidth
+                            label="Select a template (Optional)"
+                            options={templates.map(t => ({
+                                value: t.id,
+                                label: t.name
+                            }))}
+                            value={selectedTemplate}
+                            onChange={setSelectedTemplate}
+                            align="left"
+                            className="w-full"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                            Select a template to automatically populate categories.
+                        </p>
                     </div>
                 </div>
 

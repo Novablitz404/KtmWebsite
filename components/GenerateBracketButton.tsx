@@ -6,15 +6,16 @@ import { useState } from 'react'
 interface GenerateButtonProps {
     categoryId: string
     disabled?: boolean
+    court?: string
 }
 
-export default function GenerateBracketButton({ categoryId, disabled }: GenerateButtonProps) {
+export default function GenerateBracketButton({ categoryId, disabled, court }: GenerateButtonProps) {
     const [loading, setLoading] = useState(false)
 
     return (
         <form action={async () => {
             setLoading(true)
-            await generateBracketsForCategory(categoryId)
+            await generateBracketsForCategory(categoryId, court)
             setLoading(false)
         }}>
             <button

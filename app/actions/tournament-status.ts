@@ -43,7 +43,7 @@ export async function updateTournamentStatus(tournamentId: string, status: strin
         })
 
         revalidatePath('/admin/tournaments')
-        revalidatePath('/manage')
+        revalidatePath('/organizer-tournaments')
         revalidatePath(`/tournament/${tournamentId}`)
 
         return { success: true }

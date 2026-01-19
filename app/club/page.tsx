@@ -3,7 +3,6 @@ import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import ClubDashboard from './ClubDashboard'
 import { Suspense } from 'react'
-import { getClubHomeData } from './data'
 import ClubMembersTabContent from '@/components/pwa/ClubMembersTabContent'
 import ClubEventsContent from '@/components/pwa/ClubEventsContent'
 import MembersSkeleton from '@/components/skeletons/MembersSkeleton'
@@ -88,13 +87,11 @@ export default async function ClubPage(props: { searchParams: Promise<{ page?: s
     const currentPage = Number(searchParams.page) || 1
     const pageSize = 8
 
-    // Start fetching Home Data (Promise) - Cached
-    const homeDataPromise = getClubHomeData(targetClub.id, targetClub.name)
 
     // Render Dashboard with Streams
     return (
         <main className="min-h-screen bg-gray-50">
-            <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 sm:py-4 sm:pt-4 sm:pb-2">
+            <div className="max-w-[1400px] mx-auto sm:px-6 lg:px-8 sm:py-4 sm:pt-4 sm:pb-2">
                 <ClubDashboard
                     // Essential Props
                     clubId={targetClub.id}
@@ -125,7 +122,7 @@ export default async function ClubPage(props: { searchParams: Promise<{ page?: s
                     pagination={{ currentPage: 1, pageSize: 8, totalPages: 1 }}
 
                     // Streamed Content
-                    homeDataPromise={homeDataPromise}
+                    // homeDataPromise removed for client-side fetching
 
                     membersContent={
                         <Suspense fallback={<MembersSkeleton />}>

@@ -55,7 +55,7 @@ export default function OnboardingForm({ clubs, prefilledClubName, lockedRole }:
             formData.append('belt', belt)
 
             await completeOnboarding(formData)
-            router.push('/profile')
+            router.push('/settings')
         } catch (err) {
             toast.error(err instanceof Error ? err.message : 'Something went wrong')
             setSubmitting(false)

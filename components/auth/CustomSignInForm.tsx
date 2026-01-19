@@ -9,7 +9,11 @@ import { Eye, EyeOff, Loader2, ArrowLeft, ShieldCheck } from 'lucide-react'
 
 type Step = 'credentials' | 'verification' | '2fa'
 
-export default function CustomSignInForm() {
+interface CustomSignInFormProps {
+    hideBranding?: boolean
+}
+
+export default function CustomSignInForm({ hideBranding = false }: CustomSignInFormProps) {
     const { isLoaded, signIn, setActive } = useSignIn()
     const [step, setStep] = useState<Step>('credentials')
     const [email, setEmail] = useState('')
@@ -221,18 +225,22 @@ export default function CustomSignInForm() {
     // 2FA STEP UI
     if (step === '2fa') {
         return (
-            <div className="w-full max-w-md mx-auto p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100 flex flex-col justify-center min-h-[80vh] md:min-h-0">
-                <div className="mb-8">
+            <div className={`w-full max-w-md mx-auto flex flex-col justify-center ${hideBranding ? '' : ' px-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100 min-h-[80vh] md:min-h-0'}`}>
+                <div className="mb-8 text-center">
                     <button
                         onClick={() => { setStep('credentials'); setCode(''); }}
-                        className="flex items-center text-gray-500 hover:text-gray-900 transition-colors mb-6"
+                        className="flex items-center text-gray-500 hover:text-gray-900 transition-colors mb-6 self-start"
                     >
                         <ArrowLeft size={20} className="mr-1" /> Back
                     </button>
-                    <div className="relative w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
-                        <ShieldCheck size={32} className="text-green-600" />
-                    </div>
-                    <h1 className="text-2xl font-black text-center text-gray-900 tracking-tight">Two-Factor Authentication</h1>
+                    {!hideBranding && (
+                        <>
+                            <div className="relative w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
+                                <ShieldCheck size={32} className="text-green-600" />
+                            </div>
+                            <h1 className="text-2xl font-black text-center text-gray-900 tracking-tight">Two-Factor Authentication</h1>
+                        </>
+                    )}
                     <p className="text-gray-500 text-center mt-2">
                         Enter the 6-digit code from your authenticator app
                     </p>
@@ -348,7 +356,7 @@ export default function CustomSignInForm() {
         }
 
         return (
-            <div className="w-full h-full max-w-md mx-auto px-4 py-6 sm:p-8 bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100 flex flex-col">
+            <div className={`w-full max-w-md mx-auto flex flex-col justify-center ${hideBranding ? '' : 'px-4 py-6 sm:p-8 bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100'}`}>
                 {/* Back button at top */}
                 <button
                     onClick={() => { setStep('credentials'); setCode(''); }}
@@ -359,21 +367,25 @@ export default function CustomSignInForm() {
 
                 {/* Centered content */}
                 <div className="flex-1 flex flex-col justify-center">
-                    <div className="mb-6 sm:mb-8">
-                        <div className="relative w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-3 sm:mb-4">
-                            <Image
-                                src="/KTMLogo.png"
-                                alt="KTM Logo"
-                                fill
-                                sizes="80px"
-                                className="object-contain"
-                            />
-                        </div>
-                        <h1 className="text-xl sm:text-2xl font-black text-center text-gray-900 tracking-tight">Verify Your Email</h1>
-                        <p className="text-gray-500 text-center mt-1 sm:mt-2 text-xs sm:text-sm">
+                    <div className="mb-6 sm:mb-8 text-center">
+                        {!hideBranding && (
+                            <>
+                                <div className="relative w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-3 sm:mb-4">
+                                    <Image
+                                        src="/KTMLogo.png"
+                                        alt="KTM Logo"
+                                        fill
+                                        sizes="80px"
+                                        className="object-contain"
+                                    />
+                                </div>
+                                <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">Verify Your Email</h1>
+                            </>
+                        )}
+                        <p className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
                             Enter the 6-digit code sent to
                         </p>
-                        <p className="text-center font-bold text-gray-900 text-sm sm:text-base">{email}</p>
+                        <p className="font-bold text-gray-900 text-sm sm:text-base">{email}</p>
                     </div>
 
                     <form onSubmit={handleVerification} className="space-y-6">
@@ -443,23 +455,25 @@ export default function CustomSignInForm() {
 
     // CREDENTIALS STEP UI
     return (
-        <div className="w-full max-w-md mx-auto px-4 py-6 sm:p-8 bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100 flex flex-col justify-center">
+        <div className={`w-full max-w-md mx-auto flex flex-col justify-center ${hideBranding ? '' : 'px-4 py-6 sm:p-8 bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100'}`}>
 
-            {/* Mobile-style Header */}
-            <div className="text-center mb-6 sm:mb-8">
-                <div className="relative w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-3 sm:mb-4">
-                    <Image
-                        src="/KTMLogo.png"
-                        alt="KTM Logo"
-                        fill
-                        sizes="(max-width: 640px) 64px, 80px"
-                        className="object-contain"
-                        priority
-                    />
+            {/* Mobile-style Header - Hide if hideBranding is true (for split layout) */}
+            {!hideBranding && (
+                <div className="text-center mb-6 sm:mb-8">
+                    <div className="relative w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-3 sm:mb-4">
+                        <Image
+                            src="/KTMLogo.png"
+                            alt="KTM Logo"
+                            fill
+                            sizes="(max-width: 640px) 64px, 80px"
+                            className="object-contain"
+                            priority
+                        />
+                    </div>
+                    <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">Welcome Back!</h1>
+                    <p className="text-gray-500 mt-1 sm:mt-2 text-sm sm:text-base">Sign in to manage your tournaments</p>
                 </div>
-                <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">Welcome Back!</h1>
-                <p className="text-gray-500 mt-1 sm:mt-2 text-sm sm:text-base">Sign in to manage your tournaments</p>
-            </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
 

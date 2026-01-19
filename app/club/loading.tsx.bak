@@ -1,0 +1,5 @@
+import ClubHomeSkeleton from '@/components/skeletons/ClubHomeSkeleton'
+
+export default function ClubLoading() {
+    return <ClubHomeSkeleton />
+}

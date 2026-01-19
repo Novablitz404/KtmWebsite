@@ -36,10 +36,20 @@ export default async function ClubEventsContent({ clubId, clubName }: ClubEvents
         }
     }
 
+    // Filter for upcoming tournaments only
+    const isUpcoming = (p: any) => {
+        const date = p.category?.tournament?.startDate
+        if (!date) return true
+        return new Date(date) > new Date()
+    }
+
+    const filteredPending = pendingPlayers.filter(isUpcoming)
+    const filteredApproved = approvedPlayers.filter(isUpcoming)
+
     return (
         <ClubEventsView
-            pendingPlayers={pendingPlayers as any}
-            approvedPlayers={approvedPlayers as any}
+            pendingPlayers={filteredPending as any}
+            approvedPlayers={filteredApproved as any}
             clubTournaments={clubTournaments}
             avatars={avatars}
         />

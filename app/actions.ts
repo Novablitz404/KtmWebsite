@@ -5,6 +5,12 @@ import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import { currentUser, clerkClient } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
+import { getClubEventsData } from '@/app/club/data'
+
+export async function fetchClubRegistrationData(clubId: string) {
+    const { pendingPlayers, approvedPlayers } = await getClubEventsData(clubId)
+    return { pendingPlayers, approvedPlayers }
+}
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,7 +23,7 @@ export async function createTournament(formData: FormData) {
     const startDateStr = formData.get('startDate') as string
     const registrationStartStr = formData.get('registrationStart') as string | null
     const registrationEndStr = formData.get('registrationEnd') as string | null
-    const guidelinePdf = formData.get('guidelinePdf') as File | null
+    const guidelineTemplateId = formData.get('guidelineTemplateId') as string | null
     const headerImage = formData.get('headerImage') as File | null
 
     if (!name || !startDateStr) {
@@ -43,38 +49,6 @@ export async function createTournament(formData: FormData) {
     const startDate = new Date(startDateStr)
     const registrationStart = registrationStartStr ? new Date(registrationStartStr) : null
     const registrationEnd = registrationEndStr ? new Date(registrationEndStr) : null
-
-    // Handle PDF upload
-    let guidelinePdfUrl: string | null = null
-    if (guidelinePdf && guidelinePdf.size > 0) {
-        try {
-            const bytes = await guidelinePdf.arrayBuffer()
-            const buffer = Buffer.from(bytes)
-
-            // Generate unique filename
-            const timestamp = Date.now()
-            const safeName = guidelinePdf.name.replace(/[^a-zA-Z0-9.-]/g, '_')
-            const filename = `${timestamp}-${safeName}`
-
-            const { error: uploadError } = await supabase.storage
-                .from('uploads')
-                .upload(filename, buffer, {
-                    contentType: 'application/pdf',
-                    upsert: false
-                })
-
-            if (uploadError) throw uploadError
-
-            const { data: { publicUrl } } = supabase.storage
-                .from('uploads')
-                .getPublicUrl(filename)
-
-            guidelinePdfUrl = publicUrl
-        } catch (error) {
-            console.error('PDF upload error:', error)
-            return { error: 'Failed to upload PDF file' }
-        }
-    }
 
     // Handle Header Image upload
     let headerImageUrl: string | null = null
@@ -108,21 +82,130 @@ export async function createTournament(formData: FormData) {
         }
     }
 
-    await prisma.tournament.create({
+    const tournament = await prisma.tournament.create({
         data: {
             name,
             venue: venue || null,
             startDate,
             registrationStart,
             registrationEnd,
-            guidelinePdfUrl,
+            guidelineTemplateId: guidelineTemplateId || null,
             headerImageUrl,
             organizerId: dbUser.id,
         },
     })
 
+    // If template selected, apply it
+    if (guidelineTemplateId) {
+        try {
+            const template = await prisma.guidelineTemplate.findUnique({
+                where: { id: guidelineTemplateId },
+                include: {
+                    divisions: {
+                        orderBy: { displayOrder: 'asc' },
+                        include: {
+                            categories: {
+                                orderBy: { minWeight: 'asc' }
+                            }
+                        }
+                    }
+                }
+            })
+
+            if (template) {
+                const categoriesToCreate: { name: string; tournamentId: string }[] = []
+
+                for (const division of template.divisions) {
+                    for (const weightCat of division.categories) {
+                        const genderLabel = weightCat.gender === 'Both' ? '' : weightCat.gender
+                        const categoryName = `${division.name} ${genderLabel} ${weightCat.name}`.replace(/\s+/g, ' ').trim()
+                        categoriesToCreate.push({ name: categoryName, tournamentId: tournament.id })
+                    }
+                }
+
+                if (categoriesToCreate.length > 0) {
+                    await prisma.category.createMany({
+                        data: categoriesToCreate
+                    })
+                }
+            }
+        } catch (e) {
+            console.error("Failed to apply template during creation", e)
+        }
+    }
+
     revalidatePath('/')
     revalidatePath('/tournaments')
+    return { success: true }
+}
+
+export async function deleteTournament(id: string) {
+    const user = await currentUser()
+    if (!user) throw new Error('Not authenticated')
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id }
+    })
+
+    if (!dbUser) throw new Error('User not found')
+
+    const tournament = await prisma.tournament.findUnique({
+        where: { id },
+        include: { managers: true }
+    })
+
+    if (!tournament) throw new Error('Tournament not found')
+
+    // Authorization: Only Organizer or Admin can delete
+    // Managers typically shouldn't delete the entire tournament, but if needed we can add them.
+    // For now, strict: Organizer or Owner only.
+    if (tournament.organizerId !== dbUser.id && dbUser.role !== 'ADMIN') {
+        throw new Error('Unauthorized to delete this tournament')
+    }
+
+    // Manual Cascade Delete (since schema might not have all onDelete: Cascade)
+    // 1. Delete Matches (found via Categories)
+    // 2. Delete Players (found via Categories)
+    // 3. Delete Categories
+    // 4. Delete Manager Invites
+    // 5. Finally Delete Tournament
+
+    const categories = await prisma.category.findMany({
+        where: { tournamentId: id },
+        select: { id: true }
+    })
+
+    const categoryIds = categories.map(c => c.id)
+
+    if (categoryIds.length > 0) {
+        // Delete all matches for these categories
+        await prisma.match.deleteMany({
+            where: { categoryRefId: { in: categoryIds } }
+        })
+
+        // Delete all players for these categories
+        await prisma.player.deleteMany({
+            where: { categoryId: { in: categoryIds } }
+        })
+
+        // Delete the categories
+        await prisma.category.deleteMany({
+            where: { tournamentId: id }
+        })
+    }
+
+    // Delete Manager Invites
+    await prisma.tournamentManagerInvite.deleteMany({
+        where: { tournamentId: id }
+    })
+
+    // Delete Tournament
+    await prisma.tournament.delete({
+        where: { id }
+    })
+
+    revalidatePath('/organizer-tournaments')
+    revalidatePath('/')
     return { success: true }
 }
 
@@ -159,8 +242,16 @@ export async function createPlayer(formData: FormData) {
 
 import { generateSingleEliminationBracket } from '@/lib/bracket-logic'
 
-export async function generateBracketsForCategory(categoryId: string) {
+export async function generateBracketsForCategory(categoryId: string, court?: string) {
     if (!categoryId) return
+
+    // Update category court if provided
+    if (court !== undefined) {
+        await prisma.category.update({
+            where: { id: categoryId },
+            data: { court: court || null }
+        })
+    }
 
     const players = await prisma.player.findMany({
         where: { categoryId },
@@ -200,7 +291,7 @@ export async function generateBracketsForCategory(categoryId: string) {
                 winner: null,
                 status: 'Pending',
                 nextMatchSlot: spec.nextMatchSlot,
-                court: "Unassigned"
+                court: category?.court || "Unassigned"
             }
         });
 
@@ -405,10 +496,23 @@ export async function completeOnboarding(formData: FormData) {
     const belt = formData.get('belt') as string
 
     // Validation
-    const isOrganizerOrManager = role === 'ORGANIZER' || role === 'MANAGER'
+    const isOrganizer = role === 'ORGANIZER'
+    const isManager = role === 'MANAGER'
 
-    if (!firstName || !lastName || !birthDateStr || !gender || !belt || (!clubName && !isOrganizerOrManager)) {
-        throw new Error('All fields are required')
+    // Basic requirements for everyone
+    if (!firstName || !lastName || !birthDateStr) {
+        throw new Error('Name and date information are required')
+    }
+
+    // Role-specific requirements
+    if (isOrganizer) {
+        if (!clubName) throw new Error('Organization name is required')
+        // Belt/Gender optional for Organizer
+    } else if (!isManager) {
+        // Athletes and Club Masters need everything
+        if (!gender || !belt || !clubName) {
+            throw new Error('All profile fields are required')
+        }
     }
 
     const birthDate = new Date(birthDateStr)
@@ -456,11 +560,17 @@ export async function completeOnboarding(formData: FormData) {
     let assignedRole = role
     let assignedClubName = clubName
 
-    // 1. Check for Organizer Invite
-    const organizerInvite = await prisma.organizerInvite.findUnique({ where: { email: userEmail } })
-    if (organizerInvite) {
+    // 1. Check for Organization Invite (Strict Enforcement)
+    if (role === 'ORGANIZER') {
+        const orgInvite = await prisma.organizationInvite.findUnique({ where: { email: userEmail } })
+
+        if (!orgInvite) {
+            throw new Error("Organization registration is by invitation only.")
+        }
+
+        // Invite valid - proceed
         assignedRole = 'ORGANIZER'
-        await prisma.organizerInvite.delete({ where: { email: userEmail } })
+        await prisma.organizationInvite.delete({ where: { email: userEmail } })
     }
 
     // 2. Check for Club Master Invite
@@ -490,17 +600,30 @@ export async function completeOnboarding(formData: FormData) {
             name: `${firstName} ${lastName}`,
             clubName: assignedClubName,
             birthDate: birthDate,
-            gender: gender,
-            belt: belt
+            gender: gender || null,
+            belt: belt || null
         }
     })
 
     // If Club Master match, create the Club
     if (assignedRole === 'CLUB_MASTER' && assignedClubName) {
+        // Check if club exists first to avoid error? Or let it fail unique constraint?
+        // Ideally we should handle it, but for now we proceed.
         await prisma.club.create({
             data: {
                 name: assignedClubName,
                 masterId: dbUser.id
+            }
+        })
+    }
+
+    // If Organizer, create the Organization
+    if (assignedRole === 'ORGANIZER' && assignedClubName) {
+        await prisma.organization.create({
+            data: {
+                name: assignedClubName, // Using clubName as Organization Name
+                establishedAt: birthDate, // Using birthDate as Established Date
+                ownerId: dbUser.id
             }
         })
     }
@@ -993,17 +1116,19 @@ export async function deleteRegistration(playerId: string) {
 
 interface UpdatePlayerDetailsInput {
     playerId: string
+    name?: string
     height?: number
     weight?: number
     belt?: string
     skillLevel?: string
 }
 
-export async function updatePlayerDetails({ playerId, height, weight, belt, skillLevel }: UpdatePlayerDetailsInput) {
+export async function updatePlayerDetails({ playerId, name, height, weight, belt, skillLevel }: UpdatePlayerDetailsInput) {
     try {
         await prisma.player.update({
             where: { id: playerId },
             data: {
+                ...(name !== undefined && { name }),
                 ...(height !== undefined && { height }),
                 ...(weight !== undefined && { weight }),
                 ...(belt !== undefined && { belt }),
@@ -1080,7 +1205,7 @@ export async function createCategory(tournamentId: string, name: string, type: s
     }
 }
 
-export async function getTournamentPlayers(tournamentId: string) {
+export async function getTournamentPlayers(tournamentId: string, skip?: number, take?: number) {
     return await prisma.player.findMany({
         where: {
             category: {
@@ -1099,7 +1224,9 @@ export async function getTournamentPlayers(tournamentId: string) {
             category: {
                 name: 'asc'
             }
-        }
+        },
+        skip,
+        take
     })
 }
 
@@ -1192,5 +1319,265 @@ export async function updateClubSettings(formData: FormData) {
     } catch (error) {
         console.error('Failed to update club settings:', error)
         return { error: 'Failed to update settings' }
+    }
+}
+
+export async function getUpcomingTournaments() {
+    const tournaments = await prisma.tournament.findMany({
+        where: {
+            startDate: {
+                gte: new Date()
+            }
+        },
+        select: {
+            id: true,
+            name: true,
+            startDate: true,
+            categories: {
+                select: {
+                    id: true,
+                    name: true
+                }
+            }
+        },
+        orderBy: {
+            startDate: 'asc'
+        }
+    })
+    return tournaments
+}
+
+export async function searchClubMembers(clubName: string, query: string) {
+    if (!query || query.length < 2) return []
+
+    const members = await prisma.user.findMany({
+        where: {
+            clubName: clubName,
+            role: 'ATHLETE',
+            OR: [
+                { name: { contains: query, mode: 'insensitive' } },
+                { email: { contains: query, mode: 'insensitive' } }
+            ]
+        },
+        select: {
+            id: true,
+            name: true,
+            email: true,
+            belt: true,
+            gender: true,
+            weight: true,
+            birthDate: true,
+            clerkId: true // for avatar
+        },
+        take: 10
+    })
+    return members
+}
+
+export async function fetchClubMembers(clubName: string, page: number, pageSize: number) {
+    const skip = (page - 1) * pageSize
+
+    const [members, totalCount] = await Promise.all([
+        prisma.user.findMany({
+            where: { clubName: clubName, role: 'ATHLETE' },
+            orderBy: { name: 'asc' },
+            skip,
+            take: pageSize
+        }),
+        prisma.user.count({
+            where: { clubName: clubName, role: 'ATHLETE' }
+        })
+    ])
+
+    const totalPages = Math.ceil(totalCount / pageSize)
+
+    return {
+        members,
+        totalPages
+    }
+}
+
+import { getClubHomeData } from '@/app/club/data'
+
+export async function fetchClubDashboardData(clubId: string, clubName: string) {
+    return await getClubHomeData(clubId, clubName)
+}
+
+export async function fetchLandingPageEvents() {
+    const currentDate = new Date()
+    currentDate.setHours(0, 0, 0, 0)
+
+    // Parallel fetch
+    const [upcomingTournaments, upcomingPromotions] = await Promise.all([
+        prisma.tournament.findMany({
+            where: {
+                startDate: { gte: currentDate },
+                status: { not: 'CANCELLED' }
+            },
+            orderBy: { startDate: 'asc' },
+            take: 6
+        }),
+        prisma.promotionTest.findMany({
+            where: {
+                testDate: { gte: currentDate },
+                visibility: 'PUBLIC'
+            },
+            orderBy: { testDate: 'asc' },
+            take: 6
+        })
+    ])
+
+    // Normalize tournaments
+    const normalizedTournaments = upcomingTournaments.map(t => ({
+        id: t.id,
+        type: 'TOURNAMENT',
+        name: t.name,
+        date: t.startDate,
+        venue: t.venue,
+        imageUrl: t.headerImageUrl,
+        status: t.status,
+        regStart: t.registrationStart,
+        regEnd: t.registrationEnd,
+        link: `/tournament/${t.id}`
+    }))
+
+    // Normalize promotions
+    const normalizedPromotions = upcomingPromotions.map(p => ({
+        id: p.id,
+        type: 'PROMOTION',
+        name: p.name,
+        date: p.testDate,
+        venue: p.venue,
+        imageUrl: p.bannerUrl,
+        status: p.status,
+        regStart: null,
+        regEnd: p.registrationDeadline,
+        link: `/events/promotion/${p.id}` // Placeholder link logic from page.tsx discussion
+    }))
+
+    // Combine and sort
+    return [...normalizedTournaments, ...normalizedPromotions]
+        .sort((a, b) => a.date.getTime() - b.date.getTime())
+        .slice(0, 6)
+}
+
+export async function fetchAthleteDashboardData(clerkId: string) {
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: clerkId },
+        select: {
+            id: true,
+            role: true,
+            name: true,
+            email: true,
+            clubName: true,
+            belt: true,
+            gender: true,
+            weight: true,
+            height: true,
+            birthDate: true,
+        }
+    })
+
+    if (!dbUser) return null
+
+    // Fetch club logo if user has a club
+    let clubLogo: string | null = null
+    if (dbUser.clubName) {
+        const club = await prisma.club.findFirst({
+            where: { name: { equals: dbUser.clubName, mode: 'insensitive' } },
+            select: { logoUrl: true }
+        })
+        clubLogo = club?.logoUrl || null
+    }
+
+    // Fetch athlete registrations
+    const registrations = await prisma.player.findMany({
+        where: { userId: dbUser.id },
+        include: {
+            category: {
+                include: {
+                    tournament: {
+                        select: {
+                            id: true,
+                            name: true,
+                            startDate: true,
+                            venue: true,
+                            status: true
+                        }
+                    }
+                }
+            }
+        },
+        orderBy: { id: 'desc' },
+        take: 10
+    })
+
+    return {
+        user: dbUser,
+        clubLogo,
+        registrations
+    }
+}
+
+const EVENTS_PER_PAGE = 10
+
+export async function fetchTournamentsData(userId: string, page: number = 1) {
+    // Count total tournaments for pagination
+    const totalCount = await prisma.tournament.count({
+        where: {
+            startDate: {
+                gte: new Date(new Date().setHours(0, 0, 0, 0))
+            }
+        }
+    })
+
+    const totalPages = Math.ceil(totalCount / EVENTS_PER_PAGE)
+
+    // Get paginated tournaments
+    const tournaments = await prisma.tournament.findMany({
+        where: {
+            startDate: {
+                gte: new Date(new Date().setHours(0, 0, 0, 0)) // Today or future
+            }
+        },
+        select: {
+            id: true,
+            name: true,
+            startDate: true,
+            venue: true,
+            status: true,
+            _count: {
+                select: {
+                    categories: true
+                }
+            }
+        },
+        orderBy: {
+            startDate: 'asc'
+        },
+        skip: (page - 1) * EVENTS_PER_PAGE,
+        take: EVENTS_PER_PAGE
+    })
+
+    // Get user's existing registrations
+    const userRegistrations = await prisma.player.findMany({
+        where: { userId: userId },
+        select: {
+            category: {
+                select: {
+                    tournamentId: true
+                }
+            }
+        }
+    })
+
+    const registeredTournamentIds = userRegistrations.map(r => r.category.tournamentId)
+
+    return {
+        tournaments,
+        totalCount,
+        totalPages,
+        currentPage: page,
+        registeredTournamentIds
     }
 }

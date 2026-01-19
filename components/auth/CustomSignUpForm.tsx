@@ -5,7 +5,7 @@ import { useSignUp } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Eye, EyeOff, Loader2, ArrowLeft, ArrowRight, Check } from 'lucide-react'
+import { Eye, EyeOff, Loader2, ArrowLeft, ArrowRight, Check, Building2, User } from 'lucide-react'
 import CustomSelect from '@/app/components/ui/CustomSelect'
 import { completeOnboarding } from '@/app/actions'
 import { toast } from 'sonner'
@@ -17,11 +17,12 @@ interface Club {
 
 interface CustomSignUpFormProps {
     clubs: Club[]
+    hideBranding?: boolean
 }
 
 type Step = 'account' | 'profile' | 'verification'
 
-export default function CustomSignUpForm({ clubs }: CustomSignUpFormProps) {
+export default function CustomSignUpForm({ clubs, hideBranding = false }: CustomSignUpFormProps) {
     const { isLoaded, signUp, setActive } = useSignUp()
     const router = useRouter()
 
@@ -35,15 +36,27 @@ export default function CustomSignUpForm({ clubs }: CustomSignUpFormProps) {
     const [lastName, setLastName] = useState('')
 
     // Profile Data
+    const [isOrganization, setIsOrganization] = useState(false)
     const [birthDate, setBirthDate] = useState('')
     const [gender, setGender] = useState('Male')
     const [belt, setBelt] = useState('White')
     const [clubName, setClubName] = useState('')
     const [isClubDropdownOpen, setIsClubDropdownOpen] = useState(false)
     const [clubSearch, setClubSearch] = useState('')
+    const [isCreatingClub, setIsCreatingClub] = useState(false) // Track if user explicitly selected "Create New Club"
 
     // Verification Data
     const [code, setCode] = useState('')
+    const [resending, setResending] = useState(false)
+    const [resendCountdown, setResendCountdown] = useState(0)
+
+    // Countdown timer
+    React.useEffect(() => {
+        if (resendCountdown > 0) {
+            const timer = setTimeout(() => setResendCountdown(resendCountdown - 1), 1000)
+            return () => clearTimeout(timer)
+        }
+    }, [resendCountdown])
 
     // UI State
     const [showPassword, setShowPassword] = useState(false)
@@ -81,9 +94,19 @@ export default function CustomSignUpForm({ clubs }: CustomSignUpFormProps) {
 
         setError(null)
 
-        if (!birthDate || !gender || !belt || !clubName) {
-            setError("All profile fields are required")
-            return
+        // Validation based on Mode
+        if (isOrganization) {
+            // Organization Validation
+            if (!clubName || !birthDate) {
+                setError("Organization Name and Established Date are required")
+                return
+            }
+        } else {
+            // Individual Validation (Athlete/Club Master)
+            if (!birthDate || !gender || !belt || !clubName) {
+                setError("All profile fields are required")
+                return
+            }
         }
 
         setLoading(true)
@@ -91,8 +114,6 @@ export default function CustomSignUpForm({ clubs }: CustomSignUpFormProps) {
         try {
             // 1. Create Clerk User
             await signUp.create({
-                firstName,
-                lastName,
                 emailAddress: email,
                 password,
             })
@@ -144,13 +165,25 @@ export default function CustomSignUpForm({ clubs }: CustomSignUpFormProps) {
             // 3. Create Database Record (Onboarding)
             // Note: We are now logged in as the user
             const formData = new FormData()
-            formData.append('role', 'ATHLETE') // Defaults to Athlete
+
+            // Determine Role
+            let role = 'ATHLETE'
+            if (isOrganization) {
+                role = 'ORGANIZER'
+            } else if (isCreatingClub) {
+                role = 'CLUB_MASTER'
+            }
+
+            formData.append('role', role)
             formData.append('firstName', firstName)
             formData.append('lastName', lastName)
-            formData.append('clubName', clubName)
-            formData.append('birthDate', birthDate)
-            formData.append('gender', gender)
-            formData.append('belt', belt)
+            formData.append('clubName', clubName) // Reused as Organization Name if role=ORGANIZER
+            formData.append('birthDate', birthDate) // Reused as Est. Date if role=ORGANIZER
+
+            if (!isOrganization) {
+                formData.append('gender', gender)
+                formData.append('belt', belt)
+            }
 
             await completeOnboarding(formData)
 
@@ -175,11 +208,59 @@ export default function CustomSignUpForm({ clubs }: CustomSignUpFormProps) {
                 strategy: 'oauth_google',
                 redirectUrl: '/sso-callback',
                 redirectUrlComplete: '/'
-                // Note: Google Sign Up bypasses our custom form, so they will hit the regular /onboarding check in page.tsx
-                // This is acceptable as a fallback for OAuth users.
             })
         } catch (err) {
             console.error('OAuth error', err)
+        }
+    }
+
+    // ----------------------------------------------------
+    // VERIFICATION HANDLERS
+    // ----------------------------------------------------
+
+    const handleDigitChange = (index: number, value: string) => {
+        if (!/^\d*$/.test(value)) return
+
+        const newCode = code.split('')
+        newCode[index] = value.slice(-1)
+        const updatedCode = newCode.join('').slice(0, 6)
+        setCode(updatedCode)
+
+        if (value && index < 5) {
+            const nextInput = document.getElementById(`otp-${index + 1}`)
+            nextInput?.focus()
+        }
+    }
+
+    const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Backspace' && !code[index] && index > 0) {
+            const prevInput = document.getElementById(`otp-${index - 1}`)
+            prevInput?.focus()
+        }
+    }
+
+    const handlePaste = (e: React.ClipboardEvent) => {
+        e.preventDefault()
+        const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+        setCode(pastedData)
+        const focusIndex = Math.min(pastedData.length, 5)
+        const input = document.getElementById(`otp-${focusIndex}`)
+        input?.focus()
+    }
+
+    const handleResendCode = async () => {
+        if (!isLoaded) return
+        setError(null)
+        setResending(true)
+        try {
+            await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
+            setResendCountdown(60)
+            toast.success('Code resent successfully')
+        } catch (err: any) {
+            console.error('Resend error', err)
+            setError('Failed to resend code. Please try again.')
+        } finally {
+            setResending(false)
         }
     }
 
@@ -190,14 +271,17 @@ export default function CustomSignUpForm({ clubs }: CustomSignUpFormProps) {
     // STEP 1: ACCOUNT
     if (step === 'account') {
         return (
-            <div className="w-full max-w-md mx-auto p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100 flex flex-col justify-center min-h-[80vh] md:min-h-0">
-                <div className="text-center mb-8">
-                    <div className="relative w-16 h-16 mx-auto mb-4">
-                        <Image src="/KTMLogo.png" alt="KTM Logo" fill className="object-contain" priority />
+            <div className={`w-full max-w-md mx-auto flex flex-col justify-center ${hideBranding ? '' : 'min-h-[80vh] md:min-h-0 p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100'}`}>
+
+                {!hideBranding && (
+                    <div className="text-center mb-8">
+                        <div className="relative w-16 h-16 mx-auto mb-4">
+                            <Image src="/KTMLogo.png" alt="KTM Logo" fill className="object-contain" priority />
+                        </div>
+                        <h1 className="text-2xl font-black text-gray-900 tracking-tight">Create Account</h1>
+                        <p className="text-gray-500 mt-2 text-sm">Step 1 of 3: Account Details</p>
                     </div>
-                    <h1 className="text-2xl font-black text-gray-900 tracking-tight">Create Account</h1>
-                    <p className="text-gray-500 mt-2 text-sm">Step 1 of 3: Account Details</p>
-                </div>
+                )}
 
                 <form onSubmit={handleAccountNext} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -305,96 +389,193 @@ export default function CustomSignUpForm({ clubs }: CustomSignUpFormProps) {
     // STEP 2: PROFILE
     if (step === 'profile') {
         return (
-            <div className="w-full max-w-md mx-auto p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100 flex flex-col justify-center min-h-[80vh] md:min-h-0">
-                <div className="text-center mb-6">
+            <div className={`w-full max-w-md mx-auto flex flex-col justify-center ${hideBranding ? '' : 'min-h-[80vh] md:min-h-0 p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100'}`}>
+                <div className={`text-center mb-6 relative ${hideBranding ? 'md:static' : ''}`}>
                     <button
-                        onClick={() => setStep('account')}
-                        className="absolute left-6 top-8 md:static md:mb-4 flex items-center text-gray-400 hover:text-gray-900"
+                        onClick={() => {
+                            setStep('account')
+                            setError(null)
+                        }}
+                        className={`${hideBranding ? '' : 'absolute left-6 top-8 md:static md:mb-4'} flex items-center text-gray-400 hover:text-gray-900 group`}
                     >
-                        <ArrowLeft size={20} />
+                        <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
                     </button>
-                    <h1 className="text-2xl font-black text-gray-900 tracking-tight">Complete Profile</h1>
-                    <p className="text-gray-500 mt-2 text-sm">Step 2 of 3: Your Info</p>
+                    {!hideBranding && (
+                        <>
+                            <h1 className="text-2xl font-black text-gray-900 tracking-tight">Complete Profile</h1>
+                            <p className="text-gray-500 mt-2 text-sm">Step 2 of 3: Your Info</p>
+                        </>
+                    )}
                 </div>
 
                 <form onSubmit={handleProfileSubmit} className="space-y-4">
-                    <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Date of Birth</label>
-                        <input
-                            type="date"
-                            value={birthDate}
-                            onChange={(e) => setBirthDate(e.target.value)}
-                            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
-                            required
-                        />
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <CustomSelect
-                            label="GENDER"
-                            value={gender}
-                            onChange={setGender}
-                            options={['Male', 'Female']}
-                            required
-                        />
-                        <CustomSelect
-                            label="BELT"
-                            value={belt}
-                            onChange={setBelt}
-                            options={['White', 'Yellow', 'Green', 'Blue', 'Red', 'Brown', 'Black']}
-                            required
-                        />
-                    </div>
-
-                    {/* Club Search with Combobox Style */}
-                    <div className="relative">
-                        <label className="block text-xs font-medium text-gray-700 mb-1 uppercase tracking-wider">Club</label>
-                        <div className="relative">
-                            <input
-                                type="text"
-                                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
-                                placeholder="Select your club..."
-                                value={clubSearch}
-                                onChange={(e) => {
-                                    setClubSearch(e.target.value)
-                                    setIsClubDropdownOpen(true)
-                                    setClubName('')
-                                }}
-                                onFocus={() => setIsClubDropdownOpen(true)}
-                            />
-                            {/* Valid Selection Checkmark */}
-                            {clubName && clubName === clubSearch && (
-                                <div className="absolute right-4 top-3.5 text-green-500">
-                                    <Check size={18} />
-                                </div>
-                            )}
+                    {/* Organization Toggle */}
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg ${isOrganization ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-200 text-gray-500'}`}>
+                                {isOrganization ? <Building2 size={20} /> : <User size={20} />}
+                            </div>
+                            <div>
+                                <p className="font-bold text-sm text-gray-900">Register as Organization</p>
+                                <p className="text-xs text-gray-500">Manage tournaments & events</p>
+                            </div>
                         </div>
+                        {/* Simple Toggle Button */}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setIsOrganization(!isOrganization)
+                                setIsCreatingClub(false)
+                                setClubName('')
+                                setBelt('White') // Reset
+                                setError(null)
+                            }}
+                            className={`w-12 h-7 rounded-full transition-colors relative ${isOrganization ? 'bg-indigo-600' : 'bg-gray-300'}`}
+                        >
+                            <div className={`w-5 h-5 bg-white rounded-full shadow-sm absolute top-1 transition-all ${isOrganization ? 'left-6' : 'left-1'}`} />
+                        </button>
+                    </div>
 
-                        {isClubDropdownOpen && (
-                            <>
-                                <div className="fixed inset-0 z-10" onClick={() => setIsClubDropdownOpen(false)} />
-                                <div className="absolute z-20 mt-1 w-full bg-white shadow-xl max-h-60 rounded-xl py-2 overflow-auto border border-gray-100">
-                                    {filteredClubs.length === 0 ? (
-                                        <div className="text-gray-400 px-4 py-2 text-sm">No clubs found.</div>
-                                    ) : (
-                                        filteredClubs.map((club) => (
-                                            <div
-                                                key={club.id}
-                                                className={`cursor-pointer px-4 py-3 hover:bg-gray-50 ${clubName === club.name ? 'bg-red-50 text-red-700' : 'text-gray-900'}`}
-                                                onClick={() => {
-                                                    setClubName(club.name)
-                                                    setClubSearch(club.name)
-                                                    setIsClubDropdownOpen(false)
-                                                }}
-                                            >
-                                                <span className="font-medium">{club.name}</span>
-                                            </div>
-                                        ))
+                    {isOrganization ? (
+                        <>
+                            {/* ORGANIZATION FIELDS */}
+                            <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Organization Name</label>
+                                <input
+                                    type="text"
+                                    value={clubName} // Reuse clubName state
+                                    onChange={(e) => setClubName(e.target.value)}
+                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+                                    placeholder="e.g. National Taekwondo Alliance"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Date Established</label>
+                                <input
+                                    type="date"
+                                    value={birthDate} // Reuse birthDate state
+                                    onChange={(e) => setBirthDate(e.target.value)}
+                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+                                    required
+                                />
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            {/* INDIVIDUAL FIELDS */}
+                            <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Date of Birth</label>
+                                <input
+                                    type="date"
+                                    value={birthDate}
+                                    onChange={(e) => setBirthDate(e.target.value)}
+                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
+                                    required
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <CustomSelect
+                                    label="GENDER"
+                                    value={gender}
+                                    onChange={setGender}
+                                    options={['Male', 'Female']}
+                                    required
+                                />
+                                <CustomSelect
+                                    label="BELT"
+                                    value={belt}
+                                    onChange={setBelt}
+                                    options={['White', 'Yellow', 'Green', 'Blue', 'Red', 'Brown', 'Black']}
+                                    required
+                                />
+                            </div>
+
+                            {/* Club Search with Combobox Style */}
+                            <div className="relative">
+                                <label className="block text-xs font-medium text-gray-700 mb-1 uppercase tracking-wider">Club</label>
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        className={`w-full px-4 py-3 bg-white border rounded-xl text-gray-900 focus:outline-none focus:ring-2 transition-all font-medium ${isCreatingClub ? 'border-green-500 ring-2 ring-green-500/20' : 'border-gray-200 focus:ring-red-500/20 focus:border-red-500'}`}
+                                        placeholder={isCreatingClub ? "Enter new club name..." : "Search for your club..."}
+                                        value={clubSearch}
+                                        onChange={(e) => {
+                                            setClubSearch(e.target.value)
+                                            setIsClubDropdownOpen(true)
+                                            // Only reset if we are NOT in create mode or user is typing freshly
+                                            if (!isCreatingClub) {
+                                                setClubName('')
+                                            } else {
+                                                setClubName(e.target.value)
+                                            }
+                                        }}
+                                        onFocus={() => setIsClubDropdownOpen(true)}
+                                    />
+                                    {/* Valid Selection Checkmark */}
+                                    {clubName && (clubName === clubSearch || isCreatingClub) && (
+                                        <div className={`absolute right-4 top-3.5 ${isCreatingClub ? 'text-green-600' : 'text-green-500'}`}>
+                                            {isCreatingClub ? <span className="text-xs font-bold bg-green-100 px-2 py-0.5 rounded">NEW</span> : <Check size={18} />}
+                                        </div>
                                     )}
                                 </div>
-                            </>
-                        )}
-                    </div>
+
+                                {isClubDropdownOpen && (
+                                    <>
+                                        <div className="fixed inset-0 z-10" onClick={() => setIsClubDropdownOpen(false)} />
+                                        <div className="absolute z-20 mt-1 w-full bg-white shadow-xl max-h-60 rounded-xl py-2 overflow-auto border border-gray-100">
+                                            {filteredClubs.length === 0 && clubSearch.trim().length > 0 ? (
+                                                <div
+                                                    className="cursor-pointer px-4 py-3 hover:bg-green-50 text-green-700 flex items-center gap-2"
+                                                    onClick={() => {
+                                                        setIsCreatingClub(true)
+                                                        setClubName(clubSearch)
+                                                        setIsClubDropdownOpen(false)
+                                                    }}
+                                                >
+                                                    <span className="font-bold">+ Create new club "{clubSearch}"</span>
+                                                </div>
+                                            ) : filteredClubs.length > 0 ? (
+                                                <>
+                                                    {filteredClubs.map((club) => (
+                                                        <div
+                                                            key={club.id}
+                                                            className={`cursor-pointer px-4 py-3 hover:bg-gray-50 ${clubName === club.name && !isCreatingClub ? 'bg-red-50 text-red-700' : 'text-gray-900'}`}
+                                                            onClick={() => {
+                                                                setIsCreatingClub(false)
+                                                                setClubName(club.name)
+                                                                setClubSearch(club.name)
+                                                                setIsClubDropdownOpen(false)
+                                                            }}
+                                                        >
+                                                            <span className="font-medium">{club.name}</span>
+                                                        </div>
+                                                    ))}
+                                                    {/* Always show create option at bottom if searching */}
+                                                    {clubSearch && (
+                                                        <div
+                                                            className="cursor-pointer px-4 py-3 border-t border-gray-100 hover:bg-green-50 text-green-700 flex items-center gap-2 mt-1"
+                                                            onClick={() => {
+                                                                setIsCreatingClub(true)
+                                                                setClubName(clubSearch)
+                                                                setIsClubDropdownOpen(false)
+                                                            }}
+                                                        >
+                                                            <span className="font-bold text-sm">+ Can't find it? Create "{clubSearch}"</span>
+                                                        </div>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <div className="text-gray-400 px-4 py-2 text-sm">Type to search or create a club.</div>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </>
+                    )}
 
                     {error && (
                         <div className="p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2">
@@ -403,45 +584,70 @@ export default function CustomSignUpForm({ clubs }: CustomSignUpFormProps) {
                         </div>
                     )}
 
+                    <div id="clerk-captcha"></div>
+
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full py-4 mt-4 bg-red-600 text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 hover:bg-red-700 active:scale-[0.98] transition-all disabled:opacity-70 flex items-center justify-center gap-2 text-lg"
+                        className={`w-full py-4 mt-4 text-white font-bold rounded-2xl shadow-lg active:scale-[0.98] transition-all disabled:opacity-70 flex items-center justify-center gap-2 text-lg ${isOrganization ? 'bg-indigo-600 shadow-indigo-600/20 hover:bg-indigo-700' : isCreatingClub ? 'bg-green-600 shadow-green-600/20 hover:bg-green-700' : 'bg-red-600 shadow-red-600/20 hover:bg-red-700'}`}
                     >
                         {loading ? (
                             <><Loader2 className="animate-spin" /> Creating Account...</>
-                        ) : 'Sign Up'}
+                        ) : (
+                            isOrganization ? 'Sign Up as Organization' : isCreatingClub ? 'Sign Up as Club Master' : 'Sign Up'
+                        )}
                     </button>
                 </form>
             </div>
         )
     }
 
+
+
     // STEP 3: VERIFICATION
     if (step === 'verification') {
+        const codeDigits = code.split('').concat(Array(6 - code.length).fill(''))
+
         return (
-            <div className="w-full max-w-md mx-auto p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100 flex flex-col justify-center min-h-[80vh] md:min-h-0">
+            <div className={`w-full max-w-md mx-auto flex flex-col justify-center ${hideBranding ? '' : 'min-h-[80vh] md:min-h-0 p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100'}`}>
+                <button
+                    onClick={() => { setStep('profile'); setCode(''); }}
+                    className="flex items-center text-gray-500 hover:text-gray-900 transition-colors mb-4 self-start"
+                >
+                    <ArrowLeft size={20} className="mr-1" /> Back
+                </button>
+
                 <div className="mb-8 text-center">
-                    <div className="relative w-16 h-16 mx-auto mb-4">
-                        <Image src="/KTMLogo.png" alt="KTM Logo" fill className="object-contain" priority />
-                    </div>
-                    <h1 className="text-2xl font-black text-gray-900 tracking-tight">Verify Email</h1>
+                    {!hideBranding && (
+                        <>
+                            <div className="relative w-16 h-16 mx-auto mb-4">
+                                <Image src="/KTMLogo.png" alt="KTM Logo" fill className="object-contain" priority />
+                            </div>
+                            <h1 className="text-2xl font-black text-gray-900 tracking-tight">Verify Email</h1>
+                        </>
+                    )}
                     <p className="text-gray-500 mt-2 text-sm">
-                        Code sent to <span className="font-bold text-gray-900">{email}</span>
+                        Enter the 6-digit code sent to
                     </p>
+                    <p className="font-bold text-gray-900 text-base">{email}</p>
                 </div>
 
                 <form onSubmit={handleVerification} className="space-y-6">
-                    <div>
-                        <input
-                            type="text"
-                            value={code}
-                            onChange={(e) => setCode(e.target.value)}
-                            className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-gray-900 text-center text-3xl tracking-[1rem] font-black placeholder:text-gray-200 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
-                            placeholder="000000"
-                            maxLength={6}
-                            required
-                        />
+                    <div className="flex justify-center gap-2 sm:gap-3" onPaste={handlePaste}>
+                        {codeDigits.map((digit, index) => (
+                            <input
+                                key={index}
+                                id={`otp-${index}`}
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={1}
+                                value={digit}
+                                onChange={(e) => handleDigitChange(index, e.target.value)}
+                                onKeyDown={(e) => handleKeyDown(index, e)}
+                                className={`w-12 h-14 sm:w-14 sm:h-16 bg-gray-50 border-2 border-gray-200 rounded-xl text-gray-900 text-center text-2xl font-black focus:outline-none focus:ring-2 transition-all ${isOrganization ? 'focus:ring-indigo-500/30 focus:border-indigo-500' : 'focus:ring-red-500/30 focus:border-red-500'}`}
+                                autoComplete={index === 0 ? "one-time-code" : "off"}
+                            />
+                        ))}
                     </div>
 
                     {error && (
@@ -453,14 +659,32 @@ export default function CustomSignUpForm({ clubs }: CustomSignUpFormProps) {
 
                     <button
                         type="submit"
-                        disabled={loading}
-                        className="w-full py-4 bg-red-600 text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 hover:bg-red-700 active:scale-[0.98] transition-all disabled:opacity-70 flex items-center justify-center gap-2 text-lg"
+                        disabled={loading || code.length !== 6}
+                        className={`w-full py-4 text-white font-bold rounded-2xl shadow-lg active:scale-[0.98] transition-all disabled:opacity-70 flex items-center justify-center gap-2 text-lg ${isOrganization ? 'bg-indigo-600 shadow-indigo-600/20 hover:bg-indigo-700' : 'bg-red-600 shadow-red-600/20 hover:bg-red-700'}`}
                     >
                         {loading ? (
-                            <><Loader2 className="animate-spin" /> Finalizing...</>
+                            <><Loader2 className="animate-spin" /> Verifying...</>
                         ) : 'Verify & Complete'}
                     </button>
                 </form>
+
+                <div className="mt-6 text-center">
+                    <p className="text-sm text-gray-500">
+                        Didn't receive the code?{' '}
+                        {resendCountdown > 0 ? (
+                            <span className="text-gray-400">Resend in {resendCountdown}s</span>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={handleResendCode}
+                                disabled={resending}
+                                className={`font-bold hover:underline disabled:opacity-50 ${isOrganization ? 'text-indigo-600' : 'text-red-600'}`}
+                            >
+                                {resending ? 'Sending...' : 'Resend Code'}
+                            </button>
+                        )}
+                    </p>
+                </div>
             </div>
         )
     }

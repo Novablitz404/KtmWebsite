@@ -3,14 +3,15 @@
 import { useState, useEffect } from 'react'
 import { Category, Match, Player, Tournament, GuidelineTemplate, User, TournamentManagerInvite } from '@prisma/client'
 import CategoryManager from './CategoryManager'
-import TournamentScheduler from './TournamentScheduler'
 import BracketList from './BracketList'
 import PlayerRegistration from './PlayerRegistration'
 import TournamentManagers from './TournamentManagers'
 import { getTournamentPlayers } from '@/app/actions'
+import DashboardDataExport from './DashboardDataExport'
+import TournamentStatusActions from './TournamentStatusActions'
 
 type TournamentWithData = Tournament & {
-    categories: (Category & { matches: Match[] })[]
+    categories: (Category & { matches: Match[], _count?: { players: number } })[]
     guidelineTemplate: GuidelineTemplate | null
     managers: User[]
     currentUserId?: string
@@ -24,13 +25,13 @@ type PlayerWithCategory = Player & {
 interface TournamentTabsProps {
     tournament: TournamentWithData
     players: PlayerWithCategory[]
-    availableTemplates: { id: string; name: string }[]
     pendingManagerInvites?: TournamentManagerInvite[]
     publicView?: boolean
+    totalPlayersCount?: number
 }
 
-export default function TournamentTabs({ tournament, players, availableTemplates, pendingManagerInvites = [], publicView = false }: TournamentTabsProps) {
-    const [activeTab, setActiveTab] = useState<'categories' | 'scheduler' | 'brackets' | 'athletes' | 'managers'>(
+export default function TournamentTabs({ tournament, players, pendingManagerInvites = [], publicView = false, totalPlayersCount = 0 }: TournamentTabsProps) {
+    const [activeTab, setActiveTab] = useState<'categories' | 'brackets' | 'athletes' | 'managers' | 'settings'>(
         publicView ? 'athletes' : 'categories'
     )
     const [playersList, setPlayersList] = useState<PlayerWithCategory[]>(players)
@@ -77,10 +78,11 @@ export default function TournamentTabs({ tournament, players, availableTemplates
 
     let tabs = [
         { id: 'categories', label: 'Categories', icon: '📋' },
-        { id: 'scheduler', label: 'Scheduler', icon: '📅' },
+
         { id: 'brackets', label: 'Brackets', icon: '🏆' },
         { id: 'athletes', label: 'Athletes', icon: '👥' },
         { id: 'managers', label: 'Managers', icon: '🔑' },
+        { id: 'settings', label: 'Settings', icon: '⚙️' },
     ] as const
 
     if (publicView) {
@@ -122,29 +124,14 @@ export default function TournamentTabs({ tournament, players, availableTemplates
             <div className="flex-1">
                 {activeTab === 'categories' && !publicView && (
                     <div className="w-full">
-                        <div className="mb-6">
-                            <h2 className="text-xl font-bold text-gray-900">Manage Categories</h2>
-                            <p className="text-gray-500 text-sm">Select a guideline template to populate divisions and weight categories.</p>
-                        </div>
                         <CategoryManager
                             tournamentId={tournament.id}
                             categories={tournament.categories}
-                            currentTemplateId={tournament.guidelineTemplateId}
-                            currentTemplateName={tournament.guidelineTemplate?.name || null}
-                            availableTemplates={availableTemplates}
                         />
                     </div>
                 )}
 
-                {activeTab === 'scheduler' && !publicView && (
-                    <div className="w-full">
-                        <TournamentScheduler
-                            tournamentId={tournament.id}
-                            categories={tournament.categories}
-                            players={playersList}
-                        />
-                    </div>
-                )}
+
 
                 {activeTab === 'brackets' && (
                     <div className="w-full">
@@ -152,7 +139,7 @@ export default function TournamentTabs({ tournament, players, availableTemplates
                             <h2 className="text-xl font-bold text-gray-900">Brackets</h2>
                             <p className="text-gray-500 text-sm">View and manage match brackets.</p>
                         </div>
-                        <BracketList categories={tournament.categories} />
+                        <BracketList categories={tournament.categories.filter(c => (c._count?.players ?? 0) > 0)} />
                     </div>
                 )}
 
@@ -166,6 +153,7 @@ export default function TournamentTabs({ tournament, players, availableTemplates
                             tournamentId={tournament.id}
                             categories={tournament.categories}
                             players={playersList}
+                            totalCount={totalPlayersCount || playersList.length}
                             readOnly={publicView}
                         />
                     </div>
@@ -180,6 +168,54 @@ export default function TournamentTabs({ tournament, players, availableTemplates
                             organizerId={tournament.organizerId}
                             currentUserId={tournament.currentUserId}
                         />
+                    </div>
+                )}
+
+                {activeTab === 'settings' && !publicView && (
+                    <div className="w-full max-w-4xl space-y-6">
+                        <div className="mb-6">
+                            <h2 className="text-xl font-bold text-gray-900">Tournament Settings</h2>
+                            <p className="text-gray-500 text-sm">Manage tournament status and data.</p>
+                        </div>
+
+                        {/* Status Section */}
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                            <h3 className="text-base font-semibold text-gray-900 mb-4">Tournament Status</h3>
+                            <div className="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
+                                <div>
+                                    <p className="text-sm text-gray-500">Current Status</p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                            ${tournament.status === 'ONGOING' ? 'bg-green-100 text-green-800' :
+                                                tournament.status === 'COMPLETED' ? 'bg-gray-100 text-gray-800' :
+                                                    tournament.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                                                        'bg-blue-100 text-blue-800'}`}>
+                                            {tournament.status}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-sm text-gray-500">Change Status:</span>
+                                    <TournamentStatusActions
+                                        tournamentId={tournament.id}
+                                        currentStatus={tournament.status}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Data Export Section */}
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                            <h3 className="text-base font-semibold text-gray-900 mb-4">Data Management</h3>
+                            <div className="space-y-4">
+                                <p className="text-sm text-gray-600">Export tournament data for backup or external use.</p>
+                                <DashboardDataExport
+                                    tournamentId={tournament.id}
+                                    tournamentName={tournament.name}
+                                    className="flex-wrap"
+                                />
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>

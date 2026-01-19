@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useClerk } from '@clerk/nextjs'
-import ProfileEditForm from '@/app/profile/ProfileEditForm'
+import ProfileEditForm from '@/app/settings/ProfileEditForm'
 import ClubEditForm from '@/components/pwa/ClubEditForm'
 import PushNotificationToggle from '@/components/PushNotificationToggle'
 import { Settings, Bell, LogOut, Shield, ChevronRight, ChevronLeft, User, Edit2 } from 'lucide-react'

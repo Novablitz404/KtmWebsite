@@ -2,8 +2,8 @@ import { prisma } from '@/lib/prisma'
 import Image from 'next/image'
 import Link from 'next/link'
 
-// Revalidate every 60 seconds for faster page loads
-export const revalidate = 60
+// Force dynamic rendering to ensure real-time data and avoid build-time DB connections
+export const dynamic = 'force-dynamic'
 
 export default async function EventsPage() {
     const now = new Date()

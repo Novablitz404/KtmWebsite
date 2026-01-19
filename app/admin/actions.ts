@@ -55,7 +55,7 @@ export async function inviteOrganizer(formData: FormData) {
     if (dbUser?.role !== 'ADMIN') throw new Error('Unauthorized')
 
     const email = formData.get('email') as string
-    const name = formData.get('name') as string | null
+
 
     if (!email) throw new Error('Email required')
 
@@ -64,13 +64,12 @@ export async function inviteOrganizer(formData: FormData) {
     if (existingUser) throw new Error('User with this email already exists')
 
     // Check if invite already exists
-    const existingInvite = await prisma.organizerInvite.findUnique({ where: { email } })
+    const existingInvite = await prisma.organizationInvite.findUnique({ where: { email } })
     if (existingInvite) throw new Error('Invite already sent to this email')
 
-    await prisma.organizerInvite.create({
+    await prisma.organizationInvite.create({
         data: {
             email,
-            name: name || null,
             invitedBy: dbUser.id
         }
     })
@@ -88,7 +87,7 @@ export async function deleteInvite(formData: FormData) {
     const inviteId = formData.get('inviteId') as string
     if (!inviteId) throw new Error('Invite ID required')
 
-    await prisma.organizerInvite.delete({ where: { id: inviteId } })
+    await prisma.organizationInvite.delete({ where: { id: inviteId } })
 
     revalidatePath('/admin/users')
 }

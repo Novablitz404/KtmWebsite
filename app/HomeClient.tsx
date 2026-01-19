@@ -1,6 +1,8 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { fetchLandingPageEvents } from '@/app/actions'
 import LandingPage from '@/components/LandingPage'
 import CustomSignInForm from '@/components/auth/CustomSignInForm'
 
@@ -9,9 +11,17 @@ interface HomeClientProps {
     user: any
 }
 
-export default function HomeClient({ upcomingTournaments, user }: HomeClientProps) {
+export default function HomeClient({ upcomingTournaments: initialEvents, user }: HomeClientProps) {
     const [isMobile, setIsMobile] = useState(false)
     const [mounted, setMounted] = useState(false)
+
+    // TanStack Query for events
+    const { data: events } = useQuery({
+        queryKey: ['landing-events'],
+        queryFn: fetchLandingPageEvents,
+        initialData: initialEvents,
+        staleTime: 1000 * 60 * 5 // 5 minutes
+    })
 
     useEffect(() => {
         setIsMobile(window.innerWidth < 768)
@@ -30,6 +40,7 @@ export default function HomeClient({ upcomingTournaments, user }: HomeClientProp
     }
 
     // All other cases -> Landing Page
-    // (Logged-in mobile users are redirected to /athlete/home by page.tsx)
-    return <LandingPage upcomingTournaments={upcomingTournaments} user={user} />
+    // (Logged-in mobile users are redirected to /athlete/dashboard by page.tsx)
+    return <LandingPage upcomingTournaments={events} user={user} />
 }
+

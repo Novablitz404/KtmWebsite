@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { UserButton, useUser, SignInButton, SignOutButton as ClerkSignOutButton } from '@clerk/nextjs'
+import { UserButton, useUser, SignOutButton as ClerkSignOutButton } from '@clerk/nextjs'
 import NotificationBell from './NotificationBell'
 
 export default function Header() {
@@ -50,8 +50,6 @@ export default function Header() {
         }
     }, [isLoaded, user])
 
-    // Hide header on Kiosk page
-    if (pathname?.startsWith('/attendance/kiosk')) return null
 
     // Hide header on auth pages and Admin Panel
     if (pathname?.startsWith('/sign-in') || pathname?.startsWith('/sign-up') || pathname?.startsWith('/onboarding') || pathname?.startsWith('/admin')) {
@@ -104,7 +102,7 @@ export default function Header() {
                                     href="/events"
                                     className={`text-base font-semibold transition-colors ${pathname === '/events' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
                                 >
-                                    Events
+                                    Tournaments
                                 </Link>
                                 <Link
                                     href="/ranking"
@@ -125,20 +123,17 @@ export default function Header() {
                                 {isAthlete && (
                                     <>
                                         <Link
-                                            href="/profile"
-                                            className={`text-base font-semibold transition-colors ${pathname === '/profile' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
+                                            href="/athlete/dashboard"
+                                            className={`text-base font-semibold transition-colors ${pathname?.startsWith('/athlete/dashboard') ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
                                         >
-                                            Profile
+                                            Dashboard
                                         </Link>
                                         <Link
                                             href="/tournaments"
                                             className={`text-base font-semibold transition-colors ${pathname === '/tournaments' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
                                         >
-                                            Register
+                                            Tournaments
                                         </Link>
-                                        <span className="text-base font-semibold text-gray-400 cursor-not-allowed">
-                                            Stats
-                                        </span>
                                     </>
                                 )}
 
@@ -152,22 +147,16 @@ export default function Header() {
                                             Dashboard
                                         </Link>
                                         <Link
-                                            href="/profile"
-                                            className={`text-base font-semibold transition-colors ${pathname === '/profile' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
-                                        >
-                                            Profile
-                                        </Link>
-                                        <Link
                                             href="/members"
                                             className={`text-base font-semibold transition-colors ${pathname === '/members' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
                                         >
                                             Members
                                         </Link>
                                         <Link
-                                            href="/club/attendance"
-                                            className={`text-base font-semibold transition-colors ${pathname === '/club/attendance' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
+                                            href="/registration"
+                                            className={`text-base font-semibold transition-colors ${pathname?.startsWith('/registration') ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
                                         >
-                                            Attendance
+                                            Registration
                                         </Link>
                                     </>
                                 )}
@@ -175,23 +164,30 @@ export default function Header() {
                                 {/* Organizer Links */}
                                 {isOrganizer && (
                                     <>
+
                                         <Link
-                                            href="/profile"
-                                            className={`text-base font-semibold transition-colors ${pathname === '/profile' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
-                                        >
-                                            Profile
-                                        </Link>
-                                        <Link
-                                            href="/manage"
-                                            className={`text-base font-semibold transition-colors ${pathname === '/manage' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
+                                            href="/organization"
+                                            className={`text-base font-semibold transition-colors ${pathname === '/organization' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
                                         >
                                             Dashboard
+                                        </Link>
+                                        <Link
+                                            href="/organizer-tournaments"
+                                            className={`text-base font-semibold transition-colors ${pathname === '/organizer-tournaments' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
+                                        >
+                                            Tournaments
+                                        </Link>
+                                        <Link
+                                            href="/promotions"
+                                            className={`text-base font-semibold transition-colors ${pathname === '/promotions' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
+                                        >
+                                            Promotions
                                         </Link>
                                     </>
                                 )}
 
-                                {/* Admin Dashboard Link - Only show for ADMIN when on /manage */}
-                                {role === 'ADMIN' && pathname?.startsWith('/manage') && (
+                                {/* Admin Dashboard Link - Only show for ADMIN when on /organizer-tournaments */}
+                                {role === 'ADMIN' && pathname?.startsWith('/organizer-tournaments') && (
                                     <Link
                                         href="/admin"
                                         className={`text-base font-semibold transition-colors ${pathname === '/admin' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
@@ -200,7 +196,7 @@ export default function Header() {
                                     </Link>
                                 )}
 
-                                {role === 'ADMIN' && !pathname?.startsWith('/manage') && (
+                                {role === 'ADMIN' && !pathname?.startsWith('/organizer-tournaments') && (
                                     <Link
                                         href="/admin"
                                         className={`text-base font-semibold transition-colors ${pathname === '/admin' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
@@ -230,11 +226,11 @@ export default function Header() {
                                 <UserDropdown user={user} dbName={userName} role={role} />
                             </>
                         ) : isLoaded ? (
-                            <SignInButton mode="modal" forceRedirectUrl="/">
+                            <Link href="/sign-in">
                                 <button className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors">
                                     Sign In
                                 </button>
-                            </SignInButton>
+                            </Link>
                         ) : null}
                     </div>
                 </div>
@@ -296,7 +292,7 @@ function MobilePublicMenu() {
                         onClick={() => setIsOpen(false)}
                         className={`block px-4 py-2.5 text-sm font-medium transition-colors ${pathname === '/events' ? 'text-red-600 bg-red-50' : 'text-gray-700 hover:bg-gray-50'}`}
                     >
-                        Events
+                        Tournaments
                     </Link>
                     <Link
                         href="/ranking"
@@ -311,11 +307,11 @@ function MobilePublicMenu() {
                         <>
                             <div className="border-t border-gray-100 my-2" />
                             <div className="px-4 py-2">
-                                <SignInButton mode="modal" forceRedirectUrl="/">
+                                <Link href="/sign-in">
                                     <button className="w-full px-4 py-2.5 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors">
                                         Sign In
                                     </button>
-                                </SignInButton>
+                                </Link>
                             </div>
                         </>
                     )}
@@ -377,11 +373,11 @@ function UserDropdown({ user, dbName, role }: { user: UserResource, dbName?: str
                             {isAthlete && (
                                 <>
                                     <Link
-                                        href="/profile"
+                                        href="/settings"
                                         onClick={() => setIsOpen(false)}
-                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/profile' ? 'bg-red-50 text-red-600' : ''}`}
+                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/settings' ? 'bg-red-50 text-red-600' : ''}`}
                                     >
-                                        Profile
+                                        Settings
                                     </Link>
                                     <Link
                                         href="/tournaments"
@@ -390,9 +386,6 @@ function UserDropdown({ user, dbName, role }: { user: UserResource, dbName?: str
                                     >
                                         Register
                                     </Link>
-                                    <span className="flex items-center px-3 py-2 text-sm text-gray-400 cursor-not-allowed">
-                                        Stats
-                                    </span>
                                 </>
                             )}
 
@@ -400,11 +393,11 @@ function UserDropdown({ user, dbName, role }: { user: UserResource, dbName?: str
                             {isClubMaster && (
                                 <>
                                     <Link
-                                        href="/profile"
+                                        href="/settings"
                                         onClick={() => setIsOpen(false)}
-                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/profile' ? 'bg-red-50 text-red-600' : ''}`}
+                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/settings' ? 'bg-red-50 text-red-600' : ''}`}
                                     >
-                                        Profile
+                                        Settings
                                     </Link>
                                     <Link
                                         href="/members"
@@ -427,16 +420,30 @@ function UserDropdown({ user, dbName, role }: { user: UserResource, dbName?: str
                             {isOrganizer && (
                                 <>
                                     <Link
-                                        href="/profile"
+                                        href="/settings"
                                         onClick={() => setIsOpen(false)}
-                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/profile' ? 'bg-red-50 text-red-600' : ''}`}
+                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/settings' ? 'bg-red-50 text-red-600' : ''}`}
                                     >
-                                        Profile
+                                        Settings
                                     </Link>
                                     <Link
-                                        href="/manage"
+                                        href="/organizer-tournaments"
                                         onClick={() => setIsOpen(false)}
-                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/manage' ? 'bg-red-50 text-red-600' : ''}`}
+                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/organizer-tournaments' ? 'bg-red-50 text-red-600' : ''}`}
+                                    >
+                                        Tournaments
+                                    </Link>
+                                    <Link
+                                        href="/promotions"
+                                        onClick={() => setIsOpen(false)}
+                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/promotions' ? 'bg-red-50 text-red-600' : ''}`}
+                                    >
+                                        Promotions
+                                    </Link>
+                                    <Link
+                                        href="/organization"
+                                        onClick={() => setIsOpen(false)}
+                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/organization' ? 'bg-red-50 text-red-600' : ''}`}
                                     >
                                         Dashboard
                                     </Link>
@@ -454,6 +461,19 @@ function UserDropdown({ user, dbName, role }: { user: UserResource, dbName?: str
                                 </Link>
                             )}
                         </div>
+
+                        {/* Profile Link (Visible on all screens) */}
+                        <Link
+                            href="/settings"
+                            onClick={() => setIsOpen(false)}
+                            className={`flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors font-medium mb-1 ${pathname === '/settings' ? 'bg-red-50 text-red-600' : ''}`}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            Settings
+                        </Link>
 
                         <ClerkSignOutButton redirectUrl="/sign-in">
                             <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium">

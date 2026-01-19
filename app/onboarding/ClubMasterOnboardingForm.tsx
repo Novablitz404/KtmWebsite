@@ -37,7 +37,7 @@ export default function ClubMasterOnboardingForm() {
             formData.append('clubName', clubName)
 
             await completeClubMasterOnboarding(formData)
-            router.push('/profile')
+            router.push('/settings')
         } catch (err) {
             toast.error(err instanceof Error ? err.message : 'Something went wrong')
             setSubmitting(false)

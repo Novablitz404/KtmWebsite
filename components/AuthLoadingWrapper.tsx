@@ -31,15 +31,17 @@ export default function AuthLoadingWrapper({ children }: { children: React.React
             fetch('/api/user/role')
                 .then(res => res.json())
                 .then(data => {
-                    let redirectTo = '/athlete/home' // Default now points to Athlete Home
+                    let redirectTo = '/athlete/dashboard' // Default now points to Athlete Dashboard
 
                     switch (data.role) {
                         case 'ADMIN':
                             redirectTo = '/admin'
                             break
                         case 'ORGANIZER':
+                            redirectTo = '/organization'
+                            break
                         case 'MANAGER':
-                            redirectTo = '/manage'
+                            redirectTo = '/organizer-tournaments'
                             break
                         case 'CLUB_MASTER':
                         case 'ASSISTANT_CLUB_MASTER':
@@ -47,7 +49,7 @@ export default function AuthLoadingWrapper({ children }: { children: React.React
                             break
                         case 'ATHLETE':
                         default:
-                            redirectTo = '/athlete/home'
+                            redirectTo = '/athlete/dashboard'
                             break
                     }
 
@@ -56,7 +58,7 @@ export default function AuthLoadingWrapper({ children }: { children: React.React
                 })
                 .catch(() => {
                     // On error, default to athlete home
-                    router.replace('/athlete/home')
+                    router.replace('/athlete/dashboard')
                 })
         }
 

@@ -29,7 +29,7 @@ export default function InviteActions({ pendingOrganizerInvites, pendingClubMast
         setIsLoading(true)
         try {
             await inviteOrganizer(formData)
-            toast.success('Organizer invite sent!')
+            toast.success('Organization invite sent!')
             setIsOrgModalOpen(false)
         } catch (error) {
             toast.error(error instanceof Error ? error.message : 'Failed to send invite')
@@ -71,7 +71,7 @@ export default function InviteActions({ pendingOrganizerInvites, pendingClubMast
                     className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all font-medium shadow-sm"
                 >
                     <Shield className="w-4 h-4 text-blue-600" />
-                    <span>Invite Organizer</span>
+                    <span>Invite Organization</span>
                     {pendingOrganizerInvites.length > 0 && (
                         <span className="ml-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">
                             {pendingOrganizerInvites.length}
@@ -100,7 +100,7 @@ export default function InviteActions({ pendingOrganizerInvites, pendingClubMast
                         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                                 <Shield className="w-5 h-5 text-blue-600" />
-                                Invite Organizer
+                                Invite Organization
                             </h3>
                             <button
                                 onClick={() => setIsOrgModalOpen(false)}
@@ -123,15 +123,6 @@ export default function InviteActions({ pendingOrganizerInvites, pendingClubMast
                                         type="email"
                                         required
                                         placeholder="organizer@example.com"
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Name (Optional)</label>
-                                    <input
-                                        name="name"
-                                        type="text"
-                                        placeholder="John Doe"
                                         className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                                     />
                                 </div>
@@ -164,7 +155,6 @@ export default function InviteActions({ pendingOrganizerInvites, pendingClubMast
                                                     </div>
                                                     <div className="truncate">
                                                         <p className="text-sm font-medium text-gray-900 truncate">{invite.email}</p>
-                                                        {invite.name && <p className="text-xs text-gray-500 truncate">{invite.name}</p>}
                                                     </div>
                                                 </div>
                                                 <button

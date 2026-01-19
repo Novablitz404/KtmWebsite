@@ -98,11 +98,11 @@ export default function LandingPage({ upcomingTournaments, user }: LandingPagePr
                         </div>
                     ) : (
                         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                            {upcomingTournaments.map((tournament, index) => {
-                                const isCancelled = tournament.status === 'CANCELLED'
+                            {upcomingTournaments.map((event, index) => {
+                                const isCancelled = event.status === 'CANCELLED'
                                 const now = new Date()
-                                const regStart = tournament.registrationStart ? new Date(tournament.registrationStart) : null
-                                const regEnd = tournament.registrationEnd ? new Date(tournament.registrationEnd) : null
+                                const regStart = event.regStart ? new Date(event.regStart) : null
+                                const regEnd = event.regEnd ? new Date(event.regEnd) : null
 
                                 let statusBadge = null
                                 let statusColor = ''
@@ -124,23 +124,29 @@ export default function LandingPage({ upcomingTournaments, user }: LandingPagePr
                                     <>
                                         {/* Image */}
                                         <div className={`h-40 bg-gradient-to-br from-gray-100 to-gray-200 relative ${isCancelled ? 'grayscale opacity-60' : ''}`}>
-                                            {tournament.headerImageUrl ? (
+                                            {event.imageUrl ? (
                                                 <Image
-                                                    src={tournament.headerImageUrl}
-                                                    alt={tournament.name}
+                                                    src={event.imageUrl}
+                                                    alt={event.name}
                                                     fill
                                                     className="object-cover"
                                                     sizes="(max-width: 768px) 100vw, 33vw"
                                                     priority={index < 3}
+                                                    unoptimized
                                                 />
                                             ) : (
                                                 <div className="absolute inset-0 flex items-center justify-center bg-red-50">
-                                                    <span className="text-5xl">🥋</span>
+                                                    <span className="text-5xl">{event.type === 'PROMOTION' ? '🥋' : '🏆'}</span>
                                                 </div>
                                             )}
 
                                             {/* Status Badge */}
-                                            <div className="absolute top-3 right-3">
+                                            <div className="absolute top-3 right-3 flex gap-2">
+                                                {event.type === 'PROMOTION' && (
+                                                    <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border bg-amber-100 text-amber-800 border-amber-200">
+                                                        TEST
+                                                    </span>
+                                                )}
                                                 <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${statusColor}`}>
                                                     {statusBadge}
                                                 </span>
@@ -150,7 +156,7 @@ export default function LandingPage({ upcomingTournaments, user }: LandingPagePr
                                         {/* Content */}
                                         <div className="p-5">
                                             <h3 className={`font-bold text-lg truncate ${isCancelled ? 'text-gray-400' : 'text-gray-900 group-hover:text-red-600 transition-colors'}`}>
-                                                {tournament.name}
+                                                {event.name}
                                             </h3>
 
                                             <div className="mt-4 space-y-2">
@@ -158,19 +164,19 @@ export default function LandingPage({ upcomingTournaments, user }: LandingPagePr
                                                     <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                                     </svg>
-                                                    {new Date(tournament.startDate).toLocaleDateString('en-US', {
+                                                    {new Date(event.date).toLocaleDateString('en-US', {
                                                         month: 'short',
                                                         day: 'numeric',
                                                         year: 'numeric'
                                                     })}
                                                 </div>
-                                                {tournament.venue && (
+                                                {event.venue && (
                                                     <div className="flex items-center gap-2 text-sm text-gray-500">
                                                         <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                                                         </svg>
-                                                        <span className="truncate">{tournament.venue}</span>
+                                                        <span className="truncate">{event.venue}</span>
                                                     </div>
                                                 )}
                                             </div>
@@ -180,7 +186,7 @@ export default function LandingPage({ upcomingTournaments, user }: LandingPagePr
 
                                 if (isCancelled) {
                                     return (
-                                        <div key={tournament.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden cursor-not-allowed shadow-sm">
+                                        <div key={event.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden cursor-not-allowed shadow-sm">
                                             {CardContent}
                                         </div>
                                     )
@@ -188,8 +194,8 @@ export default function LandingPage({ upcomingTournaments, user }: LandingPagePr
 
                                 return (
                                     <Link
-                                        key={tournament.id}
-                                        href={`/tournament/${tournament.id}`}
+                                        key={event.id}
+                                        href={event.link}
                                         className="group bg-white rounded-2xl border border-gray-200 overflow-hidden hover:border-red-300 hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
                                     >
                                         {CardContent}

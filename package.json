@@ -12,7 +12,8 @@
     "@clerk/nextjs": "^6.36.5",
     "@ducanh2912/next-pwa": "^10.2.9",
     "@react-pdf/renderer": "^4.3.2",
-    "@supabase/supabase-js": "^2.89.0",
+    "@supabase/supabase-js": "^2.90.1",
+    "@tanstack/react-query": "^5.90.19",
     "date-fns": "^4.1.0",
     "face-api.js": "^0.22.2",
     "lucide-react": "^0.562.0",
@@ -20,6 +21,7 @@
     "qrcode.react": "^4.2.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-easy-crop": "^5.5.6",
     "react-signature-canvas": "^1.1.0-alpha.2",
     "sonner": "^2.0.7",
     "web-push": "^3.6.7"

@@ -1,130 +1,92 @@
-import { prisma } from '@/lib/prisma'
-import { Trophy, Users, Swords, Award } from 'lucide-react'
-import { currentUser } from '@clerk/nextjs/server'
+import { Users, Building2, Globe, ChevronRight, Trophy } from 'lucide-react'
+import Link from 'next/link'
 
-export default async function DashboardStats() {
-    const user = await currentUser()
-    const dbUser = user ? await prisma.user.findUnique({
-        where: { clerkId: user.id },
-        select: { id: true }
-    }) : null
+interface DashboardStatsProps {
+    stats: {
+        totalMembers: number
+        directMembers: number
+        directClubs: number
+        affiliatedOrgs: number
+    } | null
+}
 
-    // If not logged in, show placeholders
-    if (!dbUser) return <div className="p-4 bg-yellow-50 text-yellow-800 rounded-lg">Please log in to view stats.</div>
+export default function DashboardStats({ stats }: DashboardStatsProps) {
 
-    // Determine current month range for "This Month" stats if we wanted to be specific
-    // For now, let's just do all-time stats to make it look populated
-
-    // Count only tournaments created by this organizer or where they are a manager
-    const totalTournaments = await prisma.tournament.count({
-        where: {
-            OR: [
-                { organizerId: dbUser.id },
-                { managers: { some: { id: dbUser.id } } }
-            ]
-        }
-    })
-
-    const activeTournaments = await prisma.tournament.count({
-        where: {
-            AND: [
-                {
-                    OR: [
-                        { organizerId: dbUser.id },
-                        { managers: { some: { id: dbUser.id } } }
-                    ]
-                },
-                { startDate: { gte: new Date() } }
-            ]
-        }
-    })
-
-    // Get tournament IDs created by or managed by this user
-    const myTournaments = await prisma.tournament.findMany({
-        where: {
-            OR: [
-                { organizerId: dbUser.id },
-                { managers: { some: { id: dbUser.id } } }
-            ]
-        },
-        select: { id: true }
-    })
-    const myTournamentIds = myTournaments.map(t => t.id)
-
-    // Count athletes registered to MY tournaments
-    const totalAthletes = await prisma.player.count({
-        where: {
-            category: {
-                tournamentId: { in: myTournamentIds }
-            }
-        }
-    })
-
-    // Count matches in MY tournaments
-    const totalMatches = await prisma.match.count({
-        where: {
-            categoryRef: {
-                tournamentId: { in: myTournamentIds }
-            }
-        }
-    })
-
-    const stats = [
-        {
-            name: 'Total Tournaments',
-            value: totalTournaments,
-            icon: Trophy,
-            change: activeTournaments > 0 ? `+ ${activeTournaments} Active` : 'No active events',
-            changeType: 'positive',
-            color: 'bg-blue-500'
-        },
-        {
-            name: 'Registered Athletes',
-            value: totalAthletes,
-            icon: Users,
-            change: 'All time',
-            changeType: 'neutral',
-            color: 'bg-green-500'
-        },
-        {
-            name: 'Total Matches',
-            value: totalMatches,
-            icon: Swords,
-            change: 'Scheduled + Completed',
-            changeType: 'neutral',
-            color: 'bg-purple-500'
-        },
-        // Placeholder for future stat like "Medals Awarded" or "Revenue"
-        {
-            name: 'Completion Rate',
-            value: '98%',
-            icon: Award,
-            change: '+2.1% from last month',
-            changeType: 'positive',
-            color: 'bg-orange-500'
-        },
-    ]
+    if (!stats) return <div className="p-4 bg-yellow-50 text-yellow-800 rounded-lg">Please log in to view stats.</div>
 
     return (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {stats.map((item) => (
-                <div key={item.name} className="relative overflow-hidden rounded-xl bg-white p-6 shadow-sm border border-gray-100">
-                    <dt>
-                        <div className={`absolute rounded - md p - 3 ${item.color} bg - opacity - 10`}>
-                            <item.icon className={`h - 6 w - 6 ${item.color.replace('bg-', 'text-')} `} aria-hidden="true" />
+        <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Total Members (Aggregated) */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                    <div className="flex items-center gap-4 mb-4">
+                        <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                            <Users className="w-6 h-6" />
                         </div>
-                        <p className="ml-16 truncate text-sm font-medium text-gray-500">{item.name}</p>
-                    </dt>
-                    <dd className="ml-16 flex items-baseline pb-1 sm:pb-2">
-                        <p className="text-2xl font-semibold text-gray-900">{item.value}</p>
-                        <p className={`ml - 2 flex items - baseline text - sm font - semibold
-                            ${item.changeType === 'positive' ? 'text-green-600' : 'text-gray-500'}
-`}>
-                            {item.change}
-                        </p>
-                    </dd>
+                        <div>
+                            <p className="text-sm font-medium text-gray-500">Total Members</p>
+                            <h3 className="text-2xl font-bold text-gray-900">{stats.totalMembers}</h3>
+                        </div>
+                    </div>
+                    <div className="pt-4 border-t border-gray-100 flex justify-between items-center text-xs text-gray-500">
+                        <span>Across all affiliates</span>
+                        <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-medium">
+                            {stats.directMembers} direct
+                        </span>
+                    </div>
                 </div>
-            ))}
+
+                {/* Club Affiliates */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                    <div className="flex items-center gap-4 mb-4">
+                        <div className="w-12 h-12 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600">
+                            <Building2 className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-medium text-gray-500">Club Affiliates</p>
+                            <h3 className="text-2xl font-bold text-gray-900">{stats.directClubs}</h3>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Organization Affiliates */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                    <div className="flex items-center gap-4 mb-4">
+                        <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+                            <Globe className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-medium text-gray-500">Org. Affiliates</p>
+                            <h3 className="text-2xl font-bold text-gray-900">{stats.affiliatedOrgs}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Quick Actions / Navigation */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Link href="/organizer-tournaments" className="group bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl p-6 text-white shadow-lg shadow-indigo-200 transition-transform active:scale-[0.99]">
+                    <div className="flex justify-between items-start mb-4">
+                        <div className="p-3 bg-white/10 rounded-xl">
+                            <Trophy className="w-6 h-6 text-white" />
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-white/50 group-hover:text-white transition-colors" />
+                    </div>
+                    <h3 className="text-xl font-bold mb-1">Active Tournaments</h3>
+                    <p className="text-indigo-100 text-sm">View ongoing and upcoming events</p>
+                </Link>
+
+                <Link href="/promotions" className="group bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg shadow-orange-200 transition-transform active:scale-[0.99]">
+                    <div className="flex justify-between items-start mb-4">
+                        <div className="p-3 bg-white/10 rounded-xl">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-white/50 group-hover:text-white transition-colors" />
+                    </div>
+                    <h3 className="text-xl font-bold mb-1">Active Promotions</h3>
+                    <p className="text-amber-100 text-sm">View current promos and offers</p>
+                </Link>
+            </div>
         </div>
     )
 }

@@ -51,6 +51,7 @@ export default async function ClubMembersTabContent({ clubName, currentPage, pag
                 totalPages={Math.ceil(data.totalMembers / pageSize)}
                 isClubMaster={true}
                 baseUrl="/club"
+                clubName={clubName}
             />
         </>
     )

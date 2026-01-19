@@ -11,8 +11,7 @@ const isPublicRoute = createRouteMatcher([
     '/ranking',
     '/privacy',
     '/terms',
-    '/attendance(.*)',  // Kiosk attendance page
-    '/models(.*)',      // Face detection models
+    '/terms',
     '/manifest.json',   // PWA Manifest
     '/sw.js',           // PWA Service Worker
     '/workbox-(.*)',    // Workbox assets

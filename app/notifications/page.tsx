@@ -20,7 +20,7 @@ export default async function NotificationsPage() {
 
     // Redirect Athletes to the PWA Dashboard Alerts tab
     if (user.role === 'ATHLETE') {
-        redirect('/athlete/home?tab=alerts')
+        redirect('/athlete/dashboard?tab=alerts')
     }
 
     return (

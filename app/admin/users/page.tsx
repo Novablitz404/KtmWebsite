@@ -44,7 +44,7 @@ export default async function AdminUsersPage({
     // For now, we only show pending invites on the first page to avoid confusion across pages
     const showPending = currentPage === 1 && (status === 'ALL' || status === 'PENDING')
 
-    const orgInvitesPromise = showPending ? prisma.organizerInvite.findMany({ orderBy: { createdAt: 'desc' } }) : Promise.resolve([])
+    const orgInvitesPromise = showPending ? prisma.organizationInvite.findMany({ orderBy: { createdAt: 'desc' } }) : Promise.resolve([])
     const cmInvitesPromise = showPending ? prisma.clubMasterInvite.findMany({ orderBy: { createdAt: 'desc' } }) : Promise.resolve([])
 
     const [users, orgInvites, cmInvites] = await Promise.all([

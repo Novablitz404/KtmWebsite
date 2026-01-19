@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { currentUser } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
+import { fetchLandingPageEvents } from '@/app/actions'
 import HomeClient from './HomeClient'
 
 const ADMIN_EMAILS = ['ericjann21@gmail.com']
@@ -18,11 +19,11 @@ export default async function Home() {
         where: { clerkId: user.id },
         select: { role: true }
       }),
-      userEmail ? prisma.organizerInvite.findUnique({ where: { email: userEmail } }) : null,
+      userEmail ? prisma.organizationInvite.findUnique({ where: { email: userEmail } }) : null,
       userEmail ? prisma.clubMasterInvite.findUnique({ where: { email: userEmail } }) : null
     ])
 
-    // Admin redirect (whitelist based)
+    // Admin setup (whitelist based) - still redirect admins to admin panel
     if (userEmail && ADMIN_EMAILS.includes(userEmail)) {
       if (!existingUser || existingUser.role !== 'ADMIN') {
         await prisma.user.upsert({
@@ -41,7 +42,7 @@ export default async function Home() {
       redirect('/admin')
     }
 
-    // Handle pending organizer invite
+    // Handle pending organizer invite - auto-create user and redirect
     if (pendingOrganizerInvite && userEmail) {
       const generateId = () => String(Math.floor(10000 + Math.random() * 90000))
       let newId = generateId()
@@ -58,8 +59,8 @@ export default async function Home() {
           role: 'ORGANIZER'
         }
       })
-      await prisma.organizerInvite.delete({ where: { id: pendingOrganizerInvite.id } })
-      redirect('/manage')
+      await prisma.organizationInvite.delete({ where: { id: pendingOrganizerInvite.id } })
+      redirect('/organizer-tournaments')
     }
 
     // Handle pending Club Master invite - redirect to onboarding to collect their details
@@ -67,42 +68,45 @@ export default async function Home() {
       redirect('/onboarding')
     }
 
-    // Existing user - redirect based on role
-    if (existingUser) {
-      switch (existingUser.role) {
-        case 'ATHLETE':
-          redirect('/athlete/home')
-        case 'CLUB_MASTER':
-        case 'ASSISTANT':
-          redirect('/club')
-        case 'ORGANIZER':
-        case 'MANAGER':
-          redirect('/manage')
-        default:
-          // For other roles, let them view the home page
-          break
-      }
-    }
-
     // New user without invite - redirect to onboarding
     if (!existingUser) {
       redirect('/onboarding')
     }
+
+    // For existing users, redirect to their role-specific dashboard
+    if (existingUser) {
+      if (existingUser.role === 'ORGANIZER') {
+        redirect('/organization')
+      } else if (existingUser.role === 'CLUB_MASTER') {
+        redirect('/club')
+      } else if (existingUser.role === 'ATHLETE') {
+        redirect('/athlete/dashboard')
+      } else if (existingUser.role === 'MANAGER') {
+        redirect('/organizer-tournaments')
+      }
+      // If role is user/null/etc, they stay on landing page? 
+      // Or maybe redirect to onboarding if somehow roleless?
+      // Assuming they stay on landing page if no specific dashboard role.
+    }
+
   }
 
   const currentDate = new Date()
   currentDate.setHours(0, 0, 0, 0)
 
-  // Fetch upcoming tournaments
-  const upcomingTournaments = await prisma.tournament.findMany({
-    where: {
-      startDate: { gte: currentDate }
-    },
-    orderBy: { startDate: 'asc' },
-    take: 6
-  })
+  // Fetch upcoming events via server action (for TanStack Query hydration)
+  const allEvents = await fetchLandingPageEvents()
+
+
+  // Prepare serializable user data for client component
+  const userData = user ? {
+    isLoggedIn: true,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    imageUrl: user.imageUrl
+  } : null
 
   return (
-    <HomeClient upcomingTournaments={upcomingTournaments} user={user} />
+    <HomeClient upcomingTournaments={allEvents} user={userData} />
   )
 }

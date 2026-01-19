@@ -23,6 +23,7 @@ import { Toaster } from 'sonner'
 import AuthLoadingWrapper from '@/components/AuthLoadingWrapper'
 import MobileShellWrapper from '@/components/MobileShellWrapper'
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
+import QueryProvider from '@/app/providers/QueryProvider'
 
 export default function RootLayout({
   children,
@@ -42,14 +43,16 @@ export default function RootLayout({
         <body
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         >
-          <Toaster position="top-center" richColors />
-          <ServiceWorkerRegistration />
-          <AuthLoadingWrapper>
-            <Header />
-            <MobileShellWrapper>
-              {children}
-            </MobileShellWrapper>
-          </AuthLoadingWrapper>
+          <QueryProvider>
+            <Toaster position="top-center" richColors />
+            <ServiceWorkerRegistration />
+            <AuthLoadingWrapper>
+              <Header />
+              <MobileShellWrapper>
+                {children}
+              </MobileShellWrapper>
+            </AuthLoadingWrapper>
+          </QueryProvider>
         </body>
       </html>
     </ClerkProvider>

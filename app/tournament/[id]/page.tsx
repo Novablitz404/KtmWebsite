@@ -5,6 +5,8 @@ import TournamentTabs from '@/components/TournamentTabs'
 
 import { currentUser, clerkClient } from '@clerk/nextjs/server'
 import PublicTournamentView from '@/components/PublicTournamentView'
+import DeleteTournamentButton from '@/components/DeleteTournamentButton'
+
 
 export default async function TournamentDetail({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
@@ -27,6 +29,9 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
                 include: {
                     matches: {
                         orderBy: { round: 'asc' }
+                    },
+                    _count: {
+                        select: { players: true }
                     }
                 },
                 orderBy: { name: 'asc' }
@@ -38,6 +43,18 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
 
     if (!tournament) return notFound()
 
+    // Auto-Start Logic: If today >= startDate and status is UPCOMING, update to ONGOING
+    // This allows manual override (e.g. Cancelled/Completed won't be touched)
+    // But keeps it automatic for the normal flow.
+    if (tournament.status === 'UPCOMING' && new Date() >= new Date(tournament.startDate)) {
+        await prisma.tournament.update({
+            where: { id: tournament.id },
+            data: { status: 'ONGOING' }
+        })
+        // Update local object to reflect change immediately
+        tournament.status = 'ONGOING'
+    }
+
     // Pass data to client component with managers and currentUserId
     const tournamentWithData = {
         ...tournament,
@@ -45,6 +62,16 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
     }
 
     // Fetch players - use select for nested relations
+    // Count total players for pagination
+    const totalPlayersCount = await prisma.player.count({
+        where: {
+            category: {
+                tournamentId: id
+            }
+        }
+    })
+
+    // Fetch players - use select for nested relations - LIMIT TO 30
     const playersFetch = await prisma.player.findMany({
         where: {
             category: {
@@ -66,17 +93,14 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
             category: {
                 name: 'asc'
             }
-        }
+        },
+        take: 30
     })
 
     // Type assertion or cleaner casting for the component props
     const players = playersFetch as any
 
-    // Fetch available guideline templates (minimal fields)
-    const availableTemplates = await prisma.guidelineTemplate.findMany({
-        select: { id: true, name: true },
-        orderBy: { name: 'asc' }
-    })
+
 
     // Fetch pending manager invites
     const pendingManagerInvites = await prisma.tournamentManagerInvite.findMany({
@@ -144,80 +168,91 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
     return (
         <main className="min-h-screen bg-gray-50 pb-20">
             <div className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-10">
-                <header className="mb-8">
-                    <div className="mb-6">
-                        <Link href="/" className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors hover:bg-gray-100 px-3 py-1.5 rounded-lg -ml-3">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-                            </svg>
-                            Back
-                        </Link>
-                    </div>
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-                                {tournament.name}
-                            </h1>
-                            <p className="mt-2 text-lg text-gray-600">
-                                {new Date(tournament.startDate).toLocaleDateString()}
-                            </p>
-                            {tournament.guidelineTemplate && (
-                                <p className="mt-1 text-sm text-indigo-600">
-                                    📋 {tournament.guidelineTemplate.name}
+                {canManage && (
+                    <header className="mb-8">
+                        <div className="mb-6">
+                            <Link href={canManage ? '/organizer-tournaments' : '/'} className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors hover:bg-gray-100 px-3 py-1.5 rounded-lg -ml-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+                                </svg>
+                                Back
+                            </Link>
+                        </div>
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+                                    {tournament.name}
+                                </h1>
+                                <p className="mt-2 text-lg text-gray-600">
+                                    {new Date(tournament.startDate).toLocaleDateString()}
                                 </p>
-                            )}
+                                {tournament.guidelineTemplate && (
+                                    <p className="mt-1 text-sm text-indigo-600">
+                                        📋 {tournament.guidelineTemplate.name}
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* Registration & Actions */}
+                            <div className="flex flex-col items-end gap-3">
+                                <div className="flex items-center gap-3">
+                                    {canManage && (
+                                        <DeleteTournamentButton
+                                            tournamentId={tournament.id}
+                                            tournamentName={tournament.name}
+                                        />
+                                    )}
+                                    {(() => {
+                                        const now = new Date()
+                                        const regStart = tournament.registrationStart ? new Date(tournament.registrationStart) : null
+                                        const regEnd = tournament.registrationEnd ? new Date(tournament.registrationEnd) : null
+                                        const isRegistered = currentUserId && players.some((p: any) => p.userId === currentUserId)
+
+                                        if (isRegistered) {
+                                            return (
+                                                <button disabled className="px-6 py-2 bg-green-100 text-green-700 font-semibold rounded-lg shadow-sm border border-green-200 cursor-default">
+                                                    ✅ Already Registered
+                                                </button>
+                                            )
+                                        }
+
+                                        if (regEnd && now > regEnd) {
+                                            return (
+                                                <button disabled className="px-6 py-2 bg-gray-100 text-gray-500 font-semibold rounded-lg border border-gray-200 cursor-not-allowed">
+                                                    🚫 Registration Closed
+                                                </button>
+                                            )
+                                        }
+
+                                        if (regStart && now < regStart) {
+                                            return (
+                                                <button disabled className="px-6 py-2 bg-blue-50 text-blue-600 font-semibold rounded-lg border border-blue-100 cursor-default">
+                                                    ⏳ Opens {regStart.toLocaleDateString()}
+                                                </button>
+                                            )
+                                        }
+
+                                        return (
+                                            <a
+                                                href={`/tournament/${id}/register`}
+                                                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-md transition-colors"
+                                            >
+                                                Register Now →
+                                            </a>
+                                        )
+
+                                    })()}
+                                </div>
+                            </div>
                         </div>
-
-                        {/* Registration Button */}
-                        <div className="flex flex-col items-end gap-2">
-                            {(() => {
-                                const now = new Date()
-                                const regStart = tournament.registrationStart ? new Date(tournament.registrationStart) : null
-                                const regEnd = tournament.registrationEnd ? new Date(tournament.registrationEnd) : null
-                                const isRegistered = currentUserId && players.some((p: any) => p.userId === currentUserId)
-
-                                if (isRegistered) {
-                                    return (
-                                        <button disabled className="px-6 py-2 bg-green-100 text-green-700 font-semibold rounded-lg shadow-sm border border-green-200 cursor-default">
-                                            ✅ Already Registered
-                                        </button>
-                                    )
-                                }
-
-                                if (regEnd && now > regEnd) {
-                                    return (
-                                        <button disabled className="px-6 py-2 bg-gray-100 text-gray-500 font-semibold rounded-lg border border-gray-200 cursor-not-allowed">
-                                            🚫 Registration Closed
-                                        </button>
-                                    )
-                                }
-
-                                if (regStart && now < regStart) {
-                                    return (
-                                        <button disabled className="px-6 py-2 bg-blue-50 text-blue-600 font-semibold rounded-lg border border-blue-100 cursor-default">
-                                            ⏳ Opens {regStart.toLocaleDateString()}
-                                        </button>
-                                    )
-                                }
-
-                                return (
-                                    <a
-                                        href={`/tournament/${id}/register`}
-                                        className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-md transition-colors"
-                                    >
-                                        Register Now →
-                                    </a>
-                                )
-                            })()}
-                        </div>
-                    </div>
-                </header>
+                    </header>
+                )}
 
                 {canManage ? (
                     <TournamentTabs
                         tournament={tournamentWithData}
                         players={players}
-                        availableTemplates={availableTemplates}
+                        totalPlayersCount={totalPlayersCount}
                         pendingManagerInvites={pendingManagerInvites}
                         publicView={false}
                     />
@@ -225,6 +260,15 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
                     <PublicTournamentView
                         tournament={tournament}
                         players={enrichedPlayers}
+                        guidelinesContent={
+                            tournament.guidelineTemplate?.content
+                                ? tournament.guidelineTemplate.content
+                                    .replace(/{{Tournament Name}}/g, tournament.name)
+                                    .replace(/{{Date}}/g, new Date(tournament.startDate).toLocaleDateString())
+                                    .replace(/{{Venue}}/g, tournament.venue || 'TBA')
+                                : null
+                        }
+                        currentUserId={currentUserId}
                     />
                 )}
             </div>

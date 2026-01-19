@@ -7,9 +7,10 @@ import TournamentForm from './TournamentForm'
 interface CreateTournamentModalProps {
     isOpen: boolean
     onClose: () => void
+    templates: { id: string; name: string }[]
 }
 
-export default function CreateTournamentModal({ isOpen, onClose }: CreateTournamentModalProps) {
+export default function CreateTournamentModal({ isOpen, onClose, templates }: CreateTournamentModalProps) {
     if (!isOpen) return null
 
     return (
@@ -40,7 +41,7 @@ export default function CreateTournamentModal({ isOpen, onClose }: CreateTournam
                         {/* We pass a custom prop or just rely on the form. 
                              Ideally TournamentForm should handle 'onSuccess' to close modal, 
                              but for now let's just render it. */}
-                        <TournamentForm isModal={true} onSuccess={onClose} />
+                        <TournamentForm isModal={true} onSuccess={onClose} templates={templates} />
                     </div>
                 </div>
             </div>

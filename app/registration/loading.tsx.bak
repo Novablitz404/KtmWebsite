@@ -1,0 +1,5 @@
+import ClubRegistrationSkeleton from "@/components/skeletons/ClubRegistrationSkeleton"
+
+export default function Loading() {
+    return <ClubRegistrationSkeleton />
+}
