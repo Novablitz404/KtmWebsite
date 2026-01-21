@@ -3,15 +3,15 @@ import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import ClubDashboard from './ClubDashboard'
 import { Suspense } from 'react'
-import ClubMembersTabContent from '@/components/pwa/ClubMembersTabContent'
-import ClubEventsContent from '@/components/pwa/ClubEventsContent'
+import ClubMembersTabContent from '@/components/club/ClubMembersTabContent'
 import MembersSkeleton from '@/components/skeletons/MembersSkeleton'
-import ClubEventsSkeleton from '@/components/skeletons/ClubEventsSkeleton'
+
+import ClubMasterProfileView from '@/app/settings/ClubMasterProfileView'
 
 // Revalidate every 30 seconds for faster page loads
 export const revalidate = 30
 
-export default async function ClubPage(props: { searchParams: Promise<{ page?: string }> }) {
+export default async function ClubPage(props: { searchParams: Promise<{ page?: string; search?: string }> }) {
     const searchParams = await props.searchParams
     const clerkUser = await currentUser()
 
@@ -85,13 +85,14 @@ export default async function ClubPage(props: { searchParams: Promise<{ page?: s
 
     // Pagination Params
     const currentPage = Number(searchParams.page) || 1
-    const pageSize = 8
+    const searchQuery = searchParams.search || ''
+    const pageSize = 10
 
 
     // Render Dashboard with Streams
     return (
         <main className="min-h-screen bg-gray-50">
-            <div className="max-w-[1400px] mx-auto sm:px-6 lg:px-8 sm:py-4 sm:pt-4 sm:pb-2">
+            <div>
                 <ClubDashboard
                     // Essential Props
                     clubId={targetClub.id}
@@ -124,23 +125,12 @@ export default async function ClubPage(props: { searchParams: Promise<{ page?: s
                     // Streamed Content
                     // homeDataPromise removed for client-side fetching
 
-                    membersContent={
-                        <Suspense fallback={<MembersSkeleton />}>
-                            <ClubMembersTabContent
-                                clubName={targetClub.name}
-                                currentPage={currentPage}
-                                pageSize={pageSize}
-                            />
-                        </Suspense>
-                    }
 
-                    eventsContent={
-                        <Suspense fallback={<ClubEventsSkeleton />}>
-                            <ClubEventsContent
-                                clubId={targetClub.id}
-                                clubName={targetClub.name}
-                            />
-                        </Suspense>
+                    settingsContent={
+                        <ClubMasterProfileView
+                            dbUser={dbUser}
+                            clerkImageUrl={clerkUser.imageUrl}
+                        />
                     }
                 />
             </div>

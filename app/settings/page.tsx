@@ -177,7 +177,16 @@ export default async function ProfilePage() {
         return (
             <main className="min-h-[calc(100vh-4rem)] bg-gray-50 pb-2">
                 <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2">
-
+                    <AthleteProfileView
+                        dbUser={dbUser}
+                        clerkImageUrl={clerkUser.imageUrl}
+                        clubLogoUrl={clubLogoUrl}
+                        stats={{
+                            registrations: dbUser.players.length,
+                            events: new Set(dbUser.players.map(p => p.category.tournament.id)).size,
+                            medals: 0
+                        }}
+                    />
                 </div>
             </main>
         )

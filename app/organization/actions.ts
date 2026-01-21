@@ -1,6 +1,7 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
+import { revalidatePath } from 'next/cache'
 import { currentUser } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
 
@@ -110,7 +111,9 @@ export async function getOrganizationDashboardData() {
             logoUrl: c.logoUrl,
             masterName: c.master?.name || "Unknown",
             memberCount: c.students.length,
-            contactPhone: c.phone
+            contactPhone: c.phone,
+            address: c.address,
+            status: c.status
         })),
         affiliatedOrgs: affiliatedOrgsWithStats,
         recentMembers,
@@ -331,4 +334,170 @@ export async function deletePromotionTest(promotionTestId: string) {
     await prisma.promotionTest.delete({ where: { id: promotionTestId } })
 
     return { success: true }
+}
+
+// ============================================
+// ORGANIZATION SETTINGS ACTIONS
+// ============================================
+
+export async function updateOrganizationSettings(formData: FormData) {
+    try {
+        const organizationId = formData.get('organizationId') as string
+        const logoFile = formData.get('logo') as File | null
+        const address = formData.get('address') as string | null
+        const phone = formData.get('phone') as string | null
+
+        if (!organizationId) return { error: 'Organization ID is required' }
+
+        const user = await currentUser()
+        if (!user) return { error: 'Unauthorized' }
+
+        const dbUser = await prisma.user.findUnique({
+            where: { clerkId: user.id },
+            include: { organization: true }
+        })
+
+        if (!dbUser?.organization) {
+            return { error: 'No organization found' }
+        }
+
+        // Verify ownership (or admin status if we had that granularity, for now Owner only)
+        if (dbUser.organization.ownerId !== dbUser.id && dbUser.role !== 'ADMIN') {
+            return { error: 'Only the Organization Owner can edit settings' }
+        }
+
+        // Double check ID
+        if (dbUser.organization.id !== organizationId) {
+            return { error: 'Organization ID mismatch' }
+        }
+
+        const updateData: any = {}
+        if (address !== null) updateData.address = address
+        if (phone !== null) updateData.contactPhone = phone // Mapping 'phone' form field to 'contactPhone' schema field
+
+        // Handle File Upload
+        if (logoFile && logoFile.size > 0) {
+            // Validate file type (image only)
+            if (!logoFile.type.startsWith('image/')) {
+                return { error: 'File must be an image' }
+            }
+            // Validate size (e.g., 5MB)
+            if (logoFile.size > 5 * 1024 * 1024) {
+                return { error: 'Image size must be less than 5MB' }
+            }
+
+            const supabase = createClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.SUPABASE_SERVICE_ROLE_KEY!
+            )
+
+            const bytes = await logoFile.arrayBuffer()
+            const buffer = Buffer.from(bytes)
+
+            // Unique filename: org-logo-{orgId}-{timestamp}-{cleanName}
+            const timestamp = Date.now()
+            const safeName = logoFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+            const filename = `org-logo-${organizationId}-${timestamp}-${safeName}`
+
+            const { error: uploadError } = await supabase.storage
+                .from('uploads')
+                .upload(filename, buffer, {
+                    contentType: logoFile.type,
+                    upsert: false
+                })
+
+            if (uploadError) {
+                console.error('Supabase upload error:', uploadError)
+                return { error: 'Failed to upload image' }
+            }
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('uploads')
+                .getPublicUrl(filename)
+
+            updateData.logoUrl = publicUrl
+        }
+
+        await prisma.organization.update({
+            where: { id: organizationId },
+            data: updateData
+        })
+
+        // Revalidate relevant paths
+        // revalidatePath('/organization') // Depending on where this is used
+        return { success: true }
+
+    } catch (error) {
+        console.error('Update Organization Settings Error:', error)
+        return { error: 'Failed to update settings' }
+    }
+}
+
+// ============================================
+// CLUB APPROVAL ACTIONS
+// ============================================
+
+// Helper to check permissions
+async function checkOrgPermission(organizationId: string) {
+    const user = await currentUser()
+    if (!user) throw new Error('Not authenticated')
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser) throw new Error('User not found')
+
+    // Check if user is the owner of the organization
+    // OR if we implement managers for orgs later. For now, Owner only.
+    // We need to fetch the organization to see if this user is the owner
+    const organization = await prisma.organization.findUnique({
+        where: { id: organizationId }
+    })
+
+    if (!organization) throw new Error('Organization not found')
+
+    if (organization.ownerId !== dbUser.id) {
+        // Also check if user is a System Admin if you have that role
+        if (dbUser.role !== 'ADMIN') {
+            throw new Error('Unauthorized')
+        }
+    }
+
+    return true
+}
+
+export async function approveClub(clubId: string) {
+    // We need to find the specific club first to get its organization ID for permission check
+    const club = await prisma.club.findUnique({ where: { id: clubId } })
+    if (!club) throw new Error('Club not found')
+    if (!club.organizationId) throw new Error('Club is not associated with an organization')
+
+    await checkOrgPermission(club.organizationId)
+
+    await prisma.club.update({
+        where: { id: clubId },
+        data: { status: 'APPROVED' }
+    })
+
+    revalidatePath('/')
+    revalidatePath('/organization')
+}
+
+export async function rejectClub(clubId: string) {
+    const club = await prisma.club.findUnique({ where: { id: clubId } })
+    if (!club) throw new Error('Club not found')
+    if (!club.organizationId) throw new Error('Club is not associated with an organization')
+
+    await checkOrgPermission(club.organizationId)
+
+    // For rejection, we set status to REJECTED. 
+    await prisma.club.update({
+        where: { id: clubId },
+        data: { status: 'REJECTED' }
+    })
+
+    revalidatePath('/')
+    revalidatePath('/organization')
 }

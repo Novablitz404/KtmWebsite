@@ -76,7 +76,14 @@ model Tournament {
   guidelineTemplate   GuidelineTemplate? @relation(fields: [guidelineTemplateId], references: [id])
   
   categories          Category[]
-  managerInvites      TournamentManagerInvite[] // Relation for pending invites
+  managerInvites      TournamentManagerInvite[]
+  match_count         Int        @default(0) // Cache matches count
+  
+  // Relations
+  participatingClubs  ClubEventParticipation[]
+  
+  @@index([startDate])
+  @@index([status])
 }
 
 model Category {
@@ -112,9 +119,6 @@ model User {
   height    Float?    // Height in cm for Toddler/Grade School divisions
   clubName  String?
   
-  // Face Recognition (for attendance)
-  faceDescriptor String?  // JSON array of 128 floats for face recognition
-  
   // Relations
   players   Player[]
   club      Club?
@@ -127,12 +131,12 @@ model User {
   // API Keys
   apiKeys   ApiKey[]
   
-  // Attendance Records
-  attendanceRecords AttendanceRecord[]
-  
   // Push Notifications
   pushSubscriptions PushSubscription[]
   notifications     Notification[]
+
+  @@index([clubName])
+  @@index([name])
 }
 
 model Player {
@@ -178,12 +182,12 @@ model Club {
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
   
-  // Kiosk Access Control
-  kioskToken String?  @unique  // Secret URL token for kiosk access
-  kioskPin   String?           // 6-digit PIN for kiosk entry
+  // Relations
+  participatingEvents ClubEventParticipation[]
   
-  // Attendance
-  attendanceRecords AttendanceRecord[]
+  status    String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  
+  @@index([name])
 }
 
 model Organization {
@@ -246,6 +250,7 @@ model PromotionTest {
   bannerUrl      String?  // Storage URL for banner image
   
   registrations  PromotionTestRegistration[]
+  participatingClubs ClubEventParticipation[]
   
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -368,27 +373,6 @@ model ApiKey {
   createdAt   DateTime @default(now())
 }
 
-// ============================================
-// ATTENDANCE (Face Recognition)
-// ============================================
-
-model AttendanceRecord {
-  id          String   @id @default(cuid())
-  
-  clubId      String
-  club        Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
-  
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  date        DateTime @db.Date  // Date only (for unique constraint)
-  checkInTime DateTime @default(now())  // Exact check-in timestamp
-  confidence  Float?   // Face match confidence (0-1)
-  
-  @@unique([clubId, userId, date])  // One check-in per day per user per club
-  @@index([clubId, date])
-  @@index([userId])
-}
 
 // ============================================
 // PUSH NOTIFICATIONS
@@ -419,4 +403,27 @@ model Notification {
   
   @@index([userId, read])
   @@index([userId, createdAt])
+}
+
+// ============================================
+// CLUB EVENT PARTICIPATION
+// ============================================
+
+model ClubEventParticipation {
+  id              String         @id @default(cuid())
+  clubId          String
+  club            Club           @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  
+  // Relations (Only one should be set per record)
+  tournamentId    String?
+  tournament      Tournament?    @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  
+  promotionTestId String?
+  promotionTest   PromotionTest? @relation(fields: [promotionTestId], references: [id], onDelete: Cascade)
+  
+  joinedAt        DateTime       @default(now())
+
+  @@unique([clubId, tournamentId])
+  @@unique([clubId, promotionTestId])
+  @@index([clubId])
 }

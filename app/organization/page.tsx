@@ -2,6 +2,7 @@ import { currentUser } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import OrganizationDashboard from './OrganizationDashboard'
+import OrganizationSettingsView from '@/app/settings/OrganizationSettingsView'
 
 export default async function OrganizationPage() {
     const user = await currentUser()
@@ -10,8 +11,32 @@ export default async function OrganizationPage() {
         redirect('/sign-in')
     }
 
-    // Role verification
-    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id }, select: { role: true } })
+    // Role verification and Data Fetching
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        select: {
+            id: true,
+            role: true,
+            name: true,
+            email: true,
+            clubName: true,
+            belt: true,
+            gender: true,
+            weight: true,
+            height: true,
+            birthDate: true,
+            organization: {
+                select: {
+                    id: true,
+                    name: true,
+                    logoUrl: true,
+                    address: true,
+                    contactPhone: true,
+                    contactEmail: true
+                }
+            }
+        }
+    })
 
     if (!dbUser || (dbUser.role !== 'ORGANIZER' && dbUser.role !== 'MANAGER' && dbUser.role !== 'ADMIN')) {
         redirect('/')
@@ -21,6 +46,20 @@ export default async function OrganizationPage() {
         <OrganizationDashboard
             initialData={null}
             userRole={dbUser?.role}
+            userData={{
+                name: dbUser.name,
+                email: dbUser.email
+            }}
+            clerkImageUrl={user.imageUrl}
+            settingsContent={
+                dbUser.organization ? (
+                    <OrganizationSettingsView
+                        dbUser={dbUser}
+                        organization={dbUser.organization}
+                        clerkImageUrl={user.imageUrl}
+                    />
+                ) : undefined
+            }
         />
     )
 }

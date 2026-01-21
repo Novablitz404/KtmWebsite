@@ -79,6 +79,10 @@ export default function OnboardingForm({ clubs, prefilledClubName, lockedRole }:
                 </h2>
                 <p className="mt-2 text-center text-sm text-gray-600">
                     Let's set up your profile to get started.
+                    <br />
+                    <a href="/onboarding?role=club_master" className="text-indigo-600 hover:text-indigo-500 font-medium">
+                        Own a Club? Register as a Club Master
+                    </a>
                 </p>
             </div>
 

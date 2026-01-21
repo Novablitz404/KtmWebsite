@@ -9,6 +9,12 @@ export default async function SignUpPage() {
         select: { id: true, name: true }
     })
 
+    // Fetch organizations for the dropdown
+    const organizations = await prisma.organization.findMany({
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' }
+    })
+
     return (
         <div className="min-h-screen grid grid-cols-1 md:grid-cols-2 bg-gray-50 md:bg-white overflow-hidden">
             {/* Left Column: Sign Up Form */}
@@ -29,10 +35,10 @@ export default async function SignUpPage() {
                         On Mobile: hideBranding={false} (default) so the form shows its internal logo/header
                     */}
                     <div className="hidden md:block">
-                        <CustomSignUpForm clubs={clubs} hideBranding={true} />
+                        <CustomSignUpForm clubs={clubs} organizations={organizations} hideBranding={true} />
                     </div>
                     <div className="md:hidden">
-                        <CustomSignUpForm clubs={clubs} />
+                        <CustomSignUpForm clubs={clubs} organizations={organizations} />
                     </div>
                 </div>
             </div>

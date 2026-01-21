@@ -34,12 +34,13 @@ interface Tournament {
 
 interface TournamentsListProps {
     tournaments: any[] // Typing slightly loose to match Prisma return, but mostly conforms to above
+    embedded?: boolean
 }
 
-export default function TournamentsList({ tournaments }: TournamentsListProps) {
+export default function TournamentsList({ tournaments, embedded = false }: TournamentsListProps) {
     if (tournaments.length === 0) {
         return (
-            <div className="text-center py-16 bg-white rounded-xl border border-dashed border-gray-200">
+            <div className={`text-center py-16 ${embedded ? '' : 'bg-white rounded-xl border border-dashed border-gray-200'}`}>
                 <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Trophy className="w-8 h-8 text-gray-300" />
                 </div>
@@ -50,7 +51,7 @@ export default function TournamentsList({ tournaments }: TournamentsListProps) {
     }
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className={`${embedded ? '' : 'bg-white rounded-xl shadow-sm border border-gray-200'} overflow-hidden`}>
             <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                     <thead>

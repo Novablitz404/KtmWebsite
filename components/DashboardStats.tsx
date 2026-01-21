@@ -62,31 +62,6 @@ export default function DashboardStats({ stats }: DashboardStatsProps) {
                     </div>
                 </div>
             </div>
-
-            {/* Quick Actions / Navigation */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Link href="/organizer-tournaments" className="group bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl p-6 text-white shadow-lg shadow-indigo-200 transition-transform active:scale-[0.99]">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="p-3 bg-white/10 rounded-xl">
-                            <Trophy className="w-6 h-6 text-white" />
-                        </div>
-                        <ChevronRight className="w-5 h-5 text-white/50 group-hover:text-white transition-colors" />
-                    </div>
-                    <h3 className="text-xl font-bold mb-1">Active Tournaments</h3>
-                    <p className="text-indigo-100 text-sm">View ongoing and upcoming events</p>
-                </Link>
-
-                <Link href="/promotions" className="group bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg shadow-orange-200 transition-transform active:scale-[0.99]">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="p-3 bg-white/10 rounded-xl">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-                        </div>
-                        <ChevronRight className="w-5 h-5 text-white/50 group-hover:text-white transition-colors" />
-                    </div>
-                    <h3 className="text-xl font-bold mb-1">Active Promotions</h3>
-                    <p className="text-amber-100 text-sm">View current promos and offers</p>
-                </Link>
-            </div>
         </div>
     )
 }

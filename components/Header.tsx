@@ -51,8 +51,10 @@ export default function Header() {
     }, [isLoaded, user])
 
 
-    // Hide header on auth pages and Admin Panel
-    if (pathname?.startsWith('/sign-in') || pathname?.startsWith('/sign-up') || pathname?.startsWith('/onboarding') || pathname?.startsWith('/admin')) {
+    // Hide header on auth pages, Admin Panel, Club Dashboard and Athlete Dashboard (which have their own sidebars)
+    // Also hide on Tournament Register page (always) and Tournament Details page (if logged in)
+    const isTournamentPage = pathname?.startsWith('/tournament/')
+    if (pathname?.startsWith('/sign-in') || pathname?.startsWith('/sign-up') || pathname?.startsWith('/onboarding') || pathname?.startsWith('/admin') || pathname === '/club' || pathname === '/organization' || pathname?.startsWith('/athlete') || (isTournamentPage && (pathname?.endsWith('/register') || user))) {
         return null
     }
 
@@ -123,8 +125,8 @@ export default function Header() {
                                 {isAthlete && (
                                     <>
                                         <Link
-                                            href="/athlete/dashboard"
-                                            className={`text-base font-semibold transition-colors ${pathname?.startsWith('/athlete/dashboard') ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
+                                            href="/athlete"
+                                            className={`text-base font-semibold transition-colors ${pathname?.startsWith('/athlete') ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
                                         >
                                             Dashboard
                                         </Link>

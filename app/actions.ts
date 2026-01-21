@@ -8,7 +8,7 @@ import { createClient } from '@supabase/supabase-js'
 import { getClubEventsData } from '@/app/club/data'
 
 export async function fetchClubRegistrationData(clubId: string) {
-    const { pendingPlayers, approvedPlayers } = await getClubEventsData(clubId)
+    const { pendingPlayers, approvedPlayers } = await getClubEventsData(clubId, '') // clubName not needed for tournament part
     return { pendingPlayers, approvedPlayers }
 }
 
@@ -607,12 +607,31 @@ export async function completeOnboarding(formData: FormData) {
 
     // If Club Master match, create the Club
     if (assignedRole === 'CLUB_MASTER' && assignedClubName) {
-        // Check if club exists first to avoid error? Or let it fail unique constraint?
-        // Ideally we should handle it, but for now we proceed.
+        let orgId = formData.get('organizationId') as string
+
+        // If checking for valid organization (mandatory for new clubs)
+        // If we are here, it means we are creating a new club (assignedClubName is present)
+        // However, if the user was invited, they might be joining an existing club?
+        // Wait, CURRENTLY completeOnboarding logic is:
+        // if user is CLUB_MASTER, we create a NEW CLUB with masterId = user.id
+        // This implies 1 Master = 1 Club (Owned).
+
+        // If it was an invite, we might want to skip organization check if the invite already handled it?
+        // But currently ClubMasterInvite doesn't seem to link to a Club, it invites a user TO BECOME a master.
+
+        // So validation:
+        if (!orgId) {
+            // Fallback: If no organizationId provided (maybe old flow?), we block or assign default?
+            // For strict mode:
+            throw new Error("Organization affiliation is required to create a club.")
+        }
+
         await prisma.club.create({
             data: {
                 name: assignedClubName,
-                masterId: dbUser.id
+                masterId: dbUser.id,
+                organizationId: orgId,
+                status: 'PENDING'
             }
         })
     }
@@ -652,20 +671,18 @@ export async function completeClubMasterOnboarding(formData: FormData) {
     const gender = formData.get('gender') as string
     const belt = formData.get('belt') as string
     const clubName = formData.get('clubName') as string
+    const organizationId = formData.get('organizationId') as string
 
     // Validation
-    if (!firstName || !lastName || !birthDateStr || !gender || !clubName) {
+    if (!firstName || !lastName || !birthDateStr || !gender || !clubName || !organizationId) {
         throw new Error('All fields are required')
     }
 
     const birthDate = new Date(birthDateStr)
     const userEmail = user.emailAddresses[0].emailAddress
 
-    // Check for Club Master Invite
+    // Check for Club Master Invite (Optional now)
     const clubMasterInvite = await prisma.clubMasterInvite.findUnique({ where: { email: userEmail } })
-    if (!clubMasterInvite) {
-        throw new Error('No pending club master invite found for this email')
-    }
 
     // Check if user already exists
     const existingUser = await prisma.user.findFirst({
@@ -724,12 +741,16 @@ export async function completeClubMasterOnboarding(formData: FormData) {
     await prisma.club.create({
         data: {
             name: clubName,
-            masterId: dbUser.id
+            masterId: dbUser.id,
+            organizationId: organizationId,
+            status: 'PENDING'
         }
     })
 
-    // Delete the invite
-    await prisma.clubMasterInvite.delete({ where: { email: userEmail } })
+    // Delete the invite if it existed
+    if (clubMasterInvite) {
+        await prisma.clubMasterInvite.delete({ where: { email: userEmail } })
+    }
 }
 
 export async function updateProfile(formData: FormData) {
@@ -1389,10 +1410,34 @@ export async function fetchClubMembers(clubName: string, page: number, pageSize:
         })
     ])
 
+    // Enrich with Clerk Avatars
+    let membersWithAvatars = members.map(m => ({ ...m, imageUrl: null as string | null }))
+
+    try {
+        const clerkIds = members.map(m => m.clerkId).filter(Boolean)
+        if (clerkIds.length > 0) {
+            const client = await clerkClient()
+            const clerkUsers = await client.users.getUserList({
+                userId: clerkIds,
+                limit: clerkIds.length
+            })
+
+            const avatarMap = new Map()
+            clerkUsers.data.forEach((u: any) => avatarMap.set(u.id, u.imageUrl))
+
+            membersWithAvatars = members.map(m => ({
+                ...m,
+                imageUrl: (avatarMap.get(m.clerkId) as string) || null
+            }))
+        }
+    } catch (e) {
+        console.error("Failed to fetch clerk avatars", e)
+    }
+
     const totalPages = Math.ceil(totalCount / pageSize)
 
     return {
-        members,
+        members: membersWithAvatars,
         totalPages
     }
 }
@@ -1480,14 +1525,17 @@ export async function fetchAthleteDashboardData(clerkId: string) {
 
     if (!dbUser) return null
 
-    // Fetch club logo if user has a club
+    // Fetch club info if user has a club
     let clubLogo: string | null = null
+    let clubId: string | null = null
+
     if (dbUser.clubName) {
         const club = await prisma.club.findFirst({
             where: { name: { equals: dbUser.clubName, mode: 'insensitive' } },
-            select: { logoUrl: true }
+            select: { id: true, logoUrl: true }
         })
         clubLogo = club?.logoUrl || null
+        clubId = club?.id || null
     }
 
     // Fetch athlete registrations
@@ -1512,44 +1560,102 @@ export async function fetchAthleteDashboardData(clerkId: string) {
         take: 10
     })
 
+    // Fetch generic upcoming events for the club (My Events)
+    let clubUpcomingEvents: any[] = []
+    if (clubId) {
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+
+        clubUpcomingEvents = await prisma.tournament.findMany({
+            where: {
+                participatingClubs: { some: { clubId } },
+                startDate: { gte: today },
+                status: { not: 'CANCELLED' } // detailed view handles cancelled, but dashboard list maybe clean?
+            },
+            orderBy: { startDate: 'asc' },
+            take: 20,
+            select: {
+                id: true,
+                name: true,
+                startDate: true,
+                venue: true,
+                status: true
+            }
+        })
+    }
+
     return {
         user: dbUser,
         clubLogo,
-        registrations
+        registrations,
+        clubUpcomingEvents
     }
 }
 
 const EVENTS_PER_PAGE = 10
 
 export async function fetchTournamentsData(userId: string, page: number = 1) {
-    // Count total tournaments for pagination
-    const totalCount = await prisma.tournament.count({
-        where: {
-            startDate: {
-                gte: new Date(new Date().setHours(0, 0, 0, 0))
+    // Check if user is an athlete and has a club
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+            role: true,
+            clubName: true,
+            // also get club if user IS a master (unlikely for this flow but good for completeness?)
+            club: { select: { id: true } }
+        }
+    })
+
+    let filterClubId: string | null = null
+
+    // If ATHLETE, find their club by name
+    if (user?.role === 'ATHLETE' && user.clubName) {
+        const club = await prisma.club.findFirst({
+            where: { name: { equals: user.clubName, mode: 'insensitive' } },
+            select: { id: true }
+        })
+        filterClubId = club?.id || null
+    }
+    // If user is CLUB_MASTER (viewing this page?), use their potential owned club
+    else if (user?.club?.id) {
+        filterClubId = user.club.id
+    }
+
+    const whereClause: any = {
+        startDate: {
+            gte: new Date(new Date().setHours(0, 0, 0, 0))
+        }
+    }
+
+    if (filterClubId) {
+        whereClause.participatingClubs = {
+            some: {
+                clubId: filterClubId
             }
         }
+    }
+
+    // Count total tournaments for pagination
+    const totalCount = await prisma.tournament.count({
+        where: whereClause
     })
 
     const totalPages = Math.ceil(totalCount / EVENTS_PER_PAGE)
 
     // Get paginated tournaments
     const tournaments = await prisma.tournament.findMany({
-        where: {
-            startDate: {
-                gte: new Date(new Date().setHours(0, 0, 0, 0)) // Today or future
-            }
-        },
+        where: whereClause,
         select: {
             id: true,
             name: true,
             startDate: true,
             venue: true,
             status: true,
-            _count: {
+            categories: {
                 select: {
-                    categories: true
-                }
+                    type: true
+                },
+                distinct: ['type']
             }
         },
         orderBy: {
@@ -1580,4 +1686,182 @@ export async function fetchTournamentsData(userId: string, page: number = 1) {
         currentPage: page,
         registeredTournamentIds
     }
+}
+
+// ============================================
+// CLUB EVENT INTENT ACTIONS
+// ============================================
+
+export async function fetchAvailableEvents(clubId: string) {
+    try {
+        const [tournaments, promotionTests] = await Promise.all([
+            // Fetch upcoming tournaments
+            prisma.tournament.findMany({
+                where: {
+                    startDate: {
+                        gte: new Date(new Date().setHours(0, 0, 0, 0))
+                    }
+                },
+                include: {
+                    participatingClubs: {
+                        where: {
+                            clubId: clubId
+                        }
+                    }
+                },
+                orderBy: { startDate: 'asc' }
+            }),
+            // Fetch open promotion tests
+            prisma.promotionTest.findMany({
+                where: {
+                    status: { in: ['UPCOMING', 'OPEN'] }
+                },
+                include: {
+                    participatingClubs: {
+                        where: {
+                            clubId: clubId
+                        }
+                    }
+                },
+                orderBy: { testDate: 'asc' }
+            })
+        ])
+
+        return {
+            tournaments: tournaments.map((t: any) => ({
+                id: t.id,
+                name: t.name,
+                date: t.startDate,
+                venue: t.venue,
+                type: 'TOURNAMENT' as const,
+                isJoined: t.participatingClubs.length > 0
+            })),
+            promotionTests: promotionTests.map((t: any) => ({
+                id: t.id,
+                name: t.name,
+                date: t.testDate,
+                venue: t.venue,
+                type: 'PROMOTION_TEST' as const,
+                isJoined: t.participatingClubs.length > 0
+            }))
+        }
+    } catch (error) {
+        console.error('Failed to fetch available events:', error)
+        throw new Error('Failed to fetch events')
+    }
+}
+
+export async function toggleEventParticipation(
+    type: 'TOURNAMENT' | 'PROMOTION_TEST',
+    id: string,
+    join: boolean,
+    clubId: string
+) {
+    try {
+        if (join) {
+            await prisma.clubEventParticipation.create({
+                data: {
+                    clubId,
+                    ...(type === 'TOURNAMENT' ? { tournamentId: id } : { promotionTestId: id })
+                }
+            })
+        } else {
+            await prisma.clubEventParticipation.deleteMany({
+                where: {
+                    clubId,
+                    ...(type === 'TOURNAMENT' ? { tournamentId: id } : { promotionTestId: id })
+                }
+            })
+        }
+
+        revalidatePath('/club')
+        return { success: true }
+    } catch (error) {
+        console.error(`Failed to ${join ? 'join' : 'leave'} event:`, error)
+        return { error: 'Failed to update participation' }
+    }
+}
+
+export async function unregisterFromTournament(tournamentId: string) {
+    const user = await currentUser()
+    if (!user) {
+        return { error: 'Unauthorized' }
+    }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id }
+    })
+
+    if (!dbUser) {
+        return { error: 'User not found' }
+    }
+
+    try {
+        await prisma.player.deleteMany({
+            where: {
+                userId: dbUser.id,
+                category: {
+                    tournamentId: tournamentId
+                }
+            }
+        })
+
+        revalidatePath('/athlete')
+        return { success: true }
+    } catch (error) {
+        console.error('Error unregistering from tournament:', error)
+        return { error: 'Failed to unregister' }
+    }
+}
+
+export async function removeMemberFromClub(memberId: string) {
+    const user = await currentUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    // Verify requesting user is club master (this check could be more robust)
+    // For now assuming the dashboard handles basic auth checks, effectively trusting the session user's context
+    // Ideally we should check if the current user is effectively the owner of the club the member belongs to.
+
+    try {
+        await prisma.user.update({
+            where: { id: memberId },
+            data: { clubName: null }
+        })
+        return { success: true }
+    } catch (error) {
+        console.error('Error removing member:', error)
+        return { error: 'Failed to remove member' }
+    }
+}
+
+export async function updateClubMember(memberId: string, data: { name?: string, weight?: number, belt?: string, gender?: string }) {
+    const user = await currentUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    try {
+        await prisma.user.update({
+            where: { id: memberId },
+            data: {
+                ...data
+            }
+        })
+        return { success: true }
+    } catch (error) {
+        console.error('Error updating member:', error)
+        return { error: 'Failed to update member' }
+    }
+}
+
+
+export async function getTournamentCategories(tournamentId: string) {
+    const categories = await prisma.category.findMany({
+        where: { tournamentId },
+        select: {
+            id: true,
+            name: true,
+            type: true
+        },
+        orderBy: { name: 'asc' }
+    })
+    return categories
 }

@@ -80,7 +80,7 @@ export default async function Home() {
       } else if (existingUser.role === 'CLUB_MASTER') {
         redirect('/club')
       } else if (existingUser.role === 'ATHLETE') {
-        redirect('/athlete/dashboard')
+        redirect('/athlete')
       } else if (existingUser.role === 'MANAGER') {
         redirect('/organizer-tournaments')
       }

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Calendar, MapPin, Search, Filter, Info, ChevronRight, FileText } from 'lucide-react'
 import { format } from 'date-fns'
 import { Tournament, Player as PrismaPlayer } from '@prisma/client'
@@ -44,17 +45,19 @@ export default function PublicTournamentView(props: PublicTournamentViewProps) {
     // Tab State
     const [activeTab, setActiveTab] = useState<'overview' | 'guidelines'>('overview')
 
+    const router = useRouter()
+
     return (
         <div className="space-y-8">
             {/* Header Actions: Back & Registration Status */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <Link
-                    href="/"
+                <button
+                    onClick={() => router.back()}
                     className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors hover:bg-gray-100 px-3 py-1.5 rounded-lg -ml-3"
                 >
                     <ChevronRight className="w-4 h-4 mr-1.5 rotate-180" />
                     Back
-                </Link>
+                </button>
 
                 {/* Registration Action / Status */}
                 <div>

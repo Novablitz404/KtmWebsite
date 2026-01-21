@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useSignUp } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
@@ -15,14 +15,20 @@ interface Club {
     name: string
 }
 
+interface Organization {
+    id: string
+    name: string
+}
+
 interface CustomSignUpFormProps {
     clubs: Club[]
+    organizations: Organization[]
     hideBranding?: boolean
 }
 
 type Step = 'account' | 'profile' | 'verification'
 
-export default function CustomSignUpForm({ clubs, hideBranding = false }: CustomSignUpFormProps) {
+export default function CustomSignUpForm({ clubs, organizations, hideBranding = false }: CustomSignUpFormProps) {
     const { isLoaded, signUp, setActive } = useSignUp()
     const router = useRouter()
 
@@ -36,14 +42,26 @@ export default function CustomSignUpForm({ clubs, hideBranding = false }: Custom
     const [lastName, setLastName] = useState('')
 
     // Profile Data
-    const [isOrganization, setIsOrganization] = useState(false)
+    const [role, setRole] = useState<'ATHLETE' | 'CLUB_MASTER' | 'ORGANIZER'>('ATHLETE')
+    const isOrganization = role === 'ORGANIZER'
+    const isCreatingClub = role === 'CLUB_MASTER'
+
     const [birthDate, setBirthDate] = useState('')
     const [gender, setGender] = useState('Male')
     const [belt, setBelt] = useState('White')
     const [clubName, setClubName] = useState('')
     const [isClubDropdownOpen, setIsClubDropdownOpen] = useState(false)
     const [clubSearch, setClubSearch] = useState('')
-    const [isCreatingClub, setIsCreatingClub] = useState(false) // Track if user explicitly selected "Create New Club"
+
+    // Club Master Data (when creating new club)
+    const [organizationId, setOrganizationId] = useState('')
+    const [isOrgDropdownOpen, setIsOrgDropdownOpen] = useState(false)
+    const [orgSearch, setOrgSearch] = useState('')
+
+    // Filter organizations
+    const filteredOrgs = organizations.filter(org =>
+        org.name.toLowerCase().includes(orgSearch.toLowerCase())
+    )
 
     // Verification Data
     const [code, setCode] = useState('')
@@ -57,6 +75,15 @@ export default function CustomSignUpForm({ clubs, hideBranding = false }: Custom
             return () => clearTimeout(timer)
         }
     }, [resendCountdown])
+
+    // Effect: Default Belt based on Role
+    useEffect(() => {
+        if (role === 'CLUB_MASTER') {
+            setBelt('Black')
+        } else {
+            setBelt('White')
+        }
+    }, [role])
 
     // UI State
     const [showPassword, setShowPassword] = useState(false)
@@ -105,6 +132,11 @@ export default function CustomSignUpForm({ clubs, hideBranding = false }: Custom
             // Individual Validation (Athlete/Club Master)
             if (!birthDate || !gender || !belt || !clubName) {
                 setError("All profile fields are required")
+                return
+            }
+            // If creating a club, require Organization
+            if (isCreatingClub && !organizationId) {
+                setError("Please select an Affiliated Organization for your new club")
                 return
             }
         }
@@ -166,13 +198,7 @@ export default function CustomSignUpForm({ clubs, hideBranding = false }: Custom
             // Note: We are now logged in as the user
             const formData = new FormData()
 
-            // Determine Role
-            let role = 'ATHLETE'
-            if (isOrganization) {
-                role = 'ORGANIZER'
-            } else if (isCreatingClub) {
-                role = 'CLUB_MASTER'
-            }
+            // Role is determined by component state
 
             formData.append('role', role)
             formData.append('firstName', firstName)
@@ -183,6 +209,10 @@ export default function CustomSignUpForm({ clubs, hideBranding = false }: Custom
             if (!isOrganization) {
                 formData.append('gender', gender)
                 formData.append('belt', belt)
+
+                if (isCreatingClub) {
+                    formData.append('organizationId', organizationId)
+                }
             }
 
             await completeOnboarding(formData)
@@ -362,19 +392,24 @@ export default function CustomSignUpForm({ clubs, hideBranding = false }: Custom
                 </div>
 
                 {/* Social Login */}
-                <button
-                    type="button"
-                    onClick={handleGoogleSignUp}
-                    className="w-full py-3 bg-white border-2 border-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-50 active:scale-[0.98] transition-all flex items-center justify-center gap-3 text-sm"
-                >
-                    <svg className="w-5 h-5" viewBox="0 0 24 24">
-                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.26.81-.58z" fill="#FBBC05" />
-                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                    </svg>
-                    Google
-                </button>
+                <div className="relative">
+                    <button
+                        type="button"
+                        disabled
+                        className="w-full py-3 bg-gray-50 border-2 border-gray-100 text-gray-400 font-bold rounded-xl flex items-center justify-center gap-3 text-sm cursor-not-allowed opacity-75"
+                    >
+                        <svg className="w-5 h-5 grayscale opacity-50" viewBox="0 0 24 24">
+                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.26.81-.58z" fill="#FBBC05" />
+                            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                        </svg>
+                        Google
+                    </button>
+                    <div className="absolute -top-3 -right-2 bg-gray-900 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-sm border border-white">
+                        COMING SOON
+                    </div>
+                </div>
 
                 <p className="mt-6 text-center text-sm text-gray-500">
                     Already have an account?{' '}
@@ -389,215 +424,263 @@ export default function CustomSignUpForm({ clubs, hideBranding = false }: Custom
     // STEP 2: PROFILE
     if (step === 'profile') {
         return (
-            <div className={`w-full max-w-md mx-auto flex flex-col justify-center ${hideBranding ? '' : 'min-h-[80vh] md:min-h-0 p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100'}`}>
-                <div className={`text-center mb-6 relative ${hideBranding ? 'md:static' : ''}`}>
-                    <button
-                        onClick={() => {
-                            setStep('account')
-                            setError(null)
-                        }}
-                        className={`${hideBranding ? '' : 'absolute left-6 top-8 md:static md:mb-4'} flex items-center text-gray-400 hover:text-gray-900 group`}
-                    >
-                        <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
-                    </button>
-                    {!hideBranding && (
-                        <>
-                            <h1 className="text-2xl font-black text-gray-900 tracking-tight">Complete Profile</h1>
-                            <p className="text-gray-500 mt-2 text-sm">Step 2 of 3: Your Info</p>
-                        </>
-                    )}
-                </div>
+            <div className={`w-full max-w-md mx-auto relative`}>
 
-                <form onSubmit={handleProfileSubmit} className="space-y-4">
+                {/* Back Button - Fixed Top Left */}
+                <button
+                    onClick={() => {
+                        setStep('account')
+                        setError(null)
+                    }}
+                    className="fixed top-6 left-6 z-50 flex items-center text-gray-500 hover:text-gray-900 transition-colors"
+                >
+                    <ArrowLeft size={20} className="mr-1" /> Back
+                </button>
 
-                    {/* Organization Toggle */}
-                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-lg ${isOrganization ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-200 text-gray-500'}`}>
-                                {isOrganization ? <Building2 size={20} /> : <User size={20} />}
-                            </div>
-                            <div>
-                                <p className="font-bold text-sm text-gray-900">Register as Organization</p>
-                                <p className="text-xs text-gray-500">Manage tournaments & events</p>
-                            </div>
-                        </div>
-                        {/* Simple Toggle Button */}
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setIsOrganization(!isOrganization)
-                                setIsCreatingClub(false)
-                                setClubName('')
-                                setBelt('White') // Reset
-                                setError(null)
-                            }}
-                            className={`w-12 h-7 rounded-full transition-colors relative ${isOrganization ? 'bg-indigo-600' : 'bg-gray-300'}`}
-                        >
-                            <div className={`w-5 h-5 bg-white rounded-full shadow-sm absolute top-1 transition-all ${isOrganization ? 'left-6' : 'left-1'}`} />
-                        </button>
+                <div className={`flex flex-col justify-center ${hideBranding ? '' : 'min-h-[80vh] md:min-h-0 p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100'}`}>
+                    <div className={`text-center mb-6 ${hideBranding ? 'md:static' : ''}`}>
+                        {!hideBranding && (
+                            <>
+                                <h1 className="text-2xl font-black text-gray-900 tracking-tight">Complete Profile</h1>
+                                <p className="text-gray-500 mt-2 text-sm">Step 2 of 3: Your Info</p>
+                            </>
+                        )}
                     </div>
 
-                    {isOrganization ? (
-                        <>
-                            {/* ORGANIZATION FIELDS */}
-                            <div>
-                                <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Organization Name</label>
-                                <input
-                                    type="text"
-                                    value={clubName} // Reuse clubName state
-                                    onChange={(e) => setClubName(e.target.value)}
-                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
-                                    placeholder="e.g. National Taekwondo Alliance"
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Date Established</label>
-                                <input
-                                    type="date"
-                                    value={birthDate} // Reuse birthDate state
-                                    onChange={(e) => setBirthDate(e.target.value)}
-                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
-                                    required
-                                />
-                            </div>
-                        </>
-                    ) : (
-                        <>
-                            {/* INDIVIDUAL FIELDS */}
-                            <div>
-                                <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Date of Birth</label>
-                                <input
-                                    type="date"
-                                    value={birthDate}
-                                    onChange={(e) => setBirthDate(e.target.value)}
-                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
-                                    required
-                                />
-                            </div>
+                    <form onSubmit={handleProfileSubmit} className="space-y-4">
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <CustomSelect
-                                    label="GENDER"
-                                    value={gender}
-                                    onChange={setGender}
-                                    options={['Male', 'Female']}
-                                    required
-                                />
-                                <CustomSelect
-                                    label="BELT"
-                                    value={belt}
-                                    onChange={setBelt}
-                                    options={['White', 'Yellow', 'Green', 'Blue', 'Red', 'Brown', 'Black']}
-                                    required
-                                />
-                            </div>
 
-                            {/* Club Search with Combobox Style */}
-                            <div className="relative">
-                                <label className="block text-xs font-medium text-gray-700 mb-1 uppercase tracking-wider">Club</label>
-                                <div className="relative">
+
+                        {isOrganization ? (
+                            <>
+                                {/* ORGANIZATION FIELDS */}
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Organization Name</label>
                                     <input
                                         type="text"
-                                        className={`w-full px-4 py-3 bg-white border rounded-xl text-gray-900 focus:outline-none focus:ring-2 transition-all font-medium ${isCreatingClub ? 'border-green-500 ring-2 ring-green-500/20' : 'border-gray-200 focus:ring-red-500/20 focus:border-red-500'}`}
-                                        placeholder={isCreatingClub ? "Enter new club name..." : "Search for your club..."}
-                                        value={clubSearch}
-                                        onChange={(e) => {
-                                            setClubSearch(e.target.value)
-                                            setIsClubDropdownOpen(true)
-                                            // Only reset if we are NOT in create mode or user is typing freshly
-                                            if (!isCreatingClub) {
-                                                setClubName('')
-                                            } else {
-                                                setClubName(e.target.value)
-                                            }
-                                        }}
-                                        onFocus={() => setIsClubDropdownOpen(true)}
+                                        value={clubName} // Reuse clubName state
+                                        onChange={(e) => setClubName(e.target.value)}
+                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+                                        placeholder="e.g. National Taekwondo Alliance"
+                                        required
                                     />
-                                    {/* Valid Selection Checkmark */}
-                                    {clubName && (clubName === clubSearch || isCreatingClub) && (
-                                        <div className={`absolute right-4 top-3.5 ${isCreatingClub ? 'text-green-600' : 'text-green-500'}`}>
-                                            {isCreatingClub ? <span className="text-xs font-bold bg-green-100 px-2 py-0.5 rounded">NEW</span> : <Check size={18} />}
-                                        </div>
-                                    )}
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Date Established</label>
+                                    <input
+                                        type="date"
+                                        value={birthDate} // Reuse birthDate state
+                                        onChange={(e) => setBirthDate(e.target.value)}
+                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+                                        required
+                                    />
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                {/* INDIVIDUAL FIELDS */}
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Date of Birth</label>
+                                    <input
+                                        type="date"
+                                        value={birthDate}
+                                        onChange={(e) => setBirthDate(e.target.value)}
+                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
+                                        required
+                                    />
                                 </div>
 
-                                {isClubDropdownOpen && (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <CustomSelect
+                                        label="GENDER"
+                                        value={gender}
+                                        onChange={setGender}
+                                        options={['Male', 'Female']}
+                                        required
+                                    />
+                                    <CustomSelect
+                                        label="BELT"
+                                        value={belt}
+                                        onChange={setBelt}
+                                        options={['White', 'Yellow', 'Green', 'Blue', 'Red', 'Brown', 'Black']}
+                                        required
+                                    />
+                                </div>
+
+                                {/* Club Logic: Search (Athlete) vs Create (Master) */}
+                                {role === 'CLUB_MASTER' ? (
                                     <>
-                                        <div className="fixed inset-0 z-10" onClick={() => setIsClubDropdownOpen(false)} />
-                                        <div className="absolute z-20 mt-1 w-full bg-white shadow-xl max-h-60 rounded-xl py-2 overflow-auto border border-gray-100">
-                                            {filteredClubs.length === 0 && clubSearch.trim().length > 0 ? (
-                                                <div
-                                                    className="cursor-pointer px-4 py-3 hover:bg-green-50 text-green-700 flex items-center gap-2"
-                                                    onClick={() => {
-                                                        setIsCreatingClub(true)
-                                                        setClubName(clubSearch)
-                                                        setIsClubDropdownOpen(false)
+                                        {/* CREATE CLUB MODE */}
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">New Club Name</label>
+                                            <input
+                                                type="text"
+                                                value={clubName}
+                                                onChange={(e) => setClubName(e.target.value)}
+                                                className="w-full px-4 py-3 bg-white border border-green-500 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500/20 transition-all font-medium"
+                                                placeholder="Enter your club name..."
+                                                required
+                                            />
+                                        </div>
+
+                                        {/* Organization Selection (Mandatory for new clubs) */}
+                                        <div className="relative animate-in fade-in slide-in-from-top-2 duration-300">
+                                            <label className="block text-xs font-medium text-indigo-700 mb-1 uppercase tracking-wider">Affiliated Organization <span className="text-red-500">*</span></label>
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    className="w-full px-4 py-3 bg-indigo-50 border border-indigo-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium placeholder:text-indigo-300"
+                                                    placeholder="Select Organization..."
+                                                    value={orgSearch}
+                                                    onChange={(e) => {
+                                                        setOrgSearch(e.target.value)
+                                                        setIsOrgDropdownOpen(true)
+                                                        setOrganizationId('') // Reset ID on type to force selection
                                                     }}
-                                                >
-                                                    <span className="font-bold">+ Create new club "{clubSearch}"</span>
-                                                </div>
-                                            ) : filteredClubs.length > 0 ? (
+                                                    onFocus={() => setIsOrgDropdownOpen(true)}
+                                                />
+                                                {organizationId && (
+                                                    <div className="absolute right-4 top-3.5 text-indigo-600">
+                                                        <Check size={18} />
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {isOrgDropdownOpen && (
                                                 <>
-                                                    {filteredClubs.map((club) => (
-                                                        <div
-                                                            key={club.id}
-                                                            className={`cursor-pointer px-4 py-3 hover:bg-gray-50 ${clubName === club.name && !isCreatingClub ? 'bg-red-50 text-red-700' : 'text-gray-900'}`}
-                                                            onClick={() => {
-                                                                setIsCreatingClub(false)
-                                                                setClubName(club.name)
-                                                                setClubSearch(club.name)
-                                                                setIsClubDropdownOpen(false)
-                                                            }}
-                                                        >
-                                                            <span className="font-medium">{club.name}</span>
-                                                        </div>
-                                                    ))}
-                                                    {/* Always show create option at bottom if searching */}
-                                                    {clubSearch && (
-                                                        <div
-                                                            className="cursor-pointer px-4 py-3 border-t border-gray-100 hover:bg-green-50 text-green-700 flex items-center gap-2 mt-1"
-                                                            onClick={() => {
-                                                                setIsCreatingClub(true)
-                                                                setClubName(clubSearch)
-                                                                setIsClubDropdownOpen(false)
-                                                            }}
-                                                        >
-                                                            <span className="font-bold text-sm">+ Can't find it? Create "{clubSearch}"</span>
-                                                        </div>
-                                                    )}
+                                                    <div className="fixed inset-0 z-10" onClick={() => setIsOrgDropdownOpen(false)} />
+                                                    <div className="absolute z-20 mt-1 w-full bg-white shadow-xl max-h-60 rounded-xl py-2 overflow-auto border border-gray-100">
+                                                        {filteredOrgs.length > 0 ? (
+                                                            filteredOrgs.map((org) => (
+                                                                <div
+                                                                    key={org.id}
+                                                                    className="cursor-pointer px-4 py-3 hover:bg-indigo-50 text-gray-900"
+                                                                    onClick={() => {
+                                                                        setOrganizationId(org.id)
+                                                                        setOrgSearch(org.name)
+                                                                        setIsOrgDropdownOpen(false)
+                                                                    }}
+                                                                >
+                                                                    <span className="font-medium">{org.name}</span>
+                                                                </div>
+                                                            ))
+                                                        ) : (
+                                                            <div className="text-gray-400 px-4 py-2 text-sm">No organizations found.</div>
+                                                        )}
+                                                    </div>
                                                 </>
-                                            ) : (
-                                                <div className="text-gray-400 px-4 py-2 text-sm">Type to search or create a club.</div>
+                                            )}
+                                            <p className="text-[10px] text-indigo-500 mt-1 ml-1 font-medium">
+                                                * Your new club requires approval from this organization.
+                                            </p>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        {/* JOIN CLUB MODE (ATHLETE) */}
+                                        <div className="relative">
+                                            <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Club</label>
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
+                                                    placeholder="Search for your club..."
+                                                    value={clubSearch}
+                                                    onChange={(e) => {
+                                                        setClubSearch(e.target.value)
+                                                        setIsClubDropdownOpen(true)
+                                                        setClubName('') // Clear selection when typing
+                                                    }}
+                                                    onFocus={() => setIsClubDropdownOpen(true)}
+                                                />
+                                                {clubName && (
+                                                    <div className="absolute right-4 top-3.5 text-green-500">
+                                                        <Check size={18} />
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {isClubDropdownOpen && (
+                                                <>
+                                                    <div className="fixed inset-0 z-10" onClick={() => setIsClubDropdownOpen(false)} />
+                                                    <div className="absolute z-20 mt-1 w-full bg-white shadow-xl max-h-60 rounded-xl py-2 overflow-auto border border-gray-100">
+                                                        {filteredClubs.length > 0 ? (
+                                                            filteredClubs.map((club) => (
+                                                                <div
+                                                                    key={club.id}
+                                                                    className={`cursor-pointer px-4 py-3 hover:bg-gray-50 ${clubName === club.name ? 'bg-red-50 text-red-700' : 'text-gray-900'}`}
+                                                                    onClick={() => {
+                                                                        setClubName(club.name)
+                                                                        setClubSearch(club.name)
+                                                                        setIsClubDropdownOpen(false)
+                                                                    }}
+                                                                >
+                                                                    <span className="font-medium">{club.name}</span>
+                                                                </div>
+                                                            ))
+                                                        ) : (
+                                                            <div className="text-gray-400 px-4 py-2 text-sm">No clubs found. To create one, select 'Club Master' above.</div>
+                                                        )}
+                                                    </div>
+                                                </>
                                             )}
                                         </div>
                                     </>
                                 )}
-                            </div>
-                        </>
-                    )}
-
-                    {error && (
-                        <div className="p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2">
-                            <span className="text-lg">⚠️</span>
-                            <span className="text-xs text-red-600 font-bold">{error}</span>
-                        </div>
-                    )}
-
-                    <div id="clerk-captcha"></div>
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className={`w-full py-4 mt-4 text-white font-bold rounded-2xl shadow-lg active:scale-[0.98] transition-all disabled:opacity-70 flex items-center justify-center gap-2 text-lg ${isOrganization ? 'bg-indigo-600 shadow-indigo-600/20 hover:bg-indigo-700' : isCreatingClub ? 'bg-green-600 shadow-green-600/20 hover:bg-green-700' : 'bg-red-600 shadow-red-600/20 hover:bg-red-700'}`}
-                    >
-                        {loading ? (
-                            <><Loader2 className="animate-spin" /> Creating Account...</>
-                        ) : (
-                            isOrganization ? 'Sign Up as Organization' : isCreatingClub ? 'Sign Up as Club Master' : 'Sign Up'
+                            </>
                         )}
-                    </button>
-                </form>
+
+                        {error && (
+                            <div className="p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2">
+                                <span className="text-lg">⚠️</span>
+                                <span className="text-xs text-red-600 font-bold">{error}</span>
+                            </div>
+                        )}
+
+                        <div id="clerk-captcha"></div>
+
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className={`w-full py-4 mt-4 text-white font-bold rounded-2xl shadow-lg active:scale-[0.98] transition-all disabled:opacity-70 flex items-center justify-center gap-2 text-lg ${isOrganization ? 'bg-indigo-600 shadow-indigo-600/20 hover:bg-indigo-700' : isCreatingClub ? 'bg-green-600 shadow-green-600/20 hover:bg-green-700' : 'bg-red-600 shadow-red-600/20 hover:bg-red-700'}`}
+                        >
+                            {loading ? (
+                                <><Loader2 className="animate-spin" /> Creating Account...</>
+                            ) : (
+                                isOrganization ? 'Sign Up as Organization' : isCreatingClub ? 'Sign Up as Club Master' : 'Sign Up'
+                            )}
+                        </button>
+
+                        {/* ROLE SELECTION (Moved to bottom) */}
+                        <div className="mt-8 pt-6 border-t border-gray-100">
+                            <p className="text-center text-xs text-gray-400 font-bold uppercase tracking-wider mb-4">Account Type</p>
+                            <div className="flex items-center justify-center gap-2">
+                                {[
+                                    { id: 'ATHLETE', label: 'Athlete' },
+                                    { id: 'CLUB_MASTER', label: 'Club Master' },
+                                    { id: 'ORGANIZER', label: 'Organizer' }
+                                ].map((option) => (
+                                    <button
+                                        key={option.id}
+                                        type="button"
+                                        onClick={() => {
+                                            setRole(option.id as any)
+                                            setClubName('')
+                                            setOrganizationId('')
+                                            setError(null)
+                                        }}
+                                        className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all border ${role === option.id
+                                            ? 'bg-gray-100 text-gray-900 border-gray-200 shadow-sm'
+                                            : 'bg-white text-gray-400 border-transparent hover:bg-gray-50'
+                                            }`}
+                                    >
+                                        {option.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </form>
+                </div>
             </div>
         )
     }

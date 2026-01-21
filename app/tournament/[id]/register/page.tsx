@@ -46,7 +46,7 @@ export default async function RegisterPage({ params }: Props) {
     // Check if tournament has a guideline template
     if (!tournament.guidelineTemplateId) {
         return (
-            <main className="min-h-[calc(100vh-4rem)] bg-gray-50 pb-2 flex flex-col items-center justify-center">
+            <main className="min-h-screen bg-gray-50 pb-2 flex flex-col items-center justify-center">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2">
                     <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
                         <p className="text-lg font-semibold text-red-800 mb-2">Registration Not Available</p>
@@ -124,7 +124,7 @@ export default async function RegisterPage({ params }: Props) {
     // we use a generic "Poomsae Open" registration flow.
 
     return (
-        <main className="min-h-[calc(100vh-4rem)] bg-gray-50 pb-2 flex flex-col items-center justify-center">
+        <main className="min-h-screen bg-gray-50 pb-2 flex flex-col items-center justify-center">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2">
                 <RegisterConfirm
                     tournament={tournament}

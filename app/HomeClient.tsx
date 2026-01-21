@@ -40,7 +40,7 @@ export default function HomeClient({ upcomingTournaments: initialEvents, user }:
     }
 
     // All other cases -> Landing Page
-    // (Logged-in mobile users are redirected to /athlete/dashboard by page.tsx)
+    // (Logged-in mobile users are redirected to /athlete by page.tsx)
     return <LandingPage upcomingTournaments={events} user={user} />
 }
 

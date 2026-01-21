@@ -4,7 +4,8 @@ import { redirect } from 'next/navigation'
 import OnboardingForm from './OnboardingForm'
 import ClubMasterOnboardingForm from './ClubMasterOnboardingForm'
 
-export default async function OnboardingPage() {
+export default async function OnboardingPage(props: { searchParams: Promise<{ role?: string }> }) {
+    const searchParams = await props.searchParams
     const clerkUser = await currentUser()
 
     if (!clerkUser) {
@@ -24,12 +25,15 @@ export default async function OnboardingPage() {
 
     // Check for Club Master Invite first - they get a different onboarding flow
     const clubMasterInvite = await prisma.clubMasterInvite.findUnique({ where: { email: userEmail } })
-    if (clubMasterInvite) {
-        return <ClubMasterOnboardingForm />
-    }
 
     // Fetch all clubs for dropdown (for athletes)
     const clubs = await prisma.club.findMany({
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true }
+    })
+
+    // Fetch all organizations for dropdown (for club masters)
+    const organizations = await prisma.organization.findMany({
         orderBy: { name: 'asc' },
         select: { id: true, name: true }
     })
@@ -43,6 +47,11 @@ export default async function OnboardingPage() {
     if (clubAssistantInvite) {
         prefilledClubName = clubAssistantInvite.clubName
         lockedRole = 'ASSISTANT_CLUB_MASTER'
+    }
+
+    // Allow manual navigation or invite based access
+    if (clubMasterInvite || searchParams.role === 'club_master') {
+        return <ClubMasterOnboardingForm organizations={organizations} />
     }
 
     return <OnboardingForm
