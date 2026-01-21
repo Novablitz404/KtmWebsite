@@ -15,7 +15,7 @@ export default function PrivacyPolicyPage() {
                     <section className="mb-10">
                         <h2 className="text-2xl font-bold text-gray-900 mb-4">1. Information We Collect</h2>
                         <p className="text-gray-600 mb-4">
-                            When you use KTM Tournament Manager, we collect information that you provide directly to us, including:
+                            When you use KTM Taekwondo Manager, we collect information that you provide directly to us, including:
                         </p>
                         <ul className="list-disc list-inside text-gray-600 space-y-2 ml-4">
                             <li>Account information (name, email address)</li>
@@ -88,7 +88,7 @@ export default function PrivacyPolicyPage() {
             <footer className="bg-white border-t border-gray-200 py-10">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
                     <p className="text-gray-400 text-sm">
-                        © {new Date().getFullYear()} KTM Tournament Manager. Built for the Taekwondo community.
+                        © {new Date().getFullYear()} KTM Taekwondo Manager. Built for the Taekwondo community.
                     </p>
                 </div>
             </footer>

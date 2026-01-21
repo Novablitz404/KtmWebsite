@@ -25,7 +25,7 @@ export default function AboutPage() {
                     <h2 className="text-2xl font-bold text-gray-900 mb-6">Our Mission</h2>
                     <div className="bg-gray-50 rounded-2xl p-8 border border-gray-200">
                         <p className="text-gray-600 text-lg leading-relaxed">
-                            KTM Tournament Manager is designed to streamline the entire tournament experience -
+                            KTM Taekwondo Manager is designed to streamline the entire tournament experience -
                             from athlete registration and bracket generation to real-time scoring and results tracking.
                             We aim to provide organizers, clubs, and athletes with a seamless, professional platform
                             that elevates the standard of Taekwondo competitions.
@@ -100,7 +100,7 @@ export default function AboutPage() {
             <footer className="bg-white border-t border-gray-200 py-10">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
                     <p className="text-gray-400 text-sm">
-                        © {new Date().getFullYear()} KTM Tournament Manager. Built for the Taekwondo community.
+                        © {new Date().getFullYear()} KTM Taekwondo Manager. Built for the Taekwondo community.
                     </p>
                 </div>
             </footer>

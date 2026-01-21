@@ -35,7 +35,7 @@ export default function LandingPage({ upcomingTournaments, user }: LandingPagePr
 
                         {/* Title - Solid Text */}
                         <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-white tracking-tight">
-                            KTM Tournament Manager
+                            KTM Taekwondo Manager
                         </h1>
 
                         <p className="mt-6 text-lg sm:text-xl text-red-100 max-w-2xl mx-auto leading-relaxed">
@@ -262,7 +262,7 @@ export default function LandingPage({ upcomingTournaments, user }: LandingPagePr
                         />
                     </div>
                     <p className="text-gray-400 text-sm text-center mb-4">
-                        © {new Date().getFullYear()} KTM Tournament Manager. Built for the Taekwondo community.
+                        © {new Date().getFullYear()} KTM Taekwondo Manager. Built for the Taekwondo community.
                     </p>
                     <div className="flex justify-center gap-6">
                         <Link href="/privacy" className="text-gray-400 hover:text-gray-600 text-sm transition-colors">

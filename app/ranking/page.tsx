@@ -38,7 +38,7 @@ export default function RankingPage() {
             <footer className="bg-white border-t border-gray-200 py-10 mt-auto">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
                     <p className="text-gray-400 text-sm">
-                        © {new Date().getFullYear()} KTM Tournament Manager. Built for the Taekwondo community.
+                        © {new Date().getFullYear()} KTM Taekwondo Manager. Built for the Taekwondo community.
                     </p>
                 </div>
             </footer>

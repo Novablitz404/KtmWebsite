@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "KTM Tournament Manager",
-  description: "Taekwondo tournament management platform",
+  title: "KTM Taekwondo Manager",
+  description: "Taekwondo management platform",
 };
 
 import { ClerkProvider } from '@clerk/nextjs'

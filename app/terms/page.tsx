@@ -15,7 +15,7 @@ export default function TermsOfServicePage() {
                     <section className="mb-10">
                         <h2 className="text-2xl font-bold text-gray-900 mb-4">1. Acceptance of Terms</h2>
                         <p className="text-gray-600">
-                            By accessing or using KTM Tournament Manager ("the Service"), you agree to be bound by these
+                            By accessing or using KTM Taekwondo Manager ("the Service"), you agree to be bound by these
                             Terms of Service. If you do not agree to these terms, please do not use the Service.
                         </p>
                     </section>
@@ -23,7 +23,7 @@ export default function TermsOfServicePage() {
                     <section className="mb-10">
                         <h2 className="text-2xl font-bold text-gray-900 mb-4">2. Description of Service</h2>
                         <p className="text-gray-600">
-                            KTM Tournament Manager provides a platform for Taekwondo tournament management, including but not
+                            KTM Taekwondo Manager provides a platform for Taekwondo tournament management, including but not
                             limited to athlete registration, bracket generation, real-time scoring, and results publication.
                         </p>
                     </section>
@@ -71,7 +71,7 @@ export default function TermsOfServicePage() {
                     <section className="mb-10">
                         <h2 className="text-2xl font-bold text-gray-900 mb-4">6. Intellectual Property</h2>
                         <p className="text-gray-600">
-                            The Service and its original content, features, and functionality are owned by KTM Tournament Manager
+                            The Service and its original content, features, and functionality are owned by KTM Taekwondo Manager
                             and are protected by international copyright, trademark, and other intellectual property laws.
                         </p>
                     </section>
@@ -79,7 +79,7 @@ export default function TermsOfServicePage() {
                     <section className="mb-10">
                         <h2 className="text-2xl font-bold text-gray-900 mb-4">7. Limitation of Liability</h2>
                         <p className="text-gray-600">
-                            KTM Tournament Manager shall not be liable for any indirect, incidental, special, consequential,
+                            KTM Taekwondo Manager shall not be liable for any indirect, incidental, special, consequential,
                             or punitive damages resulting from your use or inability to use the Service, including but not
                             limited to tournament scheduling conflicts, scoring errors, or data loss.
                         </p>
@@ -108,7 +108,7 @@ export default function TermsOfServicePage() {
             <footer className="bg-white border-t border-gray-200 py-10">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
                     <p className="text-gray-400 text-sm">
-                        © {new Date().getFullYear()} KTM Tournament Manager. Built for the Taekwondo community.
+                        © {new Date().getFullYear()} KTM Taekwondo Manager. Built for the Taekwondo community.
                     </p>
                 </div>
             </footer>
