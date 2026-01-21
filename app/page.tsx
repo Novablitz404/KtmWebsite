@@ -26,11 +26,18 @@ export default async function Home() {
     // Admin setup (whitelist based) - still redirect admins to admin panel
     if (userEmail && ADMIN_EMAILS.includes(userEmail)) {
       if (!existingUser || existingUser.role !== 'ADMIN') {
+        // Generate unique ID for admin
+        const generateId = () => String(Math.floor(10000 + Math.random() * 90000))
+        let adminId = generateId()
+        while (await prisma.user.findUnique({ where: { id: adminId } })) {
+          adminId = generateId()
+        }
+
         await prisma.user.upsert({
           where: { clerkId: user.id },
           update: { role: 'ADMIN' },
           create: {
-            id: '00000',
+            id: adminId,
             clerkId: user.id,
             email: userEmail,
             name: user.firstName ? `${user.firstName} ${user.lastName}` : 'Super Admin',
