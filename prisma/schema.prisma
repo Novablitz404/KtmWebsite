@@ -333,13 +333,6 @@ model OrganizationInvite {
   invitedBy String   // Admin user ID who created invite
 }
 
-model ClubMasterInvite {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  createdAt DateTime @default(now())
-  invitedBy String   // Admin user ID who created invite
-}
-
 model ClubAssistantInvite {
   id        String   @id @default(cuid())
   email     String   @unique

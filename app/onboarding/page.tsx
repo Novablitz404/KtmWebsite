@@ -23,9 +23,6 @@ export default async function OnboardingPage(props: { searchParams: Promise<{ ro
 
     const userEmail = clerkUser.emailAddresses[0].emailAddress
 
-    // Check for Club Master Invite first - they get a different onboarding flow
-    const clubMasterInvite = await prisma.clubMasterInvite.findUnique({ where: { email: userEmail } })
-
     // Fetch all clubs for dropdown (for athletes)
     const clubs = await prisma.club.findMany({
         orderBy: { name: 'asc' },
@@ -49,8 +46,8 @@ export default async function OnboardingPage(props: { searchParams: Promise<{ ro
         lockedRole = 'ASSISTANT_CLUB_MASTER'
     }
 
-    // Allow manual navigation or invite based access
-    if (clubMasterInvite || searchParams.role === 'club_master') {
+    // Allow manual navigation via URL param for club master onboarding
+    if (searchParams.role === 'club_master') {
         return <ClubMasterOnboardingForm organizations={organizations} />
     }
 

@@ -2,19 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import { UserButton, useUser, SignOutButton as ClerkSignOutButton } from '@clerk/nextjs'
-import NotificationBell from './NotificationBell'
+import { usePathname } from 'next/navigation'
+import { useUser } from '@clerk/nextjs'
 
 export default function Header() {
     const { user, isLoaded } = useUser()
     const pathname = usePathname()
-    const router = useRouter()
-
-    // Client-side role fetching
-    const [role, setRole] = useState<string | null>(null)
-    const [userName, setUserName] = useState<string | null>(null)
-    const [userId, setUserId] = useState<string | null>(null)
 
     // PWA detection state - starts as false, updated on client
     const [isMobilePWA, setIsMobilePWA] = useState(false)
@@ -37,24 +30,15 @@ export default function Header() {
         return () => window.removeEventListener('resize', handleResize)
     }, [])
 
-    useEffect(() => {
-        if (isLoaded && user) {
-            fetch('/api/user/role')
-                .then(res => res.json())
-                .then(data => {
-                    setRole(data.role)
-                    setUserName(data.userName)
-                    setUserId(data.id)
-                })
-                .catch(console.error)
-        }
-    }, [isLoaded, user])
 
 
-    // Hide header on auth pages, Admin Panel, Club Dashboard and Athlete Dashboard (which have their own sidebars)
-    // Also hide on Tournament Register page (always) and Tournament Details page (if logged in)
-    const isTournamentPage = pathname?.startsWith('/tournament/')
-    if (pathname?.startsWith('/sign-in') || pathname?.startsWith('/sign-up') || pathname?.startsWith('/onboarding') || pathname?.startsWith('/admin') || pathname === '/club' || pathname === '/organization' || pathname?.startsWith('/athlete') || (isTournamentPage && (pathname?.endsWith('/register') || user))) {
+    // Hide header on auth pages and onboarding
+    if (pathname?.startsWith('/sign-in') || pathname?.startsWith('/sign-up') || pathname?.startsWith('/onboarding')) {
+        return null
+    }
+
+    // Hide header for ALL logged-in users - they use their dashboard sidebars instead
+    if (isLoaded && user) {
         return null
     }
 
@@ -64,15 +48,6 @@ export default function Header() {
     }
 
     const isHomePage = pathname === '/'
-    const isPublicPage = pathname === '/' || pathname === '/about' || pathname === '/events' || pathname === '/ranking' || pathname?.startsWith('/tournament/') || pathname === '/privacy' || pathname === '/terms'
-    // Admins should also see Organizer links (Profile, Dashboard) to manage tournaments
-    const isOrganizer = role === 'ORGANIZER' || role === 'MANAGER' || role === 'ADMIN'
-    const isClubMaster = role === 'CLUB_MASTER' || role === 'ASSISTANT_CLUB_MASTER'
-    // Athlete is strictly ATHLETE
-    const isAthlete = role === 'ATHLETE'
-
-    // Show public nav only if user is NOT logged in (no role) and on a public page
-    const showPublicNav = isPublicPage && !role
 
     return (
         <header className="hidden md:block bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -85,159 +60,50 @@ export default function Header() {
                             <img src="/KTMLogo.png" alt="KTM Logo" className="h-10 w-10 object-contain" />
                         </Link>
 
-                        {/* Navigation - Public Links for guests, Role-specific for logged-in users */}
-                        {showPublicNav ? (
-                            <nav className="hidden md:flex items-center gap-8">
-                                <Link
-                                    href="/"
-                                    className={`text-base font-semibold transition-colors ${pathname === '/' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
-                                >
-                                    Home
-                                </Link>
-                                <Link
-                                    href="/about"
-                                    className={`text-base font-semibold transition-colors ${pathname === '/about' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
-                                >
-                                    About Us
-                                </Link>
-                                <Link
-                                    href="/events"
-                                    className={`text-base font-semibold transition-colors ${pathname === '/events' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
-                                >
-                                    Tournaments
-                                </Link>
-                                <Link
-                                    href="/ranking"
-                                    className={`text-base font-semibold transition-colors ${pathname === '/ranking' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
-                                >
-                                    Ranking
-                                </Link>
-                            </nav>
-                        ) : (
-                            <nav className="hidden md:flex items-center gap-8">
-                                <Link
-                                    href="/"
-                                    className="text-base font-semibold text-gray-600 hover:text-gray-900"
-                                >
-                                    Home
-                                </Link>
-
-                                {isAthlete && (
-                                    <>
-                                        <Link
-                                            href="/athlete"
-                                            className={`text-base font-semibold transition-colors ${pathname?.startsWith('/athlete') ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
-                                        >
-                                            Dashboard
-                                        </Link>
-                                        <Link
-                                            href="/tournaments"
-                                            className={`text-base font-semibold transition-colors ${pathname === '/tournaments' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
-                                        >
-                                            Tournaments
-                                        </Link>
-                                    </>
-                                )}
-
-                                {/* Club Master Links */}
-                                {isClubMaster && (
-                                    <>
-                                        <Link
-                                            href="/club"
-                                            className={`text-base font-semibold transition-colors ${pathname === '/club' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
-                                        >
-                                            Dashboard
-                                        </Link>
-                                        <Link
-                                            href="/members"
-                                            className={`text-base font-semibold transition-colors ${pathname === '/members' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
-                                        >
-                                            Members
-                                        </Link>
-                                        <Link
-                                            href="/registration"
-                                            className={`text-base font-semibold transition-colors ${pathname?.startsWith('/registration') ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
-                                        >
-                                            Registration
-                                        </Link>
-                                    </>
-                                )}
-
-                                {/* Organizer Links */}
-                                {isOrganizer && (
-                                    <>
-
-                                        <Link
-                                            href="/organization"
-                                            className={`text-base font-semibold transition-colors ${pathname === '/organization' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
-                                        >
-                                            Dashboard
-                                        </Link>
-                                        <Link
-                                            href="/organizer-tournaments"
-                                            className={`text-base font-semibold transition-colors ${pathname === '/organizer-tournaments' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
-                                        >
-                                            Tournaments
-                                        </Link>
-                                        <Link
-                                            href="/promotions"
-                                            className={`text-base font-semibold transition-colors ${pathname === '/promotions' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
-                                        >
-                                            Promotions
-                                        </Link>
-                                    </>
-                                )}
-
-                                {/* Admin Dashboard Link - Only show for ADMIN when on /organizer-tournaments */}
-                                {role === 'ADMIN' && pathname?.startsWith('/organizer-tournaments') && (
-                                    <Link
-                                        href="/admin"
-                                        className={`text-base font-semibold transition-colors ${pathname === '/admin' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
-                                    >
-                                        Admin Dashboard
-                                    </Link>
-                                )}
-
-                                {role === 'ADMIN' && !pathname?.startsWith('/organizer-tournaments') && (
-                                    <Link
-                                        href="/admin"
-                                        className={`text-base font-semibold transition-colors ${pathname === '/admin' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
-                                    >
-                                        Admin Dashboard
-                                    </Link>
-                                )}
-                            </nav>
-                        )}
+                        {/* Public Navigation Links */}
+                        <nav className="hidden md:flex items-center gap-8">
+                            <Link
+                                href="/"
+                                className={`text-base font-semibold transition-colors ${pathname === '/' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
+                            >
+                                Home
+                            </Link>
+                            <Link
+                                href="/about"
+                                className={`text-base font-semibold transition-colors ${pathname === '/about' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
+                            >
+                                About Us
+                            </Link>
+                            <Link
+                                href="/events"
+                                className={`text-base font-semibold transition-colors ${pathname === '/events' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
+                            >
+                                Tournaments
+                            </Link>
+                            <Link
+                                href="/ranking"
+                                className={`text-base font-semibold transition-colors ${pathname === '/ranking' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
+                            >
+                                Ranking
+                            </Link>
+                        </nav>
                     </div>
 
-                    {/* User Menu - Pushed to right */}
+                    {/* Right Side: Mobile Menu & Sign In Button */}
                     <div className="flex items-center gap-4 ml-auto">
-                        {/* Mobile Menu Button - Show only for guests on public pages */}
-                        {showPublicNav && (
-                            <MobilePublicMenu />
-                        )}
+                        <MobilePublicMenu />
 
-                        {isLoaded && user ? (
-                            <>
-                                {userId && <NotificationBell userId={userId} />}
-
-                                <span className="hidden sm:inline text-sm text-gray-500">
-                                    {user.firstName}
-                                </span>
-                                {/* Custom User Dropdown */}
-                                <UserDropdown user={user} dbName={userName} role={role} />
-                            </>
-                        ) : isLoaded ? (
+                        {isLoaded && (
                             <Link href="/sign-in">
                                 <button className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors">
                                     Sign In
                                 </button>
                             </Link>
-                        ) : null}
+                        )}
                     </div>
                 </div>
             </div>
-        </header >
+        </header>
     )
 }
 
@@ -317,175 +183,6 @@ function MobilePublicMenu() {
                             </div>
                         </>
                     )}
-                </div>
-            )}
-        </div>
-    )
-}
-
-import { UserResource } from '@clerk/types'
-
-function UserDropdown({ user, dbName, role }: { user: UserResource, dbName?: string | null, role: string | null }) {
-    const [isOpen, setIsOpen] = useState(false)
-    const dropdownRef = useRef<HTMLDivElement>(null)
-    const pathname = usePathname()
-
-    // Determine roles for dropdown links
-    const isOrganizer = role === 'ORGANIZER' || role === 'MANAGER' || role === 'ADMIN'
-    const isClubMaster = role === 'CLUB_MASTER' || role === 'ASSISTANT_CLUB_MASTER'
-    const isAthlete = role === 'ATHLETE'
-
-    // Close dropdown when clicking outside
-    useEffect(() => {
-        function handleClickOutside(event: MouseEvent) {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setIsOpen(false)
-            }
-        }
-        document.addEventListener("mousedown", handleClickOutside)
-        return () => document.removeEventListener("mousedown", handleClickOutside)
-    }, [dropdownRef])
-
-    return (
-        <div className="relative" ref={dropdownRef}>
-            <button
-                onClick={() => setIsOpen(!isOpen)}
-                className="flex items-center gap-2 focus:outline-none"
-            >
-                <img
-                    src={user.imageUrl}
-                    alt={dbName || user.fullName || "User"}
-                    className={`w-9 h-9 rounded-full object-cover border transition-all ${isOpen ? 'border-indigo-500 ring-2 ring-indigo-500/20' : 'border-gray-200 hover:border-gray-300'}`}
-                />
-            </button>
-
-            {isOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
-                    <div className="px-4 py-3 border-b border-gray-50">
-                        <p className="text-sm font-semibold text-gray-900 truncate">
-                            {dbName || user.fullName || user.firstName || 'User'}
-                        </p>
-                        <p className="text-xs text-gray-500 truncate">{user.primaryEmailAddress?.emailAddress}</p>
-                    </div>
-
-                    <div className="p-1 space-y-0.5">
-                        {/* Mobile Navigation Links (Hidden on Desktop) */}
-                        <div className="md:hidden border-b border-gray-50 mb-1 pb-1">
-                            {/* Athlete Links */}
-                            {isAthlete && (
-                                <>
-                                    <Link
-                                        href="/settings"
-                                        onClick={() => setIsOpen(false)}
-                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/settings' ? 'bg-red-50 text-red-600' : ''}`}
-                                    >
-                                        Settings
-                                    </Link>
-                                    <Link
-                                        href="/tournaments"
-                                        onClick={() => setIsOpen(false)}
-                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/tournaments' ? 'bg-red-50 text-red-600' : ''}`}
-                                    >
-                                        Register
-                                    </Link>
-                                </>
-                            )}
-
-                            {/* Club Master Links */}
-                            {isClubMaster && (
-                                <>
-                                    <Link
-                                        href="/settings"
-                                        onClick={() => setIsOpen(false)}
-                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/settings' ? 'bg-red-50 text-red-600' : ''}`}
-                                    >
-                                        Settings
-                                    </Link>
-                                    <Link
-                                        href="/members"
-                                        onClick={() => setIsOpen(false)}
-                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/members' ? 'bg-red-50 text-red-600' : ''}`}
-                                    >
-                                        Members
-                                    </Link>
-                                    <Link
-                                        href="/club"
-                                        onClick={() => setIsOpen(false)}
-                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/club' ? 'bg-red-50 text-red-600' : ''}`}
-                                    >
-                                        Tournaments
-                                    </Link>
-                                </>
-                            )}
-
-                            {/* Organizer Links */}
-                            {isOrganizer && (
-                                <>
-                                    <Link
-                                        href="/settings"
-                                        onClick={() => setIsOpen(false)}
-                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/settings' ? 'bg-red-50 text-red-600' : ''}`}
-                                    >
-                                        Settings
-                                    </Link>
-                                    <Link
-                                        href="/organizer-tournaments"
-                                        onClick={() => setIsOpen(false)}
-                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/organizer-tournaments' ? 'bg-red-50 text-red-600' : ''}`}
-                                    >
-                                        Tournaments
-                                    </Link>
-                                    <Link
-                                        href="/promotions"
-                                        onClick={() => setIsOpen(false)}
-                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/promotions' ? 'bg-red-50 text-red-600' : ''}`}
-                                    >
-                                        Promotions
-                                    </Link>
-                                    <Link
-                                        href="/organization"
-                                        onClick={() => setIsOpen(false)}
-                                        className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname === '/organization' ? 'bg-red-50 text-red-600' : ''}`}
-                                    >
-                                        Dashboard
-                                    </Link>
-                                </>
-                            )}
-
-                            {/* Admin Link */}
-                            {role === 'ADMIN' && (
-                                <Link
-                                    href="/admin"
-                                    onClick={() => setIsOpen(false)}
-                                    className={`flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors ${pathname?.startsWith('/admin') ? 'bg-red-50 text-red-600' : ''}`}
-                                >
-                                    Admin Dashboard
-                                </Link>
-                            )}
-                        </div>
-
-                        {/* Profile Link (Visible on all screens) */}
-                        <Link
-                            href="/settings"
-                            onClick={() => setIsOpen(false)}
-                            className={`flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors font-medium mb-1 ${pathname === '/settings' ? 'bg-red-50 text-red-600' : ''}`}
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
-                            Settings
-                        </Link>
-
-                        <ClerkSignOutButton redirectUrl="/sign-in">
-                            <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                </svg>
-                                Log Out
-                            </button>
-                        </ClerkSignOutButton>
-                    </div>
                 </div>
             )}
         </div>

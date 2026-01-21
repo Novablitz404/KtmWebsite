@@ -14,13 +14,12 @@ export default async function Home() {
     const userEmail = user.emailAddresses[0]?.emailAddress
 
     // Parallel fetch all needed data upfront
-    const [existingUser, pendingOrganizerInvite, pendingClubMasterInvite] = await Promise.all([
+    const [existingUser, pendingOrganizerInvite] = await Promise.all([
       prisma.user.findUnique({
         where: { clerkId: user.id },
         select: { role: true }
       }),
-      userEmail ? prisma.organizationInvite.findUnique({ where: { email: userEmail } }) : null,
-      userEmail ? prisma.clubMasterInvite.findUnique({ where: { email: userEmail } }) : null
+      userEmail ? prisma.organizationInvite.findUnique({ where: { email: userEmail } }) : null
     ])
 
     // Admin setup (whitelist based) - still redirect admins to admin panel
@@ -83,15 +82,11 @@ export default async function Home() {
       redirect('/organizer-tournaments')
     }
 
-    // Handle pending Club Master invite - redirect to onboarding to collect their details
-    if (pendingClubMasterInvite && userEmail) {
-      redirect('/onboarding')
-    }
-
     // New user without invite - redirect to onboarding
     if (!existingUser) {
       redirect('/onboarding')
     }
+
 
     // For existing users, redirect to their role-specific dashboard
     if (existingUser) {

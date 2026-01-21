@@ -573,16 +573,7 @@ export async function completeOnboarding(formData: FormData) {
         await prisma.organizationInvite.delete({ where: { email: userEmail } })
     }
 
-    // 2. Check for Club Master Invite
-    const clubMasterInvite = await prisma.clubMasterInvite.findUnique({ where: { email: userEmail } })
-    if (clubMasterInvite) {
-        assignedRole = 'CLUB_MASTER'
-        // Club Name will be provided by the user in the form if they are going through this flow
-        // effectively treating them as a self-registered club master if they somehow bypassed the dedicated flow
-        await prisma.clubMasterInvite.delete({ where: { email: userEmail } })
-    }
-
-    // 3. Check for Club Assistant Invite
+    // 2. Check for Club Assistant Invite
     const assistantInvite = await prisma.clubAssistantInvite.findUnique({ where: { email: userEmail } })
     if (assistantInvite) {
         assignedRole = 'ASSISTANT_CLUB_MASTER'
@@ -681,9 +672,6 @@ export async function completeClubMasterOnboarding(formData: FormData) {
     const birthDate = new Date(birthDateStr)
     const userEmail = user.emailAddresses[0].emailAddress
 
-    // Check for Club Master Invite (Optional now)
-    const clubMasterInvite = await prisma.clubMasterInvite.findUnique({ where: { email: userEmail } })
-
     // Check if user already exists
     const existingUser = await prisma.user.findFirst({
         where: {
@@ -746,11 +734,6 @@ export async function completeClubMasterOnboarding(formData: FormData) {
             status: 'PENDING'
         }
     })
-
-    // Delete the invite if it existed
-    if (clubMasterInvite) {
-        await prisma.clubMasterInvite.delete({ where: { email: userEmail } })
-    }
 }
 
 export async function updateProfile(formData: FormData) {

@@ -1,13 +1,13 @@
 'use client'
 
 import { Trash2 } from 'lucide-react'
-import { deleteInvite, deleteClubMasterInvite } from '../actions'
+import { deleteInvite } from '../actions'
 import { toast } from 'sonner'
 import { useState } from 'react'
 
 interface PendingActionsProps {
     inviteId: string
-    type: 'ORGANIZER' | 'CLUB_MASTER'
+    type: 'ORGANIZER'
 }
 
 export default function PendingActions({ inviteId, type }: PendingActionsProps) {
@@ -21,11 +21,7 @@ export default function PendingActions({ inviteId, type }: PendingActionsProps) 
         formData.append('inviteId', inviteId)
 
         try {
-            if (type === 'ORGANIZER') {
-                await deleteInvite(formData)
-            } else {
-                await deleteClubMasterInvite(formData)
-            }
+            await deleteInvite(formData)
             toast.success('Invite cancelled')
         } catch {
             toast.error('Failed to cancel invite')

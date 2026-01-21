@@ -45,12 +45,10 @@ export default async function AdminUsersPage({
     const showPending = currentPage === 1 && (status === 'ALL' || status === 'PENDING')
 
     const orgInvitesPromise = showPending ? prisma.organizationInvite.findMany({ orderBy: { createdAt: 'desc' } }) : Promise.resolve([])
-    const cmInvitesPromise = showPending ? prisma.clubMasterInvite.findMany({ orderBy: { createdAt: 'desc' } }) : Promise.resolve([])
 
-    const [users, orgInvites, cmInvites] = await Promise.all([
+    const [users, orgInvites] = await Promise.all([
         usersPromise,
-        orgInvitesPromise,
-        cmInvitesPromise
+        orgInvitesPromise
     ])
 
     // 4. Normalize Data
@@ -61,7 +59,7 @@ export default async function AdminUsersPage({
         role: string
         clubName: string | null
         status: 'ACTIVE' | 'PENDING'
-        type: 'USER' | 'INVITE_ORG' | 'INVITE_CM'
+        type: 'USER' | 'INVITE_ORG'
     }
 
     const activeRows: UnifiedRow[] = users.map(u => ({
@@ -74,26 +72,15 @@ export default async function AdminUsersPage({
         type: 'USER'
     }))
 
-    const pendingRows: UnifiedRow[] = [
-        ...orgInvites.map(i => ({
-            id: i.id,
-            name: i.name,
-            email: i.email,
-            role: 'ORGANIZER',
-            clubName: null,
-            status: 'PENDING' as const,
-            type: 'INVITE_ORG' as const
-        })),
-        ...cmInvites.map(i => ({
-            id: i.id,
-            name: null,
-            email: i.email,
-            role: 'CLUB_MASTER',
-            clubName: null,
-            status: 'PENDING' as const,
-            type: 'INVITE_CM' as const
-        }))
-    ]
+    const pendingRows: UnifiedRow[] = orgInvites.map(i => ({
+        id: i.id,
+        name: i.name,
+        email: i.email,
+        role: 'ORGANIZER',
+        clubName: null,
+        status: 'PENDING' as const,
+        type: 'INVITE_ORG' as const
+    }))
 
     // Client-side filtering for pending (similar logic to previous step)
     const filteredPending = pendingRows.filter(row => {
@@ -138,10 +125,7 @@ export default async function AdminUsersPage({
                 </div>
 
                 <div className="flex flex-col items-end gap-4 w-full md:w-auto">
-                    <InviteActions
-                        pendingOrganizerInvites={orgInvites} // Pass loaded invites to actions for modal list
-                        pendingClubMasterInvites={cmInvites}
-                    />
+                    <InviteActions pendingOrganizerInvites={orgInvites} />
                 </div>
             </div>
 
@@ -197,10 +181,7 @@ export default async function AdminUsersPage({
                                                     userName={u.name || 'User'}
                                                 />
                                             ) : (
-                                                <PendingActions
-                                                    inviteId={u.id}
-                                                    type={u.type === 'INVITE_ORG' ? 'ORGANIZER' : 'CLUB_MASTER'}
-                                                />
+                                                <PendingActions inviteId={u.id} type="ORGANIZER" />
                                             )}
                                         </td>
                                     </tr>
