@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from 'react'
 import { Upload, X, Home, Settings, ClipboardList, Users, Bell, Trophy, Medal, Clock, Search, Calendar, Zap, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
-import { approveRegistrations, unapproveRegistration, deleteRegistration, updatePlayerDetails, bulkUnapproveRegistrations, bulkDeleteRegistrations, fetchClubDashboardData, removeMemberFromClub, updateClubMember } from '@/app/actions'
+import { approveRegistrations, unapproveRegistration, deleteRegistration, updatePlayerDetails, bulkUnapproveRegistrations, bulkDeleteRegistrations, fetchClubDashboardData, removeMemberFromClub, updateClubMember, getClubSmartProposals } from '@/app/actions'
 import { updateRegistrationStatus } from '@/app/promotions/actions'
 
 import CustomSelect from '@/app/components/ui/CustomSelect'
@@ -21,6 +21,8 @@ import ClubScheduleWidget from '@/components/club/ClubScheduleWidget'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import ClubEventBrowser from './ClubEventBrowser'
 import AddAthleteModal from '@/components/club/AddAthleteModal'
+import CreateMemberModal from '@/components/club/CreateMemberModal'
+import ClubActionCenterModal from './ClubActionCenter'
 
 interface Player {
     id: string
@@ -41,6 +43,8 @@ interface Player {
         name: string | null
         email: string
     } | null
+    teamId?: string | null
+    poomsaeType?: string | null
 }
 
 interface Member {
@@ -225,6 +229,7 @@ export default function ClubDashboard({
     const [activeTab, setActiveTab] = useState<'ALL' | 'PENDING' | 'APPROVED'>('ALL')
     const [registrationType, setRegistrationType] = useState<'TOURNAMENT' | 'PROMOTION'>('TOURNAMENT')
     const [isAddAthleteOpen, setIsAddAthleteOpen] = useState(false)
+    const [isCreateMemberOpen, setIsCreateMemberOpen] = useState(false)
     const [registrationSearchQuery, setRegistrationSearchQuery] = useState('')
 
 
@@ -238,6 +243,16 @@ export default function ClubDashboard({
     const [editingPlayer, setEditingPlayer] = useState<Player | null>(null)
     const [editingMember, setEditingMember] = useState<Member | null>(null)
     const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false)
+    // Action Center Data
+    const { data: proposals, refetch: refetchProposals } = useQuery({
+        queryKey: ['club-smart-proposals', clubId],
+        queryFn: () => getClubSmartProposals(clubId),
+        staleTime: 1000 * 30 // 30 seconds
+    })
+
+    const [isActionModalOpen, setIsActionModalOpen] = useState(false)
+    const alertCount = proposals?.filter((p: any) => !p.myVote).length || 0
+
     const [isEventBrowserOpen, setIsEventBrowserOpen] = useState(false)
 
     // URL Search Support for Members
@@ -389,7 +404,7 @@ export default function ClubDashboard({
         }
     }
 
-    const handleSaveEdit = async (data: { name?: string, height?: number, weight?: number, belt?: string, skillLevel?: string }) => {
+    const handleSaveEdit = async (data: { name?: string, height?: number, weight?: number, belt?: string, skillLevel?: string, teamId?: string, poomsaeType?: string }) => {
         if (!editingPlayer) return
         setSubmitting(true)
         try {
@@ -559,6 +574,8 @@ export default function ClubDashboard({
                                 undefined
                     }
                     title={activeView === 'settings' ? 'Settings' : undefined}
+                    onActionClick={() => setIsActionModalOpen(true)}
+                    actionCount={alertCount}
                 />
 
                 <div className="sm:pb-0 min-h-screen">
@@ -571,6 +588,9 @@ export default function ClubDashboard({
 
                                     {/* Left Column - Main Content */}
                                     <div className="flex flex-col gap-6 h-full overflow-hidden">
+
+                                        {/* Action Center Modal moved to global scope */}
+
                                         {/* Stats Row */}
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-shrink-0">
                                             <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col justify-between min-h-[120px] hover:shadow-md transition-shadow">
@@ -601,7 +621,7 @@ export default function ClubDashboard({
 
                                             <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col justify-between min-h-[120px] hover:shadow-md transition-shadow">
                                                 <div className="flex items-center justify-between">
-                                                    <span className="text-xs font-medium text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">Pending</span>
+                                                    <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full">Pending</span>
                                                     <span className="text-xs text-red-500">Requires action</span>
                                                 </div>
                                                 <div>
@@ -640,15 +660,15 @@ export default function ClubDashboard({
                                                         {/* Next Event Card */}
                                                         <Link
                                                             href={`/tournament/${nextTournament.id}`}
-                                                            className="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl p-5 text-white shadow-lg cursor-pointer hover:shadow-xl transition-all block"
+                                                            className="bg-gradient-to-br from-red-600 to-red-700 rounded-2xl p-5 text-white shadow-lg cursor-pointer hover:shadow-xl transition-all block"
                                                         >
                                                             <div className="flex items-start justify-between">
                                                                 <div>
                                                                     <div className="mb-2">
-                                                                        <span className="text-xs font-medium text-indigo-200 uppercase tracking-wider">Next Event</span>
+                                                                        <span className="text-xs font-medium text-red-200 uppercase tracking-wider">Next Event</span>
                                                                     </div>
                                                                     <h3 className="text-lg font-bold mb-1 line-clamp-1">{nextTournament.name}</h3>
-                                                                    <p className="text-indigo-200 text-xs mt-2 flex items-center gap-1">
+                                                                    <p className="text-red-200 text-xs mt-2 flex items-center gap-1">
                                                                         <Clock size={12} />
                                                                         {new Date(nextTournament.startDate).toLocaleDateString('en-US', {
                                                                             month: 'short',
@@ -659,7 +679,7 @@ export default function ClubDashboard({
                                                                 </div>
                                                                 <div className="text-right flex-shrink-0">
                                                                     <div className="text-3xl font-black">{daysUntil}</div>
-                                                                    <div className="text-xs text-indigo-200">days</div>
+                                                                    <div className="text-xs text-red-200">days</div>
                                                                 </div>
                                                             </div>
                                                         </Link>
@@ -672,17 +692,17 @@ export default function ClubDashboard({
                                                                     <Link
                                                                         key={t.id}
                                                                         href={`/tournament/${t.id}`}
-                                                                        className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-indigo-100 hover:bg-indigo-50 cursor-pointer transition-all group"
+                                                                        className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-red-100 hover:bg-red-50 cursor-pointer transition-all group"
                                                                     >
-                                                                        <div className="w-10 h-10 rounded-lg bg-gray-50 flex flex-col items-center justify-center text-xs border border-gray-200 group-hover:border-indigo-200 group-hover:bg-white">
+                                                                        <div className="w-10 h-10 rounded-lg bg-gray-50 flex flex-col items-center justify-center text-xs border border-gray-200 group-hover:border-red-200 group-hover:bg-white">
                                                                             <span className="text-gray-500 font-bold uppercase">{new Date(t.startDate).toLocaleDateString('en-US', { month: 'short' })}</span>
                                                                             <span className="text-gray-900 font-bold">{new Date(t.startDate).getDate()}</span>
                                                                         </div>
                                                                         <div className="flex-1 min-w-0">
-                                                                            <h4 className="text-sm font-semibold text-gray-900 truncate group-hover:text-indigo-700">{t.name}</h4>
+                                                                            <h4 className="text-sm font-semibold text-gray-900 truncate group-hover:text-red-700">{t.name}</h4>
                                                                             <p className="text-xs text-gray-500 truncate">{t.athleteCount || 0} athletes registered</p>
                                                                         </div>
-                                                                        <ChevronRight size={16} className="text-gray-300 group-hover:text-indigo-400" />
+                                                                        <ChevronRight size={16} className="text-gray-300 group-hover:text-red-400" />
                                                                     </Link>
                                                                 ))}
                                                             </div>
@@ -695,7 +715,7 @@ export default function ClubDashboard({
                                                         <p className="text-sm text-gray-500 mb-4">Register for an event to get started!</p>
                                                         <button
                                                             onClick={() => setActiveView('tournaments')}
-                                                            className="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+                                                            className="text-sm text-red-600 hover:text-red-700 font-medium flex items-center gap-1"
                                                         >
                                                             Browse Events <ChevronRight size={14} />
                                                         </button>
@@ -728,8 +748,8 @@ export default function ClubDashboard({
                                                         <div key={athlete.name} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
                                                             <div className={`w-8 h-8 rounded-full flex items-center justify-center overflow-hidden text-xs font-bold ${index === 0 ? 'bg-yellow-100 text-yellow-700' :
                                                                 index === 1 ? 'bg-gray-100 text-gray-600' :
-                                                                    index === 2 ? 'bg-orange-100 text-orange-700' :
-                                                                        'bg-slate-100 text-slate-700'
+                                                                    index === 2 ? 'bg-red-100 text-red-700' :
+                                                                        'bg-red-50 text-red-600'
                                                                 }`}>
                                                                 {athlete.name?.charAt(0)}
                                                             </div>
@@ -766,6 +786,17 @@ export default function ClubDashboard({
                                 <div className="flex-1 flex flex-col min-h-0 sm:p-6 sm:max-w-[1920px] sm:mx-auto w-full">
                                     <div className="flex-1 flex flex-col min-h-0 bg-white sm:rounded-2xl sm:shadow-sm sm:border sm:border-gray-200 overflow-hidden">
                                         <div className="h-full flex flex-col">
+                                            {/* Header with Create Member Button */}
+                                            <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-100">
+                                                <h2 className="text-lg font-bold text-gray-900">Club Members</h2>
+                                                <button
+                                                    onClick={() => setIsCreateMemberOpen(true)}
+                                                    className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
+                                                >
+                                                    <Users className="w-4 h-4" />
+                                                    Create Member
+                                                </button>
+                                            </div>
                                             <MembersGrid
                                                 members={membersData?.paginatedMembers || []}
                                                 avatars={avatars}
@@ -832,15 +863,15 @@ export default function ClubDashboard({
                                                     {/* Filter Tabs with Select button */}
                                                     <div className="flex flex-wrap gap-4 items-center flex-1">
                                                         {/* Type Toggle */}
-                                                        <div className="flex p-1 bg-indigo-50/50 rounded-xl border border-indigo-100/50">
+                                                        <div className="flex p-1 bg-red-50/50 rounded-xl border border-red-100/50">
                                                             <button
                                                                 onClick={() => {
                                                                     setRegistrationType('TOURNAMENT')
                                                                     setRegistrationsPage(1)
                                                                 }}
                                                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${registrationType === 'TOURNAMENT'
-                                                                    ? 'bg-indigo-600 text-white shadow-sm'
-                                                                    : 'text-indigo-600 hover:bg-indigo-100'
+                                                                    ? 'bg-red-600 text-white shadow-sm'
+                                                                    : 'text-red-600 hover:bg-red-100'
                                                                     }`}
                                                             >
                                                                 Tournaments
@@ -851,8 +882,8 @@ export default function ClubDashboard({
                                                                     setRegistrationsPage(1)
                                                                 }}
                                                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${registrationType === 'PROMOTION'
-                                                                    ? 'bg-indigo-600 text-white shadow-sm'
-                                                                    : 'text-indigo-600 hover:bg-indigo-100'
+                                                                    ? 'bg-red-600 text-white shadow-sm'
+                                                                    : 'text-red-600 hover:bg-red-100'
                                                                     }`}
                                                             >
                                                                 Promotions
@@ -865,7 +896,7 @@ export default function ClubDashboard({
                                                             <button
                                                                 onClick={() => setBulkSelectMode(!bulkSelectMode)}
                                                                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${bulkSelectMode
-                                                                    ? 'bg-indigo-600 text-white'
+                                                                    ? 'bg-red-600 text-white'
                                                                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                                                     }`}
                                                             >
@@ -896,7 +927,7 @@ export default function ClubDashboard({
                                                     </div>
                                                     <button
                                                         onClick={() => setIsAddAthleteOpen(true)}
-                                                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold shadow-sm transition-all active:scale-95"
+                                                        className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold shadow-sm transition-all active:scale-95"
                                                     >
                                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -926,7 +957,7 @@ export default function ClubDashboard({
                                                                     return (
                                                                         <div
                                                                             key={player.id}
-                                                                            className={`px-4 py-3 flex items-center gap-3 ${isSelected ? 'bg-indigo-50' : ''}`}
+                                                                            className={`px-4 py-3 flex items-center gap-3 ${isSelected ? 'bg-red-50' : ''}`}
                                                                         >
                                                                             {/* ... (Existing Tournament Row Logic) ... */}
                                                                             {/* Card Header */}
@@ -936,8 +967,8 @@ export default function ClubDashboard({
                                                                                     <button
                                                                                         onClick={(e) => toggleSelect(player.id, e)}
                                                                                         className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${isSelected
-                                                                                            ? 'bg-indigo-600 border-indigo-600 text-white'
-                                                                                            : 'border-gray-300 hover:border-indigo-400'
+                                                                                            ? 'bg-red-600 border-red-600 text-white'
+                                                                                            : 'border-gray-300 hover:border-red-400'
                                                                                             }`}
                                                                                     >
                                                                                         {isSelected && (
@@ -952,7 +983,7 @@ export default function ClubDashboard({
                                                                                 {avatar ? (
                                                                                     <img src={avatar} alt={player.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
                                                                                 ) : (
-                                                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+                                                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-500 to-purple-500 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
                                                                                         {player.name.charAt(0)}
                                                                                     </div>
                                                                                 )}
@@ -971,7 +1002,14 @@ export default function ClubDashboard({
                                                                                             </span>
                                                                                         )}
                                                                                     </div>
-                                                                                    <p className="text-xs text-gray-500 truncate mt-0.5">{player.category.name} • {player.category.tournament.name}</p>
+                                                                                    <p className="text-xs text-gray-500 truncate mt-0.5">
+                                                                                        {player.category.name} • {player.category.tournament.name}
+                                                                                        {player.poomsaeType && player.poomsaeType !== 'INDIVIDUAL' && (
+                                                                                            <span className="ml-2 font-medium text-blue-600">
+                                                                                                {player.poomsaeType} {player.teamId ? `(Team ${player.teamId})` : '(No ID)'}
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </p>
                                                                                 </div>
                                                                             </div>
 
@@ -1062,7 +1100,7 @@ export default function ClubDashboard({
 
                                                                     return (
                                                                         <div key={promo.id} className="px-4 py-3 flex items-center gap-3">
-                                                                            <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm">
+                                                                            <div className="w-10 h-10 rounded-full bg-red-100 text-red-700 flex items-center justify-center font-bold text-sm">
                                                                                 {promo.name.charAt(0)}
                                                                             </div>
                                                                             <div className="flex-1 min-w-0">
@@ -1234,7 +1272,9 @@ export default function ClubDashboard({
                                                 weight: Number(formData.get('weight')),
                                                 height: Number(formData.get('height')),
                                                 belt: formData.get('belt') as string,
-                                                skillLevel: formData.get('skillLevel') as string
+                                                skillLevel: formData.get('skillLevel') as string,
+                                                teamId: formData.get('teamId') as string,
+                                                poomsaeType: formData.get('poomsaeType') as string
                                             })
                                         }}
                                         className="space-y-4"
@@ -1245,7 +1285,7 @@ export default function ClubDashboard({
                                                 type="text"
                                                 name="name"
                                                 defaultValue={editingPlayer.name}
-                                                className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                                                className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
                                                 placeholder="Enter full name"
                                             />
                                         </div>
@@ -1276,6 +1316,32 @@ export default function ClubDashboard({
                                             <input type="hidden" name="skillLevel" value={editingPlayer.skillLevel || 'Novice'} />
                                         </div>
 
+                                        {/* Poomsae Event Type & Team ID */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <CustomSelect
+                                                    label="Event Type"
+                                                    value={editingPlayer.poomsaeType || 'INDIVIDUAL'}
+                                                    onChange={(val) => {
+                                                        setEditingPlayer({ ...editingPlayer, poomsaeType: val })
+                                                    }}
+                                                    options={['INDIVIDUAL', 'PAIR', 'TEAM']}
+                                                    className="w-full"
+                                                />
+                                                <input type="hidden" name="poomsaeType" value={editingPlayer.poomsaeType || 'INDIVIDUAL'} />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Team ID</label>
+                                                <input
+                                                    type="text"
+                                                    name="teamId"
+                                                    defaultValue={editingPlayer.teamId || ''}
+                                                    placeholder="e.g. 1"
+                                                    className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
+                                                />
+                                            </div>
+                                        </div>
+
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">Weight (kg)</label>
@@ -1284,7 +1350,7 @@ export default function ClubDashboard({
                                                     name="weight"
                                                     step="0.1"
                                                     defaultValue={editingPlayer.weight || ''}
-                                                    className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                                                    className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
                                                 />
                                             </div>
                                             <div>
@@ -1293,7 +1359,7 @@ export default function ClubDashboard({
                                                     type="number"
                                                     name="height"
                                                     defaultValue={editingPlayer.height || ''}
-                                                    className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                                                    className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
                                                 />
                                             </div>
                                         </div>
@@ -1309,7 +1375,7 @@ export default function ClubDashboard({
                                             <button
                                                 type="submit"
                                                 disabled={submitting}
-                                                className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                                className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-red-600 hover:bg-red-700 shadow-lg shadow-red-100 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                             >
                                                 {submitting ? (
                                                     <>
@@ -1367,7 +1433,7 @@ export default function ClubDashboard({
                                                 type="text"
                                                 name="name"
                                                 defaultValue={editingMember.name || ''}
-                                                className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                                                className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
                                                 placeholder="Full Name"
                                             />
                                         </div>
@@ -1403,7 +1469,7 @@ export default function ClubDashboard({
                                                 name="weight"
                                                 step="0.1"
                                                 defaultValue={editingMember.weight || ''}
-                                                className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                                                className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
                                             />
                                         </div>
 
@@ -1418,7 +1484,7 @@ export default function ClubDashboard({
                                             <button
                                                 type="submit"
                                                 disabled={submitting}
-                                                className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                                                className="px-4 py-2 bg-red-600 text-white font-medium rounded-xl hover:bg-red-700 transition-colors shadow-sm disabled:opacity-50"
                                             >
                                                 {submitting ? 'Saving...' : 'Save Changes'}
                                             </button>
@@ -1463,29 +1529,21 @@ export default function ClubDashboard({
                                                 <div className="font-bold text-gray-900 text-xl">{selectedTournament.silver}</div>
                                                 <div className="text-xs text-gray-500/70 font-bold uppercase tracking-wide">Silver</div>
                                             </div>
-                                            <div className="text-center p-3 rounded-xl bg-orange-50 border border-orange-100/50">
+                                            <div className="text-center p-3 rounded-xl bg-red-50 border border-red-100/50">
                                                 <div className="text-3xl mb-1">🥉</div>
                                                 <div className="font-bold text-gray-900 text-xl">{selectedTournament.bronze}</div>
-                                                <div className="text-xs text-orange-700/70 font-bold uppercase tracking-wide">Bronze</div>
+                                                <div className="text-xs text-red-700/70 font-bold uppercase tracking-wide">Bronze</div>
                                             </div>
-                                        </div>
-
-                                        {/* Footer Stats */}
-                                        <div className="border-t border-gray-100 pt-4 flex items-center justify-between">
-                                            <span className="text-gray-500 font-medium">Total Athletes Entered</span>
-                                            <span className="text-lg font-bold text-gray-900 bg-gray-100 px-3 py-1 rounded-lg">
-                                                {selectedTournament.athleteCount}
-                                            </span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         )
                     }
+                </div>
+            </div>
 
-                </div >
-            </div >
-            {/* Browser Modal */}
+            {/* Global Modals */}
             {
                 isEventBrowserOpen && (
                     <ClubEventBrowser
@@ -1494,14 +1552,26 @@ export default function ClubDashboard({
                     />
                 )
             }
-            {/* Add Athlete Modal */}
+
             <AddAthleteModal
-                isOpen={isAddAthleteOpen} // Assuming isAddAthleteOpen state is defined in the parent component
-                onClose={() => setIsAddAthleteOpen(false)} // Assuming setIsAddAthleteOpen setter is defined
+                isOpen={isAddAthleteOpen}
+                onClose={() => setIsAddAthleteOpen(false)}
                 clubId={clubId}
-                clubName={clubName || ''} // Assuming clubName prop is available
+                clubName={clubName || ''}
+            />
+
+            <CreateMemberModal
+                isOpen={isCreateMemberOpen}
+                onClose={() => setIsCreateMemberOpen(false)}
+            />
+
+            <ClubActionCenterModal
+                isOpen={isActionModalOpen}
+                onClose={() => setIsActionModalOpen(false)}
+                clubId={clubId}
+                proposals={proposals || []}
+                onRefresh={refetchProposals}
             />
         </div >
     )
 }
-

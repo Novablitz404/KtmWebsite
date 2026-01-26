@@ -1,7 +1,7 @@
 import { currentUser } from '@clerk/nextjs/server'
 import { prisma } from '@/lib/prisma'
 import { redirect, notFound } from 'next/navigation'
-import { autoPlacePlayer, calculateAge } from '@/lib/placement'
+
 import RegisterConfirm from './RegisterConfirm'
 
 interface Props {
@@ -110,18 +110,24 @@ export default async function RegisterPage({ params }: Props) {
     // The previous logic blocked it. Let's keep blocking for now unless requested, 
     // BUT we need to handle "Poomsae" users who might have 0 matches in "autoPlace".
 
-    // Auto-place the player (Kyorugi)
-    let placement = await autoPlacePlayer(
-        tournament.guidelineTemplateId!,
+    // Auto-place the player (Kyorugi default)
+    // We try to find a Kyorugi match first. If none, we might try Poomsae or just return null.
+    // The previous logic assumed Kyorugi.
+
+    // Import findCategoryForPlayer from library
+    const { findCategoryForPlayer } = await import('@/lib/placement')
+
+    let predictedCategory = await findCategoryForPlayer(
+        tournament.id,
         {
             birthDate: dbUser.birthDate!,
             gender: dbUser.gender!,
-            weight: dbUser.weight!
+            weight: dbUser.weight!,
+            height: dbUser.height || 0,
+            belt: dbUser.belt || undefined,
+            type: 'KYORUGI' // Default checking
         }
     )
-
-    // Note: We no longer fetch specific Poomsae categories here because 
-    // we use a generic "Poomsae Open" registration flow.
 
     return (
         <main className="min-h-screen bg-gray-50 pb-2 flex flex-col items-center justify-center">
@@ -129,8 +135,7 @@ export default async function RegisterPage({ params }: Props) {
                 <RegisterConfirm
                     tournament={tournament}
                     user={dbUser}
-                    placement={placement}
-                    poomsaeCategories={[]} // No longer used but kept for interface compat if needed (removed from prop type though)
+                    suggestedCategory={predictedCategory}
                     existingRegistrations={existingRegistrations}
                 />
             </div>

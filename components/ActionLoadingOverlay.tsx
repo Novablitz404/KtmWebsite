@@ -9,15 +9,21 @@ interface ActionLoadingOverlayProps {
     message?: string
 }
 
+import { createPortal } from 'react-dom'
+
 export default function ActionLoadingOverlay({
     isLoading,
     title = "Processing...",
     message = "Please wait, do not refresh or close this page."
 }: ActionLoadingOverlayProps) {
-    if (!isLoading) return null
+    // Prevent hydration mismatch
+    const [mounted, setMounted] = React.useState(false)
+    React.useEffect(() => setMounted(true), [])
 
-    return (
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white/80 backdrop-blur-md animate-in fade-in duration-300">
+    if (!isLoading || !mounted) return null
+
+    return createPortal(
+        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white/80 backdrop-blur-md animate-in fade-in duration-300">
             <div className="flex flex-col items-center max-w-sm text-center p-8 rounded-3xl">
                 {/* Taekwondo Kick Animation Placeholder - Using a pulse effect on an icon for now or a spinner */}
                 <div className="relative mb-8">
@@ -53,6 +59,7 @@ export default function ActionLoadingOverlay({
                     100% { transform: translateX(100%); }
                 }
             `}</style>
-        </div>
+        </div>,
+        document.body
     )
 }

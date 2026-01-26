@@ -41,7 +41,7 @@ export default function AuthLoadingWrapper({ children }: { children: React.React
                             redirectTo = '/organization'
                             break
                         case 'MANAGER':
-                            redirectTo = '/organizer-tournaments'
+                            redirectTo = '/organization?tab=events'
                             break
                         case 'CLUB_MASTER':
                         case 'ASSISTANT_CLUB_MASTER':

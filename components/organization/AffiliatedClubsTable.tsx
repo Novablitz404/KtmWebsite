@@ -21,10 +21,12 @@ interface ClubData {
 
 export default function AffiliatedClubsTable({
     clubs: initialClubs,
-    embedded = false
+    embedded = false,
+    isLoading = false
 }: {
     clubs: ClubData[],
-    embedded?: boolean
+    embedded?: boolean,
+    isLoading?: boolean
 }) {
     const [sortKey, setSortKey] = useState<'name' | 'members'>('name')
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
@@ -87,7 +89,31 @@ export default function AffiliatedClubsTable({
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-50">
-                            {sortedApprovedClubs.length === 0 ? (
+                            {isLoading ? (
+                                // Skeleton Rows
+                                Array.from({ length: 5 }).map((_, i) => (
+                                    <tr key={i} className="animate-pulse">
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-lg bg-gray-100" />
+                                                <div className="h-4 w-32 bg-gray-100 rounded" />
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="h-4 w-24 bg-gray-100 rounded" />
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="h-4 w-32 bg-gray-100 rounded" />
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                                            <div className="mx-auto h-5 w-8 bg-gray-100 rounded-full" />
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                                            <div className="ml-auto h-4 w-24 bg-gray-100 rounded" />
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : sortedApprovedClubs.length === 0 ? (
                                 <tr>
                                     <td colSpan={5} className="px-6 py-12 text-center text-gray-500 italic">
                                         No active affiliated clubs.
@@ -101,7 +127,7 @@ export default function AffiliatedClubsTable({
                                                 {club.logoUrl ? (
                                                     <img src={club.logoUrl} alt={club.name} className="w-10 h-10 rounded-lg object-contain bg-gray-50 border border-gray-100" />
                                                 ) : (
-                                                    <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold border border-indigo-100">
+                                                    <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center text-red-600 font-bold border border-red-100">
                                                         {club.name.charAt(0)}
                                                     </div>
                                                 )}

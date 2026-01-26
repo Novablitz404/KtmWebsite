@@ -9,9 +9,11 @@ interface ClubTopBarProps {
     onNotificationsClick?: () => void
     onBrowseEvents?: () => void
     searchQuery?: string
-    onSearchChange?: (query: string) => void
+    onSearchChange?: (term: string) => void
     searchPlaceholder?: string
     title?: string
+    onActionClick?: () => void
+    actionCount?: number
 }
 
 export default function ClubTopBar({
@@ -23,12 +25,15 @@ export default function ClubTopBar({
     searchQuery,
     onSearchChange,
     searchPlaceholder = 'Search...',
-    title
+    title,
+    onActionClick,
+    actionCount = 0
 }: ClubTopBarProps) {
     if (title) {
         return (
-            <div className="hidden md:flex items-center h-16 px-6">
+            <div className="hidden md:flex items-center justify-between h-16 px-6">
                 <h1 className="text-xl font-bold text-gray-900">{title}</h1>
+                {/* Show Action Button here too if needed, or just Profile */}
             </div>
         )
     }
@@ -63,7 +68,21 @@ export default function ClubTopBar({
 
             {/* Right Side: Notifications & User Profile */}
             <div className="flex items-center gap-4">
-                {/* Notification Bell Removed as requested */}
+                {/* Action Center Button */}
+                <button
+                    onClick={onActionClick}
+                    className="relative p-2 text-gray-400 hover:text-red-600 transition-all group"
+                >
+                    <div className={`transition-transform duration-200 ${actionCount > 0 ? 'group-hover:rotate-12' : ''}`}>
+                        <Bell size={20} className={actionCount > 0 ? "fill-red-600 text-red-600" : ""} />
+                    </div>
+                    {actionCount > 0 && (
+                        <span className="absolute top-1.5 right-2 flex h-3 w-3">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500 border-2 border-white"></span>
+                        </span>
+                    )}
+                </button>
 
                 {/* User Profile - Display only */}
                 <div className="flex items-center gap-3 px-3 py-1.5">

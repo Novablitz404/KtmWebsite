@@ -1,7 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { currentUser } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
-import AdminShell from './AdminShell'
 
 export default async function AdminLayout({
     children,
@@ -15,13 +14,8 @@ export default async function AdminLayout({
     if (dbUser?.role !== 'ADMIN') redirect('/')
 
     return (
-        <AdminShell
-            user={{
-                name: dbUser.name,
-                email: dbUser.email
-            }}
-        >
+        <>
             {children}
-        </AdminShell>
+        </>
     )
 }

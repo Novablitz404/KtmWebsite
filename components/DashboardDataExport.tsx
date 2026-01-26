@@ -45,26 +45,21 @@ export default function DashboardDataExport({ tournamentId, tournamentName, clas
         setDownloading('matches')
         const data = await fetchTournamentData()
         if (data && data.matches) {
-            // Columns: Match_ID, Category, Round, Player_1, Player_2, Winner_To_Match_ID, Winner_To_Slot, Court
+            // Columns: Match_ID, Category, Round, Player_1, Player_1_ID, Player_2, Player_2_ID, Winner_To_Match_ID, Winner_To_Slot, Court
             const headers = ['Match_ID', 'Category', 'Round', 'Player_1', 'Player_1_ID', 'Player_2', 'Player_2_ID', 'Winner_To_Match_ID', 'Winner_To_Slot', 'Court']
 
             const rows = data.matches.map((m: any) => {
-                const player1 = m.bluePlayer ? `${m.bluePlayer.name} (${m.bluePlayer.club})` : 'BYE'
-                const player1Id = m.bluePlayer?.id || ''
-                const player2 = m.redPlayer ? `${m.redPlayer.name} (${m.redPlayer.club})` : 'BYE'
-                const player2Id = m.redPlayer?.id || ''
-
                 return [
-                    m.matchId,
-                    m.category,
-                    m.round,
-                    `"${player1}"`, // Quote to handle commas in names/clubs
-                    player1Id,
-                    `"${player2}"`,
-                    player2Id,
-                    m.nextMatchId || '',
-                    m.nextMatchSlot || '',
-                    m.court || ''
+                    m.Match_ID,
+                    `"${m.Category}"`, // Quote category just in case
+                    m.Round,
+                    `"${m.Player_1}"`, // Already formatted as Name (Club) by API
+                    m.Player_1_ID,
+                    `"${m.Player_2}"`, // Already formatted as Name (Club) by API
+                    m.Player_2_ID,
+                    m.Winner_To_Match_ID || '',
+                    m.Winner_To_Slot || '',
+                    m.Court || ''
                 ].join(',')
             })
 
@@ -83,24 +78,71 @@ export default function DashboardDataExport({ tournamentId, tournamentName, clas
         setDownloading(null)
     }
 
+    const downloadPoomsaeMatchesCSV = async () => {
+        setDownloading('poomsaeMatches')
+        const data = await fetchTournamentData()
+        if (data && data.masterList) {
+            // Filter only Poomsae players
+            const poomsaePlayers = data.masterList.filter((p: any) => p.type === 'POOMSAE')
+
+            if (poomsaePlayers.length > 0) {
+                // Columns: Player_ID, First Name, Last Name, Date Of Birth, Gender, Belt Rank, Club, Court, Event Type, Team ID
+                // Note: User requested Player_ID be added. Placing at start for consistency.
+                const headers = ['Player_ID', 'First Name', 'Last Name', 'Date Of Birth', 'Gender', 'Belt Rank', 'Club', 'Court', 'Event Type', 'Team ID']
+
+                const rows = poomsaePlayers.map((p: any) => {
+                    return [
+                        p.Player_ID,
+                        `"${p["First Name"]}"`,
+                        `"${p["Last Name"]}"`,
+                        p["Date Of Birth"] || '',
+                        p.Gender,
+                        p["Belt Rank"],
+                        `"${p.Club}"`,
+                        p.Court || '',
+                        p["Event Type"],
+                        p["Team ID"] || ''
+                    ].join(',')
+                })
+
+                const csvContent = [headers.join(','), ...rows].join('\n')
+
+                const blob = new Blob([csvContent], { type: 'text/csv' })
+                const url = window.URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `poomsae-matches-${tournamentName.replace(/\s+/g, '_')}.csv`
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+                window.URL.revokeObjectURL(url)
+            } else {
+                alert('No Poomsae data found.')
+            }
+        }
+        setDownloading(null)
+    }
+
     const downloadMasterlistCSV = async () => {
         setDownloading('masterlist')
         const data = await fetchTournamentData()
 
         if (data && data.masterList) {
-            // Columns: athlete Id, First name, Last name, Date of birth, Gender, Belt Rank, Club, Court
-            const headers = ['athlete Id', 'First name', 'Last name', 'Date of birth', 'Gender', 'Belt Rank', 'Club', 'Court']
+            // Columns from User Request
+            const headers = ['Player_ID', 'First Name', 'Last Name', 'Date Of Birth', 'Gender', 'Belt Rank', 'Club', 'Court', 'Event Type', 'Team ID']
 
             const rows = data.masterList.map((p: any) => {
                 return [
-                    p.id,
-                    p.firstName,
-                    p.lastName,
-                    p.birthDate ? new Date(p.birthDate).toISOString().split('T')[0] : '',
-                    p.gender,
-                    p.belt,
-                    `"${p.club}"`,
-                    p.court || ''
+                    p.Player_ID,
+                    `"${p["First Name"]}"`,
+                    `"${p["Last Name"]}"`,
+                    p["Date Of Birth"] || '',
+                    p.Gender,
+                    p["Belt Rank"],
+                    `"${p.Club}"`,
+                    p.Court || '',
+                    p["Event Type"],
+                    p["Team ID"] || ''
                 ].join(',')
             })
 
@@ -110,7 +152,8 @@ export default function DashboardDataExport({ tournamentId, tournamentName, clas
             const url = window.URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = url
-            a.download = `poomsae-masterlist-${tournamentName.replace(/\s+/g, '_')}.csv`
+            // Renamed file for clarity
+            a.download = `masterlist-${tournamentName.replace(/\s+/g, '_')}.csv`
             document.body.appendChild(a)
             a.click()
             document.body.removeChild(a)
@@ -131,20 +174,33 @@ export default function DashboardDataExport({ tournamentId, tournamentName, clas
                 ) : (
                     <Download className="w-4 h-4" />
                 )}
-                Export Matches (CSV)
+                Export Kyorugi Matches
+            </button>
+
+            <button
+                onClick={downloadPoomsaeMatchesCSV}
+                disabled={!!downloading}
+                className="inline-flex items-center gap-2 px-3 py-2 bg-purple-50 text-purple-700 text-sm font-medium rounded-lg hover:bg-purple-100 transition-colors disabled:opacity-50"
+            >
+                {downloading === 'poomsaeMatches' ? (
+                    <span className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                    <Download className="w-4 h-4" />
+                )}
+                Export Poomsae Matches
             </button>
 
             <button
                 onClick={downloadMasterlistCSV}
                 disabled={!!downloading}
-                className="inline-flex items-center gap-2 px-3 py-2 bg-purple-50 text-purple-700 text-sm font-medium rounded-lg hover:bg-purple-100 transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-3 py-2 bg-teal-50 text-teal-700 text-sm font-medium rounded-lg hover:bg-teal-100 transition-colors disabled:opacity-50"
             >
                 {downloading === 'masterlist' ? (
-                    <span className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                    <span className="w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
                 ) : (
                     <Download className="w-4 h-4" />
                 )}
-                Export Poomsae (CSV)
+                Export Masterlist
             </button>
 
             <button

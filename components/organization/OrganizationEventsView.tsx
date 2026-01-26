@@ -1,9 +1,9 @@
 'use client'
 
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getOrganizerTournaments } from '@/app/organizer-tournaments/actions'
+import { getOrganizerTournaments } from '@/app/organization/actions'
 import { getPromotionTests } from '@/app/promotions/actions'
 import TournamentsList from '@/components/TournamentsList'
 import PromotionsList from '@/app/promotions/PromotionsList'
@@ -16,16 +16,21 @@ import CreatePromotionModal from '@/components/CreatePromotionModal'
 type EventType = 'tournaments' | 'promotions'
 const ITEMS_PER_PAGE = 10
 
-export default function OrganizationEventsView() {
+interface OrganizationEventsViewProps {
+    searchQuery?: string
+    templates?: { id: string; name: string }[]
+}
+
+export default function OrganizationEventsView({ searchQuery = '', templates = [] }: OrganizationEventsViewProps) {
     const [eventType, setEventType] = useState<EventType>('tournaments')
     const [currentPage, setCurrentPage] = useState(1)
     const [isTournamentModalOpen, setIsTournamentModalOpen] = useState(false)
     const [isPromotionModalOpen, setIsPromotionModalOpen] = useState(false)
 
-    // Reset page when switching event type
+    // Reset page when switching event type or search query changes
     useEffect(() => {
         setCurrentPage(1)
-    }, [eventType])
+    }, [eventType, searchQuery])
 
     // Fetch tournaments
     const { data: tournaments, isLoading: tournamentsLoading } = useQuery({
@@ -41,8 +46,27 @@ export default function OrganizationEventsView() {
         staleTime: 1000 * 60 * 5
     })
 
+    // Filter data by search query
+    const filteredTournaments = useMemo(() => {
+        if (!searchQuery.trim() || !tournaments) return tournaments || []
+        const query = searchQuery.toLowerCase()
+        return tournaments.filter((t: any) =>
+            t.name?.toLowerCase().includes(query) ||
+            t.venue?.toLowerCase().includes(query)
+        )
+    }, [tournaments, searchQuery])
+
+    const filteredPromotions = useMemo(() => {
+        if (!searchQuery.trim() || !promotionTests) return promotionTests || []
+        const query = searchQuery.toLowerCase()
+        return promotionTests.filter((p: any) =>
+            p.name?.toLowerCase().includes(query) ||
+            p.venue?.toLowerCase().includes(query)
+        )
+    }, [promotionTests, searchQuery])
+
     // Pagination Logic
-    const currentData = eventType === 'tournaments' ? tournaments : promotionTests
+    const currentData = eventType === 'tournaments' ? filteredTournaments : filteredPromotions
     const totalItems = currentData?.length || 0
     const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE)
 
@@ -87,7 +111,7 @@ export default function OrganizationEventsView() {
                         <button
                             onClick={() => setEventType('tournaments')}
                             className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${eventType === 'tournaments'
-                                ? 'bg-white text-indigo-600 shadow-sm'
+                                ? 'bg-white text-red-600 shadow-sm'
                                 : 'text-gray-500 hover:text-gray-700'
                                 }`}
                         >
@@ -97,7 +121,7 @@ export default function OrganizationEventsView() {
                         <button
                             onClick={() => setEventType('promotions')}
                             className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${eventType === 'promotions'
-                                ? 'bg-white text-indigo-600 shadow-sm'
+                                ? 'bg-white text-red-600 shadow-sm'
                                 : 'text-gray-500 hover:text-gray-700'
                                 }`}
                         >
@@ -109,7 +133,7 @@ export default function OrganizationEventsView() {
                     {/* Create Button */}
                     <button
                         onClick={handleCreateClick}
-                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold shadow-sm transition-all"
+                        className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold shadow-sm transition-all"
                     >
                         <Plus size={16} />
                         <span className="hidden sm:inline">Create</span>
@@ -124,36 +148,14 @@ export default function OrganizationEventsView() {
                     {eventType === 'tournaments' ? (
                         tournamentsLoading ? (
                             <TournamentsTableSkeleton />
-                        ) : tournaments && tournaments.length > 0 ? (
-                            <TournamentsList tournaments={paginatedData as any} embedded={true} />
                         ) : (
-                            <div className="p-8 text-center h-full flex flex-col items-center justify-center">
-                                <Trophy className="w-12 h-12 text-gray-300 mb-4" />
-                                <p className="text-gray-500">No tournaments found.</p>
-                                <button
-                                    onClick={() => setIsTournamentModalOpen(true)}
-                                    className="mt-4 inline-block text-indigo-600 hover:text-indigo-500 font-medium"
-                                >
-                                    Create your first tournament →
-                                </button>
-                            </div>
+                            <TournamentsList tournaments={paginatedData as any} embedded={true} />
                         )
                     ) : (
                         promotionsLoading ? (
                             <PromotionsTableSkeleton />
-                        ) : promotionTests && promotionTests.length > 0 ? (
-                            <PromotionsList promotionTests={paginatedData as any} />
                         ) : (
-                            <div className="p-8 text-center h-full flex flex-col items-center justify-center">
-                                <Award className="w-12 h-12 text-gray-300 mb-4" />
-                                <p className="text-gray-500">No promotion tests found.</p>
-                                <button
-                                    onClick={() => setIsPromotionModalOpen(true)}
-                                    className="mt-4 inline-block text-indigo-600 hover:text-indigo-500 font-medium"
-                                >
-                                    Create your first promotion test →
-                                </button>
-                            </div>
+                            <PromotionsList promotionTests={paginatedData as any} />
                         )
                     )}
                 </div>
@@ -199,7 +201,7 @@ export default function OrganizationEventsView() {
             <CreateTournamentModal
                 isOpen={isTournamentModalOpen}
                 onClose={() => setIsTournamentModalOpen(false)}
-                templates={[]} // If templates are needed, fetch them or pass appropriate default
+                templates={templates}
             />
             <CreatePromotionModal
                 isOpen={isPromotionModalOpen}

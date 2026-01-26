@@ -68,9 +68,7 @@ async function cleanDatabase() {
     const orgCount = await prisma.organization.deleteMany({})
     console.log(`   - Organizations: ${orgCount.count}`)
 
-    // 12. Delete invites
-    const orgInviteCount = await prisma.organizationInvite.deleteMany({})
-    console.log(`   - Organization Invites: ${orgInviteCount.count}`)
+    // 12. Delete invites (OrganizationInvite was removed, now using approval flow)
 
     const clubAssistantInviteCount = await prisma.clubAssistantInvite.deleteMany({})
     console.log(`   - Club Assistant Invites: ${clubAssistantInviteCount.count}`)

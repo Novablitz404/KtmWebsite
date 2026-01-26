@@ -30,16 +30,6 @@ interface PromotionsListProps {
 }
 
 export default function PromotionsList({ promotionTests }: PromotionsListProps) {
-    if (promotionTests.length === 0) {
-        return (
-            <div className="p-12 text-center">
-                <p className="text-4xl mb-3">📋</p>
-                <p className="text-gray-500 font-medium">No promotion tests scheduled yet.</p>
-                <p className="text-sm text-gray-400 mt-1">Click "New Promotion Test" to create one.</p>
-            </div>
-        )
-    }
-
     return (
         <table className="w-full text-left border-collapse min-w-[700px]">
             <thead>
@@ -54,72 +44,82 @@ export default function PromotionsList({ promotionTests }: PromotionsListProps) 
                 </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-                {promotionTests.map((test) => {
-                    const config = statusConfig[test.status] || statusConfig.UPCOMING
-                    return (
-                        <tr key={test.id} className="hover:bg-gray-50/50 transition-colors">
-                            <td className="px-6 py-4">
-                                <span className="font-semibold text-gray-900">{test.name}</span>
-                                {test.description && (
-                                    <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{test.description}</p>
-                                )}
-                            </td>
-                            <td className="px-6 py-4 text-gray-600 text-sm">
-                                <div className="flex items-center gap-1.5">
-                                    <Calendar className="w-4 h-4 text-gray-400" />
-                                    {new Date(test.testDate).toLocaleDateString(undefined, {
-                                        year: 'numeric',
-                                        month: 'short',
-                                        day: 'numeric'
-                                    })}
-                                </div>
-                            </td>
-                            <td className="px-6 py-4 text-gray-600 text-sm">
-                                {test.venue ? (
+                {promotionTests.length === 0 ? (
+                    <tr>
+                        <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                            <p className="text-4xl mb-3">📋</p>
+                            <p className="text-gray-500 font-medium">No promotion tests scheduled yet.</p>
+                            <p className="text-sm text-gray-400 mt-1">Click "New Promotion Test" to create one.</p>
+                        </td>
+                    </tr>
+                ) : (
+                    promotionTests.map((test) => {
+                        const config = statusConfig[test.status] || statusConfig.UPCOMING
+                        return (
+                            <tr key={test.id} className="hover:bg-gray-50/50 transition-colors">
+                                <td className="px-6 py-4">
+                                    <span className="font-semibold text-gray-900">{test.name}</span>
+                                    {test.description && (
+                                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{test.description}</p>
+                                    )}
+                                </td>
+                                <td className="px-6 py-4 text-gray-600 text-sm">
                                     <div className="flex items-center gap-1.5">
-                                        <MapPin className="w-4 h-4 text-gray-400" />
-                                        {test.venue}
+                                        <Calendar className="w-4 h-4 text-gray-400" />
+                                        {new Date(test.testDate).toLocaleDateString(undefined, {
+                                            year: 'numeric',
+                                            month: 'short',
+                                            day: 'numeric'
+                                        })}
                                     </div>
-                                ) : (
-                                    <span className="text-gray-400">-</span>
-                                )}
-                            </td>
-                            <td className="px-6 py-4 text-gray-600 text-sm">
-                                {test.fee ? (
-                                    <div className="flex items-center gap-1">
-                                        <DollarSign className="w-4 h-4 text-gray-400" />
-                                        ₱{test.fee.toFixed(0)}
+                                </td>
+                                <td className="px-6 py-4 text-gray-600 text-sm">
+                                    {test.venue ? (
+                                        <div className="flex items-center gap-1.5">
+                                            <MapPin className="w-4 h-4 text-gray-400" />
+                                            {test.venue}
+                                        </div>
+                                    ) : (
+                                        <span className="text-gray-400">-</span>
+                                    )}
+                                </td>
+                                <td className="px-6 py-4 text-gray-600 text-sm">
+                                    {test.fee ? (
+                                        <div className="flex items-center gap-1">
+                                            <DollarSign className="w-4 h-4 text-gray-400" />
+                                            ₱{test.fee.toFixed(0)}
+                                        </div>
+                                    ) : (
+                                        <span className="text-green-600 font-medium">Free</span>
+                                    )}
+                                </td>
+                                <td className="px-6 py-4">
+                                    <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                                        <Users className="w-4 h-4 text-gray-400" />
+                                        {test._count.registrations}
                                     </div>
-                                ) : (
-                                    <span className="text-green-600 font-medium">Free</span>
-                                )}
-                            </td>
-                            <td className="px-6 py-4">
-                                <div className="flex items-center gap-1.5 text-sm text-gray-600">
-                                    <Users className="w-4 h-4 text-gray-400" />
-                                    {test._count.registrations}
-                                </div>
-                            </td>
-                            <td className="px-6 py-4">
-                                <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
-                                    {test.status}
-                                </span>
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                                <div className="flex items-center justify-end gap-2">
-                                    <PromotionStatusActions promotionTestId={test.id} currentStatus={test.status} />
-                                    <Link
-                                        href={`/promotions/${test.id}`}
-                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm group"
-                                    >
-                                        <Settings className="w-4 h-4 text-gray-400 group-hover:text-indigo-500 transition-colors" />
-                                        Manage
-                                    </Link>
-                                </div>
-                            </td>
-                        </tr>
-                    )
-                })}
+                                </td>
+                                <td className="px-6 py-4">
+                                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
+                                        {test.status}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                        <PromotionStatusActions promotionTestId={test.id} currentStatus={test.status} />
+                                        <Link
+                                            href={`/promotions/${test.id}`}
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm group"
+                                        >
+                                            <Settings className="w-4 h-4 text-gray-400 group-hover:text-indigo-500 transition-colors" />
+                                            Manage
+                                        </Link>
+                                    </div>
+                                </td>
+                            </tr>
+                        )
+                    })
+                )}
             </tbody>
         </table>
     )

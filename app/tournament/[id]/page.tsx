@@ -1,12 +1,9 @@
 import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
-import Link from 'next/link'
-import TournamentBackButton from '@/components/TournamentBackButton'
 import TournamentTabs from '@/components/TournamentTabs'
 
 import { currentUser, clerkClient } from '@clerk/nextjs/server'
 import PublicTournamentView from '@/components/PublicTournamentView'
-import DeleteTournamentButton from '@/components/DeleteTournamentButton'
 
 
 export default async function TournamentDetail({ params }: { params: Promise<{ id: string }> }) {
@@ -30,6 +27,14 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
                 include: {
                     matches: {
                         orderBy: { round: 'asc' }
+                    },
+                    poomsaeMatches: {
+                        orderBy: { round: 'asc' },
+                        include: {
+                            player: {
+                                include: { club: true }
+                            }
+                        }
                     },
                     _count: {
                         select: { players: true }
@@ -56,9 +61,56 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
         tournament.status = 'ONGOING'
     }
 
+    // Fetch Poomsae Team Players for Bracket Display (Members list)
+    // We fetch only minimal info needed for display
+    const poomsaeTeamPlayers = await prisma.player.findMany({
+        where: {
+            category: {
+                tournamentId: id,
+                type: 'POOMSAE',
+                subtype: { in: ['PAIR', 'TEAM'] } // Only relevant subcategories
+            }
+        },
+        select: {
+            name: true,
+            teamId: true,
+            clubId: true,
+            categoryId: true
+        }
+    })
+
+    // Group users by "Category-Club-TeamID" to find peers
+    const poomsaeTeamMap = new Map<string, { name: string }[]>()
+    poomsaeTeamPlayers.forEach(p => {
+        if (!p.teamId || !p.clubId) return
+        const key = `${p.categoryId}-${p.clubId}-${p.teamId}`
+        if (!poomsaeTeamMap.has(key)) poomsaeTeamMap.set(key, [])
+        poomsaeTeamMap.get(key)!.push({ name: p.name })
+    })
+
+    // Enrich tournament categories with team members
+    // We need to cast or clone because Prisma return types are strict
+    const enrichedCategories = tournament.categories.map(cat => {
+        if (cat.type !== 'POOMSAE' || !cat.poomsaeMatches) return cat
+
+        const enrichedMatches = cat.poomsaeMatches.map((match: any) => {
+            if (match.player?.teamId && match.player.club?.id) {
+                const key = `${cat.id}-${match.player.club.id}-${match.player.teamId}`
+                const members = poomsaeTeamMap.get(key)
+                if (members) {
+                    return { ...match, teamMembers: members }
+                }
+            }
+            return match
+        })
+
+        return { ...cat, poomsaeMatches: enrichedMatches }
+    })
+
     // Pass data to client component with managers and currentUserId
     const tournamentWithData = {
         ...tournament,
+        categories: enrichedCategories,
         currentUserId
     }
 
@@ -167,92 +219,17 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
     }
 
     return (
-        <main className="min-h-screen bg-gray-50 pb-20">
-            <div className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-10">
-                {canManage && (
-                    <header className="mb-8">
-                        <div className="mb-6">
-                            <TournamentBackButton />
-                        </div>
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-                                    {tournament.name}
-                                </h1>
-                                <p className="mt-2 text-lg text-gray-600">
-                                    {new Date(tournament.startDate).toLocaleDateString()}
-                                </p>
-                                {tournament.guidelineTemplate && (
-                                    <p className="mt-1 text-sm text-indigo-600">
-                                        📋 {tournament.guidelineTemplate.name}
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* Registration & Actions */}
-                            <div className="flex flex-col items-end gap-3">
-                                <div className="flex items-center gap-3">
-                                    {canManage && (
-                                        <DeleteTournamentButton
-                                            tournamentId={tournament.id}
-                                            tournamentName={tournament.name}
-                                        />
-                                    )}
-                                    {(() => {
-                                        const now = new Date()
-                                        const regStart = tournament.registrationStart ? new Date(tournament.registrationStart) : null
-                                        const regEnd = tournament.registrationEnd ? new Date(tournament.registrationEnd) : null
-                                        const isRegistered = currentUserId && players.some((p: any) => p.userId === currentUserId)
-
-                                        if (isRegistered) {
-                                            return (
-                                                <button disabled className="px-6 py-2 bg-green-100 text-green-700 font-semibold rounded-lg shadow-sm border border-green-200 cursor-default">
-                                                    ✅ Already Registered
-                                                </button>
-                                            )
-                                        }
-
-                                        if (regEnd && now > regEnd) {
-                                            return (
-                                                <button disabled className="px-6 py-2 bg-gray-100 text-gray-500 font-semibold rounded-lg border border-gray-200 cursor-not-allowed">
-                                                    🚫 Registration Closed
-                                                </button>
-                                            )
-                                        }
-
-                                        if (regStart && now < regStart) {
-                                            return (
-                                                <button disabled className="px-6 py-2 bg-blue-50 text-blue-600 font-semibold rounded-lg border border-blue-100 cursor-default">
-                                                    ⏳ Opens {regStart.toLocaleDateString()}
-                                                </button>
-                                            )
-                                        }
-
-                                        return (
-                                            <a
-                                                href={`/tournament/${id}/register`}
-                                                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-md transition-colors"
-                                            >
-                                                Register Now →
-                                            </a>
-                                        )
-
-                                    })()}
-                                </div>
-                            </div>
-                        </div>
-                    </header>
-                )}
-
-                {canManage ? (
-                    <TournamentTabs
-                        tournament={tournamentWithData}
-                        players={players}
-                        totalPlayersCount={totalPlayersCount}
-                        pendingManagerInvites={pendingManagerInvites}
-                        publicView={false}
-                    />
-                ) : (
+        <main className="min-h-screen bg-gray-50">
+            {canManage ? (
+                <TournamentTabs
+                    tournament={tournamentWithData}
+                    players={players}
+                    totalPlayersCount={totalPlayersCount}
+                    pendingManagerInvites={pendingManagerInvites}
+                    publicView={false}
+                />
+            ) : (
+                <div className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-10">
                     <PublicTournamentView
                         tournament={tournament}
                         players={enrichedPlayers}
@@ -266,8 +243,8 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
                         }
                         currentUserId={currentUserId}
                     />
-                )}
-            </div>
+                </div>
+            )}
         </main>
     )
 }

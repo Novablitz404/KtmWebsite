@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { getOrganizationDashboardData } from './actions'
-import { getOrganizerTournaments } from '@/app/organizer-tournaments/actions'
+import { getOrganizerTournaments } from '@/app/organization/actions'
 import DashboardStats from '@/components/DashboardStats'
 import AffiliatedClubsTable from '@/components/organization/AffiliatedClubsTable'
 import AffiliatedOrgsTable from '@/components/organization/AffiliatedOrgsTable'
@@ -12,6 +12,7 @@ import ClubScheduleWidget from '@/components/club/ClubScheduleWidget'
 import AnnouncementsWidget from '@/components/organization/AnnouncementsWidget'
 import OrganizationSkeleton from '@/components/skeletons/OrganizationSkeleton'
 import OrganizationSidebar from '@/components/organization/OrganizationSidebar'
+import SmartAlertsWidget from '@/components/organization/SmartAlertsWidget'
 import OrganizationEventsView from '@/components/organization/OrganizationEventsView'
 import OrganizationClubsView from '@/components/organization/OrganizationClubsView'
 import OrganizationTopBar from '@/components/organization/OrganizationTopBar'
@@ -88,18 +89,36 @@ export default function OrganizationDashboard({
             />
 
             {/* Main Content Area */}
-            <main className="md:ml-60 min-h-screen pb-20 md:pb-12">
+            <main className="md:ml-60 min-h-screen">
                 <OrganizationTopBar
                     userName={userData.name || 'User'}
                     userImageUrl={clerkImageUrl}
                     title={activeView === 'settings' ? 'Settings' : undefined}
                     searchQuery={searchQuery}
-                    onSearchChange={handleSearchChange}
+                    onSearchChange={activeView === 'clubs' || activeView === 'events' ? handleSearchChange : undefined}
+                    searchPlaceholder={activeView === 'clubs' ? 'Search clubs, masters...' : activeView === 'events' ? 'Search events...' : 'Search...'}
                     onSettingsClick={() => setActiveView('settings')}
                 />
 
                 {isLoading ? (
-                    <OrganizationSkeleton />
+                    // View-Specific Loading States
+                    activeView === 'clubs' ? (
+                        <div className="h-[calc(100vh-9rem)] md:h-[calc(100vh-7rem)] px-4 pt-4 pb-0 sm:px-6 sm:pt-6 sm:pb-0 lg:px-8 lg:pt-8 lg:pb-0 overflow-hidden">
+                            <OrganizationClubsView
+                                clubs={[]}
+                                organizations={[]}
+                                isLoading={true}
+                            />
+                        </div>
+                    ) : activeView === 'events' ? (
+                        <div className="h-[calc(100vh-9rem)] md:h-[calc(100vh-7rem)] px-4 pt-4 pb-0 sm:px-6 sm:pt-6 sm:pb-0 lg:px-8 lg:pt-8 lg:pb-0 overflow-hidden">
+                            <OrganizationEventsView
+                                templates={[]}
+                            />
+                        </div>
+                    ) : (
+                        <OrganizationSkeleton activeView={activeView} />
+                    )
                 ) : !dashboardData ? (
                     <div className="flex items-center justify-center h-[calc(100vh-200px)]">
                         <p className="text-gray-500">No organization data found. Please contact support.</p>
@@ -123,6 +142,8 @@ export default function OrganizationDashboard({
                                             }} />
                                         </div>
 
+
+
                                         {/* Schedule Calendar Widget */}
                                         <div className="flex-1 min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
                                             <ClubScheduleWidget
@@ -142,45 +163,9 @@ export default function OrganizationDashboard({
 
                                     {/* Right Column (Sidebar/Quick Info) - Desktop Only */}
                                     <div className="hidden xl:flex flex-col gap-6 h-full overflow-hidden">
-                                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex-shrink-0">
-                                            {/* Org Profile Header in Sidebar */}
-                                            <div className="flex flex-col items-center text-center mb-6">
-                                                {dashboardData.organization.logoUrl ? (
-                                                    <div className="w-24 h-24 rounded-full border border-gray-200 p-1 bg-white shadow-sm mb-3">
-                                                        <img
-                                                            src={dashboardData.organization.logoUrl}
-                                                            alt="Logo"
-                                                            className="w-full h-full object-cover rounded-full"
-                                                        />
-                                                    </div>
-                                                ) : (
-                                                    <div className="w-24 h-24 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-3xl mb-3">
-                                                        🏢
-                                                    </div>
-                                                )}
-                                                <h2 className="text-xl font-bold text-gray-900">{dashboardData.organization.name}</h2>
-                                                <p className="text-sm text-gray-500">Organization Dashboard</p>
-                                            </div>
-
-                                            <div className="border-t border-gray-100 my-4"></div>
-
-                                            <h3 className="font-bold text-gray-900 mb-4">Quick Details</h3>
-                                            <div className="space-y-4 text-sm">
-                                                <div>
-                                                    <p className="text-gray-500">Chairman</p>
-                                                    <p className="font-medium text-gray-900">{dashboardData.organization.chairman || '-'}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-gray-500">Contact Email</p>
-                                                    <p className="font-medium text-gray-900">{dashboardData.organization.contactEmail || '-'}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-gray-500">Established</p>
-                                                    <p className="font-medium text-gray-900">
-                                                        {dashboardData.organization.establishedAt ? new Date(dashboardData.organization.establishedAt).getFullYear() : '-'}
-                                                    </p>
-                                                </div>
-                                            </div>
+                                        {/* Smart Alerts Widget (Replaces Details) */}
+                                        <div className="flex-shrink-0">
+                                            <SmartAlertsWidget />
                                         </div>
 
                                         {/* Announcements Widget */}
@@ -200,6 +185,7 @@ export default function OrganizationDashboard({
                                     organizations={dashboardData.affiliatedOrgs || []}
                                     orgLogo={dashboardData.organization?.logoUrl}
                                     orgName={dashboardData.organization?.name}
+                                    searchQuery={searchQuery}
                                 />
                             </div>
                         )}
@@ -207,7 +193,10 @@ export default function OrganizationDashboard({
                         {/* Events View */}
                         {activeView === 'events' && (
                             <div className="h-[calc(100vh-9rem)] md:h-[calc(100vh-7rem)] px-4 pt-4 pb-0 sm:px-6 sm:pt-6 sm:pb-0 lg:px-8 lg:pt-8 lg:pb-0 overflow-hidden">
-                                <OrganizationEventsView />
+                                <OrganizationEventsView
+                                    searchQuery={searchQuery}
+                                    templates={dashboardData.guidelineTemplates || []}
+                                />
                             </div>
                         )}
 
@@ -241,7 +230,7 @@ export default function OrganizationDashboard({
                                 key={item.id}
                                 onClick={() => setActiveView(item.id as ViewType)}
                                 className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${isActive
-                                    ? 'text-indigo-600'
+                                    ? 'text-red-600'
                                     : 'text-gray-400 hover:text-gray-600'
                                     }`}
                             >

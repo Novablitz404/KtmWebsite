@@ -4,94 +4,89 @@ interface PlayerProfile {
     birthDate: Date
     gender: string
     weight: number
+    height?: number
+    belt?: string
+    poomsaeType?: string // "INDIVIDUAL", "PAIR", "TEAM"
+    type?: string // "KYORUGI" or "POOMSAE"
+    skillLevel?: string // "Novice" or "Advance"
 }
 
-interface PlacementResult {
-    division: {
-        id: string
-        name: string
-    }
-    weightCategory: {
-        id: string
-        name: string
-    }
-    categoryName: string // Combined name for display, e.g. "Junior Male Under 58kg"
-}
-
-/**
- * Calculate age from birth date
- */
-export function calculateAge(birthDate: Date): number {
+// Helper to calculate age
+export function calculateAge(birthDate: Date | string): number {
     const today = new Date()
     const birth = new Date(birthDate)
     let age = today.getFullYear() - birth.getFullYear()
     const monthDiff = today.getMonth() - birth.getMonth()
-
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
         age--
     }
-
     return age
 }
 
-/**
- * Auto-place a player into the correct division and weight category
- * based on their profile data and the tournament's guideline template
- */
-export async function autoPlacePlayer(
-    guidelineTemplateId: string,
+export async function findCategoryForPlayer(
+    tournamentId: string,
     player: PlayerProfile
-): Promise<PlacementResult | null> {
+) {
     const age = calculateAge(player.birthDate)
 
-    // 1. Find the matching division based on age
-    const division = await prisma.division.findFirst({
-        where: {
-            templateId: guidelineTemplateId,
-            minAge: { lte: age },
-            maxAge: { gte: age }
-        },
-        orderBy: { displayOrder: 'asc' }
+    const categories = await prisma.category.findMany({
+        where: { tournamentId }
     })
 
-    if (!division) {
-        console.warn(`No division found for age ${age}`)
-        return null
-    }
+    // Filter matches
+    const matches = categories.filter(cat => {
+        // 0. Skill Level Check
+        // If the category has a skill level, it must match the player's skill level.
+        // If the category has no skill level (Open), anyone can join.
+        // Novice players -> Novice categories
+        // Advance players -> Advance categories
+        if (cat.skillLevel && player.skillLevel && cat.skillLevel !== player.skillLevel) return false
 
-    // 2. Find the matching weight category
-    const weightCategory = await prisma.weightCategory.findFirst({
-        where: {
-            divisionId: division.id,
-            OR: [
-                { gender: player.gender },
-                { gender: 'Both' }
-            ],
-            minWeight: { lte: player.weight },
-            maxWeight: { gt: player.weight }
-        },
-        orderBy: { minWeight: 'asc' }
+        // 1. Type Check (Kyorugi vs Poomsae)
+        // If player.type is specified, it must match. Default to KYORUGI if undefined.
+        // Actually, let's look for ALL matches and user selects type later? 
+        // No, the placement logic usually wants specific.
+        // Let's assume Kyorugi default if not specified.
+        const targetType = player.type || 'KYORUGI'
+        if (cat.type !== targetType) return false
+
+        // 2. Age Check
+        if (cat.minAge && age < cat.minAge) return false
+        if (cat.maxAge && age > cat.maxAge) return false
+
+        // 3. Gender Check
+        if (cat.gender && cat.gender !== 'Both' && cat.gender !== player.gender) return false
+
+        // 4. Kyorugi Specifics
+        if (targetType === 'KYORUGI') {
+            // Weight
+            if (cat.minWeight !== null && player.weight < cat.minWeight) return false
+            if (cat.maxWeight !== null && player.weight >= cat.maxWeight) return false // maxWeight is exclusive usually? 
+            // In Prisma schema comments: "maxWeight Float // Maximum weight (exclusive...)"
+
+            // Height
+            if (cat.minHeight && (player.height || 0) < cat.minHeight) return false
+            if (cat.maxHeight && (player.height || 0) > cat.maxHeight) return false
+        }
+
+        // 5. Poomsae Specifics
+        if (targetType === 'POOMSAE') {
+            // Belt
+            // If category has strict belt rule? 
+            if (cat.belt && player.belt && cat.belt !== player.belt) return false
+
+            // Subtype
+            if (player.poomsaeType && cat.subtype !== player.poomsaeType) return false
+        }
+
+        return true
     })
 
-    if (!weightCategory) {
-        console.warn(`No weight category found for ${player.gender} at ${player.weight}kg in ${division.name}`)
-        return null
-    }
-
-    // 3. Create combined category name
-    const categoryName = `${division.name} ${player.gender} ${weightCategory.name}`
-
-    return {
-        division: {
-            id: division.id,
-            name: division.name
-        },
-        weightCategory: {
-            id: weightCategory.id,
-            name: weightCategory.name
-        },
-        categoryName
-    }
+    // Return the best match (or first)
+    // If multiple matches? (e.g. Open weight vs specific)
+    // Sort by specificity?
+    // For now return first.
+    return matches[0] || null
 }
 
 /**

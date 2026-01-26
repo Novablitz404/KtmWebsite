@@ -5,11 +5,13 @@ import { Trash2, AlertTriangle } from 'lucide-react'
 import { deleteTournament } from '@/app/actions'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
 
-export default function DeleteTournamentButton({ tournamentId, tournamentName }: { tournamentId: string, tournamentName: string }) {
+export default function DeleteTournamentButton({ tournamentId, tournamentName, redirectPath = '/organization?tab=events' }: { tournamentId: string, tournamentName: string, redirectPath?: string }) {
     const [isDeleting, setIsDeleting] = useState(false)
     const [showConfirm, setShowConfirm] = useState(false)
     const router = useRouter()
+    const queryClient = useQueryClient()
 
     const handleDelete = async () => {
         setIsDeleting(true)
@@ -17,7 +19,11 @@ export default function DeleteTournamentButton({ tournamentId, tournamentName }:
             const result = await deleteTournament(tournamentId)
             if (result.success) {
                 toast.success('Tournament deleted successfully')
-                router.push('/organizer-tournaments')
+                // Invalidate cache
+                queryClient.invalidateQueries({ queryKey: ['organizer-tournaments'] })
+                queryClient.invalidateQueries({ queryKey: ['organization-dashboard'] })
+
+                router.push(redirectPath)
             } else {
                 toast.error('Failed to delete tournament')
             }

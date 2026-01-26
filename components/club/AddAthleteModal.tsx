@@ -1,9 +1,9 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
-import { X, Search, Loader2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X, Search, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import CustomSelect from '@/app/components/ui/CustomSelect'
-import { searchClubMembers, getUpcomingTournaments, getTournamentCategories, registerForTournament } from '@/app/actions'
+import { searchClubMembers, getUpcomingTournaments, registerForTournament, findPlayerCategory } from '@/app/actions'
 
 interface AddAthleteModalProps {
     isOpen: boolean
@@ -44,20 +44,18 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
     // Selection State
     const [tournaments, setTournaments] = useState<Tournament[]>([])
     const [selectedTournament, setSelectedTournament] = useState<string>('')
-    const [categories, setCategories] = useState<Category[]>([])
-    const [selectedCategory, setSelectedCategory] = useState<string>('')
+
+    // Auto-Detection State
+    const [tentativeCategory, setTentativeCategory] = useState<Category | null>(null)
+    const [isDetecting, setIsDetecting] = useState(false)
 
     // Form State (Details)
     const [weight, setWeight] = useState<string>('')
     const [belt, setBelt] = useState<string>('')
+    const [eventType, setEventType] = useState<'KYORUGI' | 'POOMSAE'>('KYORUGI')
+    const [poomsaeType, setPoomsaeType] = useState<string>('INDIVIDUAL')
+    const [teamId, setTeamId] = useState<string>('')
     const [submitting, setSubmitting] = useState(false)
-    const [categorySearch, setCategorySearch] = useState('')
-    const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false)
-
-    // Filtered categories based on search
-    const filteredCategories = categories.filter(c =>
-        c.name.toLowerCase().includes(categorySearch.toLowerCase())
-    )
 
     // Load Tournaments on Mount
     useEffect(() => {
@@ -66,13 +64,37 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
         }
     }, [isOpen])
 
-    // Load Categories when Tournament Selected
+    // Auto-Detect Category Logic
     useEffect(() => {
-        if (selectedTournament) {
-            getTournamentCategories(selectedTournament).then(setCategories).catch(() => toast.error('Failed to load categories'))
-            setSelectedCategory('')
+        const detectCategory = async () => {
+            // Basic requirements: Tournament + Member (for Age/Gender) + Weight (for Kyorugi) or Belt (for Poomsae)
+            if (!selectedTournament || !selectedMember) {
+                setTentativeCategory(null)
+                return
+            }
+
+            setIsDetecting(true)
+            try {
+                const category = await findPlayerCategory(selectedTournament, {
+                    birthDate: selectedMember.birthDate || new Date(), // Fallback if missing, but should be there
+                    gender: selectedMember.gender || 'Male',
+                    weight: parseFloat(weight) || 0,
+                    belt: belt,
+                    poomsaeType: eventType === 'POOMSAE' ? poomsaeType : undefined,
+                    type: eventType
+                })
+                setTentativeCategory(category)
+            } catch (e) {
+                console.error(e)
+                setTentativeCategory(null)
+            } finally {
+                setIsDetecting(false)
+            }
         }
-    }, [selectedTournament])
+
+        const timer = setTimeout(detectCategory, 500)
+        return () => clearTimeout(timer)
+    }, [selectedTournament, selectedMember, weight, belt, poomsaeType])
 
     // Member Search Debounce
     useEffect(() => {
@@ -102,25 +124,29 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
         setSearchResults([])
         setWeight(member.weight?.toString() || '')
         setBelt(member.belt || '')
+        setEventType('KYORUGI')
+        setPoomsaeType('INDIVIDUAL')
     }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!selectedMember || !selectedTournament || !selectedCategory || !weight || !belt) {
-            toast.error('Please fill in all fields')
+        if (!selectedMember || !selectedTournament || !tentativeCategory || !weight || !belt) {
+            toast.error('Please fill in all fields and ensure a category is detected')
             return
         }
 
         setSubmitting(true)
         try {
             const res = await registerForTournament({
-                categoryId: selectedCategory,
-                userId: selectedMember.id, // Using Member ID from search
+                categoryId: tentativeCategory.id,
+                userId: selectedMember.id,
                 name: selectedMember.name || 'Unknown',
-                gender: selectedMember.gender || 'MALE', // Default fallback, should probably ask if missing
+                gender: selectedMember.gender || 'MALE',
                 belt: belt,
                 weight: parseFloat(weight),
-                clubName: clubName
+                clubName: clubName,
+                poomsaeType: eventType === 'POOMSAE' ? poomsaeType : undefined,
+                teamId: eventType === 'POOMSAE' ? teamId : undefined
             })
 
             if (res.error) {
@@ -131,9 +157,10 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
                 // Reset state
                 setSelectedMember(null)
                 setSelectedTournament('')
-                setSelectedCategory('')
+                setTentativeCategory(null)
                 setWeight('')
                 setBelt('')
+                setEventType('KYORUGI')
             }
         } catch (error) {
             toast.error('Registration failed')
@@ -146,7 +173,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                     <h2 className="text-lg font-bold text-gray-900">Add Athlete to Tournament</h2>
@@ -156,7 +183,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
                 </div>
 
                 {/* Content */}
-                <div className="p-6 overflow-visible">
+                <div className="p-6 overflow-y-auto">
                     <form onSubmit={handleSubmit} className="space-y-6">
                         {/* Member Search */}
                         <div className="space-y-2">
@@ -229,48 +256,21 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
                                 placeholder="Select Tournament"
                                 required
                             />
+                        </div>
 
-                            {/* Searchable Category Select */}
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Category</label>
-                                <div className="relative">
-                                    <input
-                                        type="text"
-                                        placeholder="Search or select category..."
-                                        value={categories.find(c => c.id === selectedCategory)?.name || categorySearch}
-                                        onChange={(e) => {
-                                            setCategorySearch(e.target.value)
-                                            setSelectedCategory('')
-                                            setIsCategoryDropdownOpen(true)
-                                        }}
-                                        onFocus={() => setIsCategoryDropdownOpen(true)}
-                                        className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm"
-                                        required
-                                    />
-                                    {isCategoryDropdownOpen && (
-                                        <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-20 max-h-40 overflow-y-auto">
-                                            {(categorySearch ? filteredCategories : categories).length > 0 ? (
-                                                (categorySearch ? filteredCategories : categories).map(cat => (
-                                                    <button
-                                                        key={cat.id}
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setSelectedCategory(cat.id)
-                                                            setCategorySearch('')
-                                                            setIsCategoryDropdownOpen(false)
-                                                        }}
-                                                        className={`w-full px-3 py-2 text-left text-sm hover:bg-indigo-50 transition-colors ${selectedCategory === cat.id ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-700'}`}
-                                                    >
-                                                        {cat.name}
-                                                    </button>
-                                                ))
-                                            ) : (
-                                                <p className="px-3 py-2 text-sm text-gray-400">No categories found</p>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
+                        {/* Event Category Selection */}
+                        <div className="space-y-4">
+                            <CustomSelect
+                                label="Event Category"
+                                value={eventType}
+                                onChange={(val: any) => setEventType(val)}
+                                options={[
+                                    { value: 'KYORUGI', label: 'Kyorugi (Sparring)' },
+                                    { value: 'POOMSAE', label: 'Poomsae (Forms)' }
+                                ]}
+                                placeholder="Select Event Type"
+                                required
+                            />
                         </div>
 
                         {/* Player Details */}
@@ -283,8 +283,10 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
                                     value={weight}
                                     onChange={(e) => setWeight(e.target.value)}
                                     className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
-                                    required
+                                    required={eventType === 'KYORUGI'}
+                                    disabled={eventType === 'POOMSAE'}
                                 />
+                                {eventType === 'POOMSAE' && <p className="text-[10px] text-gray-400">Not required for Poomsae</p>}
                             </div>
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Current Belt</label>
@@ -298,10 +300,65 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
                             </div>
                         </div>
 
+                        {/* Poomsae Specifics - Only show if Poomsae selected */}
+                        {eventType === 'POOMSAE' && (
+                            <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Poomsae Type</label>
+                                    <CustomSelect
+                                        value={poomsaeType}
+                                        onChange={setPoomsaeType}
+                                        options={[
+                                            { value: 'INDIVIDUAL', label: 'Individual' },
+                                            { value: 'PAIR', label: 'Pair' },
+                                            { value: 'TEAM', label: 'Team' }
+                                        ]}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Team ID (Optional)</label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. 1, A, B"
+                                        value={teamId}
+                                        onChange={(e) => setTeamId(e.target.value)}
+                                        className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Tentative Category Display */}
+                        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Detailed Category</label>
+                            {isDetecting ? (
+                                <div className="flex items-center gap-2 text-gray-500 text-sm">
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <span>Detecting category...</span>
+                                </div>
+                            ) : tentativeCategory ? (
+                                <div className="flex items-start gap-3">
+                                    <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5" />
+                                    <div>
+                                        <p className="font-bold text-gray-900 text-sm">{tentativeCategory.name}</p>
+                                        <p className="text-xs text-green-600 mt-0.5">Auto-detected based on profile</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex items-start gap-3">
+                                    <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5" />
+                                    <div>
+                                        <p className="font-medium text-gray-700 text-sm">No Category Found</p>
+                                        <p className="text-xs text-gray-500 mt-0.5">Please check weight, age, and requirements.</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                         {/* Submit */}
                         <button
                             type="submit"
-                            disabled={submitting}
+                            disabled={submitting || !tentativeCategory}
                             className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-sm shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                         >
                             {submitting ? (

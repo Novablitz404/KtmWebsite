@@ -227,12 +227,7 @@ export default function ClubScheduleWidget({ tournaments, isLoading }: ClubSched
                 </div>
             </div>
 
-            {!isLoading && tournaments.length === 0 && (
-                <div className="text-center py-4 text-gray-400 flex-shrink-0">
-                    <p>No events scheduled</p>
-                    <p className="text-sm mt-1">Join tournaments to see them here</p>
-                </div>
-            )}
+
 
             {/* Hover Tooltip Portal */}
             {hoveredEvent && (

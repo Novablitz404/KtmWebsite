@@ -45,10 +45,12 @@ export default async function ManagePromotionPage({ params }: PageProps) {
     }
 
     // Verify ownership or public access
+    const isAdmin = dbUser?.role === 'ADMIN'
     const isOwner = dbUser?.organization?.id === promotionTest.organizationId
+    const canManage = isOwner || isAdmin
     const isPublic = promotionTest.visibility === 'PUBLIC'
 
-    if (!isOwner && !isPublic) {
+    if (!canManage && !isPublic) {
         if (!user) {
             redirect('/sign-in')
         }
@@ -81,11 +83,11 @@ export default async function ManagePromotionPage({ params }: PageProps) {
                 <div className="flex flex-col gap-6">
                     <div>
                         <Link
-                            href={isOwner ? "/promotions" : "/"}
+                            href={canManage ? "/promotions" : "/"}
                             className="inline-flex items-center text-sm text-gray-500 hover:text-gray-900 mb-4 transition-colors"
                         >
                             <ArrowLeft className="w-4 h-4 mr-1" />
-                            {isOwner ? "Back to Promotions" : "Back to Home"}
+                            {canManage ? "Back to Promotions" : "Back to Home"}
                         </Link>
                         <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                             <div>
@@ -131,7 +133,7 @@ export default async function ManagePromotionPage({ params }: PageProps) {
                             </div>
 
                             <div className="flex flex-col items-end gap-3">
-                                {isOwner && (
+                                {canManage && (
                                     <PromotionStatusActions promotionTestId={promotionTest.id} currentStatus={promotionTest.status} />
                                 )}
                             </div>
@@ -172,7 +174,7 @@ export default async function ManagePromotionPage({ params }: PageProps) {
                 {/* Participants Section */}
                 <div className="space-y-4">
                     <h2 className="text-xl font-bold text-gray-900">Participants</h2>
-                    <ParticipantsTable registrations={promotionTest.registrations} readonly={!isOwner} />
+                    <ParticipantsTable registrations={promotionTest.registrations} readonly={!canManage} />
                 </div>
 
             </div>

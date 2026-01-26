@@ -1,11 +1,14 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { findCategoryForPlayer } from '@/lib/placement'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import { currentUser, clerkClient } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
 import { getClubEventsData } from '@/app/club/data'
+import { generatePoomsaeBracket } from '@/lib/poomsae-logic'
+import { BracketMatchSpec, generateSingleEliminationBracket } from '@/lib/bracket-logic'
 
 export async function fetchClubRegistrationData(clubId: string) {
     const { pendingPlayers, approvedPlayers } = await getClubEventsData(clubId, '') // clubName not needed for tournament part
@@ -113,13 +116,93 @@ export async function createTournament(formData: FormData) {
             })
 
             if (template) {
-                const categoriesToCreate: { name: string; tournamentId: string }[] = []
+                const categoriesToCreate: {
+                    name: string;
+                    tournamentId: string;
+                    type: string;
+                    subtype: string;
+                    poomsaeForms: string | null;
+                    court: string | null;
+                    minAge: number | null;
+                    maxAge: number | null;
+                    minWeight: number | null;
+                    maxWeight: number | null;
+                    minHeight: number | null;
+                    maxHeight: number | null;
+                    gender: string | null;
+                    belt: string | null;
+                }[] = []
 
                 for (const division of template.divisions) {
                     for (const weightCat of division.categories) {
                         const genderLabel = weightCat.gender === 'Both' ? '' : weightCat.gender
-                        const categoryName = `${division.name} ${genderLabel} ${weightCat.name}`.replace(/\s+/g, ' ').trim()
-                        categoriesToCreate.push({ name: categoryName, tournamentId: tournament.id })
+
+                        if (weightCat.type === 'POOMSAE') {
+                            // POOMSAE: Create single category (No Skill Level Split)
+                            const categoryName = `${division.name} ${genderLabel} ${weightCat.name}`.replace(/\s+/g, ' ').trim()
+                            categoriesToCreate.push({
+                                name: categoryName,
+                                tournamentId: tournament.id,
+                                type: weightCat.type,
+                                subtype: weightCat.subtype,
+                                poomsaeForms: weightCat.poomsaeForms,
+                                court: null,
+                                minAge: division.minAge,
+                                maxAge: division.maxAge,
+                                minWeight: weightCat.minWeight,
+                                maxWeight: weightCat.maxWeight,
+                                minHeight: weightCat.minHeight,
+                                maxHeight: weightCat.maxHeight,
+                                gender: weightCat.gender,
+                                belt: null,
+                                // @ts-ignore
+                                skillLevel: null // No skill level for Poomsae
+                            })
+                        } else {
+                            // KYORUGI: Create Novice & Advance Variants
+
+                            // 1. Novice
+                            const noviceName = `${division.name} ${genderLabel} Novice ${weightCat.name}`.replace(/\s+/g, ' ').trim()
+                            categoriesToCreate.push({
+                                name: noviceName,
+                                tournamentId: tournament.id,
+                                type: weightCat.type,
+                                subtype: weightCat.subtype,
+                                poomsaeForms: weightCat.poomsaeForms,
+                                court: null,
+                                minAge: division.minAge,
+                                maxAge: division.maxAge,
+                                minWeight: weightCat.minWeight,
+                                maxWeight: weightCat.maxWeight,
+                                minHeight: weightCat.minHeight,
+                                maxHeight: weightCat.maxHeight,
+                                gender: weightCat.gender,
+                                belt: null,
+                                // @ts-ignore
+                                skillLevel: 'Novice'
+                            })
+
+                            // 2. Advance
+                            const advanceName = `${division.name} ${genderLabel} Advance ${weightCat.name}`.replace(/\s+/g, ' ').trim()
+                            categoriesToCreate.push({
+                                name: advanceName,
+                                tournamentId: tournament.id,
+                                type: weightCat.type,
+                                subtype: weightCat.subtype,
+                                poomsaeForms: weightCat.poomsaeForms,
+                                court: null,
+                                minAge: division.minAge,
+                                maxAge: division.maxAge,
+                                minWeight: weightCat.minWeight,
+                                maxWeight: weightCat.maxWeight,
+                                minHeight: weightCat.minHeight,
+                                maxHeight: weightCat.maxHeight,
+                                gender: weightCat.gender,
+                                belt: null,
+                                // @ts-ignore
+                                skillLevel: 'Advance'
+                            })
+                        }
                     }
                 }
 
@@ -136,7 +219,9 @@ export async function createTournament(formData: FormData) {
 
     revalidatePath('/')
     revalidatePath('/tournaments')
-    return { success: true }
+    revalidatePath('/organization')
+    revalidatePath('/admin')
+    return { success: true, id: tournament.id }
 }
 
 export async function deleteTournament(id: string) {
@@ -199,13 +284,22 @@ export async function deleteTournament(id: string) {
         where: { tournamentId: id }
     })
 
+    // Delete Poomsae Matches (Cascade manual)
+    // Find all categories for this tournament first? We already have categoryIds from line 186
+    if (categoryIds.length > 0) {
+        await prisma.poomsaeMatch.deleteMany({
+            where: { categoryRefId: { in: categoryIds } }
+        })
+    }
+
     // Delete Tournament
     await prisma.tournament.delete({
         where: { id }
     })
 
-    revalidatePath('/organizer-tournaments')
+    revalidatePath('/organization')
     revalidatePath('/')
+    revalidatePath('/admin')
     return { success: true }
 }
 
@@ -219,12 +313,29 @@ export async function createPlayer(formData: FormData) {
     const club = formData.get('club') as string
     const skillLevel = formData.get('skillLevel') as string
     const categoryId = formData.get('categoryId') as string
+    const poomsaeType = formData.get('poomsaeType') as string
     const tournamentId = formData.get('tournamentId') as string
 
     if (!name || !categoryId) return
 
+    // Generate unique 5-digit player ID
+    const generatePlayerId = async (): Promise<string> => {
+        let attempts = 0
+        while (attempts < 100) {
+            const randomNum = Math.floor(Math.random() * 100000)
+            const id = randomNum.toString().padStart(5, '0')
+            const exists = await prisma.player.findUnique({ where: { id } })
+            if (!exists) return id
+            attempts++
+        }
+        throw new Error('Could not generate unique player ID')
+    }
+
+    const playerId = await generatePlayerId()
+
     await prisma.player.create({
         data: {
+            id: playerId,
             name,
             gender: gender || 'Male',
             belt: belt || 'Black',
@@ -233,6 +344,7 @@ export async function createPlayer(formData: FormData) {
             // @ts-ignore: Prisma types delay
             skillLevel: skillLevel || 'Novice',
             weight: isNaN(weight) ? null : weight,
+            poomsaeType: poomsaeType || 'INDIVIDUAL',
             categoryId,
         },
     })
@@ -240,7 +352,192 @@ export async function createPlayer(formData: FormData) {
     revalidatePath(`/tournament/${tournamentId}`)
 }
 
-import { generateSingleEliminationBracket } from '@/lib/bracket-logic'
+
+
+export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' | 'POOMSAE') {
+    if (!tournamentId) return
+
+    // 1. Bulk Fetch Categories & Players
+    // We only want categories of the specified type that have enough players
+    const categories = await prisma.category.findMany({
+        where: {
+            tournamentId,
+            type: type
+        },
+        include: {
+            players: true
+        }
+    })
+
+    if (categories.length === 0) return { success: false, message: 'No categories found.' }
+
+    // 2. Fetch Tournament for match_count base
+    const tournament = await prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        select: { match_count: true }
+    })
+
+    let currentGlobalMatchId = (tournament?.match_count || 0) + 1
+    const validCategories = categories.filter(c => c.players.length > 0)
+
+    // 3. Delete Existing Matches (Bulk)
+    const validCategoryIds = validCategories.map(c => c.id)
+    if (type === 'POOMSAE') {
+        await prisma.poomsaeMatch.deleteMany({
+            where: { categoryRefId: { in: validCategoryIds } }
+        })
+    } else {
+        await prisma.match.deleteMany({
+            where: { categoryRefId: { in: validCategoryIds } }
+        })
+    }
+
+    // 4. In-Memory Generation & Parallel DB Writes
+    // We'll collect all creation operations and run them transactionally or in parallel batches
+
+    if (type === 'POOMSAE') {
+        // --- POOMSAE GENERATION ---
+
+        // We need to execute sequentially or manage the shared ID counter carefully
+        // Since we are inside one action, we can just increment the local variable `currentGlobalMatchId`
+
+        for (const category of validCategories) {
+            const players = category.players
+            const poomsaeSpecs = generatePoomsaeBracket(
+                players,
+                category.subtype || 'INDIVIDUAL',
+                category.poomsaeForms
+            )
+
+            // Map roundGroupIndex -> Global Match ID
+            // Sort indices to ensure sequential ID assignment
+            const distinctGroupIndices = Array.from(new Set(poomsaeSpecs.map(s => s.roundGroupIndex))).sort((a, b) => a - b)
+            const groupMapping = new Map<number, number>()
+
+            distinctGroupIndices.forEach((idx) => {
+                groupMapping.set(idx, currentGlobalMatchId++)
+            })
+
+            // Construct full category name
+            const displayName = category.belt && !category.name.toLowerCase().includes(category.belt.toLowerCase())
+                ? `${category.name} ${category.belt}`
+                : category.name;
+
+            // Using standard create loop here because createMany doesn't support relation IDs easily
+            // and we need to map `nextMatchId`
+            // Optimization: We could use createMany if we pre-calculated everything, 
+            // but `nextMatchId` for Poomsae is simple (just an int), so createMany IS Possible!
+            // BUT, PoomsaeMatch has `player` relation which createMany handles via playerId string.
+            // So we can use createMany for speed! 
+
+            // Actually, we'll stick to a parallel Promise.all loop per category for safety and simplicity first
+            // to avoid transaction limits if there are thousands of matches.
+
+            const createPromises = poomsaeSpecs.map(spec => {
+                const sharedMatchId = groupMapping.get(spec.roundGroupIndex) || 0
+                const nextGroupSharedId = groupMapping.get(spec.roundGroupIndex + 1) || null
+
+                return prisma.poomsaeMatch.create({
+                    data: {
+                        categoryRefId: category.id,
+                        category: displayName,
+                        round: spec.round,
+                        matchId: sharedMatchId,
+                        nextMatchId: nextGroupSharedId,
+                        targetRank: spec.targetRank,
+                        performanceNumber: spec.performanceNumber,
+                        playerId: spec.playerId || undefined,
+                        assignedForms: spec.assignedForms,
+                        status: 'Pending',
+                        court: category.court || "Unassigned"
+                    }
+                })
+            })
+
+            await Promise.all(createPromises)
+        }
+
+    } else {
+        // --- KYORUGI GENERATION ---
+
+        // Use a different strategy:
+        // Kyorugi matches rely on database auto-increment IDs for linking (previous generation logic)
+        // OR we can assign manual IDs if we change schema to standard Int.
+        // Currently `Match` uses `Int @id @default(autoincrement())`.
+
+        // The existing `generateBracketsForCategory` function relies on receiving the DB ID back to update links.
+        // We can reuse that function but call it in parallel for all categories?
+        // HOWEVER, that function manages its own deletion and revalidation.
+        // And it relies on auto-increment, so we can't batch-insert easily with known IDs.
+
+        // Strategy: Run them sequentially or in small chunks to avoid DB connection exhaustion.
+        // Since we already deleted all matches, we can just run the logic.
+
+        // Note: The existing logic logic does:
+        // 1. generateSingleEliminationBracket (memory)
+        // 2. create Matches (db) -> get IDs
+        // 3. update Matches (db) -> link nextMatchId
+
+        // We'll re-implement optimized Kyorugi loop here to avoid the overhead of `generateBracketsForCategory`
+
+        for (const category of validCategories) {
+            if (category.players.length < 2) continue; // Skip single players
+
+            const bracketSpecs = generateSingleEliminationBracket(category.players)
+            const idMapping = new Map<number, number>();
+
+            const sortedSpecs = [...bracketSpecs].sort((a, b) => {
+                if (a.round !== b.round) return a.round - b.round;
+                return a.id - b.id;
+            });
+
+            // Pass 1
+            for (const spec of sortedSpecs) {
+                const createdMatch = await prisma.match.create({
+                    data: {
+                        categoryRefId: category.id,
+                        category: category.name,
+                        round: spec.round,
+                        player1: spec.player1?.name || "TBD",
+                        player2: spec.player2?.name || "TBD",
+                        winner: null,
+                        status: 'Pending',
+                        nextMatchSlot: spec.nextMatchSlot,
+                        court: category.court || "Unassigned"
+                    }
+                });
+                idMapping.set(spec.id, createdMatch.id);
+            }
+
+            // Pass 2 updates
+            const linkUpdates = []
+            for (const spec of bracketSpecs) {
+                if (spec.nextMatchId !== null) {
+                    const actualId = idMapping.get(spec.id);
+                    const actualNextId = idMapping.get(spec.nextMatchId);
+                    if (actualId && actualNextId) {
+                        linkUpdates.push(
+                            prisma.match.update({
+                                where: { id: actualId },
+                                data: { nextMatchId: actualNextId }
+                            })
+                        )
+                    }
+                }
+            }
+            await Promise.all(linkUpdates)
+        }
+    }
+
+    // 5. Update Match Count
+    await prisma.tournament.update({
+        where: { id: tournamentId },
+        data: { match_count: currentGlobalMatchId }
+    })
+
+    revalidatePath(`/tournament/${tournamentId}`)
+    return { success: true, count: validCategories.length }
+}
 
 export async function generateBracketsForCategory(categoryId: string, court?: string) {
     if (!categoryId) return
@@ -257,14 +554,86 @@ export async function generateBracketsForCategory(categoryId: string, court?: st
         where: { categoryId },
     })
 
+    // Fetch category to check type
+    const category = await prisma.category.findUnique({ where: { id: categoryId } })
+    if (!category) return
+
+    // POOMSAE LOGIC
+    if (category.type === 'POOMSAE') {
+        if (players.length < 1) return
+
+        await prisma.poomsaeMatch.deleteMany({
+            where: { categoryRefId: categoryId }
+        })
+
+        const poomsaeSpecs = generatePoomsaeBracket(
+            players,
+            category.subtype || 'INDIVIDUAL',
+            category.poomsaeForms
+        )
+
+        // Get count of distinct groups to assign global match IDs
+        const distinctGroupIndices = Array.from(new Set(poomsaeSpecs.map(s => s.roundGroupIndex))).sort((a, b) => a - b)
+
+        // Fetch tournament to get/increment match_count
+        const tournament = await prisma.tournament.findUnique({
+            where: { id: category.tournamentId },
+            select: { match_count: true }
+        })
+
+        const startMatchNum = (tournament?.match_count || 0) + 1
+
+        // Map roundGroupIndex to global shared matchId
+        const groupMapping = new Map<number, number>()
+        distinctGroupIndices.forEach((idx, i) => {
+            groupMapping.set(idx, startMatchNum + i)
+        })
+
+        // Save Poomsae matches
+        for (const spec of poomsaeSpecs) {
+            const sharedMatchId = groupMapping.get(spec.roundGroupIndex) || 0
+
+            // Pointer to the next group's shared matchId
+            const nextGroupSharedId = groupMapping.get(spec.roundGroupIndex + 1) || null
+
+            // Construct full category name including belt
+            const displayName = category.belt && !category.name.toLowerCase().includes(category.belt.toLowerCase())
+                ? `${category.name} ${category.belt}`
+                : category.name;
+
+            await prisma.poomsaeMatch.create({
+                data: {
+                    categoryRefId: categoryId,
+                    category: displayName,
+                    round: spec.round,
+                    matchId: sharedMatchId,
+                    nextMatchId: nextGroupSharedId,
+                    targetRank: spec.targetRank,
+                    performanceNumber: spec.performanceNumber,
+                    playerId: spec.playerId || undefined,
+                    assignedForms: spec.assignedForms,
+                    status: 'Pending',
+                    court: category.court || "Unassigned"
+                }
+            })
+        }
+
+        // Update tournament match_count
+        await prisma.tournament.update({
+            where: { id: category.tournamentId },
+            data: { match_count: startMatchNum + distinctGroupIndices.length - 1 }
+        })
+
+        revalidatePath(`/tournament/${category.tournamentId}`)
+        return
+    }
+
+    // KYORUGI LOGIC (Default)
     if (players.length < 2) return
 
     await prisma.match.deleteMany({
         where: { categoryRefId: categoryId }
     })
-
-    // Fetch category name for denormalization
-    const category = await prisma.category.findUnique({ where: { id: categoryId } })
 
     const bracketSpecs = generateSingleEliminationBracket(players)
     // Two-pass approach due to auto-increment IDs:
@@ -313,12 +682,48 @@ export async function generateBracketsForCategory(categoryId: string, court?: st
         }
     }
 
-    // Find tournament ID to revalidate
-    if (category) {
-        revalidatePath(`/tournament/${category.tournamentId}`)
+    revalidatePath(`/tournament/${category.tournamentId}`)
+}
+
+export async function bulkUpdateCourts(updates: { categoryId: string, court: string }[], tournamentId: string) {
+    if (!updates.length || !tournamentId) return { success: false }
+
+    try {
+        await prisma.$transaction(
+            updates.map(update =>
+                prisma.category.update({
+                    where: { id: update.categoryId },
+                    data: { court: update.court || null } // Allow clearing court
+                })
+            )
+        )
+
+        // Also update all matches associated with these categories to reflect the new court
+        const matchUpdates = updates.map(update =>
+            prisma.match.updateMany({
+                where: { categoryRefId: update.categoryId },
+                data: { court: update.court || "Unassigned" }
+            })
+        )
+        const poomsaeMatchUpdates = updates.map(update =>
+            prisma.poomsaeMatch.updateMany({
+                where: { categoryRefId: update.categoryId },
+                data: { court: update.court || "Unassigned" }
+            })
+        )
+
+        // Run match updates in parallel
+        await Promise.all([...matchUpdates, ...poomsaeMatchUpdates])
+
+        revalidatePath(`/tournament/${tournamentId}`)
+        return { success: true }
+    } catch (error) {
+        console.error("Bulk court update failed:", error)
+        return { success: false, message: "Failed to update courts" }
     }
 }
-import { BracketMatchSpec } from '@/lib/bracket-logic'
+
+
 
 export async function scheduleTournament(tournamentId: string, courtConfig: { name: string, categoryIds: string[] }[]) {
     if (!tournamentId) return { error: "Tournament ID required" }
@@ -347,6 +752,9 @@ export async function scheduleTournament(tournamentId: string, courtConfig: { na
     let allMatches: (BracketMatchSpec & { categoryId: string, categoryName: string })[] = [];
 
     for (const cat of categories) {
+        // Skip Poomsae Categories for Kyorugi Scheduling
+        if (cat.type === 'POOMSAE') continue;
+
         if (cat.players.length < 2) continue;
         const specs = generateSingleEliminationBracket(cat.players);
         // Add metadata
@@ -560,18 +968,8 @@ export async function completeOnboarding(formData: FormData) {
     let assignedRole = role
     let assignedClubName = clubName
 
-    // 1. Check for Organization Invite (Strict Enforcement)
-    if (role === 'ORGANIZER') {
-        const orgInvite = await prisma.organizationInvite.findUnique({ where: { email: userEmail } })
-
-        if (!orgInvite) {
-            throw new Error("Organization registration is by invitation only.")
-        }
-
-        // Invite valid - proceed
-        assignedRole = 'ORGANIZER'
-        await prisma.organizationInvite.delete({ where: { email: userEmail } })
-    }
+    // 1. Organizer role - no invite needed, will be PENDING until admin approval
+    // (Organization created with PENDING status below)
 
     // 2. Check for Club Assistant Invite
     const assistantInvite = await prisma.clubAssistantInvite.findUnique({ where: { email: userEmail } })
@@ -627,13 +1025,14 @@ export async function completeOnboarding(formData: FormData) {
         })
     }
 
-    // If Organizer, create the Organization
+    // If Organizer, create the Organization with PENDING status
     if (assignedRole === 'ORGANIZER' && assignedClubName) {
         await prisma.organization.create({
             data: {
                 name: assignedClubName, // Using clubName as Organization Name
                 establishedAt: birthDate, // Using birthDate as Established Date
-                ownerId: dbUser.id
+                ownerId: dbUser.id,
+                status: 'PENDING' // Requires admin approval
             }
         })
     }
@@ -792,10 +1191,12 @@ interface RegisterForTournamentInput {
     belt: string
     weight: number
     clubName: string
+    poomsaeType?: string
+    teamId?: string
 }
 
 export async function registerForTournament(input: RegisterForTournamentInput) {
-    const { categoryId, userId, name, gender, belt, weight, clubName } = input
+    const { categoryId, userId, name, gender, belt, weight, clubName, poomsaeType, teamId } = input
 
     // Generate unique 5-digit player ID
     const generatePlayerId = async (): Promise<string> => {
@@ -832,9 +1233,11 @@ export async function registerForTournament(input: RegisterForTournamentInput) {
                 weight,
                 categoryId,
                 userId,
-                clubId: club?.id || null,
+                clubId: club?.id || null, // Handle null explicitly if club not found or not provided
                 registrationStatus: 'PENDING',
-                skillLevel: null // To be set by Club Master
+                skillLevel: null, // To be set by Club Master
+                poomsaeType: poomsaeType || 'INDIVIDUAL',
+                teamId: teamId || null
             }
         })
 
@@ -1014,13 +1417,21 @@ export async function selectGuidelineTemplate(tournamentId: string, templateId: 
         })
 
         // Build all categories first, then batch insert
-        const categoriesToCreate: { name: string; tournamentId: string }[] = []
+        const categoriesToCreate: { name: string; tournamentId: string; type: string; subtype: string; poomsaeForms: string | null; court: string | null }[] = []
 
         for (const division of template.divisions) {
             for (const weightCat of division.categories) {
                 const genderLabel = weightCat.gender === 'Both' ? '' : weightCat.gender
                 const categoryName = `${division.name} ${genderLabel} ${weightCat.name}`.replace(/\s+/g, ' ').trim()
-                categoriesToCreate.push({ name: categoryName, tournamentId })
+
+                categoriesToCreate.push({
+                    name: categoryName,
+                    tournamentId,
+                    type: weightCat.type,
+                    subtype: weightCat.subtype,
+                    poomsaeForms: weightCat.poomsaeForms,
+                    court: null
+                })
             }
         }
 
@@ -1127,7 +1538,7 @@ interface UpdatePlayerDetailsInput {
     skillLevel?: string
 }
 
-export async function updatePlayerDetails({ playerId, name, height, weight, belt, skillLevel }: UpdatePlayerDetailsInput) {
+export async function updatePlayerDetails({ playerId, name, height, weight, belt, skillLevel, teamId, poomsaeType }: any) {
     try {
         await prisma.player.update({
             where: { id: playerId },
@@ -1136,7 +1547,9 @@ export async function updatePlayerDetails({ playerId, name, height, weight, belt
                 ...(height !== undefined && { height }),
                 ...(weight !== undefined && { weight }),
                 ...(belt !== undefined && { belt }),
-                ...(skillLevel !== undefined && { skillLevel })
+                ...(skillLevel !== undefined && { skillLevel }),
+                ...(teamId !== undefined && { teamId }),
+                ...(poomsaeType !== undefined && { poomsaeType })
             }
         })
         revalidatePath('/club')
@@ -1177,11 +1590,16 @@ export async function bulkDeleteRegistrations(playerIds: string[]) {
     }
 }
 
-export async function updateCategory(categoryId: string, tournamentId: string, data: { name?: string; type?: string; court?: string }) {
+export async function updateCategory(categoryId: string, tournamentId: string, data: { name?: string; type?: string; court?: string; skillLevel?: string }) {
     try {
         await prisma.category.update({
             where: { id: categoryId },
-            data
+            data: {
+                name: data.name,
+                type: data.type,
+                court: data.court || null,
+                skillLevel: data.skillLevel
+            }
         })
         revalidatePath(`/tournament/${tournamentId}`)
         return { success: true }
@@ -1191,14 +1609,15 @@ export async function updateCategory(categoryId: string, tournamentId: string, d
     }
 }
 
-export async function createCategory(tournamentId: string, name: string, type: string = 'KYORUGI', court: string = '') {
+export async function createCategory(tournamentId: string, name: string, type: string = 'KYORUGI', court: string = '', skillLevel: string = 'Novice') {
     try {
         await prisma.category.create({
             data: {
                 tournamentId,
                 name,
                 type,
-                court: court || null
+                court: court || null,
+                skillLevel
             }
         })
         revalidatePath(`/tournament/${tournamentId}`)
@@ -1349,6 +1768,28 @@ export async function getUpcomingTournaments() {
         }
     })
     return tournaments
+}
+
+export async function findPlayerCategory(
+    tournamentId: string,
+    playerData: {
+        birthDate: Date | string,
+        gender: string,
+        weight: number,
+        height?: number,
+        belt?: string,
+        poomsaeType?: string
+        type?: string
+    }
+) {
+    // Ensure dates are Date objects
+    const profile = {
+        ...playerData,
+        birthDate: new Date(playerData.birthDate)
+    }
+
+    const category = await findCategoryForPlayer(tournamentId, profile)
+    return category
 }
 
 export async function searchClubMembers(clubName: string, query: string) {
@@ -1847,4 +2288,313 @@ export async function getTournamentCategories(tournamentId: string) {
         orderBy: { name: 'asc' }
     })
     return categories
+}
+
+export async function getAllOrganizationAlerts() {
+    const user = await currentUser()
+    if (!user) return []
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: {
+            createdTournaments: {
+                where: { status: 'UPCOMING' },
+                select: { id: true, name: true }
+            }
+        }
+    })
+
+    if (!dbUser) return []
+
+    const allAlerts = []
+
+    for (const tournament of dbUser.createdTournaments) {
+        const { alerts, proposals } = await getTournamentAlerts(tournament.id)
+        if (alerts.length > 0) {
+            allAlerts.push({
+                tournamentId: tournament.id,
+                tournamentName: tournament.name,
+                alerts,
+                proposals
+            })
+        }
+    }
+
+    return allAlerts
+}
+
+
+// ============================================
+// SMART TOURNAMENT ACTIONS
+// ============================================
+
+import { detectSmartAlerts, createSmartProposal } from '@/lib/smart-tournament-logic'
+
+export async function getTournamentAlerts(tournamentId: string) {
+    const alerts = await detectSmartAlerts(tournamentId)
+
+    // Fetch existing proposals
+    const proposals = await prisma.smartProposal.findMany({
+        where: {
+            tournamentId,
+            status: 'PENDING'
+        },
+        include: {
+            votes: true
+        }
+    })
+
+    return { alerts, proposals }
+}
+
+export async function initiateSmartProposal(
+    tournamentId: string,
+    type: string,
+    data: any,
+    clubsInvolved: string[] = []
+) {
+    const proposal = await createSmartProposal(tournamentId, type, data)
+
+    // In a real app, we would send notifications to `clubsInvolved` here
+    // e.g. await sendNotifications(clubsInvolved, "New Proposal Required Action")
+
+    revalidatePath(`/organization`)
+    revalidatePath(`/tournament/${tournamentId}`)
+    return { success: true, proposalId: proposal.id }
+}
+
+export async function submitClubDecision(
+    proposalId: string,
+    clubId: string,
+    vote: string
+) {
+    await prisma.smartProposalVote.upsert({
+        where: {
+            proposalId_clubId: {
+                proposalId,
+                clubId
+            }
+        },
+        create: {
+            proposalId,
+            clubId,
+            vote
+        },
+        update: {
+            vote,
+            timestamp: new Date()
+        }
+    })
+
+    // Validate if consensus reached? 
+    // For now, we just record. The Dashboard will check consensus to enable "Execute".
+
+    revalidatePath('/club') // Refresh club dashboard
+    revalidatePath('/organization')
+    return { success: true }
+}
+
+export async function forceExecuteSmartAction(proposalId: string, overrideVote?: string) {
+    const proposal = await prisma.smartProposal.findUnique({
+        where: { id: proposalId }
+    })
+
+    if (!proposal) return { error: 'Proposal not found' }
+
+    const data = JSON.parse(proposal.data)
+
+    try {
+        if (proposal.type === 'UNCONTESTED') {
+            // Uncontested Actions: MOVE_UP, WALKOVER, WITHDRAW
+            // Using the overrideVote as the decision (since this is typically 1 club)
+            // Or fetch the single vote if overrideVote is null
+            let decision = overrideVote
+
+            if (!decision) {
+                const vote = await prisma.smartProposalVote.findFirst({ where: { proposalId } })
+                decision = vote?.vote
+            }
+
+            if (!decision) return { error: 'No decision made yet' }
+
+            if (decision === 'MOVE_UP') {
+                // Move player to target category (assuming we can find it)
+                // For now, "Move Up" likely needs a target. 
+                // If the logic didn't provide one, we might need a manual selection?
+                // But for automation, let's assume we find the next weight category.
+
+                // If data doesn't have targetId, we can't move. 
+                // The alert/proposal data SHOULD contain target options or we find it now.
+                const player = await prisma.player.findUnique({
+                    where: { id: data.playerId },
+                    include: { category: true }
+                })
+
+                if (player) {
+                    // Find next heavier category
+                    const siblings = await prisma.category.findMany({
+                        where: {
+                            tournamentId: player.category.tournamentId,
+                            // same division/gender/belt
+                            gender: player.category.gender,
+                            minAge: player.category.minAge,
+                            belt: player.category.belt
+                        },
+                        orderBy: { minWeight: 'asc' }
+                    })
+
+                    const currentIdx = siblings.findIndex(c => c.id === player.categoryId)
+                    if (currentIdx !== -1 && currentIdx < siblings.length - 1) {
+                        const target = siblings[currentIdx + 1]
+                        await prisma.player.update({
+                            where: { id: player.id },
+                            data: { categoryId: target.id }
+                        })
+                    } else {
+                        return { error: 'No heavier category found' }
+                    }
+                }
+            } else if (decision === 'WITHDRAW') {
+                await prisma.player.update({
+                    where: { id: data.playerId },
+                    data: { registrationStatus: 'WITHDRAWN' }
+                })
+            }
+            // WALKOVER: Do nothing, just mark proposal complete (handled at end)
+        }
+        else if (proposal.type === 'MERGE') {
+            const { sourceCategoryId, targetCategoryId } = data
+            // Move all players
+            await prisma.player.updateMany({
+                where: { categoryId: sourceCategoryId },
+                data: { categoryId: targetCategoryId }
+            })
+            // Delete source
+            await prisma.category.delete({ where: { id: sourceCategoryId } })
+        }
+        else if (proposal.type === 'SPLIT') {
+            const { categoryId } = data
+            const category = await prisma.category.findUnique({
+                where: { id: categoryId },
+                include: { players: true }
+            })
+
+            if (category) {
+                // Create Group A / B
+                const baseName = category.name
+                const [cA, cB] = await prisma.$transaction([
+                    prisma.category.create({
+                        data: {
+                            ...category,
+                            id: undefined, // new ID
+                            name: `${baseName} (Group A)`,
+                            players: undefined, // don't copy relation
+                            matches: undefined
+                        }
+                    }),
+                    prisma.category.create({
+                        data: {
+                            ...category,
+                            id: undefined,
+                            name: `${baseName} (Group B)`,
+                            players: undefined,
+                            matches: undefined
+                        }
+                    })
+                ])
+
+                // Split players (Even/Odd)
+                const updates = category.players.map((p, i) =>
+                    prisma.player.update({
+                        where: { id: p.id },
+                        data: { categoryId: i % 2 === 0 ? cA.id : cB.id }
+                    })
+                )
+
+                await prisma.$transaction(updates)
+                await prisma.category.delete({ where: { id: categoryId } })
+            }
+        }
+
+        // Mark Proposal Completed
+        await prisma.smartProposal.update({
+            where: { id: proposalId },
+            data: { status: 'COMPLETED' }
+        })
+
+        revalidatePath(`/organization`)
+        revalidatePath(`/tournament/${proposal.tournamentId}`)
+        return { success: true }
+
+    } catch (e) {
+        console.error("Smart Action Failed", e)
+        return { error: 'Execution Failed' }
+    }
+}
+
+export async function getClubSmartProposals(clubId: string) {
+    if (!clubId) return []
+
+    // 1. Find active tournaments for this club
+    const participation = await prisma.clubEventParticipation.findMany({
+        where: { clubId, tournamentId: { not: null } },
+        select: { tournamentId: true }
+    })
+
+    if (participation.length === 0) return []
+
+    const tournamentIds = participation.map(p => p.tournamentId!).filter(Boolean)
+
+    // 2. Fetch all pending proposals for these tournaments
+    const proposals = await prisma.smartProposal.findMany({
+        where: {
+            tournamentId: { in: tournamentIds },
+            status: 'PENDING'
+        },
+        include: {
+            tournament: { select: { name: true } },
+            votes: true
+        }
+    })
+
+    // 3. Filter proposals relevant to this club
+    const relevantProposals = []
+
+    for (const p of proposals) {
+        const data = JSON.parse(p.data)
+        let isRelevant = false
+
+        if (p.type === 'UNCONTESTED') {
+            const player = await prisma.player.findUnique({
+                where: { id: data.playerId },
+                select: { clubId: true }
+            })
+            if (player?.clubId === clubId) isRelevant = true
+        }
+        else if (p.type === 'MERGE') {
+            const players = await prisma.player.findMany({
+                where: { categoryId: data.sourceCategoryId, clubId },
+                select: { id: true }
+            })
+            if (players.length > 0) isRelevant = true
+        }
+        else if (p.type === 'SPLIT') {
+            const players = await prisma.player.findMany({
+                where: { categoryId: data.categoryId, clubId },
+                select: { id: true }
+            })
+            if (players.length > 0) isRelevant = true
+        }
+
+        if (isRelevant) {
+            // check if already voted
+            const myVote = p.votes.find(v => v.clubId === clubId)
+            relevantProposals.push({
+                ...p,
+                myVote: myVote?.vote
+            })
+        }
+    }
+
+    return relevantProposals
 }

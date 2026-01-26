@@ -21,7 +21,7 @@ const statusConfig: Record<string, { bg: string, text: string }> = {
     UPCOMING: { bg: 'bg-blue-50', text: 'text-blue-700' },
     OPEN: { bg: 'bg-green-50', text: 'text-green-700' },
     CLOSED: { bg: 'bg-gray-100', text: 'text-gray-700' },
-    COMPLETED: { bg: 'bg-indigo-50', text: 'text-indigo-700' },
+    COMPLETED: { bg: 'bg-red-50', text: 'text-red-700' },
     CANCELLED: { bg: 'bg-red-50', text: 'text-red-700' }
 }
 
@@ -153,7 +153,7 @@ export default function PromotionsWidget({ promotionTests: initial }: { promotio
 
                 {filteredTests.length > 3 && (
                     <div className="px-4 py-3 border-t border-gray-100 bg-gray-50/50">
-                        <Link href="/promotions" className="text-xs text-indigo-600 font-medium hover:underline">
+                        <Link href="/promotions" className="text-xs text-red-600 font-medium hover:underline">
                             View all {filteredTests.length} promotion tests →
                         </Link>
                     </div>

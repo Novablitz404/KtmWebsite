@@ -168,7 +168,7 @@ export default async function OrganizerProfileView({ dbUser, clerkImageUrl }: Or
             {/* Quick Actions - Mobile Only */}
             <div className="sm:hidden px-4 space-y-3">
                 <Link
-                    href="/organizer-tournaments"
+                    href="/organization?tab=events"
                     className="flex items-center gap-4 bg-white rounded-2xl shadow-sm border border-gray-100 p-4 active:scale-[0.98] transition-transform"
                 >
                     <div className="w-11 h-11 rounded-xl bg-indigo-50 flex items-center justify-center text-xl">

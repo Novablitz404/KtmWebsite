@@ -84,7 +84,9 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
                         tournament: { select: { name: true, startDate: true } }
                     }
                 },
-                user: { select: { name: true, email: true, clerkId: true } }
+                user: { select: { name: true, email: true, clerkId: true } },
+                teamId: true,
+                poomsaeType: true
             },
             orderBy: { category: { tournament: { startDate: 'asc' } } }
         }),
@@ -116,7 +118,9 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
                         tournament: { select: { name: true, startDate: true } }
                     }
                 },
-                user: { select: { name: true, email: true, clerkId: true } }
+                user: { select: { name: true, email: true, clerkId: true } },
+                teamId: true,
+                poomsaeType: true
             },
             orderBy: { category: { tournament: { startDate: 'desc' } } },
             take: 500

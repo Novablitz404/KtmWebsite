@@ -32,7 +32,10 @@ export default async function OrganizationPage() {
                     logoUrl: true,
                     address: true,
                     contactPhone: true,
-                    contactEmail: true
+                    contactEmail: true,
+                    website: true,
+                    chairman: true,
+                    viceChairman: true
                 }
             }
         }

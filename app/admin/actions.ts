@@ -47,50 +47,62 @@ export async function updateAdminProfile(fullName: string) {
     revalidatePath('/admin'); // Update sidebar name too
 }
 
-export async function inviteOrganizer(formData: FormData) {
+// ============================================
+// ORGANIZATION APPROVAL (Admin approves pending organizations)
+// ============================================
+
+export async function getPendingOrganizations() {
     const user = await currentUser()
     if (!user) throw new Error('Not authenticated')
 
     const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
     if (dbUser?.role !== 'ADMIN') throw new Error('Unauthorized')
 
-    const email = formData.get('email') as string
-
-
-    if (!email) throw new Error('Email required')
-
-    // Check if email already exists in system
-    const existingUser = await prisma.user.findUnique({ where: { email } })
-    if (existingUser) throw new Error('User with this email already exists')
-
-    // Check if invite already exists
-    const existingInvite = await prisma.organizationInvite.findUnique({ where: { email } })
-    if (existingInvite) throw new Error('Invite already sent to this email')
-
-    await prisma.organizationInvite.create({
-        data: {
-            email,
-            invitedBy: dbUser.id
-        }
+    const pendingOrgs = await prisma.organization.findMany({
+        where: { status: 'PENDING' },
+        include: {
+            owner: {
+                select: { name: true, email: true }
+            }
+        },
+        orderBy: { createdAt: 'desc' }
     })
 
-    revalidatePath('/admin/users')
+    return pendingOrgs
 }
 
-export async function deleteInvite(formData: FormData) {
+export async function approveOrganization(orgId: string) {
     const user = await currentUser()
     if (!user) throw new Error('Not authenticated')
 
     const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
     if (dbUser?.role !== 'ADMIN') throw new Error('Unauthorized')
 
-    const inviteId = formData.get('inviteId') as string
-    if (!inviteId) throw new Error('Invite ID required')
+    await prisma.organization.update({
+        where: { id: orgId },
+        data: { status: 'APPROVED' }
+    })
 
-    await prisma.organizationInvite.delete({ where: { id: inviteId } })
-
-    revalidatePath('/admin/users')
+    revalidatePath('/')
+    revalidatePath('/admin')
 }
+
+export async function rejectOrganization(orgId: string) {
+    const user = await currentUser()
+    if (!user) throw new Error('Not authenticated')
+
+    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    if (dbUser?.role !== 'ADMIN') throw new Error('Unauthorized')
+
+    await prisma.organization.update({
+        where: { id: orgId },
+        data: { status: 'REJECTED' }
+    })
+
+    revalidatePath('/')
+    revalidatePath('/admin')
+}
+
 
 
 export async function promoteToClubMaster(formData: FormData) {

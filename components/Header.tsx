@@ -32,13 +32,18 @@ export default function Header() {
 
 
 
+    // Prevent flash of header during loading state
+    if (!isLoaded) {
+        return null
+    }
+
     // Hide header on auth pages and onboarding
     if (pathname?.startsWith('/sign-in') || pathname?.startsWith('/sign-up') || pathname?.startsWith('/onboarding')) {
         return null
     }
 
     // Hide header for ALL logged-in users - they use their dashboard sidebars instead
-    if (isLoaded && user) {
+    if (user) {
         return null
     }
 

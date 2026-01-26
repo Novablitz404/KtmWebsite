@@ -26,7 +26,7 @@ export function TournamentsTableSkeleton() {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                        {[...Array(5)].map((_, i) => (
+                        {[...Array(10)].map((_, i) => (
                             <tr key={i}>
                                 <td className="px-6 py-4">
                                     <div className="flex items-center gap-4">
@@ -116,7 +116,7 @@ export function PromotionsTableSkeleton() {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                        {[...Array(5)].map((_, i) => (
+                        {[...Array(10)].map((_, i) => (
                             <tr key={i}>
                                 <td className="px-6 py-4">
                                     <div className="space-y-2">

@@ -5,6 +5,7 @@ import ClubDashboard from './ClubDashboard'
 import { Suspense } from 'react'
 import ClubMembersTabContent from '@/components/club/ClubMembersTabContent'
 import MembersSkeleton from '@/components/skeletons/MembersSkeleton'
+import ClubPendingView from '@/components/club/ClubPendingView'
 
 import ClubMasterProfileView from '@/app/settings/ClubMasterProfileView'
 
@@ -39,7 +40,13 @@ export default async function ClubPage(props: { searchParams: Promise<{ page?: s
                     name: true,
                     logoUrl: true,
                     address: true,
-                    phone: true
+                    phone: true,
+                    status: true,
+                    organization: {
+                        select: {
+                            name: true
+                        }
+                    }
                 }
             }
         }
@@ -59,9 +66,25 @@ export default async function ClubPage(props: { searchParams: Promise<{ page?: s
                 name: true,
                 logoUrl: true,
                 address: true,
-                phone: true
+                phone: true,
+                status: true,
+                organization: {
+                    select: {
+                        name: true
+                    }
+                }
             }
         })
+    }
+
+    // Check for PENDING status first
+    if (targetClub && targetClub.status === 'PENDING') {
+        return (
+            <ClubPendingView
+                organizationName={targetClub.organization?.name}
+                userEmail={dbUser.email}
+            />
+        )
     }
 
     if ((dbUser.role !== 'CLUB_MASTER' && dbUser.role !== 'ASSISTANT_CLUB_MASTER') || !targetClub) {

@@ -118,7 +118,8 @@ export async function getOrganizationDashboardData() {
         affiliatedOrgs: affiliatedOrgsWithStats,
         recentMembers,
         announcements: await getOrganizationAnnouncements(orgId, 5),
-        promotionTests: await getOrganizationPromotionTests(orgId, 5)
+        promotionTests: await getOrganizationPromotionTests(orgId, 5),
+        guidelineTemplates: await prisma.guidelineTemplate.findMany({ select: { id: true, name: true }, orderBy: { name: 'asc' } })
     }
 }
 
@@ -321,18 +322,28 @@ export async function deletePromotionTest(promotionTestId: string) {
         include: { organization: true }
     })
 
-    if (!dbUser?.organization) return { error: 'No organization found' }
+    // Allow Admins to proceed even without an organization
+    if (dbUser?.role !== 'ADMIN' && !dbUser?.organization) {
+        return { error: 'No organization found' }
+    }
 
     const promotionTest = await prisma.promotionTest.findUnique({
         where: { id: promotionTestId }
     })
 
-    if (!promotionTest || promotionTest.organizationId !== dbUser.organization.id) {
-        return { error: 'Promotion test not found or unauthorized' }
+    if (!promotionTest) return { error: 'Promotion test not found' }
+
+    // Authorization: Owner OR Admin
+    if (dbUser?.role !== 'ADMIN') {
+        if (!dbUser?.organization || promotionTest.organizationId !== dbUser.organization.id) {
+            return { error: 'Unauthorized' }
+        }
     }
 
     await prisma.promotionTest.delete({ where: { id: promotionTestId } })
 
+    revalidatePath('/organization')
+    revalidatePath('/admin')
     return { success: true }
 }
 
@@ -343,11 +354,17 @@ export async function deletePromotionTest(promotionTestId: string) {
 export async function updateOrganizationSettings(formData: FormData) {
     try {
         const organizationId = formData.get('organizationId') as string
+        const name = formData.get('name') as string
         const logoFile = formData.get('logo') as File | null
         const address = formData.get('address') as string | null
         const phone = formData.get('phone') as string | null
+        const email = formData.get('email') as string | null
+        const chairman = formData.get('chairman') as string | null
+        const viceChairman = formData.get('viceChairman') as string | null
+        const website = formData.get('website') as string | null
 
         if (!organizationId) return { error: 'Organization ID is required' }
+        if (!name) return { error: 'Organization Name is required' }
 
         const user = await currentUser()
         if (!user) return { error: 'Unauthorized' }
@@ -371,9 +388,16 @@ export async function updateOrganizationSettings(formData: FormData) {
             return { error: 'Organization ID mismatch' }
         }
 
-        const updateData: any = {}
+        const updateData: any = {
+            name,
+        }
+
         if (address !== null) updateData.address = address
-        if (phone !== null) updateData.contactPhone = phone // Mapping 'phone' form field to 'contactPhone' schema field
+        if (phone !== null) updateData.contactPhone = phone
+        if (email !== null) updateData.contactEmail = email
+        if (chairman !== null) updateData.chairman = chairman
+        if (viceChairman !== null) updateData.viceChairman = viceChairman
+        if (website !== null) updateData.website = website
 
         // Handle File Upload
         if (logoFile && logoFile.size > 0) {
@@ -424,7 +448,7 @@ export async function updateOrganizationSettings(formData: FormData) {
         })
 
         // Revalidate relevant paths
-        // revalidatePath('/organization') // Depending on where this is used
+        revalidatePath('/organization')
         return { success: true }
 
     } catch (error) {
@@ -500,4 +524,103 @@ export async function rejectClub(clubId: string) {
 
     revalidatePath('/')
     revalidatePath('/organization')
+}
+
+// ============================================
+// MIGRATED FROM organizer-tournaments
+// ============================================
+
+export async function getOrganizationStats() {
+    const user = await currentUser()
+    if (!user) return null
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: {
+            organization: {
+                include: {
+                    clubs: {
+                        include: { students: true }
+                    },
+                    affiliatedOrganizations: {
+                        include: {
+                            clubs: {
+                                include: { students: true }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    })
+
+    if (!dbUser || !dbUser.organization) return null
+
+    const org = dbUser.organization
+
+    // Direct Clubs
+    const directClubsCount = org.clubs.length
+    const directMembersCount = org.clubs.reduce((acc: number, club: any) => acc + club.students.length, 0)
+
+    // Affiliated Orgs
+    const affiliatedOrgsCount = org.affiliatedOrganizations.length
+
+    // Members from Affiliated Orgs (assuming 1 level depth for now)
+    const affiliatedMembersCount = org.affiliatedOrganizations.reduce((acc: number, affOrg: any) => {
+        return acc + affOrg.clubs.reduce((cAcc: number, club: any) => cAcc + club.students.length, 0)
+    }, 0)
+
+    return {
+        totalMembers: directMembersCount + affiliatedMembersCount,
+        directClubs: directClubsCount,
+        affiliatedOrgs: affiliatedOrgsCount,
+        directMembers: directMembersCount,
+        affiliatedMembers: affiliatedMembersCount
+    }
+}
+
+export async function getOrganizerTournaments() {
+    const user = await currentUser()
+    const dbUser = user ? await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        select: { id: true, role: true }
+    }) : null
+
+    // If no user or not an organizer, return null
+    if (!dbUser || (dbUser.role !== 'ORGANIZER' && dbUser.role !== 'MANAGER' && dbUser.role !== 'ADMIN')) {
+        return null
+    }
+
+    // Optimized: Use _count instead of fetching all players
+    const tournaments = await prisma.tournament.findMany({
+        orderBy: { startDate: 'desc' },
+        where: {
+            OR: [
+                { organizerId: dbUser.id },
+                { managers: { some: { id: dbUser.id } } }
+            ]
+        },
+        select: {
+            id: true,
+            name: true,
+            startDate: true,
+            venue: true,
+            status: true,
+            headerImageUrl: true,
+            _count: {
+                select: {
+                    categories: true
+                }
+            },
+            categories: {
+                select: {
+                    _count: {
+                        select: { players: true }
+                    }
+                }
+            }
+        }
+    })
+
+    return tournaments
 }

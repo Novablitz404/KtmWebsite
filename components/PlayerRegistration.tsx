@@ -13,6 +13,7 @@ interface PlayerRegistrationProps {
 export default function PlayerRegistration({ tournamentId, categories, players: initialPlayers, readOnly = false, totalCount = 0 }: PlayerRegistrationProps) {
     const formRef = useRef<HTMLFormElement>(null)
     const [selectedCategory, setSelectedCategory] = useState(categories[0]?.id || '')
+    const [selectedType, setSelectedType] = useState('INDIVIDUAL')
     const [selectedBelt, setSelectedBelt] = useState('Black')
     const [selectedSkill, setSelectedSkill] = useState('Novice')
 
@@ -103,6 +104,21 @@ export default function PlayerRegistration({ tournamentId, categories, players: 
                                     label: c.name,
                                     value: c.id
                                 }))}
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Event Type</label>
+                            <GlobalDropdown
+                                name="poomsaeType"
+                                fullWidth
+                                options={[
+                                    { label: 'Individual', value: 'INDIVIDUAL' },
+                                    { label: 'Pair', value: 'PAIR' },
+                                    { label: 'Team', value: 'TEAM' }
+                                ]}
+                                value={selectedType}
+                                onChange={setSelectedType}
                             />
                         </div>
 

@@ -24,6 +24,9 @@ interface OrganizationSettingsViewProps {
         address: string | null
         contactPhone: string | null
         contactEmail: string | null
+        website: string | null
+        chairman: string | null
+        viceChairman: string | null
     }
     clerkImageUrl: string | undefined
 }
@@ -88,41 +91,70 @@ export default async function OrganizationSettingsView({ dbUser, organization, c
                     {organization && (
                         <OrganizationSettingsButton
                             organizationId={organization.id}
+                            orgName={organization.name}
                             orgLogo={organization.logoUrl}
                             address={organization.address}
                             phone={organization.contactPhone}
+                            email={organization.contactEmail}
+                            website={organization.website}
+                            chairman={organization.chairman}
+                            viceChairman={organization.viceChairman}
                             buttonText="Edit Organization"
                         />
                     )}
                 </div>
                 <div className="p-4 sm:p-8">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 sm:gap-6">
-                        <div>
-                            <span className="block text-[10px] sm:text-sm text-gray-500 mb-0.5 sm:mb-1">Organization Name</span>
-                            <span className="font-medium text-gray-900 text-sm sm:text-base">{organization.name}</span>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
+                        <div className="space-y-4">
+                            <div>
+                                <span className="block text-xs sm:text-sm text-gray-500 mb-1">Organization Name</span>
+                                <span className="font-medium text-gray-900 text-sm sm:text-base">{organization.name}</span>
+                            </div>
+                            <div>
+                                <span className="block text-xs sm:text-sm text-gray-500 mb-1">Website</span>
+                                {organization.website ? (
+                                    <a href={organization.website} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-700 font-medium text-sm sm:text-base truncate block">
+                                        {organization.website}
+                                    </a>
+                                ) : (
+                                    <span className="text-gray-400 text-sm">-</span>
+                                )}
+                            </div>
                         </div>
-                        <div>
-                            <span className="block text-[10px] sm:text-sm text-gray-500 mb-0.5 sm:mb-1">Admin</span>
-                            <span className="font-medium text-gray-900 text-sm sm:text-base">{dbUser.name || '-'}</span>
+
+                        <div className="space-y-4">
+                            <div>
+                                <span className="block text-xs sm:text-sm text-gray-500 mb-1">Contact Email</span>
+                                <span className="font-medium text-gray-900 text-sm sm:text-base truncate block">{organization.contactEmail || '-'}</span>
+                            </div>
+                            <div>
+                                <span className="block text-xs sm:text-sm text-gray-500 mb-1">Contact Phone</span>
+                                <span className="font-medium text-gray-900 text-sm sm:text-base">{organization.contactPhone || '-'}</span>
+                            </div>
                         </div>
-                        <div>
-                            <span className="block text-[10px] sm:text-sm text-gray-500 mb-0.5 sm:mb-1">Status</span>
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium bg-green-50 text-green-700">
-                                <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                                Active
-                            </span>
+
+                        <div className="space-y-4">
+                            <div>
+                                <span className="block text-xs sm:text-sm text-gray-500 mb-1">Chairman</span>
+                                <span className="font-medium text-gray-900 text-sm sm:text-base">{organization.chairman || '-'}</span>
+                            </div>
+                            <div>
+                                <span className="block text-xs sm:text-sm text-gray-500 mb-1">Vice Chairman</span>
+                                <span className="font-medium text-gray-900 text-sm sm:text-base">{organization.viceChairman || '-'}</span>
+                            </div>
                         </div>
-                        <div>
-                            <span className="block text-[10px] sm:text-sm text-gray-500 mb-0.5 sm:mb-1">Email</span>
-                            <span className="font-medium text-gray-900 text-xs sm:text-sm truncate block">{organization.contactEmail || '-'}</span>
-                        </div>
-                        <div>
-                            <span className="block text-[10px] sm:text-sm text-gray-500 mb-0.5 sm:mb-1">Phone</span>
-                            <span className="font-medium text-gray-900 text-sm sm:text-base">{organization.contactPhone || '-'}</span>
-                        </div>
-                        <div className="col-span-2 sm:col-span-1">
-                            <span className="block text-[10px] sm:text-sm text-gray-500 mb-0.5 sm:mb-1">Address</span>
-                            <span className="font-medium text-gray-900 text-sm sm:text-base">{organization.address || '-'}</span>
+
+                        <div className="col-span-2 sm:col-span-3 pt-2 border-t border-gray-50 mt-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                <div>
+                                    <span className="block text-xs sm:text-sm text-gray-500 mb-1">Address</span>
+                                    <span className="font-medium text-gray-900 text-sm sm:text-base">{organization.address || '-'}</span>
+                                </div>
+                                <div>
+                                    <span className="block text-xs sm:text-sm text-gray-500 mb-1">Admin</span>
+                                    <span className="font-medium text-gray-900 text-sm sm:text-base">{dbUser.name || '-'}</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

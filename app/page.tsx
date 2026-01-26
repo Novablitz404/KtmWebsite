@@ -14,13 +14,10 @@ export default async function Home() {
     const userEmail = user.emailAddresses[0]?.emailAddress
 
     // Parallel fetch all needed data upfront
-    const [existingUser, pendingOrganizerInvite] = await Promise.all([
-      prisma.user.findUnique({
-        where: { clerkId: user.id },
-        select: { role: true }
-      }),
-      userEmail ? prisma.organizationInvite.findUnique({ where: { email: userEmail } }) : null
-    ])
+    const existingUser = await prisma.user.findUnique({
+      where: { clerkId: user.id },
+      select: { id: true, role: true }
+    })
 
     // Admin setup (whitelist based) - still redirect admins to admin panel
     if (userEmail && ADMIN_EMAILS.includes(userEmail)) {
@@ -61,26 +58,7 @@ export default async function Home() {
       redirect('/admin')
     }
 
-    // Handle pending organizer invite - auto-create user and redirect
-    if (pendingOrganizerInvite && userEmail) {
-      const generateId = () => String(Math.floor(10000 + Math.random() * 90000))
-      let newId = generateId()
-      while (await prisma.user.findUnique({ where: { id: newId } })) {
-        newId = generateId()
-      }
-
-      await prisma.user.create({
-        data: {
-          id: newId,
-          clerkId: user.id,
-          email: userEmail,
-          name: pendingOrganizerInvite.name || user.firstName ? `${user.firstName} ${user.lastName}` : 'Organizer',
-          role: 'ORGANIZER'
-        }
-      })
-      await prisma.organizationInvite.delete({ where: { id: pendingOrganizerInvite.id } })
-      redirect('/organizer-tournaments')
-    }
+    // Organizations now use approval flow instead of invites
 
     // New user without invite - redirect to onboarding
     if (!existingUser) {
@@ -91,13 +69,24 @@ export default async function Home() {
     // For existing users, redirect to their role-specific dashboard
     if (existingUser) {
       if (existingUser.role === 'ORGANIZER') {
+        // Check organization status before redirecting
+        const organization = await prisma.organization.findUnique({
+          where: { ownerId: existingUser.id },
+          select: { status: true, name: true }
+        })
+
+        if (organization?.status === 'PENDING') {
+          redirect('/organization/pending')
+        } else if (organization?.status === 'REJECTED') {
+          redirect('/organization/rejected')
+        }
         redirect('/organization')
       } else if (existingUser.role === 'CLUB_MASTER') {
         redirect('/club')
       } else if (existingUser.role === 'ATHLETE') {
         redirect('/athlete')
       } else if (existingUser.role === 'MANAGER') {
-        redirect('/organizer-tournaments')
+        redirect('/organization?tab=events')
       }
       // If role is user/null/etc, they stay on landing page? 
       // Or maybe redirect to onboarding if somehow roleless?

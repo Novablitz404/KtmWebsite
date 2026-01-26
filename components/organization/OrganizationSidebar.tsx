@@ -49,7 +49,7 @@ export default function OrganizationSidebar({
                             className="w-10 h-10 rounded-lg object-contain"
                         />
                     ) : (
-                        <div className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center text-lg font-bold text-white">
+                        <div className="w-10 h-10 rounded-lg bg-red-600 flex items-center justify-center text-lg font-bold text-white">
                             {orgName?.charAt(0) || 'O'}
                         </div>
                     )}
@@ -71,7 +71,7 @@ export default function OrganizationSidebar({
                             key={item.id}
                             onClick={() => onNavigate(item.id as any)}
                             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive
-                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                                ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
                                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                                 }`}
                         >
@@ -87,7 +87,7 @@ export default function OrganizationSidebar({
                 <button
                     onClick={() => onNavigate('settings')}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeView === 'settings'
-                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                        ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
                         : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                         }`}
                 >

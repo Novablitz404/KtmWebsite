@@ -6,8 +6,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -16,41 +16,49 @@ datasource db {
 // ============================================
 
 model GuidelineTemplate {
-  id          String   @id @default(cuid())
-  name        String   @unique  // "Tap Elite 2026", "WTF Standard"
-  pdfUrl      String?  // Uploaded PDF path/URL
-  content     String?  @db.Text // Markdown/HTML content for dynamic generation
-  createdAt   DateTime @default(now())
-  
+  id        String   @id @default(cuid())
+  name      String   @unique // "Tap Elite 2026", "WTF Standard"
+  pdfUrl    String? // Uploaded PDF path/URL
+  content   String?  @db.Text // Markdown/HTML content for dynamic generation
+  createdAt DateTime @default(now())
+
   divisions   Division[]
   tournaments Tournament[]
 }
 
 model Division {
-  id           String   @id @default(cuid())
-  name         String   // "Cadet", "Junior", "Senior"
-  minAge       Int      // Minimum age for this division
-  maxAge       Int      // Maximum age for this division
-  displayOrder Int      @default(0)  // For sorted display
-  
-  templateId   String
-  template     GuidelineTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  
-  categories   WeightCategory[]
-  
+  id           String @id @default(cuid())
+  name         String // "Cadet", "Junior", "Senior"
+  minAge       Int // Minimum age for this division
+  maxAge       Int // Maximum age for this division
+  displayOrder Int    @default(0) // For sorted display
+
+  templateId String
+  template   GuidelineTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  categories WeightCategory[]
+
   @@index([templateId])
 }
 
 model WeightCategory {
-  id          String   @id @default(cuid())
-  name        String   // "FIN", "Under 58kg"
-  gender      String   // "Male", "Female", "Both"
-  minWeight   Float    // Minimum weight (inclusive)
-  maxWeight   Float    // Maximum weight (exclusive, 999 for "and over")
-  displayOrder Int     @default(0)
-  
-  divisionId  String
-  division    Division @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+  id        String @id @default(cuid())
+  name      String // "FIN", "Under 58kg"
+  gender    String // "Male", "Female", "Both"
+  minWeight Float // Minimum weight (inclusive)
+  maxWeight Float // Maximum weight (exclusive, 999 for "and over")
+
+  minHeight    Float? @default(0) // Minimum height in cm
+  maxHeight    Float? @default(0) // Maximum height in cm
+  displayOrder Int    @default(0)
+
+  // Poomsae / Kyorugi Distinction
+  type         String  @default("KYORUGI") // "KYORUGI", "POOMSAE"
+  subtype      String  @default("INDIVIDUAL") // "INDIVIDUAL", "PAIR", "TEAM"
+  poomsaeForms String? // Comma separated list of assigned forms
+
+  divisionId String
+  division   Division @relation(fields: [divisionId], references: [id], onDelete: Cascade)
 }
 
 // ============================================
@@ -58,30 +66,32 @@ model WeightCategory {
 // ============================================
 
 model Tournament {
-  id                  String     @id @default(cuid())
-  name                String
-  organizerId         String?
-  organizer           User?      @relation("OrganizerTournaments", fields: [organizerId], references: [id])
-  managers            User[]     @relation("TournamentManagers")
-  startDate           DateTime   @default(now())
-  venue               String?    // Location of the tournament
-  registrationStart   DateTime?  // When registration opens
-  registrationEnd     DateTime?  // When registration closes
-  guidelinePdfUrl     String?    // URL to uploaded guideline PDF
-  headerImageUrl      String?    // URL to uploaded header image
-  status              String     @default("UPCOMING") // UPCOMING, ONGOING, COMPLETED, CANCELLED, RESCHEDULED
-  
+  id                String    @id @default(cuid())
+  name              String
+  organizerId       String?
+  organizer         User?     @relation("OrganizerTournaments", fields: [organizerId], references: [id])
+  managers          User[]    @relation("TournamentManagers")
+  startDate         DateTime  @default(now())
+  venue             String? // Location of the tournament
+  registrationStart DateTime? // When registration opens
+  registrationEnd   DateTime? // When registration closes
+  guidelinePdfUrl   String? // URL to uploaded guideline PDF
+  headerImageUrl    String? // URL to uploaded header image
+  status            String    @default("UPCOMING") // UPCOMING, ONGOING, COMPLETED, CANCELLED, RESCHEDULED
+
   // Guideline Template (optional - if set, auto-generates categories)
   guidelineTemplateId String?
   guidelineTemplate   GuidelineTemplate? @relation(fields: [guidelineTemplateId], references: [id])
-  
-  categories          Category[]
-  managerInvites      TournamentManagerInvite[]
-  match_count         Int        @default(0) // Cache matches count
-  
+
+  categories     Category[]
+  managerInvites TournamentManagerInvite[]
+  match_count    Int                       @default(0) // Cache matches count
+
   // Relations
-  participatingClubs  ClubEventParticipation[]
-  
+  participatingClubs ClubEventParticipation[]
+
+  smartProposals SmartProposal[]
+
   @@index([startDate])
   @@index([status])
 }
@@ -93,10 +103,26 @@ model Category {
   tournament   Tournament @relation(fields: [tournamentId], references: [id])
   players      Player[]
   matches      Match[]
-  
-  type         String     @default("KYORUGI") // "KYORUGI", "POOMSAE"
-  court        String?    // Assigned Court Number
-  
+  poomsaeMatches PoomsaeMatch[]
+
+  type         String  @default("KYORUGI") // "KYORUGI", "POOMSAE"
+  subtype      String  @default("INDIVIDUAL") // "INDIVIDUAL", "PAIR", "TEAM"
+  poomsaeForms String? // Assigned Forms
+
+  court String? // Assigned Court Number
+
+  skillLevel String? @default("Novice") // "Novice" or "Advance"
+
+  // Auto-Detection Rules (Copied from Template)
+  minAge    Int?
+  maxAge    Int?
+  minWeight Float?
+  maxWeight Float?
+  minHeight Float?
+  maxHeight Float?
+  gender    String?
+  belt      String?
+
   @@index([tournamentId])
 }
 
@@ -105,32 +131,32 @@ model Category {
 // ============================================
 
 model User {
-  id        String    @id // 5-digit random ID like "00123"
-  clerkId   String    @unique
-  email     String    @unique
-  role      String    @default("ATHLETE") // ATHLETE, CLUB_MASTER, ASSISTANT_CLUB_MASTER, ORGANIZER, MANAGER
-  
+  id      String @id // 5-digit random ID like "00123"
+  clerkId String @unique
+  email   String @unique
+  role    String @default("ATHLETE") // ATHLETE, CLUB_MASTER, ASSISTANT_CLUB_MASTER, ORGANIZER, MANAGER
+
   // Profile Fields
   name      String?
   birthDate DateTime? // For calculating age/division
   belt      String?
   gender    String?
   weight    Float?
-  height    Float?    // Height in cm for Toddler/Grade School divisions
+  height    Float? // Height in cm for Toddler/Grade School divisions
   clubName  String?
-  
+
   // Relations
-  players   Player[]
-  club      Club?
+  players      Player[]
+  club         Club?
   organization Organization?
 
   // Organizer Relations
   createdTournaments Tournament[] @relation("OrganizerTournaments")
   managedTournaments Tournament[] @relation("TournamentManagers")
-  
+
   // API Keys
-  apiKeys   ApiKey[]
-  
+  apiKeys ApiKey[]
+
   // Push Notifications
   pushSubscriptions PushSubscription[]
   notifications     Notification[]
@@ -140,53 +166,61 @@ model User {
 }
 
 model Player {
-  id         String   @id // 5-digit ID like "00123"
-  name       String
-  gender     String   @default("Male")
-  weight     Float?
-  belt       String?  @default("Black")
-  height     Float? // Added for player specifics
-  division   String?  // NEW: "Cadet", "Junior", etc.
-  
-  registrationStatus String @default("PENDING") // PENDING, APPROVED, REJECTED
-  skillLevel String?  @default("Novice")
-  
+  id       String  @id // 5-digit ID like "00123"
+  name     String
+  gender   String  @default("Male")
+  weight   Float?
+  belt     String? @default("Black")
+  height   Float? // Added for player specifics
+  division String? // NEW: "Cadet", "Junior", etc.
+
+  registrationStatus String  @default("PENDING") // PENDING, APPROVED, REJECTED
+  skillLevel         String? @default("Novice")
+
+  // Poomsae Specifics
+  teamId      String? // "1", "2", "A", "B" - assigned by Club Master
+  poomsaeType String? // "INDIVIDUAL", "PAIR", "TEAM" - indicated by Athlete
+
+
   categoryId String
   category   Category @relation(fields: [categoryId], references: [id])
-  
-  userId     String?
-  user       User?    @relation(fields: [userId], references: [id])
 
-  clubId     String?
-  club       Club?    @relation(fields: [clubId], references: [id])
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @default(now()) @updatedAt
-  
+  clubId String?
+  club   Club?   @relation(fields: [clubId], references: [id])
+
+  // Poomsae Relations
+  poomsaeMatches PoomsaeMatch[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
   @@index([userId])
   @@index([categoryId])
   @@index([clubId])
 }
 
 model Club {
-  id        String   @id @default(cuid())
-  name      String
-  masterId  String   @unique
-  master    User     @relation(fields: [masterId], references: [id])
-  students  Player[]
-  logoUrl   String?
-  address   String?
-  phone     String?
-  
+  id       String   @id @default(cuid())
+  name     String
+  masterId String   @unique
+  master   User     @relation(fields: [masterId], references: [id])
+  students Player[]
+  logoUrl  String?
+  address  String?
+  phone    String?
+
   // Organization Relation
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
-  
+
   // Relations
   participatingEvents ClubEventParticipation[]
-  
-  status    String   @default("PENDING") // PENDING, APPROVED, REJECTED
-  
+
+  status String @default("PENDING") // PENDING, APPROVED, REJECTED
+
   @@index([name])
 }
 
@@ -197,83 +231,84 @@ model Organization {
   owner         User     @relation(fields: [ownerId], references: [id])
   establishedAt DateTime @default(now())
   logoUrl       String?
-  
-  // Organization Details
-  chairman      String?
-  viceChairman  String?
-  address       String?
-  contactEmail  String?
-  contactPhone  String?
-  website       String?
+  status        String   @default("APPROVED") // PENDING, APPROVED, REJECTED
 
-  clubs         Club[]
-  
+  // Organization Details
+  chairman     String?
+  viceChairman String?
+  address      String?
+  contactEmail String?
+  contactPhone String?
+  website      String?
+
+  clubs Club[]
+
   // Organization Affiliates
-  parentOrganizationId String?
-  parentOrganization   Organization?  @relation("OrganizationAffiliates", fields: [parentOrganizationId], references: [id])
+  parentOrganizationId    String?
+  parentOrganization      Organization?  @relation("OrganizationAffiliates", fields: [parentOrganizationId], references: [id])
   affiliatedOrganizations Organization[] @relation("OrganizationAffiliates")
-  
-  announcements Announcement[]
+
+  announcements  Announcement[]
   promotionTests PromotionTest[]
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Announcement {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   title          String
-  content        String   @db.Text
-  priority       String   @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
-  createdAt      DateTime @default(now())
+  content        String       @db.Text
+  priority       String       @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  createdAt      DateTime     @default(now())
   expiresAt      DateTime?
-  
+
   @@index([organizationId, createdAt])
 }
 
 model PromotionTest {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  
-  name           String   // "January 2026 Belt Test"
-  description    String?  @db.Text
-  testDate       DateTime
+
+  name                 String // "January 2026 Belt Test"
+  description          String?   @db.Text
+  testDate             DateTime
   registrationDeadline DateTime?
-  venue          String?
-  fee            Float?   // Registration fee
-  status         String   @default("UPCOMING") // UPCOMING, OPEN, CLOSED, COMPLETED, CANCELLED
-  
-  visibility     String   @default("PRIVATE") // PRIVATE, PUBLIC
-  bannerUrl      String?  // Storage URL for banner image
-  
-  registrations  PromotionTestRegistration[]
+  venue                String?
+  fee                  Float? // Registration fee
+  status               String    @default("UPCOMING") // UPCOMING, OPEN, CLOSED, COMPLETED, CANCELLED
+
+  visibility String  @default("PRIVATE") // PRIVATE, PUBLIC
+  bannerUrl  String? // Storage URL for banner image
+
+  registrations      PromotionTestRegistration[]
   participatingClubs ClubEventParticipation[]
-  
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([organizationId, testDate])
 }
 
 model PromotionTestRegistration {
-  id              String   @id @default(cuid())
+  id              String        @id @default(cuid())
   promotionTestId String
   promotionTest   PromotionTest @relation(fields: [promotionTestId], references: [id], onDelete: Cascade)
-  
-  playerId        String?  // If registered player
-  playerName      String   // Name for display
-  clubName        String?
-  currentBelt     String
-  targetBelt      String
-  
-  status          String   @default("PENDING") // PENDING, APPROVED, PASSED, FAILED
-  paymentStatus   String   @default("UNPAID") // UNPAID, PAID
-  
-  createdAt       DateTime @default(now())
-  
+
+  playerId    String? // If registered player
+  playerName  String // Name for display
+  clubName    String?
+  currentBelt String
+  targetBelt  String
+
+  status        String @default("PENDING") // PENDING, APPROVED, PASSED, FAILED
+  paymentStatus String @default("UNPAID") // UNPAID, PAID
+
+  createdAt DateTime @default(now())
+
   @@index([promotionTestId])
 }
 
@@ -284,8 +319,8 @@ model PromotionTestRegistration {
 model Match {
   id Int @id @default(autoincrement())
 
-  category     String?
-  categoryRef  Category? @relation(fields: [categoryRefId], references: [id])
+  category      String?
+  categoryRef   Category? @relation(fields: [categoryRefId], references: [id])
   categoryRefId String?
 
   round Int
@@ -305,49 +340,76 @@ model Match {
   court String @default("Unassigned")
 
   // Scoring Fields
-  r1_blue_score  Int @default(0)
-  r1_red_score   Int @default(0)
-  r2_blue_score  Int @default(0)
-  r2_red_score   Int @default(0)
-  r3_blue_score  Int @default(0)
-  r3_red_score   Int @default(0)
+  r1_blue_score    Int @default(0)
+  r1_red_score     Int @default(0)
+  r2_blue_score    Int @default(0)
+  r2_red_score     Int @default(0)
+  r3_blue_score    Int @default(0)
+  r3_red_score     Int @default(0)
   total_blue_score Int @default(0)
   total_red_score  Int @default(0)
-  blue_gam_jeom   Int @default(0)
-  red_gam_jeom    Int @default(0)
-  blue_rounds_won Int @default(0)
-  red_rounds_won  Int @default(0)
-  
+  blue_gam_jeom    Int @default(0)
+  red_gam_jeom     Int @default(0)
+  blue_rounds_won  Int @default(0)
+  red_rounds_won   Int @default(0)
+
   @@index([categoryRefId])
 }
 
-// ============================================
-// ORGANIZER INVITES
-// ============================================
+model PoomsaeMatch {
+  id Int @id @default(autoincrement()) // Separate sequence from Match
 
-model OrganizationInvite {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?  // Optional: Pre-fill name for the user
+  category      String?
+  categoryRef   Category? @relation(fields: [categoryRefId], references: [id])
+  categoryRefId String?
+
+  round Int // 1=Prelim, 2=Semi, 3=Final
+
+  matchId     Int? // Shared ID for all performances in this round group (e.g. 001)
+  nextMatchId Int? // Points to the shared matchId of the next round group (e.g. 002)
+  targetRank  Int? // The rank required to fill this slot (e.g. Rank 8 -> Perf #1)
+
+  performanceNumber Int? // Official order (1, 2, 3...) within the group
+
+  playerId String?
+  player   Player? @relation(fields: [playerId], references: [id])
+
+  // Scores
+  accuracy     Float @default(0)
+  presentation Float @default(0)
+  totalScore   Float @default(0)
+  rank         Int?
+
+  assignedForms String? // Forms to perform in this match (e.g. "Taegeuk 4")
+
+  status String @default("Pending") // Pending, Completed
+  court  String @default("Unassigned")
+
   createdAt DateTime @default(now())
-  invitedBy String   // Admin user ID who created invite
+
+  @@index([categoryRefId])
+  @@index([round])
+  @@index([nextMatchId])
 }
+
+// Organization approval is now handled via Organization.status field
+// OrganizationInvite model has been removed
 
 model ClubAssistantInvite {
   id        String   @id @default(cuid())
   email     String   @unique
-  clubName  String   // The club they are being invited to
-  invitedBy String   // Club Master ID who created invite (User ID)
+  clubName  String // The club they are being invited to
+  invitedBy String // Club Master ID who created invite (User ID)
   createdAt DateTime @default(now())
 }
 
 model TournamentManagerInvite {
-  id           String   @id @default(cuid())
+  id           String     @id @default(cuid())
   email        String
   tournamentId String
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  invitedBy    String   // Organizer ID (User ID)
-  createdAt    DateTime @default(now())
+  invitedBy    String // Organizer ID (User ID)
+  createdAt    DateTime   @default(now())
 
   @@unique([email, tournamentId]) // One invite per user per tournament
 }
@@ -361,11 +423,10 @@ model ApiKey {
   key         String   @unique // The secret key (e.g. "ktm_live_...")
   ownerId     String
   owner       User     @relation(fields: [ownerId], references: [id])
-  description String?  // e.g. "Court Laptop 1"
+  description String? // e.g. "Court Laptop 1"
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
 }
-
 
 // ============================================
 // PUSH NOTIFICATIONS
@@ -376,10 +437,10 @@ model PushSubscription {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   endpoint  String   @db.Text
-  p256dh    String   // Public key
-  auth      String   // Auth secret
+  p256dh    String // Public key
+  auth      String // Auth secret
   createdAt DateTime @default(now())
-  
+
   @@unique([userId, endpoint])
   @@index([userId])
 }
@@ -390,10 +451,10 @@ model Notification {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String
   body      String
-  url       String?  // Where to navigate when clicked
+  url       String? // Where to navigate when clicked
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
-  
+
   @@index([userId, read])
   @@index([userId, createdAt])
 }
@@ -403,20 +464,57 @@ model Notification {
 // ============================================
 
 model ClubEventParticipation {
-  id              String         @id @default(cuid())
-  clubId          String
-  club            Club           @relation(fields: [clubId], references: [id], onDelete: Cascade)
-  
+  id     String @id @default(cuid())
+  clubId String
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
   // Relations (Only one should be set per record)
-  tournamentId    String?
-  tournament      Tournament?    @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  
+  tournamentId String?
+  tournament   Tournament? @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
   promotionTestId String?
   promotionTest   PromotionTest? @relation(fields: [promotionTestId], references: [id], onDelete: Cascade)
-  
-  joinedAt        DateTime       @default(now())
+
+  joinedAt DateTime @default(now())
 
   @@unique([clubId, tournamentId])
   @@unique([clubId, promotionTestId])
   @@index([clubId])
+}
+
+// ============================================
+// SMART TOURNAMENT MANAGER
+// ============================================
+
+model SmartProposal {
+  id           String   @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  type   String // "UNCONTESTED", "MERGE", "SPLIT"
+  status String @default("PENDING") // PENDING, APPROVED, REJECTED, COMPLETED
+
+  // JSON Data to store context (e.g. { sourceCategoryId, targetCategoryId, playerIds })
+  data String @db.Text 
+
+  votes SmartProposalVote[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tournamentId])
+  @@index([status])
+}
+
+model SmartProposalVote {
+  id         String @id @default(cuid())
+  proposalId String
+  proposal   SmartProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  clubId String
+  vote   String // "AGREE", "DISAGREE", "MOVE_UP", "WALKOVER", "WITHDRAW"
+  
+  timestamp DateTime @default(now())
+
+  @@unique([proposalId, clubId])
 }

@@ -67,15 +67,15 @@ export default function AnnouncementsWidget({ announcements: initialAnnouncement
     return (
         <>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-indigo-50/50 to-white">
+                <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-red-50/50 to-white">
                     <div className="flex items-center gap-2">
-                        <Megaphone className="w-4 h-4 text-indigo-600" />
+                        <Megaphone className="w-4 h-4 text-red-600" />
                         <h3 className="font-bold text-gray-900 text-sm">Announcements</h3>
                     </div>
                     <div className="flex items-center gap-2">
                         <GlobalDropdown
                             trigger={
-                                <button className="p-1.5 rounded-lg text-gray-500 hover:bg-white hover:text-indigo-600 transition-colors">
+                                <button className="p-1.5 rounded-lg text-gray-500 hover:bg-white hover:text-red-600 transition-colors">
                                     <ListFilter className="w-4 h-4" />
                                 </button>
                             }
@@ -90,7 +90,7 @@ export default function AnnouncementsWidget({ announcements: initialAnnouncement
                         />
                         <button
                             onClick={() => setShowModal(true)}
-                            className="p-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                            className="p-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
                         >
                             <Plus className="w-4 h-4" />
                         </button>
@@ -146,7 +146,7 @@ export default function AnnouncementsWidget({ announcements: initialAnnouncement
                                     name="title"
                                     type="text"
                                     required
-                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                                     placeholder="Announcement title"
                                 />
                             </div>
@@ -157,7 +157,7 @@ export default function AnnouncementsWidget({ announcements: initialAnnouncement
                                     name="content"
                                     required
                                     rows={3}
-                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
                                     placeholder="Announcement details..."
                                 />
                             </div>
@@ -183,7 +183,7 @@ export default function AnnouncementsWidget({ announcements: initialAnnouncement
                                     <input
                                         name="expiresAt"
                                         type="date"
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                                     />
                                 </div>
                             </div>
@@ -191,7 +191,7 @@ export default function AnnouncementsWidget({ announcements: initialAnnouncement
                             <button
                                 type="submit"
                                 disabled={isSubmitting}
-                                className="w-full py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                                className="w-full py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
                             >
                                 {isSubmitting ? 'Creating...' : 'Create Announcement'}
                             </button>

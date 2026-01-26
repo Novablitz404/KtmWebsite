@@ -39,7 +39,7 @@ export default function OrganizationTopBar({
                             className="w-8 h-8 rounded-full object-cover border border-gray-100"
                         />
                     ) : (
-                        <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold">
+                        <div className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-xs font-bold">
                             {userName.charAt(0)}
                         </div>
                     )}
@@ -62,7 +62,7 @@ export default function OrganizationTopBar({
                             value={searchQuery || ''}
                             onChange={(e) => onSearchChange(e.target.value)}
                             placeholder={searchPlaceholder}
-                            className="block w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50/50 md:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all shadow-sm"
+                            className="block w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50/50 md:bg-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all shadow-sm"
                         />
                     </div>
                 ) : (
@@ -88,7 +88,7 @@ export default function OrganizationTopBar({
                             className="w-8 h-8 md:w-9 md:h-9 rounded-full object-cover border-2 border-white md:border-gray-100 shadow-sm"
                         />
                     ) : (
-                        <div className="w-8 h-8 md:w-9 md:h-9 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm font-bold border-2 border-white md:border-gray-100 shadow-sm">
+                        <div className="w-8 h-8 md:w-9 md:h-9 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-sm font-bold border-2 border-white md:border-gray-100 shadow-sm">
                             {userName.charAt(0)}
                         </div>
                     )}

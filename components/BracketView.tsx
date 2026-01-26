@@ -1,12 +1,22 @@
 import { Match } from '@prisma/client'
+import { pdf } from '@react-pdf/renderer'
+import { Download } from 'lucide-react'
+import BracketPDF from './pdf/BracketPDF'
 
 interface BracketViewProps {
     matches: Match[]
+    tournamentName?: string
+    categoryName?: string
 }
 
-export default function BracketView({ matches }: BracketViewProps) {
+export default function BracketView({ matches, tournamentName = "Tournament", categoryName = "Category" }: BracketViewProps) {
     if (matches.length === 0) {
-        return <div className="p-10 text-center text-gray-500">No bracket generated yet.</div>
+        return (
+            <div className="flex flex-col items-center justify-center p-12 text-center text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                <p className="font-medium">No bracket generated yet.</p>
+                <p className="text-sm mt-1">Generate matches to see the bracket.</p>
+            </div>
+        )
     }
 
     // Build the tree
@@ -28,12 +38,42 @@ export default function BracketView({ matches }: BracketViewProps) {
 
     const roots = matches.filter(m => !m.nextMatchId)
 
+    const handleDownloadPDF = async () => {
+        const blob = await pdf(
+            <BracketPDF
+                tournamentName={tournamentName}
+                categoryName={categoryName}
+                matches={matches}
+            />
+        ).toBlob()
+
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `${categoryName}-bracket.pdf`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+    }
+
     return (
-        <div className="overflow-x-auto p-4 pb-10">
-            <div className="flex flex-col gap-10">
-                {roots.map(root => (
-                    <BracketNode key={root.id} match={root} childrenMap={childrenMap} isRoot={true} maxRound={maxRound} />
-                ))}
+        <div className="space-y-4">
+            <div className="flex justify-end">
+                <button
+                    onClick={handleDownloadPDF}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium transition-colors shadow-sm"
+                >
+                    <Download size={16} />
+                    Download Bracket PDF
+                </button>
+            </div>
+
+            <div className="overflow-x-auto p-8 pb-10 bg-slate-50 rounded-xl border border-slate-200 shadow-inner">
+                <div className="flex flex-col gap-12">
+                    {roots.map(root => (
+                        <BracketNode key={root.id} match={root} childrenMap={childrenMap} isRoot={true} maxRound={maxRound} />
+                    ))}
+                </div>
             </div>
         </div>
     )
@@ -59,71 +99,121 @@ function BracketNode({
     const isLeaf = children.length === 0;
 
     const roundLabel = () => {
-        if (match.round === maxRound) return 'Finals';
-        if (match.round === maxRound - 1) return 'Semifinals';
-        if (match.round === maxRound - 2) return 'Quarterfinals';
-        return `Eliminations (R${match.round})`;
+        if (match.round === maxRound) return 'FINALS';
+        if (match.round === maxRound - 1) return 'SEMI-FINALS';
+        if (match.round === maxRound - 2) return 'QUARTER-FINALS';
+        return `ROUND ${match.round}`;
     }
 
     // Helper for name styling
-    const displayName = (name: string) => name === 'BYE' ? <span className="text-gray-400 italic text-xs">BYE</span> : name;
+    const displayName = (name: string) => name === 'BYE' ? <span className="text-gray-400 italic text-xs font-semibold">BYE</span> : name;
 
     // If both players are BYE, it's an empty filler match. 
     const isFiller = match.player1 === 'BYE' && match.player2 === 'BYE';
 
+    // Status Badge Color
+    const getStatusColor = () => {
+        if (match.winner) return 'bg-gray-800 text-white'; // Completed
+        if (match.player1 && match.player2 && match.player1 !== 'BYE' && match.player2 !== 'BYE') return 'bg-green-600 text-white animate-pulse'; // Ready
+        return 'bg-gray-200 text-gray-500'; // Pending
+    }
+
+    const getStatusLabel = () => {
+        if (match.winner) return 'COMPLETED';
+        if (match.player1 && match.player2 && match.player1 !== 'BYE' && match.player2 !== 'BYE') return 'LIVE';
+        return 'PENDING';
+    }
+
     return (
-        <div className={`flex items-center ${isFiller ? 'opacity-50' : ''}`}>
+        <div className={`flex items-center ${isFiller ? 'opacity-30 pointer-events-none grayscale' : ''}`}>
             {/* Left Side: Children */}
             {!isLeaf && (
-                <div className="flex flex-col justify-center mr-[40px] relative">
+                <div className="flex flex-col justify-center mr-[50px] relative">
 
                     {topChild && (
                         <div className="flex flex-col items-end relative">
                             <BracketNode match={topChild} childrenMap={childrenMap} maxRound={maxRound} type="top" />
-
                             {/* ELBOW CONNECTOR: Top Child */}
-                            <div className="absolute right-[-20px] top-[50%] w-[20px] h-[calc(50%+1px)] border-t border-r border-gray-300 rounded-tr-xl pointer-events-none"></div>
+                            <div className="absolute right-[-25px] top-[50%] w-[25px] h-[calc(50%+2px)] border-t-2 border-r-2 border-gray-300 rounded-tr-xl pointer-events-none"></div>
                         </div>
                     )}
 
                     {bottomChild && (
                         <div className="flex flex-col items-end relative">
                             <BracketNode match={bottomChild} childrenMap={childrenMap} maxRound={maxRound} type="bottom" />
-
                             {/* ELBOW CONNECTOR: Bottom Child */}
-                            <div className="absolute right-[-20px] bottom-[50%] w-[20px] h-[calc(50%+1px)] border-b border-r border-gray-300 rounded-br-xl pointer-events-none"></div>
+                            <div className="absolute right-[-25px] bottom-[50%] w-[25px] h-[calc(50%+2px)] border-b-2 border-r-2 border-gray-300 rounded-br-xl pointer-events-none"></div>
                         </div>
                     )}
                 </div>
             )}
 
-            {/* The Match Node */}
-            <div className="relative z-10 my-4">
-                <div className={`bg-white border border-gray-200 rounded-lg shadow-sm p-3 min-w-[200px] ${isFiller ? 'bg-gray-50 border-gray-100' : ''}`}>
-                    <div className="flex justify-between items-center mb-2 border-b border-gray-100 pb-1">
-                        <span className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">{roundLabel()}</span>
-                        <div className="flex flex-col items-end">
-                            {match.id && <span className="text-[9px] text-gray-800 font-mono font-bold">Match {match.id}</span>}
-                            {match.court && match.court !== 'Unassigned' && <span className="text-[8px] text-blue-600 bg-blue-50 px-1 rounded">{match.court}</span>}
+            {/* The Match Node (Card) */}
+            <div className="relative z-10 my-6 transition-transform hover:scale-[1.02] duration-200">
+                <div className={`w-[280px] bg-white rounded-lg shadow-md border overflow-hidden ${match.winner ? 'border-gray-400 shadow-gray-200' : 'border-gray-200 shadow-sm'}`}>
+
+                    {/* Header: Match Info */}
+                    <div className="bg-gray-50 px-3 py-1.5 flex justify-between items-center border-b border-gray-100">
+                        <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">{roundLabel()}</span>
+                        <div className="flex items-center gap-2">
+                            {match.court && match.court !== 'Unassigned' && (
+                                <span className="text-[10px] font-bold bg-gray-200 text-gray-700 px-1.5 rounded">
+                                    C{match.court}
+                                </span>
+                            )}
+                            <span className={`text-[9px] font-bold px-1.5 rounded ${getStatusColor()}`}>
+                                #{match.id}
+                            </span>
                         </div>
                     </div>
-                    <div className="flex justify-between items-center mb-1">
-                        <span className={`text-sm font-medium ${match.winner === match.player1 ? 'text-green-600' : 'text-gray-900'} truncate max-w-[120px]`}>
-                            {displayName(match.player1)}
-                        </span>
-                        {match.r1_blue_score > 0 && <span className="text-xs bg-blue-100 text-blue-800 px-1 rounded">{match.r1_blue_score}</span>}
+
+                    {/* Player 1 (Blue / Chong) */}
+                    <div className={`px-3 py-2 flex justify-between items-center border-b border-gray-100 relative overflow-hidden group ${match.winner === match.player1 ? 'bg-blue-50/50' : ''
+                        }`}>
+                        {/* Blue Bar Indicator */}
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500"></div>
+
+                        <div className="flex flex-col pl-2">
+                            <span className="text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-0.5">Chong (Blue)</span>
+                            <span className={`text-sm truncate max-w-[180px] transition-colors ${match.winner ? (match.winner === match.player1 ? 'font-black text-gray-900' : 'font-medium text-gray-400 decoration-gray-300 line-through decoration-2') : 'font-bold text-gray-800'
+                                }`}>
+                                {displayName(match.player1)}
+                            </span>
+                        </div>
+                        {/* Score */}
+                        {match.r1_blue_score > 0 || match.winner ? (
+                            <span className={`text-lg font-black font-mono ${match.winner === match.player1 ? 'text-blue-600' : 'text-gray-300'}`}>
+                                {match.r1_blue_score + match.r2_blue_score + match.r3_blue_score}
+                            </span>
+                        ) : null}
                     </div>
-                    <div className="flex justify-between items-center">
-                        <span className={`text-sm font-medium ${match.winner === match.player2 ? 'text-green-600' : 'text-gray-900'} truncate max-w-[120px]`}>
-                            {displayName(match.player2)}
-                        </span>
-                        {match.r1_red_score > 0 && <span className="text-xs bg-red-100 text-red-800 px-1 rounded">{match.r1_red_score}</span>}
+
+                    {/* Player 2 (Red / Hong) */}
+                    <div className={`px-3 py-2 flex justify-between items-center relative overflow-hidden ${match.winner === match.player2 ? 'bg-red-50/50' : ''
+                        }`}>
+                        {/* Red Bar Indicator */}
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-500"></div>
+
+                        <div className="flex flex-col pl-2">
+                            <span className="text-[10px] text-red-600 font-bold uppercase tracking-wider mb-0.5">Hong (Red)</span>
+                            <span className={`text-sm truncate max-w-[180px] transition-colors ${match.winner ? (match.winner === match.player2 ? 'font-black text-gray-900' : 'font-medium text-gray-400 decoration-gray-300 line-through decoration-2') : 'font-bold text-gray-800'
+                                }`}>
+                                {displayName(match.player2)}
+                            </span>
+                        </div>
+                        {/* Score */}
+                        {match.r1_red_score > 0 || match.winner ? (
+                            <span className={`text-lg font-black font-mono ${match.winner === match.player2 ? 'text-red-600' : 'text-gray-300'}`}>
+                                {match.r1_red_score + match.r2_red_score + match.r3_red_score}
+                            </span>
+                        ) : null}
                     </div>
+
                 </div>
 
                 {/* Parent Connector Stub */}
                 {!isLeaf && (
-                    <div className="absolute left-[-20px] top-1/2 w-[20px] h-[1px] bg-gray-300 z-[-1]"></div>
+                    <div className="absolute left-[-25px] top-1/2 w-[25px] h-[2px] bg-gray-300 z-[-1]"></div>
                 )}
             </div>
         </div>

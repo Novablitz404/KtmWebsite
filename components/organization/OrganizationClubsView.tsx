@@ -15,13 +15,17 @@ interface OrganizationClubsViewProps {
     organizations?: any[]
     orgLogo?: string | null
     orgName?: string
+    isLoading?: boolean
+    searchQuery?: string
 }
 
 export default function OrganizationClubsView({
     clubs,
     organizations = [],
     orgLogo,
-    orgName
+    orgName,
+    isLoading = false,
+    searchQuery = ''
 }: OrganizationClubsViewProps) {
     const [viewType, setViewType] = useState<ClubViewType>('clubs')
     const [currentPage, setCurrentPage] = useState(1)
@@ -29,22 +33,36 @@ export default function OrganizationClubsView({
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
     const [isPendingModalOpen, setIsPendingModalOpen] = useState(false)
 
-    // Compute pending clubs
+    // Compute pending clubs (safeguard against empty/undefined)
     const pendingClubs = useMemo(() =>
-        clubs.filter(club => club.status === 'PENDING'),
+        (clubs || []).filter(club => club?.status === 'PENDING'),
         [clubs]
     )
 
-    // Reset page when switching view type
+    // Reset page when switching view type or search query changes
     useEffect(() => {
         setCurrentPage(1)
-    }, [viewType])
+    }, [viewType, searchQuery])
 
-    // Current Data Calculation
-    const currentList = viewType === 'clubs' ? clubs : organizations
+    // Current Data Calculation with search filtering
+    const currentList = viewType === 'clubs' ? (clubs || []) : (organizations || [])
+
+    // Filter by search query
+    const filteredData = useMemo(() => {
+        if (!searchQuery.trim()) return currentList
+        const query = searchQuery.toLowerCase()
+        return currentList.filter(item => {
+            if (!item) return false
+            const nameMatch = item.name?.toLowerCase().includes(query)
+            const masterMatch = item.masterName?.toLowerCase().includes(query)
+            const addressMatch = item.address?.toLowerCase().includes(query)
+            return nameMatch || masterMatch || addressMatch
+        })
+    }, [currentList, searchQuery])
 
     // Sort logic
-    const sortedData = [...currentList].sort((a, b) => {
+    const sortedData = [...filteredData].sort((a, b) => {
+        if (!a || !b) return 0
         if (sortKey === 'name') {
             return sortOrder === 'asc'
                 ? a.name.localeCompare(b.name)
@@ -76,32 +94,50 @@ export default function OrganizationClubsView({
                 {/* Header with Toggle and Sorting */}
                 <div className="flex-shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                        {/* Toggle - Only show if there are organizations */}
-                        {organizations.length > 0 && (
-                            <div className="flex p-1 bg-gray-100 rounded-xl">
-                                <button
-                                    onClick={() => setViewType('clubs')}
-                                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${viewType === 'clubs'
-                                        ? 'bg-white text-indigo-600 shadow-sm'
-                                        : 'text-gray-500 hover:text-gray-700'
-                                        }`}
-                                >
-                                    <Building2 size={16} />
-                                    Clubs
-                                </button>
-                                <button
-                                    onClick={() => setViewType('organizations')}
-                                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${viewType === 'organizations'
-                                        ? 'bg-white text-indigo-600 shadow-sm'
-                                        : 'text-gray-500 hover:text-gray-700'
-                                        }`}
-                                >
-                                    <Globe size={16} />
-                                    Orgs
-                                </button>
-                            </div>
-                        )}
+                        {/* Toggle - Only show if there are organizations OR we are loading (might check later) */}
+                        <div className="flex p-1 bg-gray-100 rounded-xl">
+                            <button
+                                onClick={() => setViewType('clubs')}
+                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${viewType === 'clubs'
+                                    ? 'bg-white text-red-600 shadow-sm'
+                                    : 'text-gray-500 hover:text-gray-700'
+                                    }`}
+                            >
+                                <Building2 size={16} />
+                                Clubs
+                            </button>
+                            <button
+                                onClick={() => setViewType('organizations')}
+                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${viewType === 'organizations'
+                                    ? 'bg-white text-red-600 shadow-sm'
+                                    : 'text-gray-500 hover:text-gray-700'
+                                    }`}
+                            >
+                                <Globe size={16} />
+                                Orgs
+                            </button>
+                        </div>
 
+                        {/* Pending Button - Visible on both views */}
+                        <button
+                            onClick={() => setIsPendingModalOpen(true)}
+                            disabled={isLoading}
+                            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${pendingClubs.length > 0
+                                ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border border-yellow-200'
+                                : 'bg-gray-100 text-gray-500 hover:bg-gray-200 border border-gray-200'
+                                }`}
+                        >
+                            <Clock size={16} />
+                            Pending
+                            {pendingClubs.length > 0 && (
+                                <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-yellow-500 text-white text-xs font-bold rounded-full">
+                                    {pendingClubs.length}
+                                </span>
+                            )}
+                        </button>
+                    </div>
+
+                    <div className="flex items-center gap-3">
                         {/* Sorting Dropdown */}
                         <GlobalDropdown
                             label="Sort"
@@ -120,25 +156,6 @@ export default function OrganizationClubsView({
                                 }
                             ]}
                         />
-
-                        {/* Pending Button - Only show for clubs view */}
-                        {viewType === 'clubs' && (
-                            <button
-                                onClick={() => setIsPendingModalOpen(true)}
-                                className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${pendingClubs.length > 0
-                                    ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border border-yellow-200'
-                                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200 border border-gray-200'
-                                    }`}
-                            >
-                                <Clock size={16} />
-                                Pending
-                                {pendingClubs.length > 0 && (
-                                    <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-yellow-500 text-white text-xs font-bold rounded-full">
-                                        {pendingClubs.length}
-                                    </span>
-                                )}
-                            </button>
-                        )}
                     </div>
                 </div>
 
@@ -146,9 +163,9 @@ export default function OrganizationClubsView({
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col flex-1 overflow-hidden min-h-0">
                     <div className="flex-1 overflow-y-auto">
                         {viewType === 'clubs' ? (
-                            <AffiliatedClubsTable clubs={paginatedData} embedded={true} />
+                            <AffiliatedClubsTable clubs={paginatedData} embedded={true} isLoading={isLoading} />
                         ) : (
-                            <AffiliatedOrgsTable orgs={paginatedData} embedded={true} />
+                            <AffiliatedOrgsTable orgs={paginatedData} embedded={true} isLoading={isLoading} />
                         )}
                     </div>
 
