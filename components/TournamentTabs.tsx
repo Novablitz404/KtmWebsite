@@ -6,7 +6,7 @@ import CategoryManager from './CategoryManager'
 import BracketList from './BracketList'
 import PlayerRegistration from './PlayerRegistration'
 import TournamentManagers from './TournamentManagers'
-import { getTournamentPlayers } from '@/app/actions'
+import { getTournamentPlayers, updateTournamentGuidelines } from '@/app/actions'
 import DashboardDataExport from './DashboardDataExport'
 import TournamentStatusActions from './TournamentStatusActions'
 import DeleteTournamentButton from './DeleteTournamentButton'
@@ -21,7 +21,9 @@ import {
     Menu,
     X,
     Calendar,
-    MapPin
+    MapPin,
+    Loader2,
+    Save
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -51,6 +53,23 @@ export default function TournamentTabs({ tournament, players, pendingManagerInvi
     )
     const [playersList, setPlayersList] = useState<PlayerWithCategory[]>(players)
     const [isSidebarOpen, setSidebarOpen] = useState(false)
+
+    // Guidelines State
+    const [guidelinesText, setGuidelinesText] = useState(tournament.guidelinesText || tournament.guidelineTemplate?.content || '')
+    const [isSavingGuidelines, setIsSavingGuidelines] = useState(false)
+
+    const handleSaveGuidelines = async () => {
+        setIsSavingGuidelines(true)
+        try {
+            await updateTournamentGuidelines(tournament.id, guidelinesText)
+            alert('Guidelines saved successfully!')
+        } catch (error) {
+            console.error(error)
+            alert('Failed to save guidelines.')
+        } finally {
+            setIsSavingGuidelines(false)
+        }
+    }
 
     // Initialize Supabase client for Realtime
     // Note: This requires NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env
@@ -285,6 +304,47 @@ export default function TournamentTabs({ tournament, players, pendingManagerInvi
                                         tournamentName={tournament.name}
                                         className="flex-wrap"
                                     />
+                                </div>
+                            </div>
+
+                            {/* Guidelines Section */}
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                                    <ClipboardList className="w-5 h-5 text-indigo-500" />
+                                    Tournament Guidelines
+                                </h3>
+                                <div className="space-y-4">
+                                    <p className="text-sm text-gray-600">
+                                        Customize the guidelines for this specific tournament. If left empty, it will default to the selected template.
+                                    </p>
+                                    <div>
+                                        <textarea
+                                            value={guidelinesText}
+                                            onChange={(e) => setGuidelinesText(e.target.value)}
+                                            rows={12}
+                                            className="w-full rounded-lg border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 font-mono text-sm"
+                                            placeholder="# Tournament Guidelines..."
+                                        />
+                                    </div>
+                                    <div className="flex justify-end">
+                                        <button
+                                            onClick={handleSaveGuidelines}
+                                            disabled={isSavingGuidelines}
+                                            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                                        >
+                                            {isSavingGuidelines ? (
+                                                <>
+                                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                    Saving...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Save className="w-4 h-4 mr-2" />
+                                                    Save Guidelines
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 

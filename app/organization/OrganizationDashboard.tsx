@@ -68,7 +68,7 @@ export default function OrganizationDashboard({
 
     const mobileNavItems = [
         { id: 'home', label: 'Home', icon: LayoutDashboard },
-        { id: 'clubs', label: 'Clubs', icon: Building2 },
+        { id: 'clubs', label: 'Affiliates', icon: Building2 },
         { id: 'events', label: 'Events', icon: Calendar },
         { id: 'settings', label: 'Settings', icon: Settings },
     ] as const

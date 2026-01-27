@@ -19,7 +19,7 @@ interface OrganizationSidebarProps {
 
 const navItems = [
     { id: 'home', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'clubs', label: 'Clubs', icon: Building2 },
+    { id: 'clubs', label: 'Affiliates', icon: Building2 },
     { id: 'events', label: 'Events', icon: Calendar },
 ] as const
 

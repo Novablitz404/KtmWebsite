@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Trophy, Medal, Calendar, ChevronRight, Zap, Clock, Mail } from 'lucide-react'
+import { Trophy, Medal, Calendar, ChevronRight, Zap, Clock, Mail, Bell, X } from 'lucide-react'
 import Link from 'next/link'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { fetchAthleteDashboardData, unregisterFromTournament } from '@/app/actions'
@@ -38,6 +38,8 @@ export default function AthleteDashboardView({
     const searchParams = useSearchParams()
     const initialView = (searchParams.get('tab') as any) || 'home'
     const [activeView, setActiveView] = useState<'home' | 'settings' | 'ranking'>(initialView)
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+    const [isAnnouncementsOpen, setIsAnnouncementsOpen] = useState(false)
     const queryClient = useQueryClient()
 
     const { data: dashboardData, isLoading } = useQuery({
@@ -112,27 +114,60 @@ export default function AthleteDashboardView({
                 onNavigate={setActiveView}
                 userName={dbUser?.name}
                 userImageUrl={imageUrl}
+                isOpen={isSidebarOpen}
+                onClose={() => setIsSidebarOpen(false)}
             />
 
             {/* Main Content - offset for sidebar */}
-            <main className="h-screen bg-gray-50 md:ml-60 flex flex-col overflow-hidden">
-                {/* Top Bar */}
+            <main className="min-h-screen md:h-screen bg-gray-50 md:ml-60 flex flex-col md:overflow-hidden">
+                {/* Mobile Header */}
+                <div className="md:hidden bg-white px-4 py-3 flex items-center justify-between flex-shrink-0 z-30 sticky top-0 border-b border-gray-100">
+                    <button
+                        onClick={() => setIsSidebarOpen(true)}
+                        className="p-2 -ml-2 text-gray-600 hover:bg-gray-50 rounded-lg"
+                    >
+                        {/* Menu Icon */}
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="18" y2="18" /></svg>
+                    </button>
+
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setIsAnnouncementsOpen(true)}
+                            className="p-2 text-gray-600 hover:bg-gray-50 rounded-full relative"
+                        >
+                            <Bell size={20} />
+                            {/* Notification Dot (Static for now) */}
+                            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+                        </button>
+                        <div className="w-8 h-8 rounded-full bg-gray-100 overflow-hidden border border-gray-200">
+                            {imageUrl ? (
+                                <img src={imageUrl} alt="Profile" className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-400">
+                                    {dbUser?.name?.charAt(0) || 'A'}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Top Bar (Desktop Only) */}
                 <AthleteTopBar
                     userName={dbUser?.name || 'Athlete'}
                     userImageUrl={imageUrl || undefined}
                 />
                 {/* Conditional Content based on activeView */}
                 {activeView === 'home' && (
-                    <div className="flex-1 flex flex-col min-h-0 px-4 sm:px-6 lg:px-8 py-6 w-full max-w-[1600px] mx-auto">
+                    <div className="flex-1 flex flex-col min-h-0 px-4 sm:px-6 lg:px-8 py-6 w-full max-w-[1600px] mx-auto md:overflow-y-auto">
 
-                        {/* Flex Layout */}
-                        <div className="flex flex-col lg:flex-row gap-6 h-full min-h-0">
+                        {/* Flex Layout - Desktop: side-by-side, Mobile: stacked */}
+                        <div className="flex flex-col lg:flex-row gap-6 h-full md:min-h-0">
 
                             {/* Left Column - Main Content */}
-                            <div className="flex-[2] flex flex-col gap-6 min-h-0">
+                            <div className="flex-[2] flex flex-col gap-6 md:min-h-0">
 
                                 {/* Athlete Profile Card */}
-                                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                                <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
                                     {!dbUser ? (
                                         /* Compact Skeleton */
                                         <div className="flex flex-col md:flex-row items-center gap-6 animate-pulse">
@@ -283,7 +318,7 @@ export default function AthleteDashboardView({
                                 </div>
 
                                 {/* My Events (Club Schedule) */}
-                                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex-1 min-h-0 flex flex-col">
+                                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex-1 md:min-h-0 flex flex-col">
                                     <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                                         <h2 className="text-lg font-bold text-gray-900">My Events</h2>
                                     </div>
@@ -296,7 +331,71 @@ export default function AthleteDashboardView({
                                         </div>
                                     ) : (
                                         <div className="flex-1 overflow-auto">
-                                            <table className="min-w-full divide-y divide-gray-100">
+                                            {/* Mobile View - Cards */}
+                                            <div className="md:hidden p-4 space-y-3">
+                                                {data?.clubUpcomingEvents?.map((event: any) => {
+                                                    const isRegistered = registrations.some((r: any) => r.category?.tournament?.id === event.id)
+
+                                                    return (
+                                                        <div key={event.id} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                                                            {/* Row 1: Name & Status */}
+                                                            <div className="flex justify-between items-start mb-2">
+                                                                <span className="font-bold text-gray-900 text-base pr-2">{event.name}</span>
+                                                                {isRegistered ? (
+                                                                    <span className="flex-shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                                                                        Registered
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="flex-shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                                                                        Not Joined
+                                                                    </span>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Row 2: Location & Date */}
+                                                            <div className="text-sm text-gray-500 mb-4 flex flex-wrap gap-x-2">
+                                                                {event.venue && <span>{event.venue}</span>}
+                                                                {event.venue && <span>•</span>}
+                                                                <span>
+                                                                    {new Date(event.startDate).toLocaleDateString('en-US', {
+                                                                        month: 'short',
+                                                                        day: 'numeric',
+                                                                        year: 'numeric'
+                                                                    })}
+                                                                </span>
+                                                            </div>
+
+                                                            {/* Row 3: Buttons */}
+                                                            <div className="flex items-center gap-3">
+                                                                <Link
+                                                                    href={`/tournament/${event.id}`}
+                                                                    className="flex-1 text-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                                                                >
+                                                                    Details
+                                                                </Link>
+                                                                {!isRegistered ? (
+                                                                    <Link
+                                                                        href={`/tournament/${event.id}/register`}
+                                                                        className="flex-1 text-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+                                                                    >
+                                                                        Register
+                                                                    </Link>
+                                                                ) : (
+                                                                    <button
+                                                                        onClick={() => handleUnregister(event.id, event.name)}
+                                                                        className="flex-1 text-center px-4 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                                                                    >
+                                                                        Withdraw
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+
+                                            {/* Desktop View - Table */}
+                                            <table className="hidden md:table min-w-full divide-y divide-gray-100">
                                                 <thead className="bg-gray-50">
                                                     <tr>
                                                         <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Event</th>
@@ -372,12 +471,12 @@ export default function AthleteDashboardView({
                             </div>
 
                             {/* Right Column - Sidebar */}
-                            <div className="flex-1 flex flex-col gap-6 min-h-0">
+                            <div className="flex-1 flex flex-col gap-6 md:min-h-0">
 
 
 
                                 {/* Announcements */}
-                                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+                                <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
                                     <div className="flex items-center gap-2 mb-4">
                                         <span className="text-xl">📢</span>
                                         <h3 className="font-bold text-gray-900">Announcements</h3>
@@ -395,7 +494,7 @@ export default function AthleteDashboardView({
                                 </div>
 
                                 {/* Top 5 Rankings Widget */}
-                                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 flex-1 min-h-0 flex flex-col overflow-hidden">
+                                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 flex-1 md:min-h-0 flex flex-col overflow-hidden">
                                     <div className="flex items-center gap-2 mb-4">
                                         <Trophy className="w-5 h-5 text-yellow-500" />
                                         <h3 className="font-bold text-gray-900">Top Rankings</h3>
@@ -462,6 +561,41 @@ export default function AthleteDashboardView({
                                 medals: 0
                             }}
                         />
+                    </div>
+                )}
+
+                {/* Mobile Announcements Overlay */}
+                {isAnnouncementsOpen && (
+                    <div className="fixed inset-0 z-50 md:hidden flex items-end justify-center sm:items-center">
+                        {/* Backdrop */}
+                        <div
+                            className="absolute inset-0 bg-black/50 transition-opacity"
+                            onClick={() => setIsAnnouncementsOpen(false)}
+                        />
+                        {/* Modal Panel */}
+                        <div className="relative bg-white w-full max-w-md mx-auto rounded-t-2xl sm:rounded-2xl p-6 shadow-xl transform transition-transform animate-in slide-in-from-bottom duration-300">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xl">📢</span>
+                                    <h3 className="text-lg font-bold text-gray-900">Announcements</h3>
+                                </div>
+                                <button
+                                    onClick={() => setIsAnnouncementsOpen(false)}
+                                    className="p-2 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            <div className="flex flex-col items-center justify-center text-center p-8 bg-gray-50 rounded-xl border border-gray-100 border-dashed">
+                                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-3 shadow-sm text-3xl">
+                                    📢
+                                </div>
+                                <h4 className="text-base font-bold text-gray-900">Coming Soon</h4>
+                                <p className="text-xs text-gray-500 mt-1 max-w-[200px]">
+                                    We'll notify you here about upcoming tournaments and features.
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 )}
             </main>

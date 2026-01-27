@@ -1,6 +1,7 @@
 'use client'
 
 import { Search } from 'lucide-react'
+import { JoinNetworkModal } from './JoinNetworkModal'
 
 interface OrganizationTopBarProps {
     userName?: string
@@ -74,6 +75,7 @@ export default function OrganizationTopBar({
 
             {/* Right Side: Notifications & User Profile */}
             <div className="flex items-center gap-2 md:gap-4">
+                <JoinNetworkModal />
 
                 {/* User Profile */}
                 <div

@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { currentUser } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import { fetchLandingPageEvents } from '@/app/actions'
-import HomeClient from './HomeClient'
+import LandingPage from '@/components/LandingPage'
 
 const ADMIN_EMAILS = ['ericjann21@gmail.com']
 
@@ -60,9 +60,9 @@ export default async function Home() {
 
     // Organizations now use approval flow instead of invites
 
-    // New user without invite - redirect to onboarding
+    // New user without invite - redirect to account error page (Zombie State prevention)
     if (!existingUser) {
-      redirect('/onboarding')
+      redirect('/account-error')
     }
 
 
@@ -111,6 +111,6 @@ export default async function Home() {
   } : null
 
   return (
-    <HomeClient upcomingTournaments={allEvents} user={userData} />
+    <LandingPage upcomingTournaments={allEvents} user={userData} />
   )
 }

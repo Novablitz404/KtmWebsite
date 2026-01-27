@@ -55,7 +55,7 @@ export default function Header() {
     const isHomePage = pathname === '/'
 
     return (
-        <header className="hidden md:block bg-white border-b border-gray-200 sticky top-0 z-50">
+        <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
             <div className="px-4 sm:px-6">
                 <div className="flex items-center h-16">
                     {/* Left Side: Logo & Navigation */}
@@ -83,13 +83,13 @@ export default function Header() {
                                 href="/events"
                                 className={`text-base font-semibold transition-colors ${pathname === '/events' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
                             >
-                                Tournaments
+                                Events
                             </Link>
                             <Link
-                                href="/ranking"
-                                className={`text-base font-semibold transition-colors ${pathname === '/ranking' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
+                                href="/rankings"
+                                className={`text-base font-semibold transition-colors ${pathname === '/rankings' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'}`}
                             >
-                                Ranking
+                                Rankings
                             </Link>
                         </nav>
                     </div>
@@ -99,7 +99,7 @@ export default function Header() {
                         <MobilePublicMenu />
 
                         {isLoaded && (
-                            <Link href="/sign-in">
+                            <Link href="/sign-in" className="hidden md:block">
                                 <button className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors">
                                     Sign In
                                 </button>
@@ -165,14 +165,14 @@ function MobilePublicMenu() {
                         onClick={() => setIsOpen(false)}
                         className={`block px-4 py-2.5 text-sm font-medium transition-colors ${pathname === '/events' ? 'text-red-600 bg-red-50' : 'text-gray-700 hover:bg-gray-50'}`}
                     >
-                        Tournaments
+                        Events
                     </Link>
                     <Link
-                        href="/ranking"
+                        href="/rankings"
                         onClick={() => setIsOpen(false)}
-                        className={`block px-4 py-2.5 text-sm font-medium transition-colors ${pathname === '/ranking' ? 'text-red-600 bg-red-50' : 'text-gray-700 hover:bg-gray-50'}`}
+                        className={`block px-4 py-2.5 text-sm font-medium transition-colors ${pathname === '/rankings' ? 'text-red-600 bg-red-50' : 'text-gray-700 hover:bg-gray-50'}`}
                     >
-                        Ranking
+                        Rankings
                     </Link>
 
                     {/* Sign In Button for Mobile */}

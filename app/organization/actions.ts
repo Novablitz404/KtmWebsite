@@ -15,7 +15,9 @@ export async function getOrganizationDashboardData() {
         include: {
             organization: {
                 include: {
-                    affiliatedOrganizations: true
+                    affiliatedOrganizations: {
+                        where: { parentOrganizationStatus: 'APPROVED' }
+                    }
                 }
             }
         }
@@ -623,4 +625,165 @@ export async function getOrganizerTournaments() {
     })
 
     return tournaments
+}
+
+// ============================================
+// ORGANIZATION AFFILIATION ACTIONS
+// ============================================
+
+export async function searchOrganizations(query: string) {
+    if (!query || query.length < 2) return []
+
+    const orgs = await prisma.organization.findMany({
+        where: {
+            name: {
+                contains: query,
+                mode: 'insensitive'
+            },
+            status: 'APPROVED' // Only find valid organizations
+        },
+        select: {
+            id: true,
+            name: true,
+            logoUrl: true,
+            chairman: true
+        },
+        take: 5
+    })
+
+    return orgs
+}
+
+export async function requestAffiliation(parentOrgId: string) {
+    const user = await currentUser()
+    if (!user) return { success: false, error: "Unauthorized" }
+
+    try {
+        const dbUser = await prisma.user.findUnique({
+            where: { clerkId: user.id },
+            include: { organization: true }
+        })
+
+        if (!dbUser?.organization) {
+            return { success: false, error: "Organization not found" }
+        }
+
+        // Prevent self-affiliation
+        if (dbUser.organization.id === parentOrgId) {
+            return { success: false, error: "Cannot affiliate with yourself" }
+        }
+
+        await prisma.organization.update({
+            where: { id: dbUser.organization.id },
+            data: {
+                parentOrganizationId: parentOrgId,
+                parentOrganizationStatus: "PENDING"
+            }
+        })
+
+        revalidatePath('/organization')
+        return { success: true }
+    } catch (error) {
+        console.error("Error requesting affiliation:", error)
+        return { success: false, error: "Failed to request affiliation" }
+    }
+}
+
+export async function getAffiliationRequests() {
+    const user = await currentUser()
+    if (!user) return []
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return []
+
+    const requests = await prisma.organization.findMany({
+        where: {
+            parentOrganizationId: dbUser.organization.id,
+            parentOrganizationStatus: "PENDING"
+        },
+        include: {
+            owner: { select: { name: true, email: true } }
+        }
+    })
+
+    return requests
+}
+
+export async function approveAffiliation(childOrgId: string) {
+    // Check permission first
+    const user = await currentUser()
+    if (!user) return { success: false, error: "Unauthorized" }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return { success: false, error: "Organization not found" }
+
+    // Verify the child org is actually requesting to join THIS org
+    const childOrg = await prisma.organization.findUnique({
+        where: { id: childOrgId }
+    })
+
+    if (childOrg?.parentOrganizationId !== dbUser.organization.id) {
+        return { success: false, error: "Invalid request" }
+    }
+
+    try {
+        await prisma.organization.update({
+            where: { id: childOrgId },
+            data: {
+                parentOrganizationStatus: "APPROVED"
+            }
+        })
+
+        revalidatePath('/organization')
+        return { success: true }
+    } catch (error) {
+        console.error("Error approving affiliation:", error)
+        return { success: false, error: "Failed to approve affiliation" }
+    }
+}
+
+export async function rejectAffiliation(childOrgId: string) {
+    // Check permission first
+    const user = await currentUser()
+    if (!user) return { success: false, error: "Unauthorized" }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return { success: false, error: "Organization not found" }
+
+    // Verify the child org is actually requesting to join THIS org
+    const childOrg = await prisma.organization.findUnique({
+        where: { id: childOrgId }
+    })
+
+    if (childOrg?.parentOrganizationId !== dbUser.organization.id) {
+        return { success: false, error: "Invalid request" }
+    }
+
+    try {
+        await prisma.organization.update({
+            where: { id: childOrgId },
+            data: {
+                parentOrganizationId: null,
+                parentOrganizationStatus: null // Reset completely so they can request again if needed
+            }
+        })
+
+        revalidatePath('/organization')
+        return { success: true }
+    } catch (error) {
+        console.error("Error rejecting affiliation:", error)
+        return { success: false, error: "Failed to reject affiliation" }
+    }
 }

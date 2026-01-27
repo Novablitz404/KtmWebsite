@@ -234,12 +234,12 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
                         tournament={tournament}
                         players={enrichedPlayers}
                         guidelinesContent={
-                            tournament.guidelineTemplate?.content
+                            tournament.guidelinesText || (tournament.guidelineTemplate?.content
                                 ? tournament.guidelineTemplate.content
                                     .replace(/{{Tournament Name}}/g, tournament.name)
                                     .replace(/{{Date}}/g, new Date(tournament.startDate).toLocaleDateString())
                                     .replace(/{{Venue}}/g, tournament.venue || 'TBA')
-                                : null
+                                : null)
                         }
                         currentUserId={currentUserId}
                     />

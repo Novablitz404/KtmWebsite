@@ -39,6 +39,7 @@ export async function findCategoryForPlayer(
         // If the category has a skill level, it must match the player's skill level.
         // If the category has no skill level (Open), anyone can join.
         // Novice players -> Novice categories
+        // Intermediate players -> Intermediate categories
         // Advance players -> Advance categories
         if (cat.skillLevel && player.skillLevel && cat.skillLevel !== player.skillLevel) return false
 
@@ -55,7 +56,7 @@ export async function findCategoryForPlayer(
         if (cat.maxAge && age > cat.maxAge) return false
 
         // 3. Gender Check
-        if (cat.gender && cat.gender !== 'Both' && cat.gender !== player.gender) return false
+        if (cat.gender && cat.gender !== 'Both' && cat.gender !== 'Mixed' && cat.gender !== player.gender) return false
 
         // 4. Kyorugi Specifics
         if (targetType === 'KYORUGI') {
@@ -72,8 +73,37 @@ export async function findCategoryForPlayer(
         // 5. Poomsae Specifics
         if (targetType === 'POOMSAE') {
             // Belt
-            // If category has strict belt rule? 
-            if (cat.belt && player.belt && cat.belt !== player.belt) return false
+            if (cat.belt) {
+                // If category has strict belt rule
+                if (player.belt && cat.belt !== player.belt) return false
+            } else if (player.belt) {
+                // Fallback: If category name contains belt info (e.g. "Yellow Belt")
+                // We want to ensure the player's belt matches the category name
+                // This is a fuzzy match but better than random
+                const normalizedCatName = cat.name.toLowerCase()
+                const normalizedPlayerBelt = player.belt.toLowerCase()
+
+                // If the category name explicitly mentions a belt color, enforce it
+                const knownBelts = ['white', 'yellow', 'green', 'blue', 'red', 'brown', 'black', 'poom', 'dan']
+                const mentionedBelts = knownBelts.filter(b => normalizedCatName.includes(b))
+
+                if (mentionedBelts.length > 0) {
+                    // Category mentions belts. Does it mention the player's belt?
+                    // "High Yellow" should match "Yellow"? Or strict?
+                    // User said: "Senior ... Yellow Belt" vs "Brown Belt".
+                    // If Cat is "Yellow Belt", mentionedBelts=['yellow']. Player is "Brown".
+                    // "Brown" is NOT in "Yellow Belt". Return false.
+
+                    // Simple check: Is the player's belt keyword in the category name?
+                    // "Yellow" in "Yellow Belt" -> yes.
+                    // "Brown" in "Yellow Belt" -> no.
+
+                    // BUT: "Blue" matches "Dark Blue"? "Blue" matches "Blue"?
+                    // Player "Blue" should match "Blue Belt".
+
+                    if (!normalizedCatName.includes(normalizedPlayerBelt)) return false
+                }
+            }
 
             // Subtype
             if (player.poomsaeType && cat.subtype !== player.poomsaeType) return false

@@ -1,8 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import ProfileForm from './ProfileForm'
 import ClubSettingsButton from '@/app/components/ClubSettingsButton'
-import LogoutButton from '@/components/LogoutButton'
-import PushNotificationToggle from '@/components/PushNotificationToggle'
+
 
 interface ClubMasterProfileViewProps {
     dbUser: {
@@ -135,11 +134,7 @@ export default async function ClubMasterProfileView({ dbUser, clerkImageUrl }: C
                 </div>
             </div>
 
-            {/* Push Notifications & Logout - Mobile Only */}
-            <div className="sm:hidden px-4 pb-6 space-y-3">
-                <PushNotificationToggle />
-                <LogoutButton />
-            </div>
+
         </div>
     )
 }

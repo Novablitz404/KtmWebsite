@@ -19,7 +19,7 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
         where: { tournamentId },
         include: {
             players: {
-                select: { id: true, clubId: true } // Need clubId for proposal logic later
+                select: { id: true, clubId: true, name: true } // Need clubId for proposal logic later
             }
         },
         orderBy: { minWeight: 'asc' } // Helper for finding merge neighbors
@@ -39,7 +39,10 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
                 categoryId: cat.id,
                 categoryName: cat.name,
                 message: `Uncontested Player in ${cat.name}`,
-                details: { playerId: cat.players[0].id }
+                details: {
+                    playerId: cat.players[0].id,
+                    playerName: cat.players[0].name
+                }
             })
         }
 

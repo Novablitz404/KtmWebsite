@@ -9,6 +9,7 @@ import { createClient } from '@supabase/supabase-js'
 import { getClubEventsData } from '@/app/club/data'
 import { generatePoomsaeBracket } from '@/lib/poomsae-logic'
 import { BracketMatchSpec, generateSingleEliminationBracket } from '@/lib/bracket-logic'
+import { deriveSkillLevel, extractBeltFromCategoryName } from '@/lib/skill-logic'
 
 export async function fetchClubRegistrationData(clubId: string) {
     const { pendingPlayers, approvedPlayers } = await getClubEventsData(clubId, '') // clubName not needed for tournament part
@@ -140,6 +141,11 @@ export async function createTournament(formData: FormData) {
                         if (weightCat.type === 'POOMSAE') {
                             // POOMSAE: Create single category (No Skill Level Split)
                             const categoryName = `${division.name} ${genderLabel} ${weightCat.name}`.replace(/\s+/g, ' ').trim()
+
+                            // Try to extract belt from name if not present in template
+                            // @ts-ignore
+                            const belt = weightCat.belt || extractBeltFromCategoryName(categoryName)
+
                             categoriesToCreate.push({
                                 name: categoryName,
                                 tournamentId: tournament.id,
@@ -154,12 +160,13 @@ export async function createTournament(formData: FormData) {
                                 minHeight: weightCat.minHeight,
                                 maxHeight: weightCat.maxHeight,
                                 gender: weightCat.gender,
-                                belt: null,
+                                // @ts-ignore
+                                belt: belt,
                                 // @ts-ignore
                                 skillLevel: null // No skill level for Poomsae
                             })
                         } else {
-                            // KYORUGI: Create Novice & Advance Variants
+                            // KYORUGI: Create Novice, Intermediate & Advance Variants
 
                             // 1. Novice
                             const noviceName = `${division.name} ${genderLabel} Novice ${weightCat.name}`.replace(/\s+/g, ' ').trim()
@@ -177,12 +184,35 @@ export async function createTournament(formData: FormData) {
                                 minHeight: weightCat.minHeight,
                                 maxHeight: weightCat.maxHeight,
                                 gender: weightCat.gender,
-                                belt: null,
+                                // @ts-ignore
+                                belt: weightCat.belt,
                                 // @ts-ignore
                                 skillLevel: 'Novice'
                             })
 
-                            // 2. Advance
+                            // 2. Intermediate
+                            const intermediateName = `${division.name} ${genderLabel} Intermediate ${weightCat.name}`.replace(/\s+/g, ' ').trim()
+                            categoriesToCreate.push({
+                                name: intermediateName,
+                                tournamentId: tournament.id,
+                                type: weightCat.type,
+                                subtype: weightCat.subtype,
+                                poomsaeForms: weightCat.poomsaeForms,
+                                court: null,
+                                minAge: division.minAge,
+                                maxAge: division.maxAge,
+                                minWeight: weightCat.minWeight,
+                                maxWeight: weightCat.maxWeight,
+                                minHeight: weightCat.minHeight,
+                                maxHeight: weightCat.maxHeight,
+                                gender: weightCat.gender,
+                                // @ts-ignore
+                                belt: weightCat.belt,
+                                // @ts-ignore
+                                skillLevel: 'Intermediate'
+                            })
+
+                            // 3. Advance
                             const advanceName = `${division.name} ${genderLabel} Advance ${weightCat.name}`.replace(/\s+/g, ' ').trim()
                             categoriesToCreate.push({
                                 name: advanceName,
@@ -198,7 +228,8 @@ export async function createTournament(formData: FormData) {
                                 minHeight: weightCat.minHeight,
                                 maxHeight: weightCat.maxHeight,
                                 gender: weightCat.gender,
-                                belt: null,
+                                // @ts-ignore
+                                belt: weightCat.belt,
                                 // @ts-ignore
                                 skillLevel: 'Advance'
                             })
@@ -1049,6 +1080,22 @@ export async function completeOnboarding(formData: FormData) {
             await prisma.tournamentManagerInvite.delete({ where: { id: invite.id } })
         }
     }
+    // ----------------------------------------------------------------
+    // SYNC ROLE TO CLERK METADATA (For optimal redirection)
+    // ----------------------------------------------------------------
+    // This allows middleware to redirect without DB lookup
+    try {
+        const client = await clerkClient()
+        await client.users.updateUser(user.id, {
+            publicMetadata: {
+                role: assignedRole
+            }
+        })
+    } catch (error) {
+        console.error('Failed to sync role to Clerk metadata:', error)
+        // Don't fail the whole request, as DB is already updated.
+        // The user will fall back to DB-based redirect.
+    }
 }
 
 export async function completeClubMasterOnboarding(formData: FormData) {
@@ -1235,7 +1282,7 @@ export async function registerForTournament(input: RegisterForTournamentInput) {
                 userId,
                 clubId: club?.id || null, // Handle null explicitly if club not found or not provided
                 registrationStatus: 'PENDING',
-                skillLevel: null, // To be set by Club Master
+                skillLevel: deriveSkillLevel(belt),
                 poomsaeType: poomsaeType || 'INDIVIDUAL',
                 teamId: teamId || null
             }
@@ -1361,7 +1408,7 @@ export async function registerForTournamentAuto(input: RegisterAutoInput) {
                 userId,
                 clubId: club?.id || null,
                 registrationStatus: 'PENDING',
-                skillLevel: null // To be set by Club Master
+                skillLevel: deriveSkillLevel(belt)
             }
         })
 
@@ -1422,16 +1469,65 @@ export async function selectGuidelineTemplate(tournamentId: string, templateId: 
         for (const division of template.divisions) {
             for (const weightCat of division.categories) {
                 const genderLabel = weightCat.gender === 'Both' ? '' : weightCat.gender
-                const categoryName = `${division.name} ${genderLabel} ${weightCat.name}`.replace(/\s+/g, ' ').trim()
+                if (weightCat.type === 'POOMSAE') {
+                    // POOMSAE: Create single category (No Skill Level Split)
+                    const categoryName = `${division.name} ${genderLabel} ${weightCat.name}`.replace(/\s+/g, ' ').trim()
+                    // Try to extract belt from name if not present in template
+                    // @ts-ignore
+                    const belt = weightCat.belt || extractBeltFromCategoryName(categoryName)
 
-                categoriesToCreate.push({
-                    name: categoryName,
-                    tournamentId,
-                    type: weightCat.type,
-                    subtype: weightCat.subtype,
-                    poomsaeForms: weightCat.poomsaeForms,
-                    court: null
-                })
+                    categoriesToCreate.push({
+                        name: categoryName,
+                        tournamentId,
+                        type: weightCat.type,
+                        subtype: weightCat.subtype,
+                        poomsaeForms: weightCat.poomsaeForms,
+                        court: null,
+                        // @ts-ignore
+                        belt: belt
+                    })
+                } else {
+                    // KYORUGI: Create Novice, Intermediate & Advance Variants
+
+                    // 1. Novice
+                    const noviceName = `${division.name} ${genderLabel} Novice ${weightCat.name}`.replace(/\s+/g, ' ').trim()
+                    categoriesToCreate.push({
+                        name: noviceName,
+                        tournamentId,
+                        type: weightCat.type,
+                        subtype: weightCat.subtype,
+                        poomsaeForms: weightCat.poomsaeForms,
+                        court: null,
+                        // @ts-ignore
+                        skillLevel: 'Novice'
+                    })
+
+                    // 2. Intermediate
+                    const intermediateName = `${division.name} ${genderLabel} Intermediate ${weightCat.name}`.replace(/\s+/g, ' ').trim()
+                    categoriesToCreate.push({
+                        name: intermediateName,
+                        tournamentId,
+                        type: weightCat.type,
+                        subtype: weightCat.subtype,
+                        poomsaeForms: weightCat.poomsaeForms,
+                        court: null,
+                        // @ts-ignore
+                        skillLevel: 'Intermediate'
+                    })
+
+                    // 3. Advance
+                    const advanceName = `${division.name} ${genderLabel} Advance ${weightCat.name}`.replace(/\s+/g, ' ').trim()
+                    categoriesToCreate.push({
+                        name: advanceName,
+                        tournamentId,
+                        type: weightCat.type,
+                        subtype: weightCat.subtype,
+                        poomsaeForms: weightCat.poomsaeForms,
+                        court: null,
+                        // @ts-ignore
+                        skillLevel: 'Advance'
+                    })
+                }
             }
         }
 
@@ -1547,6 +1643,9 @@ export async function updatePlayerDetails({ playerId, name, height, weight, belt
                 ...(height !== undefined && { height }),
                 ...(weight !== undefined && { weight }),
                 ...(belt !== undefined && { belt }),
+                ...(belt !== undefined && { belt }),
+                // Check if belt changed, if so, update skillLevel
+                ...(belt !== undefined && { skillLevel: deriveSkillLevel(belt) }),
                 ...(skillLevel !== undefined && { skillLevel }),
                 ...(teamId !== undefined && { teamId }),
                 ...(poomsaeType !== undefined && { poomsaeType })
@@ -1785,7 +1884,8 @@ export async function findPlayerCategory(
     // Ensure dates are Date objects
     const profile = {
         ...playerData,
-        birthDate: new Date(playerData.birthDate)
+        birthDate: new Date(playerData.birthDate),
+        skillLevel: deriveSkillLevel(playerData.belt || null)
     }
 
     const category = await findCategoryForPlayer(tournamentId, profile)
@@ -2368,12 +2468,10 @@ export async function submitClubDecision(
     clubId: string,
     vote: string
 ) {
+    // 4. Record the vote
     await prisma.smartProposalVote.upsert({
         where: {
-            proposalId_clubId: {
-                proposalId,
-                clubId
-            }
+            proposalId_clubId: { proposalId, clubId }
         },
         create: {
             proposalId,
@@ -2386,24 +2484,72 @@ export async function submitClubDecision(
         }
     })
 
-    // Validate if consensus reached? 
-    // For now, we just record. The Dashboard will check consensus to enable "Execute".
+    // Fetch proposal to check type and execute if needed
+    const proposal = await prisma.smartProposal.findUnique({
+        where: { id: proposalId }
+    })
+
+    // 5. If UNCONTESTED and action is unilateral (Withdraw/Walkover), execute immediately
+    if (proposal?.type === 'UNCONTESTED') {
+        if (vote === 'WITHDRAW' || vote === 'WALKOVER') {
+            await forceExecuteSmartAction(proposalId, vote)
+        }
+    }
 
     revalidatePath('/club') // Refresh club dashboard
     revalidatePath('/organization')
     return { success: true }
 }
 
-export async function forceExecuteSmartAction(proposalId: string, overrideVote?: string) {
-    const proposal = await prisma.smartProposal.findUnique({
-        where: { id: proposalId }
-    })
-
-    if (!proposal) return { error: 'Proposal not found' }
-
-    const data = JSON.parse(proposal.data)
+export async function updateTournamentGuidelines(tournamentId: string, guidelinesText: string) {
+    const user = await currentUser()
+    if (!user) return { success: false, error: "Unauthorized" }
 
     try {
+        const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+        if (!dbUser) return { success: false, error: "User not found" }
+
+        const tournament = await prisma.tournament.findUnique({
+            where: { id: tournamentId },
+            include: { managers: true }
+        })
+
+        if (!tournament) return { success: false, error: "Tournament not found" }
+
+        const isOrganizer = tournament.organizerId === dbUser.id
+        const isManager = tournament.managers.some(m => m.id === dbUser.id)
+        const isAdmin = dbUser.role === 'ADMIN'
+
+        if (!isOrganizer && !isManager && !isAdmin) {
+            return { success: false, error: "Insufficient permissions" }
+        }
+
+        await prisma.tournament.update({
+            where: { id: tournamentId },
+            data: { guidelinesText }
+        })
+
+        revalidatePath(`/tournament/${tournamentId}`)
+        return { success: true }
+    } catch (error) {
+        console.error("Failed to update guidelines:", error)
+        return { success: false, error: "Failed to update guidelines" }
+    }
+}
+
+/**
+ * Force executes a proposal (Organiser side or Auto-resolve)
+ */
+export async function forceExecuteSmartAction(proposalId: string, overrideVote?: string) {
+    try {
+        const proposal = await prisma.smartProposal.findUnique({
+            where: { id: proposalId }
+        })
+
+        if (!proposal) return { error: 'Proposal not found' }
+
+        const data = JSON.parse(proposal.data)
+
         if (proposal.type === 'UNCONTESTED') {
             // Uncontested Actions: MOVE_UP, WALKOVER, WITHDRAW
             // Using the overrideVote as the decision (since this is typically 1 club)
@@ -2557,19 +2703,23 @@ export async function getClubSmartProposals(clubId: string) {
         }
     })
 
-    // 3. Filter proposals relevant to this club
+    // 3. Filter proposals relevant to this club and inject fresh data
     const relevantProposals = []
 
     for (const p of proposals) {
         const data = JSON.parse(p.data)
         let isRelevant = false
+        let enrichedData = { ...data }
 
         if (p.type === 'UNCONTESTED') {
             const player = await prisma.player.findUnique({
                 where: { id: data.playerId },
-                select: { clubId: true }
+                select: { clubId: true, name: true }
             })
-            if (player?.clubId === clubId) isRelevant = true
+            if (player?.clubId === clubId) {
+                isRelevant = true
+                enrichedData.playerName = player.name // Inject fresh name
+            }
         }
         else if (p.type === 'MERGE') {
             const players = await prisma.player.findMany({
@@ -2591,6 +2741,7 @@ export async function getClubSmartProposals(clubId: string) {
             const myVote = p.votes.find(v => v.clubId === clubId)
             relevantProposals.push({
                 ...p,
+                data: JSON.stringify(enrichedData), // Return updated data
                 myVote: myVote?.vote
             })
         }

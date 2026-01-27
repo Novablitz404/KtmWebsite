@@ -9,7 +9,7 @@ const isPublicRoute = createRouteMatcher([
     '/tournament/(.*)',
     '/about',
     '/events',
-    '/ranking',
+    '/rankings(.*)', // Allow detailed views if added later
     '/privacy',
     '/terms',
     '/terms',
@@ -70,6 +70,25 @@ const cspHeader = cspDirectives.join('; ')
 export default clerkMiddleware(async (auth, request) => {
     if (!isPublicRoute(request)) {
         await auth.protect()
+    }
+
+    // Role-based redirect for Landing Page ("/")
+    if (request.nextUrl.pathname === '/') {
+        const { userId, sessionClaims } = await auth()
+        if (userId && (sessionClaims?.publicMetadata as any)?.role) {
+            const role = (sessionClaims.publicMetadata as any).role as string
+            const origin = request.nextUrl.origin
+
+            if (role === 'CLUB_MASTER') {
+                return NextResponse.redirect(`${origin}/club`)
+            } else if (role === 'ATHLETE') {
+                return NextResponse.redirect(`${origin}/athlete`)
+            } else if (role === 'MANAGER') {
+                return NextResponse.redirect(`${origin}/organization?tab=events`)
+            } else if (role === 'ADMIN') {
+                return NextResponse.redirect(`${origin}/admin`)
+            }
+        }
     }
 
     // Get the response from NextResponse

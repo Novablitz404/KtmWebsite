@@ -120,14 +120,14 @@ Includes both Kyorugi and Poomsae regulations.
             const forms = belt.form
 
             // Individual Male/Female
-            await prisma.weightCategory.create({ data: { divisionId, name: baseName, gender: 'Male', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'INDIVIDUAL', poomsaeForms: forms } })
-            await prisma.weightCategory.create({ data: { divisionId, name: baseName, gender: 'Female', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'INDIVIDUAL', poomsaeForms: forms } })
+            await prisma.weightCategory.create({ data: { divisionId, name: baseName, gender: 'Male', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'INDIVIDUAL', poomsaeForms: forms, belt: belt.belt } })
+            await prisma.weightCategory.create({ data: { divisionId, name: baseName, gender: 'Female', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'INDIVIDUAL', poomsaeForms: forms, belt: belt.belt } })
             // Pair
-            await prisma.weightCategory.create({ data: { divisionId, name: `${baseName} (Mixed Pair)`, gender: 'Mixed', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'PAIR', poomsaeForms: forms } })
+            await prisma.weightCategory.create({ data: { divisionId, name: `${baseName} (Mixed Pair)`, gender: 'Mixed', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'PAIR', poomsaeForms: forms, belt: belt.belt } })
             // Team Male
-            await prisma.weightCategory.create({ data: { divisionId, name: `${baseName} (Team)`, gender: 'Male', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'TEAM', poomsaeForms: forms } })
+            await prisma.weightCategory.create({ data: { divisionId, name: `${baseName} (Team)`, gender: 'Male', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'TEAM', poomsaeForms: forms, belt: belt.belt } })
             // Team Female
-            await prisma.weightCategory.create({ data: { divisionId, name: `${baseName} (Team)`, gender: 'Female', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'TEAM', poomsaeForms: forms } })
+            await prisma.weightCategory.create({ data: { divisionId, name: `${baseName} (Team)`, gender: 'Female', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'TEAM', poomsaeForms: forms, belt: belt.belt } })
         }
 
         // Black Belt
@@ -137,14 +137,14 @@ Includes both Kyorugi and Poomsae regulations.
             const forms = `Elimination: ${bbForms.elimination}, Finals: ${bbForms.finals}`
 
             // Individual Male/Female
-            await prisma.weightCategory.create({ data: { divisionId, name: baseName, gender: 'Male', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'INDIVIDUAL', poomsaeForms: forms } })
-            await prisma.weightCategory.create({ data: { divisionId, name: baseName, gender: 'Female', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'INDIVIDUAL', poomsaeForms: forms } })
+            await prisma.weightCategory.create({ data: { divisionId, name: baseName, gender: 'Male', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'INDIVIDUAL', poomsaeForms: forms, belt: 'Black' } })
+            await prisma.weightCategory.create({ data: { divisionId, name: baseName, gender: 'Female', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'INDIVIDUAL', poomsaeForms: forms, belt: 'Black' } })
             // Pair
-            await prisma.weightCategory.create({ data: { divisionId, name: `${baseName} (Mixed Pair)`, gender: 'Mixed', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'PAIR', poomsaeForms: forms } })
+            await prisma.weightCategory.create({ data: { divisionId, name: `${baseName} (Mixed Pair)`, gender: 'Mixed', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'PAIR', poomsaeForms: forms, belt: 'Black' } })
             // Team Male
-            await prisma.weightCategory.create({ data: { divisionId, name: `${baseName} (Team)`, gender: 'Male', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'TEAM', poomsaeForms: forms } })
+            await prisma.weightCategory.create({ data: { divisionId, name: `${baseName} (Team)`, gender: 'Male', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'TEAM', poomsaeForms: forms, belt: 'Black' } })
             // Team Female
-            await prisma.weightCategory.create({ data: { divisionId, name: `${baseName} (Team)`, gender: 'Female', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'TEAM', poomsaeForms: forms } })
+            await prisma.weightCategory.create({ data: { divisionId, name: `${baseName} (Team)`, gender: 'Female', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'TEAM', poomsaeForms: forms, belt: 'Black' } })
         }
 
         return order
@@ -160,8 +160,8 @@ Includes both Kyorugi and Poomsae regulations.
         data: { templateId: template.id, name: 'Supertoddler', minAge: 0, maxAge: 5, displayOrder: 1 }
     })
     for (const h of kyHeights) {
-        await prisma.weightCategory.create({ data: { divisionId: divSuper.id, name: h.name, gender: 'Male', minHeight: h.min, maxHeight: h.max, minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL' } })
-        await prisma.weightCategory.create({ data: { divisionId: divSuper.id, name: h.name, gender: 'Female', minHeight: h.min, maxHeight: h.max, minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL' } })
+        await prisma.weightCategory.create({ data: { divisionId: divSuper.id, name: h.name, gender: 'Male', minHeight: h.min, maxHeight: h.max, minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
+        await prisma.weightCategory.create({ data: { divisionId: divSuper.id, name: h.name, gender: 'Female', minHeight: h.min, maxHeight: h.max, minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
     }
     // NO Poomsae for Supertoddler
 
@@ -172,8 +172,8 @@ Includes both Kyorugi and Poomsae regulations.
         data: { templateId: template.id, name: 'Toddler', minAge: 0, maxAge: 8, displayOrder: 6 }
     })
     for (const h of kyHeights) {
-        await prisma.weightCategory.create({ data: { divisionId: divToddler.id, name: h.name, gender: 'Male', minHeight: h.min, maxHeight: h.max, minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL' } })
-        await prisma.weightCategory.create({ data: { divisionId: divToddler.id, name: h.name, gender: 'Female', minHeight: h.min, maxHeight: h.max, minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL' } })
+        await prisma.weightCategory.create({ data: { divisionId: divToddler.id, name: h.name, gender: 'Male', minHeight: h.min, maxHeight: h.max, minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
+        await prisma.weightCategory.create({ data: { divisionId: divToddler.id, name: h.name, gender: 'Female', minHeight: h.min, maxHeight: h.max, minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
     }
     order = await createPoomsaeCategories(divToddler.id, 'Toddler', order)
 
@@ -183,8 +183,8 @@ Includes both Kyorugi and Poomsae regulations.
         data: { templateId: template.id, name: 'Grade School', minAge: 9, maxAge: 11, displayOrder: 9 }
     })
     for (const h of kyHeights) {
-        await prisma.weightCategory.create({ data: { divisionId: divGS.id, name: h.name, gender: 'Male', minHeight: h.min, maxHeight: h.max, minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL' } })
-        await prisma.weightCategory.create({ data: { divisionId: divGS.id, name: h.name, gender: 'Female', minHeight: h.min, maxHeight: h.max, minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL' } })
+        await prisma.weightCategory.create({ data: { divisionId: divGS.id, name: h.name, gender: 'Male', minHeight: h.min, maxHeight: h.max, minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
+        await prisma.weightCategory.create({ data: { divisionId: divGS.id, name: h.name, gender: 'Female', minHeight: h.min, maxHeight: h.max, minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
     }
     order = await createPoomsaeCategories(divGS.id, 'Grade School', order)
 
@@ -193,8 +193,8 @@ Includes both Kyorugi and Poomsae regulations.
     const divCadet = await prisma.division.create({
         data: { templateId: template.id, name: 'Cadet', minAge: 12, maxAge: 14, displayOrder: 12 }
     })
-    for (const w of kyCadetM) await prisma.weightCategory.create({ data: { divisionId: divCadet.id, name: w.name, gender: 'Male', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL' } })
-    for (const w of kyCadetF) await prisma.weightCategory.create({ data: { divisionId: divCadet.id, name: w.name, gender: 'Female', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL' } })
+    for (const w of kyCadetM) await prisma.weightCategory.create({ data: { divisionId: divCadet.id, name: w.name, gender: 'Male', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
+    for (const w of kyCadetF) await prisma.weightCategory.create({ data: { divisionId: divCadet.id, name: w.name, gender: 'Female', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
     order = await createPoomsaeCategories(divCadet.id, 'Cadet', order)
 
 
@@ -202,8 +202,8 @@ Includes both Kyorugi and Poomsae regulations.
     const divJunior = await prisma.division.create({
         data: { templateId: template.id, name: 'Junior', minAge: 15, maxAge: 17, displayOrder: 15 }
     })
-    for (const w of kyJuniorM) await prisma.weightCategory.create({ data: { divisionId: divJunior.id, name: w.name, gender: 'Male', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL' } })
-    for (const w of kyJuniorF) await prisma.weightCategory.create({ data: { divisionId: divJunior.id, name: w.name, gender: 'Female', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL' } })
+    for (const w of kyJuniorM) await prisma.weightCategory.create({ data: { divisionId: divJunior.id, name: w.name, gender: 'Male', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
+    for (const w of kyJuniorF) await prisma.weightCategory.create({ data: { divisionId: divJunior.id, name: w.name, gender: 'Female', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
     order = await createPoomsaeCategories(divJunior.id, 'Junior', order)
 
 
@@ -211,8 +211,8 @@ Includes both Kyorugi and Poomsae regulations.
     const divSenior = await prisma.division.create({
         data: { templateId: template.id, name: 'Senior (Under 30)', minAge: 18, maxAge: 30, displayOrder: 18 }
     })
-    for (const w of kySeniorM) await prisma.weightCategory.create({ data: { divisionId: divSenior.id, name: w.name, gender: 'Male', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL' } })
-    for (const w of kySeniorF) await prisma.weightCategory.create({ data: { divisionId: divSenior.id, name: w.name, gender: 'Female', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL' } })
+    for (const w of kySeniorM) await prisma.weightCategory.create({ data: { divisionId: divSenior.id, name: w.name, gender: 'Male', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
+    for (const w of kySeniorF) await prisma.weightCategory.create({ data: { divisionId: divSenior.id, name: w.name, gender: 'Female', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
     order = await createPoomsaeCategories(divSenior.id, 'Senior (Under 30)', order)
 
 

@@ -1,7 +1,5 @@
-'use client'
-
 import { submitClubDecision } from '@/app/actions'
-import { AlertCircle, Check, X, ShieldAlert, Users, Split, Merge } from 'lucide-react'
+import { AlertCircle, Check, X, ShieldAlert, Users, Split, Merge, ArrowRight, Clock, Trophy } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
@@ -13,52 +11,104 @@ interface ClubActionCenterModalProps {
     onRefresh: () => void
 }
 
+const ITEMS_PER_PAGE = 10
+
 export default function ClubActionCenterModal({ isOpen, onClose, clubId, proposals, onRefresh }: ClubActionCenterModalProps) {
+    const [page, setPage] = useState(1)
+
     if (!isOpen) return null
 
     const hasProposals = proposals && proposals.length > 0;
+    const totalPages = Math.ceil(proposals.length / ITEMS_PER_PAGE)
+
+    // Get current page items
+    const currentProposals = proposals.slice(
+        (page - 1) * ITEMS_PER_PAGE,
+        page * ITEMS_PER_PAGE
+    )
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className={`bg-white rounded-2xl shadow-xl w-full flex flex-col max-h-[90vh] overflow-hidden transition-all ${hasProposals ? 'max-w-4xl' : 'max-w-md'}`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className={`bg-white rounded-2xl shadow-2xl w-full flex flex-col h-[85vh] overflow-hidden transition-all ${hasProposals ? 'max-w-7xl' : 'max-w-md h-auto'}`}>
                 {/* Header */}
-                <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className="p-1.5 bg-red-100 text-red-600 rounded-lg">
-                            <AlertCircle size={18} />
-                        </div>
-                        <h2 className="text-lg font-bold text-gray-900">Action Center</h2>
+                <div className="px-8 py-6 border-b border-gray-100 flex items-center justify-between bg-white flex-shrink-0">
+                    <div>
+                        <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                            Action Center
+                            {hasProposals && <span className="bg-red-100 text-red-600 text-sm px-2.5 py-0.5 rounded-full font-bold">{proposals.length}</span>}
+                        </h2>
+                        <p className="text-gray-500 mt-1">Manage requests and decisions for upcoming tournaments.</p>
                     </div>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors">
-                        <X className="w-5 h-5" />
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors">
+                        <X className="w-6 h-6" />
                     </button>
                 </div>
 
                 {/* Content */}
-                <div className="p-6 overflow-y-auto bg-gray-50/50">
+                <div className="flex-1 overflow-auto bg-gray-50 flex flex-col">
                     {hasProposals ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {proposals.map((proposal: any) => (
-                                <ClubProposalCard
-                                    key={proposal.id}
-                                    proposal={proposal}
-                                    clubId={clubId}
-                                    onVoted={onRefresh}
-                                />
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="py-8 text-center">
-                            <div className="inline-flex items-center justify-center w-16 h-16 bg-green-50 rounded-full mb-4 ring-4 ring-green-50/50">
-                                <Check size={32} className="text-green-600" />
+                        <>
+                            <div className="min-w-[1000px] flex-1">
+                                <table className="w-full text-left border-collapse">
+                                    <thead className="bg-gray-100/50 sticky top-0 z-10 border-b border-gray-200 text-gray-500 font-semibold text-xs uppercase tracking-wider shadow-sm">
+                                        <tr>
+                                            <th className="px-8 py-4 w-48 bg-gray-50">Type</th>
+                                            <th className="px-6 py-4 w-64 bg-gray-50">Tournament</th>
+                                            <th className="px-6 py-4 bg-gray-50">Details</th>
+                                            <th className="px-6 py-4 w-40 text-center bg-gray-50">Status</th>
+                                            <th className="px-8 py-4 w-80 text-right bg-gray-50">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100 bg-white">
+                                        {currentProposals.map((proposal: any) => (
+                                            <ClubProposalRow
+                                                key={proposal.id}
+                                                proposal={proposal}
+                                                clubId={clubId}
+                                                onVoted={onRefresh}
+                                            />
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
-                            <h4 className="text-gray-900 font-bold text-lg">All Caught Up!</h4>
-                            <p className="text-gray-500 text-sm mt-1">There are no pending actions for you to take.</p>
+
+                            {/* Pagination */}
+                            {totalPages > 1 && (
+                                <div className="px-6 py-4 border-t border-gray-200 bg-white flex-shrink-0 flex items-center justify-between">
+                                    <button
+                                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                                        disabled={page === 1}
+                                        className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-transparent transition-all"
+                                    >
+                                        Previous
+                                    </button>
+                                    <span className="text-sm font-semibold text-gray-500">
+                                        Page {page} of {totalPages}
+                                    </span>
+                                    <button
+                                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                                        disabled={page === totalPages}
+                                        className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-transparent transition-all"
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <div className="h-full flex flex-col items-center justify-center p-12">
+                            <div className="inline-flex items-center justify-center w-24 h-24 bg-green-50 rounded-full mb-6 ring-8 ring-green-50/50">
+                                <Check size={48} className="text-green-600" strokeWidth={3} />
+                            </div>
+                            <h4 className="text-gray-900 font-bold text-2xl mb-2">All Caught Up!</h4>
+                            <p className="text-gray-500 max-w-sm text-center leading-relaxed mb-8">
+                                You have no pending actions. We'll notify you when an organizer needs your input on a tournament matter.
+                            </p>
                             <button
                                 onClick={onClose}
-                                className="mt-6 px-6 py-2 bg-gray-900 text-white text-sm font-semibold rounded-xl hover:bg-gray-800 transition shadow-lg shadow-gray-200"
+                                className="px-8 py-3 bg-gray-900 text-white font-bold rounded-xl hover:bg-gray-800 transition-all shadow-xl shadow-gray-200 active:scale-95"
                             >
-                                Close
+                                Close Window
                             </button>
                         </div>
                     )}
@@ -68,7 +118,7 @@ export default function ClubActionCenterModal({ isOpen, onClose, clubId, proposa
     )
 }
 
-function ClubProposalCard({ proposal, clubId, onVoted }: { proposal: any, clubId: string, onVoted: () => void }) {
+function ClubProposalRow({ proposal, clubId, onVoted }: { proposal: any, clubId: string, onVoted: () => void }) {
     const [loading, setLoading] = useState(false)
     const data = JSON.parse(proposal.data)
     const myVote = proposal.myVote
@@ -86,103 +136,140 @@ function ClubProposalCard({ proposal, clubId, onVoted }: { proposal: any, clubId
         }
     }
 
-    // Render Content Based on Type
-    if (proposal.type === 'UNCONTESTED') {
-        return (
-            <div className="bg-white border border-yellow-200 rounded-xl p-5 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
-                <div className="absolute top-0 left-0 w-1 h-full bg-yellow-500"></div>
-                <div className="flex justify-between items-start mb-3">
-                    <span className="text-xs font-bold text-yellow-700 bg-yellow-50 px-2.5 py-1 rounded-full flex items-center gap-1.5 border border-yellow-100">
-                        <ShieldAlert size={12} /> UNCONTESTED
-                    </span>
-                    <span className="text-xs font-medium text-gray-400 bg-gray-50 px-2 py-1 rounded-md">{proposal.tournament.name}</span>
-                </div>
-
-                <h4 className="font-bold text-gray-900 mb-2">Uncontested Athlete</h4>
-                <p className="text-sm text-gray-600 mb-5 leading-relaxed">
-                    Your player <span className="font-semibold text-gray-900">{data.playerName || 'Unknown'}</span> is the only one in their category.
-                </p>
-
-                {!myVote ? (
-                    <div className="flex flex-wrap gap-2">
-                        <button
-                            onClick={() => handleVote('MOVE_UP')}
-                            disabled={loading}
-                            className="flex-1 px-3 py-2.5 bg-yellow-500 text-white rounded-xl text-xs font-bold hover:bg-yellow-600 transition shadow-sm"
-                        >
-                            Move Up
-                        </button>
-                        <button
-                            onClick={() => handleVote('WALKOVER')}
-                            disabled={loading}
-                            className="flex-1 px-3 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-50 hover:border-gray-300 transition shadow-sm"
-                        >
-                            Walkover
-                        </button>
-                        <button
-                            onClick={() => handleVote('WITHDRAW')}
-                            disabled={loading}
-                            className="flex-1 px-3 py-2.5 bg-red-50 text-red-600 rounded-xl text-xs font-bold hover:bg-red-100 transition border border-transparent hover:border-red-200"
-                        >
-                            Withdraw
-                        </button>
-                    </div>
-                ) : (
-                    <div className="text-sm font-medium text-gray-500 bg-gray-50 p-3 rounded-xl text-center border border-gray-100">
-                        You selected: <span className="text-gray-900 font-bold">{myVote}</span>
-                    </div>
-                )}
-            </div>
-        )
+    // Colors and Labels helpters
+    const getBadgeInfo = () => {
+        switch (proposal.type) {
+            case 'UNCONTESTED':
+                return { label: 'Uncontested', icon: ShieldAlert, color: 'text-yellow-700 bg-yellow-50 border-yellow-200' }
+            case 'MERGE':
+                return { label: 'Merge Proposal', icon: Merge, color: 'text-purple-700 bg-purple-50 border-purple-200' }
+            case 'SPLIT':
+                return { label: 'Split Proposal', icon: Split, color: 'text-blue-700 bg-blue-50 border-blue-200' }
+            default:
+                return { label: 'Notice', icon: AlertCircle, color: 'text-gray-700 bg-gray-50 border-gray-200' }
+        }
     }
 
-    if (proposal.type === 'MERGE' || proposal.type === 'SPLIT') {
-        const isMerge = proposal.type === 'MERGE'
-        const colorClass = isMerge ? 'purple' : 'blue'
+    const { label, icon: Icon, color } = getBadgeInfo()
 
-        return (
-            <div className={`bg-white border ${isMerge ? 'border-purple-200' : 'border-blue-200'} rounded-xl p-5 shadow-sm relative overflow-hidden group hover:shadow-md transition-all`}>
-                <div className={`absolute top-0 left-0 w-1 h-full ${isMerge ? 'bg-purple-500' : 'bg-blue-500'}`}></div>
-                <div className="flex justify-between items-start mb-3">
-                    <span className={`text-xs font-bold ${isMerge ? 'text-purple-700 bg-purple-50 border-purple-100' : 'text-blue-700 bg-blue-50 border-blue-100'} border px-2.5 py-1 rounded-full flex items-center gap-1.5`}>
-                        {isMerge ? <Merge size={12} /> : <Split size={12} />}
-                        {isMerge ? 'MERGE PROPOSAL' : 'SPLIT PROPOSAL'}
-                    </span>
-                    <span className="text-xs font-medium text-gray-400 bg-gray-50 px-2 py-1 rounded-md">{proposal.tournament.name}</span>
-                </div>
+    return (
+        <tr className="hover:bg-gray-50/80 transition-colors group">
+            {/* Type Column */}
+            <td className="px-8 py-4 align-top">
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border uppercase tracking-wide ${color}`}>
+                    <Icon size={12} />
+                    {label}
+                </span>
+            </td>
 
-                <p className="text-sm text-gray-600 mb-5 leading-relaxed">
-                    {isMerge
-                        ? "The organizer proposes merging this category with a heavier weight class due to low participation."
-                        : "The organizer proposes splitting this large category into groups."
-                    }
-                </p>
-
-                {!myVote ? (
-                    <div className="flex gap-2.5">
-                        <button
-                            onClick={() => handleVote('AGREE')}
-                            disabled={loading}
-                            className="flex-1 px-3 py-2.5 bg-green-600 text-white rounded-xl text-xs font-bold hover:bg-green-700 transition flex items-center justify-center gap-1.5 shadow-sm shadow-green-100"
-                        >
-                            <Check size={14} strokeWidth={3} /> Agree
-                        </button>
-                        <button
-                            onClick={() => handleVote('DISAGREE')}
-                            disabled={loading}
-                            className="flex-1 px-3 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-50 hover:border-gray-300 transition flex items-center justify-center gap-1.5 shadow-sm"
-                        >
-                            <X size={14} strokeWidth={3} /> Disagree
-                        </button>
+            {/* Tournament Column */}
+            <td className="px-6 py-4 align-top max-w-[200px]">
+                <div className="group/tooltip relative w-fit max-w-full">
+                    <div className="font-bold text-gray-900 text-sm truncate cursor-help">
+                        {proposal.tournament.name}
                     </div>
-                ) : (
-                    <div className="text-sm font-medium text-gray-500 bg-gray-50 p-3 rounded-xl text-center border border-gray-100">
-                        You voted: <span className={`font-bold ${myVote === 'AGREE' ? 'text-green-600' : 'text-red-600'}`}>{myVote}</span>
+                    {/* Custom Tooltip */}
+                    <div className="absolute left-0 bottom-full mb-2 hidden group-hover/tooltip:block w-max max-w-[250px] bg-gray-900 text-white text-xs rounded-lg px-3 py-1.5 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-200 pointer-events-none">
+                        {proposal.tournament.name}
+                        {/* Arrow */}
+                        <div className="absolute left-4 top-full w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-gray-900"></div>
+                    </div>
+                </div>
+            </td>
+
+            {/* Details Column */}
+            <td className="px-6 py-4 align-top">
+                {proposal.type === 'UNCONTESTED' && (
+                    <div>
+                        <p className="text-gray-900 font-medium text-sm">
+                            {data.playerName || 'Unknown Athlete'}
+                        </p>
                     </div>
                 )}
-            </div>
-        )
-    }
+                {proposal.type === 'MERGE' && (
+                    <div>
+                        <p className="text-gray-900 font-medium text-sm">Category Merger</p>
+                    </div>
+                )}
+                {proposal.type === 'SPLIT' && (
+                    <div>
+                        <p className="text-gray-900 font-medium text-sm">Category Split</p>
+                    </div>
+                )}
+            </td>
 
-    return null
+            {/* Status Column */}
+            <td className="px-6 py-4 align-top text-center">
+                {myVote ? (
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${myVote === 'AGREE' || myVote === 'MOVE_UP' || myVote === 'WALKOVER'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-gray-100 text-gray-700'
+                        }`}>
+                        <Check size={12} strokeWidth={3} />
+                        Completed
+                    </span>
+                ) : (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 animate-pulse">
+                        <Clock size={12} />
+                        Pending
+                    </span>
+                )}
+            </td>
+
+            {/* Actions Column */}
+            <td className="px-8 py-4 align-top text-right">
+                {!myVote ? (
+                    <div className="flex justify-end gap-2">
+                        {proposal.type === 'UNCONTESTED' && (
+                            <>
+                                <button
+                                    onClick={() => handleVote('MOVE_UP')}
+                                    disabled={loading}
+                                    className="px-3 py-1.5 bg-yellow-100 text-yellow-700 hover:bg-yellow-200 rounded-lg text-xs font-bold transition"
+                                >
+                                    Move Up
+                                </button>
+                                <button
+                                    onClick={() => handleVote('WALKOVER')}
+                                    disabled={loading}
+                                    className="px-3 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg text-xs font-bold transition"
+                                >
+                                    Walkover
+                                </button>
+                                <button
+                                    onClick={() => handleVote('WITHDRAW')}
+                                    disabled={loading}
+                                    className="px-3 py-1.5 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg text-xs font-bold transition"
+                                >
+                                    Withdraw
+                                </button>
+                            </>
+                        )}
+                        {(proposal.type === 'MERGE' || proposal.type === 'SPLIT') && (
+                            <>
+                                <button
+                                    onClick={() => handleVote('AGREE')}
+                                    disabled={loading}
+                                    className="px-4 py-1.5 bg-gray-900 text-white hover:bg-gray-800 rounded-lg text-xs font-bold transition"
+                                >
+                                    Agree
+                                </button>
+                                <button
+                                    onClick={() => handleVote('DISAGREE')}
+                                    disabled={loading}
+                                    className="px-4 py-1.5 border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg text-xs font-bold transition"
+                                >
+                                    Disagree
+                                </button>
+                            </>
+                        )}
+                    </div>
+                ) : (
+                    <div className="text-sm font-medium text-gray-900">
+                        Voted: <span className="font-bold">{myVote}</span>
+                    </div>
+                )}
+            </td>
+        </tr>
+    )
 }

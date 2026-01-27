@@ -63,9 +63,6 @@ export default function AthleteProfileView({ dbUser, clerkImageUrl, clubLogoUrl,
                     <div className="flex-1 text-center sm:text-left pt-2">
                         <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-center sm:justify-start">
                             <h1 className="text-2xl font-bold text-gray-900">{dbUser.name || 'Athlete'}</h1>
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold ${beltStyle.bg} ${beltStyle.text} border ${beltStyle.border}`}>
-                                {dbUser.belt || 'No Belt'}
-                            </span>
                         </div>
                         <p className="text-gray-500 mt-1">{dbUser.email}</p>
 
@@ -89,7 +86,7 @@ export default function AthleteProfileView({ dbUser, clerkImageUrl, clubLogoUrl,
             </div>
 
             {/* Athlete Details */}
-            <div className="bg-white sm:rounded-xl shadow-sm border-y sm:border border-gray-200">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-100">
                     <h2 className="font-semibold text-gray-900">
                         Athlete Details
@@ -129,11 +126,7 @@ export default function AthleteProfileView({ dbUser, clerkImageUrl, clubLogoUrl,
                 </div>
             </div>
 
-            {/* Push Notifications & Logout - Mobile Only */}
-            <div className="sm:hidden px-4 pb-6 space-y-3">
-                <PushNotificationToggle />
-                <LogoutButton />
-            </div>
+
         </div>
     )
 }

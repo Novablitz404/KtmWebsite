@@ -129,6 +129,32 @@ export async function promoteToClubMaster(formData: FormData) {
     revalidatePath('/admin/users')
 }
 
+export async function toggleAthleteVerification(formData: FormData) {
+    const user = await currentUser()
+    if (!user) throw new Error('Not authenticated')
+
+    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    if (dbUser?.role !== 'ADMIN') throw new Error('Unauthorized')
+
+    const targetUserId = formData.get('userId') as string
+    if (!targetUserId) throw new Error('User ID required')
+
+    // Get current status
+    const targetUser = await prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { isVerified: true }
+    })
+
+    if (!targetUser) throw new Error('User not found')
+
+    await prisma.user.update({
+        where: { id: targetUserId },
+        data: { isVerified: !targetUser.isVerified }
+    })
+
+    revalidatePath('/admin/users')
+}
+
 // ============= Delete User Action =============
 
 export async function deleteUser(formData: FormData) {

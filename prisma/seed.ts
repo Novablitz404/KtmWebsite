@@ -3,223 +3,261 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 async function main() {
-    console.log('🌱 Seeding database...')
+    console.log('Seeding Unified Tap Elite Guidelines (Kyorugi + Poomsae) ...')
 
-    // ==========================================
-    // 1. CREATE TAP ELITE GUIDELINE TEMPLATE
-    // ==========================================
-    const tapElite = await prisma.guidelineTemplate.create({
+    const templateName = 'Tap Elite Unified 2026'
+
+    // Cleanup
+    const existing = await prisma.guidelineTemplate.findUnique({
+        where: { name: templateName }
+    })
+    if (existing) {
+        console.log('Updating existing template...')
+        await prisma.guidelineTemplate.delete({ where: { name: templateName } })
+    }
+
+    const template = await prisma.guidelineTemplate.create({
         data: {
-            name: 'Tap Elite 2026',
-            pdfUrl: null // Can add PDF path later
+            name: templateName,
+            content: `### Tap Elite Unified Guidelines 2026
+Includes both Kyorugi and Poomsae regulations.
+
+**Kyorugi Rules:**
+*   **Supertoddler/Toddler/Grade School:** Height-based (Under 112cm - Over 168cm)
+*   **Cadet/Junior/Senior:** Weight-based (Olympics/Standard)
+
+**Poomsae Rules:**
+*   Colored Belt: Yellow (T2), Blue (T4), Red (T6), Brown (T8)
+*   Black Belt: Varies by Division (See below)`
         }
     })
-    console.log('✅ Created guideline template: Tap Elite 2026')
 
-    // ==========================================
-    // 2. CREATE DIVISIONS (Age-based)
-    // ==========================================
-    const divisions = [
-        { name: 'Supertoddler', minAge: 0, maxAge: 5, displayOrder: 1 },
-        { name: 'Toddler', minAge: 6, maxAge: 8, displayOrder: 2 },
-        { name: 'Grade School', minAge: 9, maxAge: 11, displayOrder: 3 },
-        { name: 'Cadet', minAge: 12, maxAge: 14, displayOrder: 4 },
-        { name: 'Junior', minAge: 15, maxAge: 17, displayOrder: 5 },
-        { name: 'Senior', minAge: 18, maxAge: 30, displayOrder: 6 }
+    // --- DEFINITIONS ---
+
+    // 1. Kyorugi Height Classes (Supertoddler, Toddler, Grade School)
+    const kyHeights = [
+        { name: 'Kyorugi - Under 112cm', min: 0, max: 112 },
+        { name: 'Kyorugi - Under 120cm', min: 112, max: 120 },
+        { name: 'Kyorugi - Under 128cm', min: 120, max: 128 },
+        { name: 'Kyorugi - Under 136cm', min: 128, max: 136 },
+        { name: 'Kyorugi - Under 144cm', min: 136, max: 144 },
+        { name: 'Kyorugi - Under 152cm', min: 144, max: 152 },
+        { name: 'Kyorugi - Under 160cm', min: 152, max: 160 },
+        { name: 'Kyorugi - Under 168cm', min: 160, max: 168 },
+        { name: 'Kyorugi - Over 168cm', min: 168, max: 999 },
     ]
 
-    const createdDivisions: Record<string, string> = {}
-
-    for (const div of divisions) {
-        const created = await prisma.division.create({
-            data: {
-                name: div.name,
-                minAge: div.minAge,
-                maxAge: div.maxAge,
-                displayOrder: div.displayOrder,
-                templateId: tapElite.id
-            }
-        })
-        createdDivisions[div.name] = created.id
-        console.log(`✅ Created division: ${div.name} (${div.minAge}-${div.maxAge} years)`)
-    }
-
-    // ==========================================
-    // 3. CREATE WEIGHT CATEGORIES
-    // ==========================================
-
-    // Toddler & Grade School - Height-based (using weight field for cm)
-    const toddlerGradeSchoolCategories = [
-        { name: 'Under 112', minWeight: 0, maxWeight: 112 },
-        { name: 'Under 120', minWeight: 112, maxWeight: 120 },
-        { name: 'Under 128', minWeight: 120, maxWeight: 128 },
-        { name: 'Under 136', minWeight: 128, maxWeight: 136 },
-        { name: 'Under 144', minWeight: 136, maxWeight: 144 },
-        { name: 'Under 152', minWeight: 144, maxWeight: 152 },
-        { name: 'Under 160', minWeight: 152, maxWeight: 160 },
-        { name: 'Under 168', minWeight: 160, maxWeight: 168 },
-        { name: 'Over 168', minWeight: 168, maxWeight: 999 }
+    // 2. Kyorugi Weight Classes
+    const kyCadetM = [
+        { name: 'Kyorugi - Fin', min: 0, max: 33 }, { name: 'Kyorugi - Fly', min: 33, max: 37 },
+        { name: 'Kyorugi - Bantam', min: 37, max: 41 }, { name: 'Kyorugi - Feather', min: 41, max: 45 },
+        { name: 'Kyorugi - Light', min: 45, max: 49 }, { name: 'Kyorugi - Welter', min: 49, max: 53 },
+        { name: 'Kyorugi - Lt Middle', min: 53, max: 57 }, { name: 'Kyorugi - Middle', min: 57, max: 61 },
+        { name: 'Kyorugi - Lt Heavy', min: 61, max: 65 }, { name: 'Kyorugi - Heavy', min: 65, max: 999 },
+    ]
+    const kyCadetF = [
+        { name: 'Kyorugi - Fin', min: 0, max: 29 }, { name: 'Kyorugi - Fly', min: 29, max: 33 },
+        { name: 'Kyorugi - Bantam', min: 33, max: 37 }, { name: 'Kyorugi - Feather', min: 37, max: 41 },
+        { name: 'Kyorugi - Light', min: 41, max: 44 }, { name: 'Kyorugi - Welter', min: 44, max: 47 },
+        { name: 'Kyorugi - Lt Middle', min: 47, max: 51 }, { name: 'Kyorugi - Middle', min: 51, max: 55 },
+        { name: 'Kyorugi - Lt Heavy', min: 55, max: 59 }, { name: 'Kyorugi - Heavy', min: 59, max: 999 },
     ]
 
-    for (const cat of toddlerGradeSchoolCategories) {
-        await prisma.weightCategory.create({
-            data: {
-                name: cat.name,
-                gender: 'Both',
-                minWeight: cat.minWeight,
-                maxWeight: cat.maxWeight,
-                divisionId: createdDivisions['Toddler']
-            }
-        })
-        await prisma.weightCategory.create({
-            data: {
-                name: cat.name,
-                gender: 'Both',
-                minWeight: cat.minWeight,
-                maxWeight: cat.maxWeight,
-                divisionId: createdDivisions['Grade School']
-            }
-        })
-    }
-    console.log('✅ Created weight categories for Toddler & Grade School')
-
-    // Cadet Division
-    const cadetMale = [
-        { name: 'FIN', minWeight: 0, maxWeight: 33 },
-        { name: 'FLY', minWeight: 33, maxWeight: 37 },
-        { name: 'BANTAM', minWeight: 37, maxWeight: 41 },
-        { name: 'FEATHER', minWeight: 41, maxWeight: 45 },
-        { name: 'LIGHT', minWeight: 45, maxWeight: 49 },
-        { name: 'WELTER', minWeight: 49, maxWeight: 53 },
-        { name: 'LT. MIDDLE', minWeight: 53, maxWeight: 57 },
-        { name: 'MIDDLE', minWeight: 57, maxWeight: 61 },
-        { name: 'LT. HEAVY', minWeight: 61, maxWeight: 65 },
-        { name: 'HEAVY', minWeight: 65, maxWeight: 999 }
+    const kyJuniorM = [
+        { name: 'Kyorugi - Fin', min: 0, max: 45 }, { name: 'Kyorugi - Fly', min: 45, max: 48 },
+        { name: 'Kyorugi - Bantam', min: 48, max: 51 }, { name: 'Kyorugi - Feather', min: 51, max: 55 },
+        { name: 'Kyorugi - Light', min: 55, max: 59 }, { name: 'Kyorugi - Welter', min: 59, max: 63 },
+        { name: 'Kyorugi - Lt Middle', min: 63, max: 68 }, { name: 'Kyorugi - Middle', min: 68, max: 73 },
+        { name: 'Kyorugi - Lt Heavy', min: 73, max: 78 }, { name: 'Kyorugi - Heavy', min: 78, max: 999 },
     ]
-    const cadetFemale = [
-        { name: 'FIN', minWeight: 0, maxWeight: 29 },
-        { name: 'FLY', minWeight: 29, maxWeight: 33 },
-        { name: 'BANTAM', minWeight: 33, maxWeight: 37 },
-        { name: 'FEATHER', minWeight: 37, maxWeight: 41 },
-        { name: 'LIGHT', minWeight: 41, maxWeight: 44 },
-        { name: 'WELTER', minWeight: 44, maxWeight: 47 },
-        { name: 'LT. MIDDLE', minWeight: 47, maxWeight: 51 },
-        { name: 'MIDDLE', minWeight: 51, maxWeight: 55 },
-        { name: 'LT. HEAVY', minWeight: 55, maxWeight: 59 },
-        { name: 'HEAVY', minWeight: 59, maxWeight: 999 }
+    const kyJuniorF = [
+        { name: 'Kyorugi - Fin', min: 0, max: 42 }, { name: 'Kyorugi - Fly', min: 42, max: 44 },
+        { name: 'Kyorugi - Bantam', min: 44, max: 46 }, { name: 'Kyorugi - Feather', min: 46, max: 49 },
+        { name: 'Kyorugi - Light', min: 49, max: 52 }, { name: 'Kyorugi - Welter', min: 52, max: 55 },
+        { name: 'Kyorugi - Lt Middle', min: 55, max: 59 }, { name: 'Kyorugi - Middle', min: 59, max: 63 },
+        { name: 'Kyorugi - Lt Heavy', min: 63, max: 68 }, { name: 'Kyorugi - Heavy', min: 68, max: 999 },
     ]
 
-    for (const cat of cadetMale) {
-        await prisma.weightCategory.create({
-            data: { ...cat, gender: 'Male', divisionId: createdDivisions['Cadet'] }
-        })
-    }
-    for (const cat of cadetFemale) {
-        await prisma.weightCategory.create({
-            data: { ...cat, gender: 'Female', divisionId: createdDivisions['Cadet'] }
-        })
-    }
-    console.log('✅ Created weight categories for Cadet')
-
-    // Junior Division
-    const juniorMale = [
-        { name: 'Under 45 kg', minWeight: 0, maxWeight: 45 },
-        { name: 'Under 48 kg', minWeight: 45, maxWeight: 48 },
-        { name: 'Under 51 kg', minWeight: 48, maxWeight: 51 },
-        { name: 'Under 55 kg', minWeight: 51, maxWeight: 55 },
-        { name: 'Under 59 kg', minWeight: 55, maxWeight: 59 },
-        { name: 'Under 63 kg', minWeight: 59, maxWeight: 63 },
-        { name: 'Under 68 kg', minWeight: 63, maxWeight: 68 },
-        { name: 'Under 73 kg', minWeight: 68, maxWeight: 73 },
-        { name: 'Under 78 kg', minWeight: 73, maxWeight: 78 },
-        { name: 'Over 78 kg', minWeight: 78, maxWeight: 999 }
+    const kySeniorM = [
+        { name: 'Kyorugi - Under 54kg', min: 0, max: 54 }, { name: 'Kyorugi - Under 58kg', min: 54, max: 58 },
+        { name: 'Kyorugi - Under 63kg', min: 58, max: 63 }, { name: 'Kyorugi - Under 68kg', min: 63, max: 68 },
+        { name: 'Kyorugi - Under 74kg', min: 68, max: 74 }, { name: 'Kyorugi - Under 80kg', min: 74, max: 80 },
+        { name: 'Kyorugi - Under 87kg', min: 80, max: 87 }, { name: 'Kyorugi - Over 87kg', min: 87, max: 999 },
     ]
-    const juniorFemale = [
-        { name: 'Under 42 kg', minWeight: 0, maxWeight: 42 },
-        { name: 'Under 44 kg', minWeight: 42, maxWeight: 44 },
-        { name: 'Under 46 kg', minWeight: 44, maxWeight: 46 },
-        { name: 'Under 49 kg', minWeight: 46, maxWeight: 49 },
-        { name: 'Under 52 kg', minWeight: 49, maxWeight: 52 },
-        { name: 'Under 55 kg', minWeight: 52, maxWeight: 55 },
-        { name: 'Under 59 kg', minWeight: 55, maxWeight: 59 },
-        { name: 'Under 63 kg', minWeight: 59, maxWeight: 63 },
-        { name: 'Under 68 kg', minWeight: 63, maxWeight: 68 },
-        { name: 'Over 68 kg', minWeight: 68, maxWeight: 999 }
+    const kySeniorF = [
+        { name: 'Kyorugi - Under 46kg', min: 0, max: 46 }, { name: 'Kyorugi - Under 49kg', min: 46, max: 49 },
+        { name: 'Kyorugi - Under 53kg', min: 49, max: 53 }, { name: 'Kyorugi - Under 57kg', min: 53, max: 57 },
+        { name: 'Kyorugi - Under 62kg', min: 57, max: 62 }, { name: 'Kyorugi - Under 67kg', min: 62, max: 67 },
+        { name: 'Kyorugi - Under 73kg', min: 67, max: 73 }, { name: 'Kyorugi - Over 73kg', min: 73, max: 999 },
     ]
 
-    for (const cat of juniorMale) {
-        await prisma.weightCategory.create({
-            data: { ...cat, gender: 'Male', divisionId: createdDivisions['Junior'] }
-        })
-    }
-    for (const cat of juniorFemale) {
-        await prisma.weightCategory.create({
-            data: { ...cat, gender: 'Female', divisionId: createdDivisions['Junior'] }
-        })
-    }
-    console.log('✅ Created weight categories for Junior')
-
-    // Senior Division
-    const seniorMale = [
-        { name: 'Under 54 kg', minWeight: 0, maxWeight: 54 },
-        { name: 'Under 58 kg', minWeight: 54, maxWeight: 58 },
-        { name: 'Under 63 kg', minWeight: 58, maxWeight: 63 },
-        { name: 'Under 68 kg', minWeight: 63, maxWeight: 68 },
-        { name: 'Under 74 kg', minWeight: 68, maxWeight: 74 },
-        { name: 'Under 80 kg', minWeight: 74, maxWeight: 80 },
-        { name: 'Under 87 kg', minWeight: 80, maxWeight: 87 },
-        { name: 'Over 87 kg', minWeight: 87, maxWeight: 999 }
-    ]
-    const seniorFemale = [
-        { name: 'Under 46 kg', minWeight: 0, maxWeight: 46 },
-        { name: 'Under 49 kg', minWeight: 46, maxWeight: 49 },
-        { name: 'Under 53 kg', minWeight: 49, maxWeight: 53 },
-        { name: 'Under 57 kg', minWeight: 53, maxWeight: 57 },
-        { name: 'Under 62 kg', minWeight: 57, maxWeight: 62 },
-        { name: 'Under 67 kg', minWeight: 62, maxWeight: 67 },
-        { name: 'Under 73 kg', minWeight: 67, maxWeight: 73 },
-        { name: 'Over 73 kg', minWeight: 73, maxWeight: 999 }
+    // 3. Poomsae Forms (Colored Belt - same for all divisions)
+    const coloredBeltForms = [
+        { belt: 'Yellow', form: 'Taegeuk 2' },
+        { belt: 'Blue', form: 'Taegeuk 4' },
+        { belt: 'Red', form: 'Taegeuk 6' },
+        { belt: 'Brown', form: 'Taegeuk 8' },
     ]
 
-    for (const cat of seniorMale) {
-        await prisma.weightCategory.create({
-            data: { ...cat, gender: 'Male', divisionId: createdDivisions['Senior'] }
-        })
+    // 4. Poomsae Forms (Black Belt - varies by division)
+    // Format: divisionName -> { elimination: string, finals: string }
+    const blackBeltFormsByDivision: Record<string, { elimination: string; finals: string }> = {
+        'Supertoddler': { elimination: 'Taegeuk 6', finals: 'Taegeuk 7' },
+        'Toddler': { elimination: 'Taegeuk 6', finals: 'Taegeuk 7' },
+        'Grade School': { elimination: 'Taegeuk 6', finals: 'Taegeuk 7' },
+        'Cadet': { elimination: 'Taegeuk 7', finals: 'Taegeuk 8' },
+        'Junior': { elimination: 'Taegeuk 7', finals: 'Koryo' },
+        'Senior (Under 30)': { elimination: 'Koryo', finals: 'Koryo' },
     }
-    for (const cat of seniorFemale) {
-        await prisma.weightCategory.create({
-            data: { ...cat, gender: 'Female', divisionId: createdDivisions['Senior'] }
-        })
-    }
-    console.log('✅ Created weight categories for Senior')
 
-    // ==========================================
-    // 4. CREATE SAMPLE TOURNAMENT
-    // ==========================================
-    /*
-    const tournament = await prisma.tournament.create({
-        data: {
-            name: 'Metro Manila Open 2026',
-            startDate: new Date('2026-01-15'),
-            registrationStart: new Date('2025-12-01'),
-            registrationEnd: new Date('2026-01-10')
-            // No guidelineTemplateId - organizer must select one
+    // Helper to create Poomsae categories for a division
+    async function createPoomsaeCategories(divisionId: string, divisionName: string, orderStart: number) {
+        let order = orderStart
+
+        // Colored Belts (Individual, Pair, Team)
+        for (const belt of coloredBeltForms) {
+            const baseName = `Poomsae - ${belt.belt} Belt`
+            const forms = belt.form
+
+            // Individual Male/Female
+            await prisma.weightCategory.create({ data: { divisionId, name: baseName, gender: 'Male', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'INDIVIDUAL', poomsaeForms: forms, belt: belt.belt } })
+            await prisma.weightCategory.create({ data: { divisionId, name: baseName, gender: 'Female', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'INDIVIDUAL', poomsaeForms: forms, belt: belt.belt } })
+            // Pair
+            await prisma.weightCategory.create({ data: { divisionId, name: `${baseName} (Mixed Pair)`, gender: 'Mixed', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'PAIR', poomsaeForms: forms, belt: belt.belt } })
+            // Team Male
+            await prisma.weightCategory.create({ data: { divisionId, name: `${baseName} (Team)`, gender: 'Male', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'TEAM', poomsaeForms: forms, belt: belt.belt } })
+            // Team Female
+            await prisma.weightCategory.create({ data: { divisionId, name: `${baseName} (Team)`, gender: 'Female', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'TEAM', poomsaeForms: forms, belt: belt.belt } })
         }
+
+        // Black Belt
+        const bbForms = blackBeltFormsByDivision[divisionName]
+        if (bbForms) {
+            const baseName = 'Poomsae - Black Belt'
+            const forms = `Elimination: ${bbForms.elimination}, Finals: ${bbForms.finals}`
+
+            // Individual Male/Female
+            await prisma.weightCategory.create({ data: { divisionId, name: baseName, gender: 'Male', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'INDIVIDUAL', poomsaeForms: forms, belt: 'Black' } })
+            await prisma.weightCategory.create({ data: { divisionId, name: baseName, gender: 'Female', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'INDIVIDUAL', poomsaeForms: forms, belt: 'Black' } })
+            // Pair
+            await prisma.weightCategory.create({ data: { divisionId, name: `${baseName} (Mixed Pair)`, gender: 'Mixed', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'PAIR', poomsaeForms: forms, belt: 'Black' } })
+            // Team Male
+            await prisma.weightCategory.create({ data: { divisionId, name: `${baseName} (Team)`, gender: 'Male', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'TEAM', poomsaeForms: forms, belt: 'Black' } })
+            // Team Female
+            await prisma.weightCategory.create({ data: { divisionId, name: `${baseName} (Team)`, gender: 'Female', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'POOMSAE', subtype: 'TEAM', poomsaeForms: forms, belt: 'Black' } })
+        }
+
+        return order
+    }
+
+
+    // --- CREATE DIVISIONS AND ASSIGN CATEGORIES ---
+
+    let order = 1
+
+    // A. Supertoddler (0-5) - KYORUGI ONLY (No Poomsae per official guide)
+    const divSuper = await prisma.division.create({
+        data: { templateId: template.id, name: 'Supertoddler', minAge: 0, maxAge: 5, displayOrder: 1 }
     })
-    console.log(`✅ Created tournament: ${tournament.name}`)
-    */
+    for (const h of kyHeights) {
+        await prisma.weightCategory.create({ data: { divisionId: divSuper.id, name: h.name, gender: 'Male', minHeight: h.min, maxHeight: h.max, minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
+        await prisma.weightCategory.create({ data: { divisionId: divSuper.id, name: h.name, gender: 'Female', minHeight: h.min, maxHeight: h.max, minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
+    }
+    // NO Poomsae for Supertoddler
 
-    // No default categories - created when template is selected
+    // B. Toddler (0-8 for Poomsae, 6-8 for Kyorugi)
+    // Per official Poomsae guide: "8 years and below"
+    // Kyorugi height-based for ages 6-8.
+    const divToddler = await prisma.division.create({
+        data: { templateId: template.id, name: 'Toddler', minAge: 0, maxAge: 8, displayOrder: 6 }
+    })
+    for (const h of kyHeights) {
+        await prisma.weightCategory.create({ data: { divisionId: divToddler.id, name: h.name, gender: 'Male', minHeight: h.min, maxHeight: h.max, minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
+        await prisma.weightCategory.create({ data: { divisionId: divToddler.id, name: h.name, gender: 'Female', minHeight: h.min, maxHeight: h.max, minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
+    }
+    order = await createPoomsaeCategories(divToddler.id, 'Toddler', order)
 
-    console.log(`\n🎉 Seeding complete!`)
-    console.log(`   Guideline Template: ${tapElite.name}`)
-    console.log(`   Divisions: ${divisions.length}`)
-    // console.log(`   Tournament: ${tournament.name}`)
+
+    // C. Grade School (9-11)
+    const divGS = await prisma.division.create({
+        data: { templateId: template.id, name: 'Grade School', minAge: 9, maxAge: 11, displayOrder: 9 }
+    })
+    for (const h of kyHeights) {
+        await prisma.weightCategory.create({ data: { divisionId: divGS.id, name: h.name, gender: 'Male', minHeight: h.min, maxHeight: h.max, minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
+        await prisma.weightCategory.create({ data: { divisionId: divGS.id, name: h.name, gender: 'Female', minHeight: h.min, maxHeight: h.max, minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
+    }
+    order = await createPoomsaeCategories(divGS.id, 'Grade School', order)
+
+
+    // D. Cadet (12-14)
+    const divCadet = await prisma.division.create({
+        data: { templateId: template.id, name: 'Cadet', minAge: 12, maxAge: 14, displayOrder: 12 }
+    })
+    for (const w of kyCadetM) await prisma.weightCategory.create({ data: { divisionId: divCadet.id, name: w.name, gender: 'Male', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
+    for (const w of kyCadetF) await prisma.weightCategory.create({ data: { divisionId: divCadet.id, name: w.name, gender: 'Female', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
+    order = await createPoomsaeCategories(divCadet.id, 'Cadet', order)
+
+
+    // E. Junior (15-17)
+    const divJunior = await prisma.division.create({
+        data: { templateId: template.id, name: 'Junior', minAge: 15, maxAge: 17, displayOrder: 15 }
+    })
+    for (const w of kyJuniorM) await prisma.weightCategory.create({ data: { divisionId: divJunior.id, name: w.name, gender: 'Male', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
+    for (const w of kyJuniorF) await prisma.weightCategory.create({ data: { divisionId: divJunior.id, name: w.name, gender: 'Female', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
+    order = await createPoomsaeCategories(divJunior.id, 'Junior', order)
+
+
+    // F. Senior (18-30) / Under 30
+    const divSenior = await prisma.division.create({
+        data: { templateId: template.id, name: 'Senior (Under 30)', minAge: 18, maxAge: 30, displayOrder: 18 }
+    })
+    for (const w of kySeniorM) await prisma.weightCategory.create({ data: { divisionId: divSenior.id, name: w.name, gender: 'Male', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
+    for (const w of kySeniorF) await prisma.weightCategory.create({ data: { divisionId: divSenior.id, name: w.name, gender: 'Female', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
+    order = await createPoomsaeCategories(divSenior.id, 'Senior (Under 30)', order)
+
+
+    console.log('Unified Seeding completed!')
+
+    // ==========================================
+    // 5. CREATE ADMIN ACCOUNTS
+    // ==========================================
+    const admins = [
+        {
+            name: 'Erich Jann liwag',
+            email: 'ericjann21+clerk_test@gmail.com',
+            clerkId: 'user_38ZMRohIRPy7gb1bMjMLgF6b4p2',
+            role: 'ORGANIZER',
+            id: '00001'
+        },
+        {
+            name: 'Erich Jann Liwag',
+            email: 'ericjann21@gmail.com',
+            clerkId: 'user_38YIHcNTE1dMciTuKf9K83wd8Z3',
+            role: 'ORGANIZER',
+            id: '00002'
+        }
+    ]
+
+    for (const admin of admins) {
+        await prisma.user.upsert({
+            where: { email: admin.email },
+            update: { clerkId: admin.clerkId, role: admin.role, name: admin.name },
+            create: {
+                id: admin.id,
+                clerkId: admin.clerkId,
+                email: admin.email,
+                name: admin.name,
+                role: admin.role,
+                isVerified: true
+            }
+        })
+        console.log(`✅ Upserted admin: ${admin.name}`)
+    }
 }
 
 main()
-    .catch(e => {
-        console.error('❌ Error:', e)
+    .catch((e) => {
+        console.error(e)
         process.exit(1)
     })
     .finally(async () => {

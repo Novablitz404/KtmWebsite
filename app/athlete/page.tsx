@@ -7,6 +7,8 @@ import AthleteDashboardView from '@/components/athlete/AthleteDashboardView'
 
 export const revalidate = 30
 
+import CompleteProfileModal from '@/components/athlete/CompleteProfileModal'
+
 export default async function AthleteDashboardPage({
     searchParams,
 }: {
@@ -44,11 +46,15 @@ export default async function AthleteDashboardPage({
         redirect('/settings')
     }
 
+    // Check if profile is complete
+    const isProfileComplete = dbUser.height && dbUser.weight
+
     // Fetch initial dashboard data server-side
     const initialDashboardData = await fetchAthleteDashboardData(clerkUser.id)
 
     return (
         <main className="min-h-screen bg-gray-50">
+            {!isProfileComplete && <CompleteProfileModal />}
             <AthleteDashboardView
                 clerkId={clerkUser.id}
                 imageUrl={clerkUser.imageUrl}

@@ -126,17 +126,20 @@ export default function MembersGrid({
 
     return (
         <div className="h-full flex flex-col min-h-0">
-            {/* Mobile List View */}
-            <div className="sm:hidden divide-y divide-gray-200 overflow-y-auto flex-1">
+            {/* Mobile Card View */}
+            <div className="sm:hidden flex-1 overflow-y-auto p-4 pb-24 space-y-3 bg-gray-50">
                 {isLoading && !data ? (
                     // Mobile Skeleton
-                    [...Array(10)].map((_, i) => (
-                        <div key={i} className="px-4 py-3 flex items-center gap-3 animate-pulse">
-                            <div className="h-10 w-10 rounded-full bg-gray-200"></div>
-                            <div className="space-y-2 flex-1">
-                                <div className="h-4 bg-gray-200 w-32 rounded"></div>
-                                <div className="h-3 bg-gray-200 w-24 rounded"></div>
+                    [...Array(5)].map((_, i) => (
+                        <div key={i} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 animate-pulse">
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="h-10 w-10 rounded-full bg-gray-200"></div>
+                                <div className="space-y-2 flex-1">
+                                    <div className="h-4 bg-gray-200 w-32 rounded"></div>
+                                    <div className="h-3 bg-gray-200 w-24 rounded"></div>
+                                </div>
                             </div>
+                            <div className="h-8 w-full bg-gray-100 rounded"></div>
                         </div>
                     ))
                 ) : (
@@ -147,47 +150,83 @@ export default function MembersGrid({
                             : null
 
                         return (
-                            <div key={member.id} className="px-4 py-3 flex items-center gap-3">
-                                {/* Avatar */}
-                                <div className="relative flex-shrink-0">
-                                    {avatar ? (
-                                        <img
-                                            src={avatar}
-                                            alt={member.name || 'Member'}
-                                            className="w-10 h-10 rounded-full object-cover bg-gray-100"
-                                        />
-                                    ) : (
-                                        <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm font-bold">
-                                            {(member.name || '?').charAt(0)}
+                            <div key={member.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex flex-col gap-3 relative overflow-hidden">
+                                {/* Top Row: Avatar & Name */}
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="flex items-center gap-3 overflow-hidden">
+                                        <div className="relative flex-shrink-0">
+                                            {avatar ? (
+                                                <img
+                                                    src={avatar}
+                                                    alt={member.name || 'Member'}
+                                                    className="w-12 h-12 rounded-full object-cover bg-gray-50 border border-gray-100"
+                                                />
+                                            ) : (
+                                                <div className="w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center text-lg font-bold border border-red-100">
+                                                    {(member.name || '?').charAt(0)}
+                                                </div>
+                                            )}
                                         </div>
+                                        <div className="min-w-0">
+                                            <h3 className="font-bold text-gray-900 text-base truncate">
+                                                {member.name || 'Unnamed Athlete'}
+                                            </h3>
+                                            <p className="text-xs text-gray-500 mt-0.5 truncate max-w-[180px]">
+                                                {member.email}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Belt Badge */}
+                                    {member.belt && (
+                                        <span className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide border shadow-sm ${member.belt === 'Black' ? 'bg-gray-900 text-white border-gray-800' :
+                                            member.belt === 'Red' ? 'bg-red-50 text-red-700 border-red-100' :
+                                                member.belt === 'Blue' ? 'bg-blue-50 text-blue-700 border-blue-100' :
+                                                    member.belt === 'Yellow' ? 'bg-yellow-50 text-yellow-700 border-yellow-100' :
+                                                        member.belt === 'Green' ? 'bg-green-50 text-green-700 border-green-100' :
+                                                            'bg-gray-50 text-gray-600 border-gray-200'
+                                            }`}>
+                                            {member.belt}
+                                        </span>
                                     )}
                                 </div>
 
-                                {/* Info */}
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                        <h3 className="font-semibold text-gray-900 text-sm truncate">
-                                            {member.name || 'Unnamed Athlete'}
-                                        </h3>
-                                        {member.belt && (
-                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase shadow-sm ${member.belt === 'Black' ? 'bg-gray-900 text-white' :
-                                                member.belt === 'Red' ? 'bg-red-500 text-white' :
-                                                    member.belt === 'Blue' ? 'bg-blue-500 text-white' :
-                                                        member.belt === 'Yellow' ? 'bg-yellow-400 text-gray-900' :
-                                                            member.belt === 'Green' ? 'bg-green-500 text-white' :
-                                                                member.belt === 'Brown' ? 'bg-amber-700 text-white' :
-                                                                    member.belt === 'Orange' ? 'bg-orange-500 text-white' :
-                                                                        member.belt === 'White' ? 'bg-white text-gray-700 border border-gray-300' :
-                                                                            member.belt === 'Purple' ? 'bg-purple-500 text-white' :
-                                                                                'bg-gray-300 text-gray-700'
-                                                }`}>
-                                                {member.belt}
-                                            </span>
-                                        )}
+                                {/* Stats Grid */}
+                                <div className="grid grid-cols-3 gap-2 py-2 border-t border-b border-gray-50">
+                                    <div className="flex flex-col items-center justify-center p-1 bg-gray-50 rounded-lg">
+                                        <span className="text-xs font-semibold text-gray-900">{age ? `${age} yrs` : '-'}</span>
+                                        <span className="text-[9px] text-gray-400 uppercase tracking-wider">Age</span>
                                     </div>
-                                    <p className="text-xs text-gray-500 mt-0.5">
-                                        {age ? `${age} yrs` : '-'} • {member.gender === 'Male' ? 'Male' : member.gender === 'Female' ? 'Female' : '-'}
-                                    </p>
+                                    <div className="flex flex-col items-center justify-center p-1 bg-gray-50 rounded-lg">
+                                        <span className="text-xs font-semibold text-gray-900">{member.gender === 'Male' ? 'Male' : member.gender === 'Female' ? 'Female' : '-'}</span>
+                                        <span className="text-[9px] text-gray-400 uppercase tracking-wider">Sex</span>
+                                    </div>
+                                    <div className="flex flex-col items-center justify-center p-1 bg-gray-50 rounded-lg">
+                                        <span className="text-xs font-semibold text-gray-900">{member.weight ? `${member.weight}kg` : '-'}</span>
+                                        <span className="text-[9px] text-gray-400 uppercase tracking-wider">Weight</span>
+                                    </div>
+                                </div>
+
+                                {/* Actions */}
+                                <div className="flex items-center gap-2">
+                                    {onEdit && (
+                                        <button
+                                            onClick={() => onEdit(member)}
+                                            className="flex-1 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 border border-gray-200"
+                                        >
+                                            <Pencil size={14} />
+                                            Edit Details
+                                        </button>
+                                    )}
+                                    {onDelete && (
+                                        <button
+                                            onClick={() => onDelete(member.id)}
+                                            className="flex-shrink-0 p-2 bg-white text-red-600 border border-gray-200 hover:bg-red-50 hover:border-red-200 rounded-lg transition-colors"
+                                            title="Remove Member"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         )
@@ -342,7 +381,7 @@ export default function MembersGrid({
             {/* Pagination Controls */}
 
             {/* Pagination Controls - Footer */}
-            <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white flex items-center justify-end">
+            <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white flex items-center justify-end fixed bottom-0 left-0 w-full z-30 md:static shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] md:shadow-none">
                 <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-100">
                     <button
                         onClick={() => handlePageChange(page - 1)}

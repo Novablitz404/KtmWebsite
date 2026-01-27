@@ -5,7 +5,9 @@ import { Building2, Globe, ChevronLeft, ChevronRight, ListFilter, ArrowUpDown, U
 import AffiliatedClubsTable from './AffiliatedClubsTable'
 import AffiliatedOrgsTable from './AffiliatedOrgsTable'
 import GlobalDropdown from '@/components/GlobalDropdown'
-import PendingClubsModal from './PendingClubsModal'
+import PendingRequestsModal from './PendingRequestsModal'
+import { useQuery } from '@tanstack/react-query'
+import { getAffiliationRequests } from '@/app/organization/actions'
 
 type ClubViewType = 'clubs' | 'organizations'
 const ITEMS_PER_PAGE = 10
@@ -38,6 +40,14 @@ export default function OrganizationClubsView({
         (clubs || []).filter(club => club?.status === 'PENDING'),
         [clubs]
     )
+
+    // Fetch pending organization requests for the count
+    const { data: pendingOrgs } = useQuery({
+        queryKey: ['affiliation-requests'],
+        queryFn: () => getAffiliationRequests()
+    })
+
+    const totalPendingCount = pendingClubs.length + (pendingOrgs?.length || 0)
 
     // Reset page when switching view type or search query changes
     useEffect(() => {
@@ -122,16 +132,16 @@ export default function OrganizationClubsView({
                         <button
                             onClick={() => setIsPendingModalOpen(true)}
                             disabled={isLoading}
-                            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${pendingClubs.length > 0
+                            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${totalPendingCount > 0
                                 ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border border-yellow-200'
                                 : 'bg-gray-100 text-gray-500 hover:bg-gray-200 border border-gray-200'
                                 }`}
                         >
                             <Clock size={16} />
                             Pending
-                            {pendingClubs.length > 0 && (
+                            {totalPendingCount > 0 && (
                                 <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-yellow-500 text-white text-xs font-bold rounded-full">
-                                    {pendingClubs.length}
+                                    {totalPendingCount}
                                 </span>
                             )}
                         </button>
@@ -207,8 +217,8 @@ export default function OrganizationClubsView({
                 </div>
             </div>
 
-            {/* Pending Clubs Modal */}
-            <PendingClubsModal
+            {/* Pending Requests Modal */}
+            <PendingRequestsModal
                 isOpen={isPendingModalOpen}
                 onClose={() => setIsPendingModalOpen(false)}
                 pendingClubs={pendingClubs}

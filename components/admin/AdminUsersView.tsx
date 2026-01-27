@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { MoreHorizontal, Shield, Award, Trash2, X, AlertTriangle, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
-import { promoteToOrganizer, promoteToClubMaster, deleteUser } from '@/app/admin/actions'
+import { promoteToOrganizer, promoteToClubMaster, deleteUser, toggleAthleteVerification } from '@/app/admin/actions'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { fetchAdminUsers } from '@/app/admin/fetch'
@@ -17,6 +17,7 @@ interface User {
     email: string
     role: string
     clubName: string | null
+    isVerified: boolean
 }
 
 interface AdminUsersViewProps {
@@ -92,8 +93,16 @@ export default function AdminUsersView({ initialUsers = [], searchQuery }: Admin
                                         <tr key={user.id} className="hover:bg-gray-50/50 transition-colors">
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex flex-col">
-                                                    <span className={`font-semibold text-sm ${user.name ? 'text-gray-900' : 'text-gray-400 italic'}`}>
+                                                    <span className={`font-semibold text-sm flex items-center gap-2 ${user.name ? 'text-gray-900' : 'text-gray-400 italic'}`}>
                                                         {user.name || 'No Name'}
+                                                        {user.isVerified && (
+                                                            <div className="group relative">
+                                                                <Shield className="w-3.5 h-3.5 text-blue-600 fill-blue-600" />
+                                                                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block px-2 py-1 bg-gray-900 text-white text-[10px] rounded whitespace-nowrap">
+                                                                    Verified Athlete
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                     </span>
                                                     <span className="text-xs text-gray-500">{user.email}</span>
                                                 </div>
@@ -109,6 +118,7 @@ export default function AdminUsersView({ initialUsers = [], searchQuery }: Admin
                                                     userId={user.id}
                                                     currentRole={user.role}
                                                     userName={user.name || 'User'}
+                                                    isVerified={user.isVerified}
                                                     onRefresh={() => router.refresh()}
                                                 />
                                             </td>
@@ -180,11 +190,13 @@ function UserActionsDropdown({
     userId,
     currentRole,
     userName,
+    isVerified,
     onRefresh
 }: {
     userId: string,
     currentRole: string,
     userName: string,
+    isVerified: boolean,
     onRefresh: () => void
 }) {
     const [isOpen, setIsOpen] = useState(false)
@@ -194,6 +206,22 @@ function UserActionsDropdown({
     const [isLoading, setIsLoading] = useState(false)
 
     if (currentRole === 'ADMIN') return null
+
+    const handleToggleVerification = async () => {
+        setIsLoading(true)
+        const formData = new FormData()
+        formData.append('userId', userId)
+        try {
+            await toggleAthleteVerification(formData)
+            toast.success(isVerified ? 'Athlete unverified' : 'Athlete verified')
+            onRefresh()
+            setIsOpen(false)
+        } catch (error) {
+            toast.error('Failed to update verification status')
+        } finally {
+            setIsLoading(false)
+        }
+    }
 
     const handlePromoteOrganizer = async () => {
         setIsLoading(true)
@@ -287,6 +315,15 @@ function UserActionsDropdown({
                                     </button>
                                 )}
 
+                                <button
+                                    onClick={handleToggleVerification}
+                                    disabled={isLoading}
+                                    className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2"
+                                >
+                                    <Shield className={`w-4 h-4 ${isVerified ? 'text-blue-600 fill-blue-600' : ''}`} />
+                                    {isVerified ? 'Revoke Athlete License' : 'Grant Athlete License'}
+                                </button>
+
                                 <div className="border-t border-gray-100 my-1" />
 
                                 <button
@@ -300,69 +337,73 @@ function UserActionsDropdown({
                         </div>
                     </>
                 )}
-            </div>
+            </div >
 
             {/* Club Master Modal */}
-            {isClubModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                            <h3 className="text-lg font-bold text-gray-900">Promote to Club Master</h3>
-                            <button onClick={() => setIsClubModalOpen(false)} className="p-1 rounded-full hover:bg-gray-200 text-gray-400">
-                                <X className="w-5 h-5" />
-                            </button>
+            {
+                isClubModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                                <h3 className="text-lg font-bold text-gray-900">Promote to Club Master</h3>
+                                <button onClick={() => setIsClubModalOpen(false)} className="p-1 rounded-full hover:bg-gray-200 text-gray-400">
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                            <form onSubmit={handlePromoteClubMaster} className="p-6 space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Club Name</label>
+                                    <input
+                                        type="text"
+                                        value={clubName}
+                                        onChange={(e) => setClubName(e.target.value)}
+                                        placeholder="e.g. Eagle Taekwondo Academy"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
+                                    />
+                                </div>
+                                <div className="flex gap-3">
+                                    <button type="button" onClick={() => setIsClubModalOpen(false)} className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200">
+                                        Cancel
+                                    </button>
+                                    <button type="submit" disabled={isLoading || !clubName.trim()} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 disabled:opacity-50">
+                                        {isLoading ? 'Promoting...' : 'Confirm'}
+                                    </button>
+                                </div>
+                            </form>
                         </div>
-                        <form onSubmit={handlePromoteClubMaster} className="p-6 space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Club Name</label>
-                                <input
-                                    type="text"
-                                    value={clubName}
-                                    onChange={(e) => setClubName(e.target.value)}
-                                    placeholder="e.g. Eagle Taekwondo Academy"
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
-                                />
-                            </div>
-                            <div className="flex gap-3">
-                                <button type="button" onClick={() => setIsClubModalOpen(false)} className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200">
-                                    Cancel
-                                </button>
-                                <button type="submit" disabled={isLoading || !clubName.trim()} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 disabled:opacity-50">
-                                    {isLoading ? 'Promoting...' : 'Confirm'}
-                                </button>
-                            </div>
-                        </form>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Delete Modal */}
-            {isDeleteModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-red-50">
-                            <div className="flex items-center gap-2">
-                                <AlertTriangle className="w-5 h-5 text-red-600" />
-                                <h3 className="text-lg font-bold text-red-900">Delete User</h3>
+            {
+                isDeleteModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-red-50">
+                                <div className="flex items-center gap-2">
+                                    <AlertTriangle className="w-5 h-5 text-red-600" />
+                                    <h3 className="text-lg font-bold text-red-900">Delete User</h3>
+                                </div>
+                                <button onClick={() => setIsDeleteModalOpen(false)} className="p-1 rounded-full hover:bg-red-100 text-red-400">
+                                    <X className="w-5 h-5" />
+                                </button>
                             </div>
-                            <button onClick={() => setIsDeleteModalOpen(false)} className="p-1 rounded-full hover:bg-red-100 text-red-400">
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div className="p-6 space-y-4">
-                            <p className="text-gray-700">Are you sure you want to delete <strong>{userName}</strong>?</p>
-                            <div className="flex gap-3">
-                                <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200">
-                                    Cancel
-                                </button>
-                                <button onClick={handleDeleteUser} disabled={isLoading} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 disabled:opacity-50">
-                                    {isLoading ? 'Deleting...' : 'Delete'}
-                                </button>
+                            <div className="p-6 space-y-4">
+                                <p className="text-gray-700">Are you sure you want to delete <strong>{userName}</strong>?</p>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200">
+                                        Cancel
+                                    </button>
+                                    <button onClick={handleDeleteUser} disabled={isLoading} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 disabled:opacity-50">
+                                        {isLoading ? 'Deleting...' : 'Delete'}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
         </>
     )
 }

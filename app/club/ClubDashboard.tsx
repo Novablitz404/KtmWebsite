@@ -536,18 +536,47 @@ export default function ClubDashboard({
         }
     }
 
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+
     return (
-        <div className="flex h-screen bg-gray-50 overflow-hidden">
-            {/* Desktop Sidebar - hidden on mobile */}
+        <div className="flex min-h-screen md:h-screen bg-gray-50 md:overflow-hidden">
+            {/* Sidebar - Responsive */}
             <ClubSidebar
                 activeView={activeView}
                 onNavigate={setActiveView}
                 clubLogo={clubLogo}
                 clubName={clubName}
+                isOpen={isSidebarOpen}
+                onClose={() => setIsSidebarOpen(false)}
             />
 
             {/* Main Content Area */}
-            <div className="flex-1 md:ml-60">
+            <div className="flex-1 md:ml-60 flex flex-col h-full overflow-hidden">
+                {/* Mobile Header (Sticky) */}
+                <div className="md:hidden sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200 px-4 h-16 flex items-center justify-between">
+                    <button
+                        onClick={() => setIsSidebarOpen(true)}
+                        className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                    >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+
+
+
+                    <div className="flex items-center gap-3">
+                        {/* Profile Pic */}
+                        {clerkImageUrl ? (
+                            <img src={clerkImageUrl} alt="Profile" className="w-8 h-8 rounded-full border border-gray-200" />
+                        ) : (
+                            <div className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center font-bold text-xs">
+                                {userData?.name?.charAt(0)}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
                 {/* Desktop Top Bar */}
                 <ClubTopBar
                     userName={userData?.name || 'User'}
@@ -578,16 +607,16 @@ export default function ClubDashboard({
                     actionCount={alertCount}
                 />
 
-                <div className="sm:pb-0 min-h-screen">
+                <div className="flex-1 overflow-y-auto pb-20 md:pb-0">
                     {activeView === 'home' && (
                         <>
                             {/* Desktop Home View - Full dashboard */}
-                            <div className="relative animate-in fade-in duration-300 p-6 h-[calc(100vh-80px)] overflow-hidden">
+                            <div className="relative animate-in fade-in duration-300 p-4 md:p-6 h-auto md:h-[calc(100vh-80px)] overflow-visible md:overflow-hidden">
                                 {/* Main 2-Column Layout */}
-                                <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6 h-full">
+                                <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6 h-auto md:h-full">
 
                                     {/* Left Column - Main Content */}
-                                    <div className="flex flex-col gap-6 h-full overflow-hidden">
+                                    <div className="flex flex-col gap-6 h-auto md:h-full overflow-visible md:overflow-hidden">
 
                                         {/* Action Center Modal moved to global scope */}
 
@@ -634,13 +663,13 @@ export default function ClubDashboard({
                                         </div>
 
                                         {/* Schedule Calendar Widget */}
-                                        <div className="flex-1 min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
+                                        <div className="hidden md:flex flex-1 min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm flex-col overflow-hidden">
                                             <ClubScheduleWidget tournaments={clubTournaments} isLoading={isLoading} />
                                         </div>
                                     </div>
 
                                     {/* Right Column - Sidebar Widgets */}
-                                    <div className="flex flex-col gap-6 h-full overflow-hidden">
+                                    <div className="flex flex-col gap-6 h-auto md:h-full overflow-visible md:overflow-hidden">
                                         {/* Upcoming Events - Swapped to top */}
                                         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col flex-1">
                                             <div className="flex items-center justify-between mb-4 flex-shrink-0">
@@ -782,9 +811,9 @@ export default function ClubDashboard({
                     }
                     {
                         activeView === 'members' && (
-                            <div className="bg-gray-50 h-[calc(100vh-80px)] flex flex-col overflow-hidden">
-                                <div className="flex-1 flex flex-col min-h-0 sm:p-6 sm:max-w-[1920px] sm:mx-auto w-full">
-                                    <div className="flex-1 flex flex-col min-h-0 bg-white sm:rounded-2xl sm:shadow-sm sm:border sm:border-gray-200 overflow-hidden">
+                            <div className="bg-gray-50 h-auto md:h-[calc(100vh-80px)] flex flex-col overflow-visible md:overflow-hidden md:p-0">
+                                <div className="flex-1 flex flex-col min-h-[600px] md:min-h-0 sm:p-6 sm:max-w-[1920px] sm:mx-auto w-full">
+                                    <div className="flex-1 flex flex-col min-h-0 md:bg-white md:rounded-2xl md:shadow-sm md:border md:border-gray-200 overflow-hidden">
                                         <div className="h-full flex flex-col">
                                             {/* Header with Create Member Button */}
                                             <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-100">
@@ -848,9 +877,9 @@ export default function ClubDashboard({
 
                     {
                         activeView === 'tournaments' && (
-                            <div className="bg-gray-50 h-[calc(100vh-80px)] flex flex-col overflow-hidden">
-                                <div className="flex-1 flex flex-col min-h-0 sm:p-6 sm:max-w-[1920px] sm:mx-auto w-full">
-                                    <div className="flex-1 flex flex-col min-h-0 bg-white sm:rounded-2xl sm:shadow-sm sm:border sm:border-gray-200 overflow-hidden">
+                            <div className="bg-gray-50 h-auto md:h-[calc(100vh-80px)] flex flex-col overflow-visible md:overflow-hidden md:p-0">
+                                <div className="flex-1 flex flex-col min-h-[600px] md:min-h-0 sm:p-6 sm:max-w-[1920px] sm:mx-auto w-full">
+                                    <div className="flex-1 flex flex-col min-h-0 md:bg-white md:rounded-2xl md:shadow-sm md:border md:border-gray-200 overflow-hidden">
                                         {eventsContent ? (
                                             <div className="min-h-[85vh]">
                                                 {eventsContent}
@@ -936,7 +965,7 @@ export default function ClubDashboard({
                                                     </button>
                                                 </div>
 
-                                                <div className="min-h-[85vh]">
+                                                <div className={`min-h-[85vh] ${bulkSelectMode ? 'pb-24' : ''}`}>
 
                                                     {/* Player List */}
                                                     {(registrationType === 'TOURNAMENT' ? currentRegistrations : currentPromotions).length === 0 ? (
@@ -946,18 +975,18 @@ export default function ClubDashboard({
                                                             <p className="text-gray-500 text-sm">Athletes will appear here once registered</p>
                                                         </div>
                                                     ) : (
-                                                        <div className="divide-y divide-gray-200 bg-white">
+                                                        <div className="space-y-3 md:space-y-0 md:divide-y md:divide-gray-200 bg-transparent md:bg-white px-4 md:px-0 pb-24 md:pb-0">
                                                             {registrationType === 'TOURNAMENT' ? (
                                                                 // Tournament List
                                                                 currentRegistrations.map((player, index) => {
                                                                     const avatar = getPlayerAvatar(player)
                                                                     const isPending = player.registrationStatus === 'PENDING'
                                                                     const isSelected = selectedRegistrationIds.has(player.id)
-                                                                    const isLastItems = index >= currentRegistrations.length - 2
+                                                                    const isLastItems = currentRegistrations.length > 2 && index >= currentRegistrations.length - 2
                                                                     return (
                                                                         <div
                                                                             key={player.id}
-                                                                            className={`px-4 py-3 flex items-center gap-3 ${isSelected ? 'bg-red-50' : ''}`}
+                                                                            className={`flex items-center gap-3 md:px-4 md:py-3 p-4 rounded-2xl md:rounded-none shadow-sm md:shadow-none border border-gray-100 md:border-0 bg-white md:bg-transparent transition-all ${isSelected ? 'bg-red-50 ring-1 ring-red-500 md:ring-0' : ''}`}
                                                                         >
                                                                             {/* ... (Existing Tournament Row Logic) ... */}
                                                                             {/* Card Header */}
@@ -1096,10 +1125,10 @@ export default function ClubDashboard({
                                                                 // Promotion List
                                                                 currentPromotions.map((promo, index) => {
                                                                     const isPending = promo.status === 'PENDING'
-                                                                    const isLastItems = index >= currentPromotions.length - 2
+                                                                    const isLastItems = currentPromotions.length > 2 && index >= currentPromotions.length - 2
 
                                                                     return (
-                                                                        <div key={promo.id} className="px-4 py-3 flex items-center gap-3">
+                                                                        <div key={promo.id} className="flex items-center gap-3 md:px-4 md:py-3 p-4 rounded-2xl md:rounded-none shadow-sm md:shadow-none border border-gray-100 md:border-0 bg-white md:bg-transparent">
                                                                             <div className="w-10 h-10 rounded-full bg-red-100 text-red-700 flex items-center justify-center font-bold text-sm">
                                                                                 {promo.name.charAt(0)}
                                                                             </div>
@@ -1190,7 +1219,7 @@ export default function ClubDashboard({
 
                                                     {/* Floating Bulk Action Bar - appears when items selected */}
                                                     {bulkSelectMode && (
-                                                        <div className="fixed bottom-20 left-4 right-4 bg-gray-900 text-white rounded-2xl shadow-xl p-3 z-40 animate-in slide-in-from-bottom-4 duration-200">
+                                                        <div className="fixed bottom-6 left-4 right-4 md:left-64 bg-gray-900 text-white rounded-2xl shadow-xl p-3 z-40 animate-in slide-in-from-bottom-4 duration-200">
                                                             <div className="flex items-center justify-between">
                                                                 <div className="flex items-center gap-2">
                                                                     <span className="text-sm font-medium">{selectedRegistrationIds.size} selected</span>
