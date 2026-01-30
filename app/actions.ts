@@ -10,6 +10,7 @@ import { getClubEventsData } from '@/app/club/data'
 import { generatePoomsaeBracket } from '@/lib/poomsae-logic'
 import { BracketMatchSpec, generateSingleEliminationBracket } from '@/lib/bracket-logic'
 import { deriveSkillLevel, extractBeltFromCategoryName } from '@/lib/skill-logic'
+import { toTitleCase } from '@/lib/utils'
 
 export async function fetchClubRegistrationData(clubId: string) {
     const { pendingPlayers, approvedPlayers } = await getClubEventsData(clubId, '') // clubName not needed for tournament part
@@ -927,8 +928,12 @@ export async function completeOnboarding(formData: FormData) {
     if (!user) throw new Error('Not authenticated')
 
     const role = formData.get('role') as string
-    const firstName = formData.get('firstName') as string
-    const lastName = formData.get('lastName') as string
+    const firstNameRaw = formData.get('firstName') as string
+    const lastNameRaw = formData.get('lastName') as string
+
+    // Standardize Names to Title Case
+    const firstName = toTitleCase(firstNameRaw)
+    const lastName = toTitleCase(lastNameRaw)
     const clubName = formData.get('clubName') as string
     const birthDateStr = formData.get('birthDate') as string
     const gender = formData.get('gender') as string
