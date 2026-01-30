@@ -221,37 +221,203 @@ Includes both Kyorugi and Poomsae regulations.
     // ==========================================
     // 5. CREATE ADMIN ACCOUNTS
     // ==========================================
-    const admins = [
+    // ==========================================
+    // 5. CREATE ADMIN ACCOUNTS & ENTITIES
+    // ==========================================
+    console.log('Creating Admin/User Accounts...')
+
+    // 1. Create Organizer (Lex) first to own Organization
+    const organizer = {
+        id: "93429",
+        clerkId: "user_38p51djoK0O2YminU7I4KPSvYH7",
+        email: "tradere08+clerk_test@gmail.com",
+        role: "ORGANIZER",
+        name: "Lex Zermatt Moncano",
+        birthDate: new Date("2026-01-01"),
+        belt: null,
+        gender: null,
+        clubName: "World Olympic Taekwondo Federation Philippines",
+        isVerified: false,
+        weight: null,
+        height: null
+    }
+
+    await prisma.user.upsert({
+        where: { email: organizer.email },
+        update: {
+            clerkId: organizer.clerkId,
+            role: organizer.role,
+            name: organizer.name,
+            birthDate: organizer.birthDate,
+            clubName: organizer.clubName
+        },
+        create: {
+            id: organizer.id,
+            clerkId: organizer.clerkId,
+            email: organizer.email,
+            name: organizer.name,
+            role: organizer.role,
+            birthDate: organizer.birthDate,
+            clubName: organizer.clubName,
+            isVerified: organizer.isVerified
+        }
+    })
+    console.log(`✅ Upserted Organizer: ${organizer.name}`)
+
+    // 2. Create Organization
+    console.log('Seeding Organization...')
+    const orgName = "World Olympic Taekwondo Federation Philippines"
+    // Check if exists
+    let org = await prisma.organization.findFirst({ where: { name: orgName } })
+    if (!org) {
+        org = await prisma.organization.create({
+            data: {
+                name: orgName,
+                ownerId: organizer.id,
+                status: 'APPROVED'
+            }
+        })
+        console.log(`✅ Created Organization: ${orgName}`)
+    } else {
+        // Ensure owner is correct
+        await prisma.organization.update({
+            where: { id: org.id },
+            data: { ownerId: organizer.id }
+        })
+        console.log(`✅ Updated Organization Owner: ${orgName}`)
+    }
+
+
+    // 3. Create Club Master (Jun)
+    const master = {
+        id: "45364",
+        clerkId: "user_38p5vJIAw8PSMb0dzTwBCl5qy3d",
+        email: "clubmaster+clerk_test@gmail.com",
+        role: "CLUB_MASTER",
+        name: "Jun  Liwag",
+        birthDate: new Date("1972-03-28"),
+        belt: "Black",
+        gender: "Male",
+        clubName: "JL Katma Taekwondo ",
+        isVerified: false,
+        weight: null,
+        height: null
+    }
+
+    await prisma.user.upsert({
+        where: { email: master.email },
+        update: {
+            clerkId: master.clerkId,
+            role: master.role,
+            name: master.name,
+            birthDate: master.birthDate,
+            belt: master.belt,
+            gender: master.gender,
+            clubName: master.clubName
+        },
+        create: {
+            id: master.id,
+            clerkId: master.clerkId,
+            email: master.email,
+            name: master.name,
+            role: master.role,
+            birthDate: master.birthDate,
+            belt: master.belt,
+            gender: master.gender,
+            clubName: master.clubName,
+            isVerified: master.isVerified
+        }
+    })
+    console.log(`✅ Upserted Club Master: ${master.name}`)
+
+    // 4. Create Club
+    console.log('Seeding Club...')
+    const clubName = "JL Katma Taekwondo Center" // User specified "Center", DB user has " " at end, assuming Center is correct for Club entity
+    // Check if exists
+    let club = await prisma.club.findFirst({ where: { name: clubName } })
+    if (!club) {
+        club = await prisma.club.create({
+            data: {
+                name: clubName,
+                masterId: master.id,
+                status: 'APPROVED',
+                organizationId: org?.id // Link to organization if desired, or leave null. User said "Link them to the user", implies org->organizer, club->master.
+                // Assuming Club might belong to the Org? Usually Clubs belong to Orgs. 
+                // Currently linking Club to Master is primary. 
+            }
+        })
+        console.log(`✅ Created Club: ${clubName}`)
+    } else {
+        await prisma.club.update({
+            where: { id: club.id },
+            data: { masterId: master.id }
+        })
+        console.log(`✅ Updated Club Master: ${clubName}`)
+    }
+
+    // 5. Create Other Users
+    const otherUsers = [
         {
-            name: 'Erich Jann liwag',
-            email: 'ericjann21+clerk_test@gmail.com',
-            clerkId: 'user_38ZMRohIRPy7gb1bMjMLgF6b4p2',
-            role: 'ORGANIZER',
-            id: '00001'
+            id: "00001",
+            clerkId: "user_38ZMRohIRPy7gb1bMjMLgF6b4p2",
+            email: "ericjann21+clerk_test@gmail.com",
+            role: "ADMIN",
+            name: "Erich Jann liwag",
+            isVerified: true,
+            birthDate: null,
+            belt: null,
+            gender: null,
+            weight: null,
+            height: null,
+            clubName: null
         },
         {
-            name: 'Erich Jann Liwag',
-            email: 'ericjann21@gmail.com',
-            clerkId: 'user_38YIHcNTE1dMciTuKf9K83wd8Z3',
-            role: 'ORGANIZER',
-            id: '00002'
+            id: "85826",
+            clerkId: "user_38p6MWCYWVsZgnLsAxi4cOL15o4",
+            email: "athlete+clerk_test@gmail.com",
+            role: "ATHLETE",
+            name: "Iris Karen Moncano",
+            birthDate: new Date("2000-05-05"),
+            belt: "Black",
+            gender: "Female",
+            weight: 48,
+            height: 163,
+            clubName: "JL Katma Taekwondo ",
+            isVerified: false
         }
     ]
 
-    for (const admin of admins) {
+    for (const user of otherUsers) {
         await prisma.user.upsert({
-            where: { email: admin.email },
-            update: { clerkId: admin.clerkId, role: admin.role, name: admin.name },
+            where: { email: user.email },
+            update: {
+                clerkId: user.clerkId,
+                role: user.role,
+                name: user.name,
+                birthDate: user.birthDate,
+                belt: user.belt,
+                gender: user.gender,
+                weight: user.weight,
+                height: user.height,
+                clubName: user.clubName,
+                isVerified: user.isVerified
+            },
             create: {
-                id: admin.id,
-                clerkId: admin.clerkId,
-                email: admin.email,
-                name: admin.name,
-                role: admin.role,
-                isVerified: true
+                id: user.id,
+                clerkId: user.clerkId,
+                email: user.email,
+                name: user.name,
+                role: user.role,
+                birthDate: user.birthDate,
+                belt: user.belt,
+                gender: user.gender,
+                weight: user.weight,
+                height: user.height,
+                clubName: user.clubName,
+                isVerified: user.isVerified
             }
         })
-        console.log(`✅ Upserted admin: ${admin.name}`)
+        console.log(`✅ Upserted user: ${user.name} (${user.role})`)
     }
 }
 

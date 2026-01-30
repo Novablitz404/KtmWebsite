@@ -94,7 +94,7 @@ export async function fetchRankings(
                     totalPoints: points,
                     rank: 0,
                     verified: p.user.isVerified,
-                    clerkId: p.user.clerkId // data for fetching image
+                    clerkId: p.user.clerkId ?? undefined // data for fetching image
                 });
             }
         }

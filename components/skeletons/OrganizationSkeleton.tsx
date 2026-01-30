@@ -2,7 +2,7 @@ import { Users, Building2, Globe, Calendar, Settings } from 'lucide-react'
 import Link from 'next/link'
 
 interface OrganizationSkeletonProps {
-    activeView?: 'home' | 'clubs' | 'events' | 'settings'
+    activeView?: 'home' | 'clubs' | 'events' | 'team' | 'settings'
 }
 
 export default function OrganizationSkeleton({ activeView = 'home' }: OrganizationSkeletonProps) {

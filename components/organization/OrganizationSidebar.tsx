@@ -7,12 +7,13 @@ import {
     Building2,
     Calendar,
     Settings,
-    LogOut
+    LogOut,
+    Users
 } from 'lucide-react'
 
 interface OrganizationSidebarProps {
-    activeView: 'home' | 'clubs' | 'events' | 'settings'
-    onNavigate: (view: 'home' | 'clubs' | 'events' | 'settings') => void
+    activeView: 'home' | 'clubs' | 'events' | 'team' | 'settings'
+    onNavigate: (view: 'home' | 'clubs' | 'events' | 'team' | 'settings') => void
     orgLogo?: string | null
     orgName?: string
 }
@@ -21,6 +22,7 @@ const navItems = [
     { id: 'home', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'clubs', label: 'Affiliates', icon: Building2 },
     { id: 'events', label: 'Events', icon: Calendar },
+    { id: 'team', label: 'Team', icon: Users },
 ] as const
 
 export default function OrganizationSidebar({

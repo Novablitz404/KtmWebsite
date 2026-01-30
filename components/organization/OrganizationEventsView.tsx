@@ -93,52 +93,38 @@ export default function OrganizationEventsView({ searchQuery = '', templates = [
         <div className="flex flex-col h-full space-y-4">
             {/* Header with Toggle and Actions */}
             <div className="flex-shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                        <span className="text-3xl">{eventType === 'tournaments' ? '🏆' : '🥋'}</span>
-                        {eventType === 'tournaments' ? 'Tournaments' : 'Promotion Tests'}
-                    </h1>
-                    <p className="text-gray-500 mt-1">
-                        {eventType === 'tournaments'
-                            ? 'Create and manage your tournaments.'
-                            : 'Schedule and manage belt promotion tests.'}
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                    {/* Toggle */}
-                    <div className="flex p-1 bg-gray-100 rounded-xl">
-                        <button
-                            onClick={() => setEventType('tournaments')}
-                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${eventType === 'tournaments'
-                                ? 'bg-white text-red-600 shadow-sm'
-                                : 'text-gray-500 hover:text-gray-700'
-                                }`}
-                        >
-                            <Trophy size={16} />
-                            Tournaments
-                        </button>
-                        <button
-                            onClick={() => setEventType('promotions')}
-                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${eventType === 'promotions'
-                                ? 'bg-white text-red-600 shadow-sm'
-                                : 'text-gray-500 hover:text-gray-700'
-                                }`}
-                        >
-                            <Award size={16} />
-                            Promotions
-                        </button>
-                    </div>
-
-                    {/* Create Button */}
+                {/* Toggle */}
+                <div className="flex p-1 bg-gray-100 rounded-xl">
                     <button
-                        onClick={handleCreateClick}
-                        className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold shadow-sm transition-all"
+                        onClick={() => setEventType('tournaments')}
+                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${eventType === 'tournaments'
+                            ? 'bg-white text-red-600 shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'
+                            }`}
                     >
-                        <Plus size={16} />
-                        <span className="hidden sm:inline">Create</span>
+                        <Trophy size={16} />
+                        Tournaments
+                    </button>
+                    <button
+                        onClick={() => setEventType('promotions')}
+                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${eventType === 'promotions'
+                            ? 'bg-white text-red-600 shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                    >
+                        <Award size={16} />
+                        Promotions
                     </button>
                 </div>
+
+                {/* Create Button */}
+                <button
+                    onClick={handleCreateClick}
+                    className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold shadow-sm transition-all"
+                >
+                    <Plus size={16} />
+                    <span className="hidden sm:inline">Create</span>
+                </button>
             </div>
 
             {/* Content Card - Full Height Flex Container */}

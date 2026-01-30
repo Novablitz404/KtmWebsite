@@ -25,7 +25,7 @@ export default async function SignUpPage() {
                 </div>
 
                 <div className="w-full max-w-md animate-in slide-in-from-left-5 duration-500 my-auto">
-                    <div className="mb-8 hidden md:block">
+                    <div className="mb-5 hidden md:block">
                         <h1 className="text-3xl lg:text-4xl font-black text-gray-900 tracking-tight">Create Account</h1>
                         <p className="text-gray-500 mt-3 text-lg">Join us to manage or participate in upcoming tournaments</p>
                     </div>

@@ -16,7 +16,8 @@ import SmartAlertsWidget from '@/components/organization/SmartAlertsWidget'
 import OrganizationEventsView from '@/components/organization/OrganizationEventsView'
 import OrganizationClubsView from '@/components/organization/OrganizationClubsView'
 import OrganizationTopBar from '@/components/organization/OrganizationTopBar'
-import { LayoutDashboard, Building2, Calendar, Settings } from 'lucide-react'
+import OrganizationCoOrganizers from '@/components/OrganizationCoOrganizers'
+import { LayoutDashboard, Building2, Calendar, Settings, Users } from 'lucide-react'
 
 interface OrganizationDashboardProps {
     initialData: any | null
@@ -29,7 +30,7 @@ interface OrganizationDashboardProps {
     settingsContent?: React.ReactNode
 }
 
-type ViewType = 'home' | 'clubs' | 'events' | 'settings'
+type ViewType = 'home' | 'clubs' | 'events' | 'team' | 'settings'
 
 export default function OrganizationDashboard({
     initialData,
@@ -70,6 +71,7 @@ export default function OrganizationDashboard({
         { id: 'home', label: 'Home', icon: LayoutDashboard },
         { id: 'clubs', label: 'Affiliates', icon: Building2 },
         { id: 'events', label: 'Events', icon: Calendar },
+        { id: 'team', label: 'Team', icon: Users },
         { id: 'settings', label: 'Settings', icon: Settings },
     ] as const
 
@@ -114,6 +116,13 @@ export default function OrganizationDashboard({
                         <div className="h-[calc(100vh-9rem)] md:h-[calc(100vh-7rem)] px-4 pt-4 pb-0 sm:px-6 sm:pt-6 sm:pb-0 lg:px-8 lg:pt-8 lg:pb-0 overflow-hidden">
                             <OrganizationEventsView
                                 templates={[]}
+                            />
+                        </div>
+                    ) : activeView === 'team' ? (
+                        <div className="h-[calc(100vh-9rem)] md:h-[calc(100vh-7rem)] px-4 pt-4 pb-0 sm:px-6 sm:pt-6 sm:pb-0 lg:px-8 lg:pt-8 lg:pb-0 overflow-hidden">
+                            <OrganizationCoOrganizers
+                                organizationId=""
+                                isOwner={userRole === 'ORGANIZER'}
                             />
                         </div>
                     ) : (
@@ -212,6 +221,16 @@ export default function OrganizationDashboard({
                                         <p className="text-gray-500">Settings management coming soon.</p>
                                     </div>
                                 )}
+                            </div>
+                        )}
+
+                        {/* Team / Co-Organizers View */}
+                        {activeView === 'team' && dashboardData?.organization && (
+                            <div className="h-[calc(100vh-9rem)] md:h-[calc(100vh-7rem)] px-4 pt-4 pb-0 sm:px-6 sm:pt-6 sm:pb-0 lg:px-8 lg:pt-8 lg:pb-0 overflow-hidden">
+                                <OrganizationCoOrganizers
+                                    organizationId={dashboardData.organization.id}
+                                    isOwner={userRole === 'ORGANIZER'}
+                                />
                             </div>
                         )}
                     </>

@@ -60,20 +60,10 @@ export async function createClubMember(input: CreateClubMemberInput) {
         return { error: 'A user with this email already exists' }
     }
 
-    // Generate temporary password
-    const tempPassword = generateTempPassword()
-
     try {
-        // Create Clerk user
-        const clerkUser = await clerkClient.users.createUser({
-            emailAddress: [input.email],
-            password: tempPassword,
-            firstName: input.name?.split(' ')[0] || '',
-            lastName: input.name?.split(' ').slice(1).join(' ') || '',
-            skipPasswordChecks: true, // Allow simple temp passwords
-        })
-
         // Generate unique ID for our database
+        // NOTE: We do NOT create a Clerk user here. The user will claim this account 
+        // when they sign up with the matching email.
         let newId = generateUserId()
         let idExists = await prisma.user.findUnique({ where: { id: newId } })
         while (idExists) {
@@ -81,11 +71,11 @@ export async function createClubMember(input: CreateClubMemberInput) {
             idExists = await prisma.user.findUnique({ where: { id: newId } })
         }
 
-        // Create database user
+        // Create database user (Ghost Account)
         const newMember = await prisma.user.create({
             data: {
                 id: newId,
-                clerkId: clerkUser.id,
+                clerkId: null, // No Clerk ID yet
                 email: input.email,
                 name: input.name,
                 role: 'ATHLETE',
@@ -103,16 +93,90 @@ export async function createClubMember(input: CreateClubMemberInput) {
         return {
             success: true,
             member: newMember,
-            tempPassword: tempPassword // Return so Club Master can share it
+            tempPassword: null // No password needed
         }
     } catch (error: any) {
         console.error('Error creating club member:', error)
-
-        // Handle Clerk-specific errors
-        if (error?.errors?.[0]?.code === 'form_identifier_exists') {
-            return { error: 'This email is already registered with Clerk' }
-        }
-
         return { error: error.message || 'Failed to create member' }
+    }
+}
+
+export async function promoteToAssistant(memberId: string) {
+    const user = await currentUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    // Verify requester is a CLUB_MASTER
+    const requester = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        select: { role: true, clubName: true, club: { select: { id: true } } }
+    })
+
+    if (!requester || requester.role !== 'CLUB_MASTER' || !requester.club) {
+        return { error: 'Only Club Masters can promote members' }
+    }
+
+    // Verify target member belongs to the same club
+    const targetMember = await prisma.user.findUnique({
+        where: { id: memberId },
+        select: { clubName: true, role: true }
+    })
+
+    if (!targetMember) return { error: 'Member not found' }
+    if (targetMember.clubName !== requester.clubName) {
+        return { error: 'Member does not belong to your club' }
+    }
+
+    try {
+        await prisma.user.update({
+            where: { id: memberId },
+            data: { role: 'ASSISTANT_CLUB_MASTER' }
+        })
+        revalidatePath('/club')
+        return { success: true }
+    } catch (error) {
+        console.error('Error promoting member:', error)
+        return { error: 'Failed to promote member' }
+    }
+}
+
+export async function demoteToAthlete(memberId: string) {
+    const user = await currentUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    // Verify requester is a CLUB_MASTER
+    const requester = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        select: { role: true, clubName: true }
+    })
+
+    if (!requester || requester.role !== 'CLUB_MASTER') {
+        return { error: 'Only Club Masters can demote members' }
+    }
+
+    // Verify target member belongs to the same club
+    const targetMember = await prisma.user.findUnique({
+        where: { id: memberId },
+        select: { clubName: true, role: true }
+    })
+
+    if (!targetMember) return { error: 'Member not found' }
+    if (targetMember.clubName !== requester.clubName) {
+        return { error: 'Member does not belong to your club' }
+    }
+
+    if (targetMember.role !== 'ASSISTANT_CLUB_MASTER') {
+         return { error: 'User is not an Assistant Club Master' }
+    }
+
+    try {
+        await prisma.user.update({
+            where: { id: memberId },
+            data: { role: 'ATHLETE' }
+        })
+        revalidatePath('/club')
+        return { success: true }
+    } catch (error) {
+        console.error('Error demoting member:', error)
+        return { error: 'Failed to demote member' }
     }
 }

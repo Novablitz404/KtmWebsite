@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X, UserPlus, Loader2, Copy, Check } from 'lucide-react'
+import { X, UserPlus, Loader2, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClubMember } from '@/app/club/actions'
 import { useQueryClient } from '@tanstack/react-query'
@@ -33,8 +33,7 @@ const GENDER_OPTIONS = ['Male', 'Female']
 
 export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModalProps) {
     const [submitting, setSubmitting] = useState(false)
-    const [successData, setSuccessData] = useState<{ email: string; tempPassword: string } | null>(null)
-    const [copied, setCopied] = useState(false)
+    const [successData, setSuccessData] = useState<{ email: string } | null>(null)
     const queryClient = useQueryClient()
 
     // Form state
@@ -55,7 +54,6 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
         setHeight('')
         setBirthDate('')
         setSuccessData(null)
-        setCopied(false)
     }
 
     const handleClose = () => {
@@ -82,11 +80,12 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
                 birthDate: birthDate ? new Date(birthDate) : undefined,
             })
 
-            if (result.error) {
+            if ('error' in result) {
                 toast.error(result.error)
-            } else if (result.success && result.tempPassword) {
-                setSuccessData({ email, tempPassword: result.tempPassword })
-                toast.success('Member created successfully!')
+            } else if (result.success) {
+                // Ghost account created - member will claim on sign-up
+                setSuccessData({ email })
+                toast.success('Member added successfully!')
                 queryClient.invalidateQueries({ queryKey: ['club-members'] })
                 queryClient.invalidateQueries({ queryKey: ['club-dashboard'] })
             }
@@ -97,15 +96,6 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
         }
     }
 
-    const copyCredentials = () => {
-        if (successData) {
-            const text = `Email: ${successData.email}\nTemporary Password: ${successData.tempPassword}`
-            navigator.clipboard.writeText(text)
-            setCopied(true)
-            toast.success('Credentials copied!')
-            setTimeout(() => setCopied(false), 2000)
-        }
-    }
 
     if (!isOpen) return null
 
@@ -131,38 +121,25 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
                 {/* Content */}
                 <div className="p-6 max-h-[70vh] overflow-y-auto">
                     {successData ? (
-                        // Success State - Show credentials
+                        // Success State - Ghost account created
                         <div className="space-y-4">
                             <div className="text-center py-4">
                                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                                     <Check className="w-8 h-8 text-green-600" />
                                 </div>
-                                <h3 className="font-bold text-gray-900 text-lg">Member Created!</h3>
-                                <p className="text-sm text-gray-500 mt-1">Share these credentials with the athlete</p>
+                                <h3 className="font-bold text-gray-900 text-lg">Member Added!</h3>
+                                <p className="text-sm text-gray-500 mt-1">Their profile is now in your club roster</p>
                             </div>
 
-                            <div className="bg-gray-50 rounded-xl p-4 space-y-3 border border-gray-200">
-                                <div>
-                                    <p className="text-xs font-semibold text-gray-500 uppercase">Email</p>
-                                    <p className="text-sm font-mono text-gray-900">{successData.email}</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs font-semibold text-gray-500 uppercase">Temporary Password</p>
-                                    <p className="text-lg font-mono font-bold text-red-600">{successData.tempPassword}</p>
-                                </div>
+                            <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                                <p className="text-sm text-blue-800">
+                                    <strong>{name || successData.email}</strong> can now sign up at the website using the email <strong>{successData.email}</strong> and their account will be automatically linked to your club.
+                                </p>
                             </div>
-
-                            <button
-                                onClick={copyCredentials}
-                                className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-colors"
-                            >
-                                {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
-                                {copied ? 'Copied!' : 'Copy Credentials'}
-                            </button>
 
                             <button
                                 onClick={handleClose}
-                                className="w-full py-2.5 border border-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+                                className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition-colors"
                             >
                                 Done
                             </button>

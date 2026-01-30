@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import OrganizationDashboard from './OrganizationDashboard'
 import OrganizationSettingsView from '@/app/settings/OrganizationSettingsView'
+import { getOrganizationDashboardData } from '@/app/organization/actions'
 
 export default async function OrganizationPage() {
     const user = await currentUser()
@@ -45,9 +46,12 @@ export default async function OrganizationPage() {
         redirect('/')
     }
 
+    // Prefetch dashboard data to avoid client-side loading flicker
+    const dashboardData = await getOrganizationDashboardData()
+
     return (
         <OrganizationDashboard
-            initialData={null}
+            initialData={dashboardData}
             userRole={dbUser?.role}
             userData={{
                 name: dbUser.name,

@@ -135,7 +135,7 @@ model Category {
 
 model User {
   id      String @id // 5-digit random ID like "00123"
-  clerkId String @unique
+  clerkId String? @unique
   email   String @unique
   role    String @default("ATHLETE") // ATHLETE, CLUB_MASTER, ASSISTANT_CLUB_MASTER, ORGANIZER, MANAGER
 
@@ -152,11 +152,14 @@ model User {
   // Relations
   players      Player[]
   club         Club?
-  organization Organization?
+  organization Organization? @relation("OrganizationOwner")
 
   // Organizer Relations
   createdTournaments Tournament[] @relation("OrganizerTournaments")
   managedTournaments Tournament[] @relation("TournamentManagers")
+
+  // Co-Organizer Relation (allows non-owner to help manage an organization)
+  coOrganizedOrganizations Organization[] @relation("OrganizationCoOrganizers")
 
   // API Keys
   apiKeys ApiKey[]
@@ -233,7 +236,7 @@ model Organization {
   id            String   @id @default(cuid())
   name          String
   ownerId       String   @unique
-  owner         User     @relation(fields: [ownerId], references: [id])
+  owner         User     @relation("OrganizationOwner", fields: [ownerId], references: [id])
   establishedAt DateTime @default(now())
   logoUrl       String?
   status        String   @default("APPROVED") // PENDING, APPROVED, REJECTED
@@ -245,6 +248,10 @@ model Organization {
   contactEmail String?
   contactPhone String?
   website      String?
+
+  // Co-Organizers (many-to-many - users who can help manage this organization)
+  coOrganizers User[] @relation("OrganizationCoOrganizers")
+  coOrganizerInvites CoOrganizerInvite[]
 
   clubs Club[]
 
@@ -259,6 +266,18 @@ model Organization {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// Co-Organizer Invite (for inviting new users to become co-organizers)
+model CoOrganizerInvite {
+  id             String       @id @default(cuid())
+  email          String
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([email, organizationId])
+  @@index([email])
 }
 
 model Announcement {

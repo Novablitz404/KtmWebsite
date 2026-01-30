@@ -1080,6 +1080,19 @@ export async function completeOnboarding(formData: FormData) {
             await prisma.tournamentManagerInvite.delete({ where: { id: invite.id } })
         }
     }
+
+    // 5. Check for Co-Organizer Invites (Can exist alongside any role)
+    const coOrganizerInvites = await prisma.coOrganizerInvite.findMany({ where: { email: userEmail } })
+    if (coOrganizerInvites.length > 0) {
+        for (const invite of coOrganizerInvites) {
+            await prisma.organization.update({
+                where: { id: invite.organizationId },
+                data: { coOrganizers: { connect: { id: dbUser.id } } }
+            })
+            // Delete the invite
+            await prisma.coOrganizerInvite.delete({ where: { id: invite.id } })
+        }
+    }
     // ----------------------------------------------------------------
     // SYNC ROLE TO CLERK METADATA (For optimal redirection)
     // ----------------------------------------------------------------
@@ -1924,13 +1937,13 @@ export async function fetchClubMembers(clubName: string, page: number, pageSize:
 
     const [members, totalCount] = await Promise.all([
         prisma.user.findMany({
-            where: { clubName: clubName, role: 'ATHLETE' },
+            where: { clubName: clubName, role: { in: ['ATHLETE', 'ASSISTANT_CLUB_MASTER'] } },
             orderBy: { name: 'asc' },
             skip,
             take: pageSize
         }),
         prisma.user.count({
-            where: { clubName: clubName, role: 'ATHLETE' }
+            where: { clubName: clubName, role: { in: ['ATHLETE', 'ASSISTANT_CLUB_MASTER'] } }
         })
     ])
 
@@ -1938,7 +1951,7 @@ export async function fetchClubMembers(clubName: string, page: number, pageSize:
     let membersWithAvatars = members.map(m => ({ ...m, imageUrl: null as string | null }))
 
     try {
-        const clerkIds = members.map(m => m.clerkId).filter(Boolean)
+        const clerkIds = members.map(m => m.clerkId).filter((id): id is string => !!id)
         if (clerkIds.length > 0) {
             const client = await clerkClient()
             const clerkUsers = await client.users.getUserList({

@@ -3,6 +3,7 @@ import ProfileForm from './ProfileForm'
 import OrganizationSettingsButton from '@/app/components/OrganizationSettingsButton'
 import LogoutButton from '@/components/LogoutButton'
 import PushNotificationToggle from '@/components/PushNotificationToggle'
+import OrganizationTransferOwnership from '@/components/organization/OrganizationTransferOwnership'
 
 interface OrganizationSettingsViewProps {
     dbUser: {
@@ -159,6 +160,11 @@ export default async function OrganizationSettingsView({ dbUser, organization, c
                     </div>
                 </div>
             </div>
+
+            {/* Transfer Ownership Section */}
+            {organization && (
+                <OrganizationTransferOwnership organizationId={organization.id} />
+            )}
 
             {/* Push Notifications & Logout - Mobile Only */}
             <div className="sm:hidden px-4 pb-6 space-y-3">

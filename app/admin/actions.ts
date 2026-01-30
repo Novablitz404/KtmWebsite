@@ -185,13 +185,15 @@ export async function deleteUser(formData: FormData) {
         throw new Error('Cannot delete yourself')
     }
 
-    // 1. Delete from Clerk first
-    try {
-        const clerk = await clerkClient()
-        await clerk.users.deleteUser(targetUser.clerkId)
-    } catch (error) {
-        console.error('Failed to delete user from Clerk:', error)
-        // Continue anyway - user might have been manually deleted from Clerk
+    // 1. Delete from Clerk first (if they have a clerkId)
+    if (targetUser.clerkId) {
+        try {
+            const clerk = await clerkClient()
+            await clerk.users.deleteUser(targetUser.clerkId)
+        } catch (error) {
+            console.error('Failed to delete user from Clerk:', error)
+            // Continue anyway - user might have been manually deleted from Clerk
+        }
     }
 
     // 2. Delete related records that don't have CASCADE

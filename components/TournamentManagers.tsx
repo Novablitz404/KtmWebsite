@@ -99,6 +99,32 @@ export default function TournamentManagers({ tournamentId, managers, pendingInvi
                         <AlertCircle className="w-3 h-3" />
                         If they have an account, they'll be added instantly. If not, they'll receive an invite to join.
                     </p>
+
+                    {/* Copy Invite Link Section */}
+                    {inviteEmail && (
+                        <div className="mt-4 pt-4 border-t border-gray-100">
+                            <p className="text-sm text-gray-600 mb-2">Or share this sign-up link directly:</p>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    readOnly
+                                    value={`${typeof window !== 'undefined' ? window.location.origin : ''}/sign-up?role=MANAGER&email=${encodeURIComponent(inviteEmail)}`}
+                                    className="flex-1 px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg text-gray-600 cursor-text"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(`${window.location.origin}/sign-up?role=MANAGER&email=${encodeURIComponent(inviteEmail)}`)
+                                        toast.success('Invite link copied!')
+                                    }}
+                                    className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-1"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg>
+                                    Copy
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 

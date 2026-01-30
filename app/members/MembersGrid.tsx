@@ -3,21 +3,34 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { Search, Filter, MoreHorizontal, Mail, ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react'
+import { Search, Filter, MoreHorizontal, Mail, ChevronLeft, ChevronRight, Pencil, Trash2, Shield, ShieldOff, Loader2 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchClubMembers } from '@/app/actions'
+import { promoteToAssistant, demoteToAthlete } from '@/app/club/actions'
 import { toast } from 'sonner'
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 interface Member {
     id: string
     name: string | null
     email: string
-    clerkId: string
+    clerkId: string | null // Can be null for ghost users
     gender: string | null
     weight: number | null
     belt: string | null
     birthDate: Date | null
     imageUrl?: string | null
+    role: string
+    clubName?: string | null
+    height?: number | null
+    isVerified?: boolean
 }
 
 interface MembersGridProps {
@@ -46,6 +59,7 @@ export default function MembersGrid({
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
+    const [actionLoading, setActionLoading] = useState<string | null>(null)
 
     // Initialize state from URL param if available, fallback to props
     const pageParam = Number(searchParams.get('page'))
@@ -107,8 +121,39 @@ export default function MembersGrid({
         }
     }, [clubName, queryClient])
 
-    // LOADING STATE NOT HANDLED VIA EARLY RETURN ANYMORE
-    // We now handle it inside the main return
+    const handlePromote = async (memberId: string) => {
+        setActionLoading(memberId)
+        try {
+            const result = await promoteToAssistant(memberId)
+            if (result.error) {
+                toast.error(result.error)
+            } else {
+                toast.success('Member promoted to Assistant Club Master')
+                queryClient.invalidateQueries({ queryKey: ['club-members', clubName] })
+            }
+        } catch (error) {
+            toast.error('Failed to promote member')
+        } finally {
+            setActionLoading(null)
+        }
+    }
+
+    const handleDemote = async (memberId: string) => {
+        setActionLoading(memberId)
+        try {
+            const result = await demoteToAthlete(memberId)
+            if (result.error) {
+                toast.error(result.error)
+            } else {
+                toast.success('Member demoted to Athlete')
+                queryClient.invalidateQueries({ queryKey: ['club-members', clubName] })
+            }
+        } catch (error) {
+            toast.error('Failed to demote member')
+        } finally {
+            setActionLoading(null)
+        }
+    }
 
     const members = data?.members || initialMembers
     const totalPages = data?.totalPages || initialTotalPages
@@ -144,10 +189,11 @@ export default function MembersGrid({
                     ))
                 ) : (
                     members.map(member => {
-                        const avatar = member.imageUrl || avatars[member.clerkId]
+                        const avatar = member.imageUrl || (member.clerkId ? avatars[member.clerkId] : null)
                         const age = member.birthDate
                             ? new Date().getFullYear() - new Date(member.birthDate).getFullYear()
                             : null
+                        const isAssistant = member.role === 'ASSISTANT_CLUB_MASTER'
 
                         return (
                             <div key={member.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex flex-col gap-3 relative overflow-hidden">
@@ -168,8 +214,13 @@ export default function MembersGrid({
                                             )}
                                         </div>
                                         <div className="min-w-0">
-                                            <h3 className="font-bold text-gray-900 text-base truncate">
+                                            <h3 className="font-bold text-gray-900 text-base truncate flex items-center gap-2">
                                                 {member.name || 'Unnamed Athlete'}
+                                                {isAssistant && (
+                                                    <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                                                        Assistant
+                                                    </span>
+                                                )}
                                             </h3>
                                             <p className="text-xs text-gray-500 mt-0.5 truncate max-w-[180px]">
                                                 {member.email}
@@ -177,7 +228,24 @@ export default function MembersGrid({
                                         </div>
                                     </div>
 
-                                    {/* Belt Badge */}
+                                    {/* Role Action (Mobile) */}
+                                    {isClubMaster && (
+                                        <button
+                                            onClick={() => isAssistant ? handleDemote(member.id) : handlePromote(member.id)}
+                                            disabled={actionLoading === member.id}
+                                            className={`p-2 rounded-lg transition-colors ${isAssistant
+                                                ? 'text-gray-400 hover:text-orange-600 hover:bg-orange-50'
+                                                : 'text-gray-400 hover:text-indigo-600 hover:bg-indigo-50'
+                                                }`}
+                                            title={isAssistant ? "Demote to Athlete" : "Promote to Assistant"}
+                                        >
+                                            {actionLoading === member.id ? <Loader2 className="animate-spin" size={18} /> : isAssistant ? <ShieldOff size={18} /> : <Shield size={18} />}
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Belt Badge */}
+                                <div className="flex gap-2">
                                     {member.belt && (
                                         <span className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide border shadow-sm ${member.belt === 'Black' ? 'bg-gray-900 text-white border-gray-800' :
                                             member.belt === 'Red' ? 'bg-red-50 text-red-700 border-red-100' :
@@ -190,6 +258,7 @@ export default function MembersGrid({
                                         </span>
                                     )}
                                 </div>
+
 
                                 {/* Stats Grid */}
                                 <div className="grid grid-cols-3 gap-2 py-2 border-t border-b border-gray-50">
@@ -283,16 +352,17 @@ export default function MembersGrid({
                                 ))
                             ) : (
                                 members.map(member => {
-                                    const avatar = member.imageUrl || avatars[member.clerkId]
+                                    const avatar = member.imageUrl || (member.clerkId ? avatars[member.clerkId] : null)
                                     const age = member.birthDate
                                         ? new Date().getFullYear() - new Date(member.birthDate).getFullYear()
                                         : null
+                                    const isAssistant = member.role === 'ASSISTANT_CLUB_MASTER'
 
                                     return (
                                         <tr key={member.id} className="hover:bg-gray-100 transition-colors group">
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="flex-shrink-0 h-10 w-10">
+                                                    <div className="flex-shrink-0 h-10 w-10 relative">
                                                         {avatar ? (
                                                             <img className="h-10 w-10 rounded-full object-cover bg-gray-100" src={avatar} alt="" />
                                                         ) : (
@@ -301,7 +371,17 @@ export default function MembersGrid({
                                                             </div>
                                                         )}
                                                     </div>
-                                                    <div className="text-sm font-bold text-gray-900">{member.name}</div>
+                                                    <div>
+                                                        <div className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                                                            {member.name}
+                                                            {isAssistant && (
+                                                                <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                                                                    Assistant
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {isAssistant && <div className="text-[10px] text-indigo-500 font-medium">Full Access</div>}
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
@@ -350,6 +430,31 @@ export default function MembersGrid({
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                 <div className="flex justify-end gap-2">
+                                                    {isClubMaster && (
+                                                        <DropdownMenu>
+                                                            <DropdownMenuTrigger asChild>
+                                                                <button
+                                                                    className="text-gray-400 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
+                                                                >
+                                                                    <MoreHorizontal size={18} />
+                                                                </button>
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent align="end">
+                                                                <DropdownMenuLabel>Manage Roles</DropdownMenuLabel>
+                                                                <DropdownMenuSeparator />
+                                                                {isAssistant ? (
+                                                                    <DropdownMenuItem onClick={() => handleDemote(member.id)} disabled={!!actionLoading} className="text-orange-600">
+                                                                        <ShieldOff className="mr-2 h-4 w-4" /> Demote to Athlete
+                                                                    </DropdownMenuItem>
+                                                                ) : (
+                                                                    <DropdownMenuItem onClick={() => handlePromote(member.id)} disabled={!!actionLoading} className="text-indigo-600">
+                                                                        <Shield className="mr-2 h-4 w-4" /> Promote to Assistant
+                                                                    </DropdownMenuItem>
+                                                                )}
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
+                                                    )}
+
                                                     {onEdit && (
                                                         <button
                                                             onClick={() => onEdit(member)}

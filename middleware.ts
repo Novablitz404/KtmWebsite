@@ -69,6 +69,13 @@ const cspHeader = cspDirectives.join('; ')
 
 export default clerkMiddleware(async (auth, request) => {
     if (!isPublicRoute(request)) {
+        // For API routes, return 401 instead of redirecting
+        if (request.nextUrl.pathname.startsWith('/api/')) {
+            const { userId } = await auth()
+            if (!userId) {
+                return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+            }
+        }
         await auth.protect()
     }
 
@@ -79,7 +86,7 @@ export default clerkMiddleware(async (auth, request) => {
             const role = (sessionClaims.publicMetadata as any).role as string
             const origin = request.nextUrl.origin
 
-            if (role === 'CLUB_MASTER') {
+            if (role === 'CLUB_MASTER' || role === 'ASSISTANT_CLUB_MASTER') {
                 return NextResponse.redirect(`${origin}/club`)
             } else if (role === 'ATHLETE') {
                 return NextResponse.redirect(`${origin}/athlete`)

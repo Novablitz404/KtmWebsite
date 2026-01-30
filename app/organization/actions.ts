@@ -787,3 +787,222 @@ export async function rejectAffiliation(childOrgId: string) {
         return { success: false, error: "Failed to reject affiliation" }
     }
 }
+
+// ============================================
+// CO-ORGANIZER MANAGEMENT ACTIONS
+// ============================================
+
+// Helper to check if user is owner or co-organizer of an organization
+async function getOrganizationAccess(userId: string, orgId: string) {
+    const org = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: {
+            id: true,
+            ownerId: true,
+            coOrganizers: { select: { id: true } }
+        }
+    })
+
+    if (!org) return null
+
+    const isOwner = org.ownerId === userId
+    const isCoOrganizer = org.coOrganizers.some(co => co.id === userId)
+
+    return { org, isOwner, isCoOrganizer, hasAccess: isOwner || isCoOrganizer }
+}
+
+// Get organization co-organizers and pending invites
+export async function getOrganizationCoOrganizers(orgId: string) {
+    const user = await currentUser()
+    if (!user) throw new Error('Unauthorized')
+
+    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    if (!dbUser) throw new Error('User not found')
+
+    const access = await getOrganizationAccess(dbUser.id, orgId)
+    if (!access?.hasAccess) throw new Error('You do not have access to this organization')
+
+    const org = await prisma.organization.findUnique({
+        where: { id: orgId },
+        include: {
+            owner: { select: { id: true, name: true, email: true } },
+            coOrganizers: { select: { id: true, name: true, email: true, role: true } },
+            coOrganizerInvites: { select: { id: true, email: true, createdAt: true } }
+        }
+    })
+
+    return {
+        owner: org?.owner,
+        coOrganizers: org?.coOrganizers || [],
+        pendingInvites: org?.coOrganizerInvites || [],
+        isOwner: access.isOwner
+    }
+}
+
+// Invite a co-organizer (owner only)
+export async function inviteCoOrganizer(orgId: string, email: string) {
+    const user = await currentUser()
+    if (!user) throw new Error('Unauthorized')
+
+    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    if (!dbUser) throw new Error('User not found')
+
+    const access = await getOrganizationAccess(dbUser.id, orgId)
+    if (!access?.isOwner) throw new Error('Only the organization owner can add co-organizers')
+
+    const normalizedEmail = email.toLowerCase().trim()
+
+    // Check if user exists
+    const existingUser = await prisma.user.findUnique({
+        where: { email: normalizedEmail }
+    })
+
+    if (existingUser) {
+        // Check if already a co-organizer
+        const isAlreadyCoOrganizer = await prisma.organization.findFirst({
+            where: {
+                id: orgId,
+                coOrganizers: { some: { id: existingUser.id } }
+            }
+        })
+
+        if (isAlreadyCoOrganizer) {
+            return { error: 'This user is already a co-organizer' }
+        }
+
+        // Check if they are the owner
+        if (access.org.ownerId === existingUser.id) {
+            return { error: 'This user is already the owner' }
+        }
+
+        // Add existing user as co-organizer
+        await prisma.organization.update({
+            where: { id: orgId },
+            data: {
+                coOrganizers: { connect: { id: existingUser.id } }
+            }
+        })
+
+        revalidatePath('/organization')
+        return { success: true, message: `${existingUser.name || existingUser.email} has been added as a co-organizer` }
+    }
+
+    // User doesn't exist - create invite
+    const existingInvite = await prisma.coOrganizerInvite.findUnique({
+        where: { email_organizationId: { email: normalizedEmail, organizationId: orgId } }
+    })
+
+    if (existingInvite) {
+        return { error: 'An invite has already been sent to this email' }
+    }
+
+    await prisma.coOrganizerInvite.create({
+        data: {
+            email: normalizedEmail,
+            organizationId: orgId
+        }
+    })
+
+    revalidatePath('/organization')
+    return { success: true, message: `Invite created for ${normalizedEmail}. Share the sign-up link with them.` }
+}
+
+// Remove a co-organizer (owner only)
+export async function removeCoOrganizer(orgId: string, coOrganizerUserId: string) {
+    const user = await currentUser()
+    if (!user) throw new Error('Unauthorized')
+
+    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    if (!dbUser) throw new Error('User not found')
+
+    const access = await getOrganizationAccess(dbUser.id, orgId)
+    if (!access?.isOwner) throw new Error('Only the organization owner can remove co-organizers')
+
+    await prisma.organization.update({
+        where: { id: orgId },
+        data: {
+            coOrganizers: { disconnect: { id: coOrganizerUserId } }
+        }
+    })
+
+    revalidatePath('/organization')
+    return { success: true }
+}
+
+// Cancel a pending invite (owner only)
+export async function cancelCoOrganizerInvite(inviteId: string) {
+    const user = await currentUser()
+    if (!user) throw new Error('Unauthorized')
+
+    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    if (!dbUser) throw new Error('User not found')
+
+    const invite = await prisma.coOrganizerInvite.findUnique({
+        where: { id: inviteId },
+        include: { organization: { select: { ownerId: true } } }
+    })
+
+    if (!invite) throw new Error('Invite not found')
+    if (invite.organization.ownerId !== dbUser.id) {
+        throw new Error('Only the organization owner can cancel invites')
+    }
+
+    await prisma.coOrganizerInvite.delete({ where: { id: inviteId } })
+
+    revalidatePath('/organization')
+    return { success: true }
+}
+
+// Transfer organization ownership to a co-organizer (owner only)
+export async function transferOrganizationOwnership(orgId: string, newOwnerId: string) {
+    const user = await currentUser()
+    if (!user) throw new Error('Unauthorized')
+
+    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    if (!dbUser) throw new Error('User not found')
+
+    // Verify current user is the owner
+    const org = await prisma.organization.findUnique({
+        where: { id: orgId },
+        include: {
+            coOrganizers: { select: { id: true } }
+        }
+    })
+
+    if (!org) throw new Error('Organization not found')
+    if (org.ownerId !== dbUser.id) {
+        throw new Error('Only the organization owner can transfer ownership')
+    }
+
+    // Verify new owner is a current co-organizer
+    const isCoOrganizer = org.coOrganizers.some(co => co.id === newOwnerId)
+    if (!isCoOrganizer) {
+        throw new Error('New owner must be an existing co-organizer')
+    }
+
+    // Perform the swap in a transaction
+    await prisma.$transaction([
+        // Remove new owner from co-organizers
+        prisma.organization.update({
+            where: { id: orgId },
+            data: {
+                coOrganizers: { disconnect: { id: newOwnerId } }
+            }
+        }),
+        // Add old owner to co-organizers
+        prisma.organization.update({
+            where: { id: orgId },
+            data: {
+                coOrganizers: { connect: { id: dbUser.id } }
+            }
+        }),
+        // Transfer ownership
+        prisma.organization.update({
+            where: { id: orgId },
+            data: { ownerId: newOwnerId }
+        })
+    ])
+
+    revalidatePath('/organization')
+    return { success: true }
+}

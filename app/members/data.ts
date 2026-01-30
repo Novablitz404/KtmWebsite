@@ -48,7 +48,7 @@ export async function getMembersData(
 
     if (clerkIds.length > 0) {
         try {
-            const uniqueIds = Array.from(new Set(clerkIds))
+            const uniqueIds = Array.from(new Set(clerkIds)) as string[]
             const users = await (await clerkClient()).users.getUserList({
                 userId: uniqueIds,
                 limit: 100
