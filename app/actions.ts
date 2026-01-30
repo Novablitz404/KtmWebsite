@@ -12,6 +12,7 @@ import { BracketMatchSpec, generateSingleEliminationBracket } from '@/lib/bracke
 import { deriveSkillLevel, extractBeltFromCategoryName } from '@/lib/skill-logic'
 import { toTitleCase } from '@/lib/utils'
 
+
 export async function fetchClubRegistrationData(clubId: string) {
     const { pendingPlayers, approvedPlayers } = await getClubEventsData(clubId, '') // clubName not needed for tournament part
     return { pendingPlayers, approvedPlayers }
@@ -2766,4 +2767,14 @@ export async function getClubSmartProposals(clubId: string) {
     }
 
     return relevantProposals
+}
+
+export async function checkEmailAvailability(email: string) {
+    if (!email) return { available: false }
+
+    const user = await prisma.user.findUnique({
+        where: { email }
+    })
+
+    return { available: !user }
 }

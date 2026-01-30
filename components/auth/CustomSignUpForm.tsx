@@ -7,7 +7,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { Eye, EyeOff, Loader2, ArrowLeft, ArrowRight, Check, Building2, User } from 'lucide-react'
 import CustomSelect from '@/app/components/ui/CustomSelect'
-import { completeOnboarding } from '@/app/actions'
+import { completeOnboarding, checkEmailAvailability } from '@/app/actions'
 import { toast } from 'sonner'
 
 interface Club {
@@ -40,6 +40,7 @@ export default function CustomSignUpForm({ clubs, organizations, hideBranding = 
     const [password, setPassword] = useState('')
     const [firstName, setFirstName] = useState('')
     const [lastName, setLastName] = useState('')
+    const [emailError, setEmailError] = useState<string | null>(null)
 
     // Profile Data
     const [role, setRole] = useState<'ATHLETE' | 'CLUB_MASTER' | 'ORGANIZER' | 'MANAGER' | 'CO_ORGANIZER'>('ATHLETE')
@@ -122,13 +123,32 @@ export default function CustomSignUpForm({ clubs, organizations, hideBranding = 
     // HANDLERS
     // ----------------------------------------------------
 
+    const handleEmailBlur = async () => {
+        if (!email) return
+        const { available } = await checkEmailAvailability(email)
+        if (!available) {
+            setEmailError('This email is already registered')
+        } else {
+            setEmailError(null)
+        }
+    }
+
     // Step 1: Account -> Profile (Validation only)
-    const handleAccountNext = (e: React.FormEvent) => {
+    const handleAccountNext = async (e: React.FormEvent) => {
         e.preventDefault()
         setError(null)
 
         if (!firstName || !lastName || !email || !password) {
             setError("All fields are required")
+            return
+        }
+
+        // Final check for email availability
+        if (emailError) return
+
+        const { available } = await checkEmailAvailability(email)
+        if (!available) {
+            setEmailError('This email is already registered')
             return
         }
 
@@ -368,12 +388,19 @@ export default function CustomSignUpForm({ clubs, organizations, hideBranding = 
                         <input
                             type="email"
                             value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            onChange={(e) => {
+                                setEmail(e.target.value)
+                                setEmailError(null)
+                            }}
+                            onBlur={handleEmailBlur}
+                            className={`w-full px-4 py-3 bg-gray-50 border rounded-xl text-gray-900 focus:outline-none focus:ring-2 transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed ${emailError ? 'border-red-500 ring-2 ring-red-500/20' : 'border-gray-200 focus:ring-red-500/20 focus:border-red-500'}`}
                             placeholder="athlete@example.com"
                             required
                             disabled={isEmailLocked}
                         />
+                        {emailError && (
+                            <p className="text-red-500 text-xs mt-1 font-bold ml-1">{emailError}</p>
+                        )}
                     </div>
 
                     <div className="relative">
