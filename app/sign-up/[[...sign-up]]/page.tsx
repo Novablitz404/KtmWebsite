@@ -25,20 +25,15 @@ export default async function SignUpPage() {
                 </div>
 
                 <div className="w-full max-w-md animate-in slide-in-from-left-5 duration-500 my-auto">
-                    <div className="mb-5 hidden md:block">
-                        <h1 className="text-3xl lg:text-4xl font-black text-gray-900 tracking-tight">Create Account</h1>
-                        <p className="text-gray-500 mt-3 text-lg">Join us to manage or participate in upcoming tournaments</p>
-                    </div>
-
                     {/* 
-                        On Desktop (md+): hideBranding={true} so the form is clean and integrates with our custom header above 
-                        On Mobile: hideBranding={false} (default) so the form shows its internal logo/header
+                        On Desktop (md+): headerMode="desktop" so the form handles the dynamic large header
+                        On Mobile: headerMode="mobile" (default)
                     */}
                     <div className="hidden md:block">
-                        <CustomSignUpForm clubs={clubs} organizations={organizations} hideBranding={true} />
+                        <CustomSignUpForm clubs={clubs} organizations={organizations} headerMode="desktop" />
                     </div>
                     <div className="md:hidden">
-                        <CustomSignUpForm clubs={clubs} organizations={organizations} />
+                        <CustomSignUpForm clubs={clubs} organizations={organizations} headerMode="mobile" />
                     </div>
                 </div>
             </div>

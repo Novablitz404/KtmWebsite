@@ -5,7 +5,7 @@ import { MoreHorizontal, Shield, Award, Trash2, X, AlertTriangle, Search, Chevro
 import { toast } from 'sonner'
 import { promoteToOrganizer, promoteToClubMaster, deleteUser, toggleAthleteVerification } from '@/app/admin/actions'
 import { useRouter } from 'next/navigation'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchAdminUsers } from '@/app/admin/fetch'
 import AdminTableSkeleton from '@/components/admin/AdminTableSkeleton'
 
@@ -31,6 +31,12 @@ export default function AdminUsersView({ initialUsers = [], searchQuery }: Admin
     const [roleFilter, setRoleFilter] = useState('ALL')
     const [currentPage, setCurrentPage] = useState(1)
     const router = useRouter()
+    const queryClient = useQueryClient()
+
+    const handleRefresh = () => {
+        queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+        router.refresh()
+    }
 
     // Reset page when filters change
     useMemo(() => {
@@ -119,7 +125,7 @@ export default function AdminUsersView({ initialUsers = [], searchQuery }: Admin
                                                     currentRole={user.role}
                                                     userName={user.name || 'User'}
                                                     isVerified={user.isVerified}
-                                                    onRefresh={() => router.refresh()}
+                                                    onRefresh={handleRefresh}
                                                 />
                                             </td>
                                         </tr>

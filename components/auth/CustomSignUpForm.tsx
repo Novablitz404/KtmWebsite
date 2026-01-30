@@ -23,12 +23,12 @@ interface Organization {
 interface CustomSignUpFormProps {
     clubs: Club[]
     organizations: Organization[]
-    hideBranding?: boolean
+    headerMode?: 'mobile' | 'desktop'
 }
 
 type Step = 'account' | 'profile' | 'verification'
 
-export default function CustomSignUpForm({ clubs, organizations, hideBranding = false }: CustomSignUpFormProps) {
+export default function CustomSignUpForm({ clubs, organizations, headerMode = 'mobile' }: CustomSignUpFormProps) {
     const { isLoaded, signUp, setActive } = useSignUp()
     const router = useRouter()
 
@@ -173,15 +173,25 @@ export default function CustomSignUpForm({ clubs, organizations, hideBranding = 
             // Manager/Co-Organizer Validation - minimal requirements
             // No specific extra fields required, just name/email from step 1
         } else {
+
             // Individual Validation (Athlete/Club Master)
-            if (!birthDate || !gender || !belt || !clubName) {
-                setError("All profile fields are required")
-                return
-            }
-            // If creating a club, require Organization
-            if (isCreatingClub && !organizationId) {
-                setError("Please select an Affiliated Organization for your new club")
-                return
+
+            if (isCreatingClub) {
+                // Club Master Validation
+                if (!clubName) {
+                    setError("Club Name is required")
+                    return
+                }
+                if (!organizationId) {
+                    setError("Please select an Affiliated Organization for your new club")
+                    return
+                }
+            } else {
+                // Athlete Validation
+                if (!birthDate || !gender || !belt || !clubName) {
+                    setError("All profile fields are required")
+                    return
+                }
             }
         }
 
@@ -251,8 +261,11 @@ export default function CustomSignUpForm({ clubs, organizations, hideBranding = 
             formData.append('birthDate', birthDate) // Reused as Est. Date if role=ORGANIZER
 
             if (!isOrganization) {
-                formData.append('gender', gender)
-                formData.append('belt', belt)
+                // Only append gender/belt if NOT a club master (Athletes only)
+                if (!isCreatingClub) {
+                    formData.append('gender', gender)
+                    formData.append('belt', belt)
+                }
 
                 if (isCreatingClub) {
                     formData.append('organizationId', organizationId)
@@ -345,17 +358,89 @@ export default function CustomSignUpForm({ clubs, organizations, hideBranding = 
     // STEP 1: ACCOUNT
     if (step === 'account') {
         return (
-            <div className={`w-full max-w-md mx-auto flex flex-col justify-center ${hideBranding ? '' : 'min-h-[80vh] md:min-h-0 p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100'}`}>
+            <div className={`w-full max-w-md mx-auto flex flex-col justify-center ${headerMode === 'desktop' ? '' : 'min-h-[80vh] md:min-h-0 p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100'}`}>
 
-                {!hideBranding && (
-                    <div className="text-center mb-8">
+                <div className={`text-center mb-8 ${headerMode === 'desktop' ? 'text-left md:text-center' : ''}`}>
+                    {headerMode !== 'desktop' && (
                         <div className="relative w-16 h-16 mx-auto mb-4">
                             <Image src="/KTMLogo.png" alt="KTM Logo" fill className="object-contain" priority />
                         </div>
-                        <h1 className="text-2xl font-black text-gray-900 tracking-tight">Create Account</h1>
-                        <p className="text-gray-500 mt-2 text-sm">Step 1 of 3: Account Details</p>
-                    </div>
-                )}
+                    )}
+                    <h1 className={`${headerMode === 'desktop' ? 'text-3xl lg:text-4xl' : 'text-2xl'} font-black text-gray-900 tracking-tight`}>
+                        {role === 'ATHLETE' ? 'Create Account' :
+                            role === 'CLUB_MASTER' ? 'Club Master Sign Up' :
+                                role === 'ORGANIZER' ? 'Organizer Sign Up' : 'Create Account'}
+                    </h1>
+                    <p className={`${headerMode === 'desktop' ? 'text-lg mt-3' : 'text-sm mt-2'} text-gray-500`}>
+                        {headerMode === 'desktop' ? "Join us to manage or participate in upcoming tournaments" : "Step 1 of 3: Account Details"}
+                    </p>
+                </div>
+
+                {/* DYNAMIC ROLE SWITCHER (Moved to Top) */}
+                <div className={`mb-6 text-center text-sm text-gray-500 ${isManager ? 'hidden' : ''}`}>
+                    {role === 'ATHLETE' && (
+                        <>
+                            Are you a Club Master?{' '}
+                            <button
+                                type="button"
+                                onClick={() => { setRole('CLUB_MASTER'); setClubName(''); setOrganizationId(''); setError(null); }}
+                                className="text-red-600 font-bold hover:underline"
+                            >
+                                Click Here
+                            </button>
+                            {' '}or an Organization?{' '}
+                            <button
+                                type="button"
+                                onClick={() => { setRole('ORGANIZER'); setClubName(''); setOrganizationId(''); setError(null); }}
+                                className="text-red-600 font-bold hover:underline"
+                            >
+                                Click Here
+                            </button>
+                        </>
+                    )}
+
+                    {role === 'CLUB_MASTER' && (
+                        <>
+                            Are you an Athlete?{' '}
+                            <button
+                                type="button"
+                                onClick={() => { setRole('ATHLETE'); setClubName(''); setOrganizationId(''); setError(null); }}
+                                className="text-red-600 font-bold hover:underline"
+                            >
+                                Click here
+                            </button>
+                            {' '}or an Organization?{' '}
+                            <button
+                                type="button"
+                                onClick={() => { setRole('ORGANIZER'); setClubName(''); setOrganizationId(''); setError(null); }}
+                                className="text-red-600 font-bold hover:underline"
+                            >
+                                Click Here
+                            </button>
+                        </>
+                    )}
+
+                    {role === 'ORGANIZER' && (
+                        <>
+                            Are you an Athlete?{' '}
+                            <button
+                                type="button"
+                                onClick={() => { setRole('ATHLETE'); setClubName(''); setOrganizationId(''); setError(null); }}
+                                className="text-red-600 font-bold hover:underline"
+                            >
+                                Click Here
+                            </button>
+                            {' '}or a Club Master?{' '}
+                            <button
+                                type="button"
+                                onClick={() => { setRole('CLUB_MASTER'); setClubName(''); setOrganizationId(''); setError(null); }}
+                                className="text-red-600 font-bold hover:underline"
+                            >
+                                Click Here
+                            </button>
+                        </>
+                    )}
+                </div>
 
                 <form onSubmit={handleAccountNext} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -437,6 +522,8 @@ export default function CustomSignUpForm({ clubs, organizations, hideBranding = 
                     </button>
                 </form>
 
+
+
                 <div className="my-6 flex items-center gap-4">
                     <div className="h-px bg-gray-100 flex-1" />
                     <span className="text-gray-400 text-xs font-bold uppercase">Or join with</span>
@@ -489,85 +576,19 @@ export default function CustomSignUpForm({ clubs, organizations, hideBranding = 
                     <ArrowLeft size={20} className="mr-1" /> Back
                 </button>
 
-                <div className={`flex flex-col justify-center ${hideBranding ? '' : 'min-h-[80vh] md:min-h-0 p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100'}`}>
-                    <div className={`text-center mb-2 ${hideBranding ? 'md:static' : ''}`}>
-                        {!hideBranding && (
-                            <>
-                                <h1 className="text-2xl font-black text-gray-900 tracking-tight">Complete Profile</h1>
-                                <p className="text-gray-500 mt-2 text-sm">Step 2 of 3: Your Info</p>
-                            </>
-                        )}
+                <div className={`flex flex-col justify-center ${headerMode === 'desktop' ? '' : 'min-h-[80vh] md:min-h-0 p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100'}`}>
+                    <div className={`text-center mb-2 ${headerMode === 'desktop' ? 'md:static mb-8' : ''}`}>
+                        <h1 className={`${headerMode === 'desktop' ? 'text-3xl lg:text-4xl' : 'text-2xl'} font-black text-gray-900 tracking-tight`}>
+                            Complete Account
+                        </h1>
+                        <p className={`${headerMode === 'desktop' ? 'text-lg mt-3' : 'text-sm mt-2'} text-gray-500`}>
+                            Step 2 of 3: Your Info
+                        </p>
                     </div>
 
                     <form onSubmit={handleProfileSubmit} className="space-y-4">
 
-
-
-                        {/* DYNAMIC ROLE SWITCHER */}
-                        <div className={`mb-8 text-center text-sm text-gray-500 ${isManager ? 'hidden' : ''}`}>
-                            {role === 'ATHLETE' && (
-                                <>
-                                    Are you a Club Master?{' '}
-                                    <button
-                                        type="button"
-                                        onClick={() => { setRole('CLUB_MASTER'); setClubName(''); setOrganizationId(''); setError(null); }}
-                                        className="text-red-600 font-bold hover:underline"
-                                    >
-                                        Click Here
-                                    </button>
-                                    {' '}or an Organization?{' '}
-                                    <button
-                                        type="button"
-                                        onClick={() => { setRole('ORGANIZER'); setClubName(''); setOrganizationId(''); setError(null); }}
-                                        className="text-red-600 font-bold hover:underline"
-                                    >
-                                        Click Here
-                                    </button>
-                                </>
-                            )}
-
-                            {role === 'CLUB_MASTER' && (
-                                <>
-                                    Are you an Athlete?{' '}
-                                    <button
-                                        type="button"
-                                        onClick={() => { setRole('ATHLETE'); setClubName(''); setOrganizationId(''); setError(null); }}
-                                        className="text-red-600 font-bold hover:underline"
-                                    >
-                                        Click here
-                                    </button>
-                                    {' '}or an Organization?{' '}
-                                    <button
-                                        type="button"
-                                        onClick={() => { setRole('ORGANIZER'); setClubName(''); setOrganizationId(''); setError(null); }}
-                                        className="text-red-600 font-bold hover:underline"
-                                    >
-                                        Click Here
-                                    </button>
-                                </>
-                            )}
-
-                            {role === 'ORGANIZER' && (
-                                <>
-                                    Are you an Athlete?{' '}
-                                    <button
-                                        type="button"
-                                        onClick={() => { setRole('ATHLETE'); setClubName(''); setOrganizationId(''); setError(null); }}
-                                        className="text-red-600 font-bold hover:underline"
-                                    >
-                                        Click Here
-                                    </button>
-                                    {' '}or a Club Master?{' '}
-                                    <button
-                                        type="button"
-                                        onClick={() => { setRole('CLUB_MASTER'); setClubName(''); setOrganizationId(''); setError(null); }}
-                                        className="text-red-600 font-bold hover:underline"
-                                    >
-                                        Click Here
-                                    </button>
-                                </>
-                            )}
-                        </div>
+                        {/* DYNAMIC ROLE SWITCHER REMOVED FROM HERE */}
 
                         {isManager && (
                             <div className="bg-red-50 p-4 rounded-xl border border-red-100 mb-6 text-center">
@@ -628,33 +649,37 @@ export default function CustomSignUpForm({ clubs, organizations, hideBranding = 
                         ) : (
                             <>
                                 {/* INDIVIDUAL FIELDS */}
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Date of Birth</label>
-                                    <input
-                                        type="date"
-                                        value={birthDate}
-                                        onChange={(e) => setBirthDate(e.target.value)}
-                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
-                                        required
-                                    />
-                                </div>
+                                {!isCreatingClub && (
+                                    <>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Date of Birth</label>
+                                            <input
+                                                type="date"
+                                                value={birthDate}
+                                                onChange={(e) => setBirthDate(e.target.value)}
+                                                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
+                                                required
+                                            />
+                                        </div>
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <CustomSelect
-                                        label="GENDER"
-                                        value={gender}
-                                        onChange={setGender}
-                                        options={['Male', 'Female']}
-                                        required
-                                    />
-                                    <CustomSelect
-                                        label="BELT"
-                                        value={belt}
-                                        onChange={setBelt}
-                                        options={['White', 'Yellow', 'Green', 'Blue', 'Red', 'Brown', 'Black']}
-                                        required
-                                    />
-                                </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <CustomSelect
+                                                label="GENDER"
+                                                value={gender}
+                                                onChange={setGender}
+                                                options={['Male', 'Female']}
+                                                required
+                                            />
+                                            <CustomSelect
+                                                label="BELT"
+                                                value={belt}
+                                                onChange={setBelt}
+                                                options={['White', 'Yellow', 'Green', 'Blue', 'Red', 'Brown', 'Black']}
+                                                required
+                                            />
+                                        </div>
+                                    </>
+                                )}
 
                                 {/* Club Logic: Search (Athlete) vs Create (Master) */}
                                 {role === 'CLUB_MASTER' ? (
@@ -814,7 +839,7 @@ export default function CustomSignUpForm({ clubs, organizations, hideBranding = 
         const codeDigits = code.split('').concat(Array(6 - code.length).fill(''))
 
         return (
-            <div className={`w-full max-w-md mx-auto flex flex-col justify-center ${hideBranding ? '' : 'min-h-[80vh] md:min-h-0 p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100'}`}>
+            <div className={`w-full max-w-md mx-auto flex flex-col justify-center ${headerMode === 'desktop' ? '' : 'min-h-[80vh] md:min-h-0 p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100'}`}>
                 <button
                     onClick={() => { setStep('profile'); setCode(''); }}
                     className="flex items-center text-gray-500 hover:text-gray-900 transition-colors mb-4 self-start"
@@ -823,14 +848,14 @@ export default function CustomSignUpForm({ clubs, organizations, hideBranding = 
                 </button>
 
                 <div className="mb-8 text-center">
-                    {!hideBranding && (
-                        <>
-                            <div className="relative w-16 h-16 mx-auto mb-4">
-                                <Image src="/KTMLogo.png" alt="KTM Logo" fill className="object-contain" priority />
-                            </div>
-                            <h1 className="text-2xl font-black text-gray-900 tracking-tight">Verify Email</h1>
-                        </>
+                    {headerMode !== 'desktop' && (
+                        <div className="relative w-16 h-16 mx-auto mb-4">
+                            <Image src="/KTMLogo.png" alt="KTM Logo" fill className="object-contain" priority />
+                        </div>
                     )}
+                    <h1 className={`${headerMode === 'desktop' ? 'text-3xl lg:text-4xl' : 'text-2xl'} font-black text-gray-900 tracking-tight`}>
+                        Verify Email
+                    </h1>
                     <p className="text-gray-500 mt-2 text-sm">
                         Enter the 6-digit code sent to
                     </p>
