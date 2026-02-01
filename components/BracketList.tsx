@@ -12,7 +12,7 @@ interface BracketListProps {
 }
 
 export default function BracketList({ categories, tournamentName }: BracketListProps) {
-    const [activeTab, setActiveTab] = useState<'kyorugi' | 'poomsae'>('kyorugi')
+    const [activeTab, setActiveTab] = useState<'kyorugi' | 'poomsae' | 'kyukpa'>('kyorugi')
     const [isPending, startTransition] = useTransition()
 
     if (categories.length === 0) {
@@ -22,16 +22,18 @@ export default function BracketList({ categories, tournamentName }: BracketListP
     // Filter categories based on tab
     const kyorugiCategories = categories.filter(c => c.type === 'KYORUGI' || !c.type)
     const poomsaeCategories = categories.filter(c => c.type === 'POOMSAE')
+    const kyukpaCategories = categories.filter(c => c.type === 'KYUKPA')
 
-    const displayedCategories = activeTab === 'kyorugi' ? kyorugiCategories : poomsaeCategories
+    const displayedCategories = activeTab === 'kyorugi' ? kyorugiCategories : activeTab === 'poomsae' ? poomsaeCategories : kyukpaCategories
     const tournamentId = categories[0]?.tournamentId
 
     const handleGenerateAll = () => {
-        if (!confirm(`Are you sure you want to regenerate ALL ${activeTab === 'kyorugi' ? 'Kyorugi' : 'Poomsae'} matches? This will overwrite existing brackets.`)) return;
+        if (!confirm(`Are you sure you want to regenerate ALL ${activeTab} matches? This will overwrite existing brackets.`)) return;
 
         startTransition(async () => {
             try {
-                const result = await generateAllBrackets(tournamentId, activeTab === 'kyorugi' ? 'KYORUGI' : 'POOMSAE')
+                const targetType = activeTab === 'kyorugi' ? 'KYORUGI' : activeTab === 'poomsae' ? 'POOMSAE' : 'KYUKPA'
+                const result = await generateAllBrackets(tournamentId, targetType)
                 if (result?.success) {
                     toast.success(`Generated matches for ${result.count} categories!`)
                 } else {
@@ -70,6 +72,16 @@ export default function BracketList({ categories, tournamentName }: BracketListP
                         <Medal size={16} />
                         Poomsae (Forms)
                     </button>
+                    <button
+                        onClick={() => setActiveTab('kyukpa')}
+                        className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'kyukpa'
+                            ? 'bg-white text-red-600 shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                    >
+                        <Wand2 size={16} />
+                        Kyukpa (Breaking)
+                    </button>
                 </div>
 
                 {/* Actions */}
@@ -103,7 +115,7 @@ export default function BracketList({ categories, tournamentName }: BracketListP
                         <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 mb-4">
                             <AlertCircle className="text-gray-400" size={24} />
                         </div>
-                        <p className="text-gray-500 font-medium">No {activeTab === 'kyorugi' ? 'Kyorugi' : 'Poomsae'} categories found.</p>
+                        <p className="text-gray-500 font-medium">No {activeTab} categories found.</p>
                         <p className="text-sm text-gray-400 mt-1">Add athletes to create categories automatically.</p>
                     </div>
                 ) : (

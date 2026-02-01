@@ -69,7 +69,7 @@ export async function createTournament(formData: FormData) {
             const filename = `header-${timestamp}-${safeName}`
 
             const { error: uploadError } = await supabase.storage
-                .from('uploads')
+                .from('images')
                 .upload(filename, buffer, {
                     contentType: headerImage.type,
                     upsert: false
@@ -78,7 +78,7 @@ export async function createTournament(formData: FormData) {
             if (uploadError) throw uploadError
 
             const { data: { publicUrl } } = supabase.storage
-                .from('uploads')
+                .from('images')
                 .getPublicUrl(filename)
 
             headerImageUrl = publicUrl
@@ -387,7 +387,7 @@ export async function createPlayer(formData: FormData) {
 
 
 
-export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' | 'POOMSAE') {
+export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' | 'POOMSAE' | 'KYUKPA') {
     if (!tournamentId) return
 
     // 1. Bulk Fetch Categories & Players
@@ -491,7 +491,9 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
         }
 
     } else {
-        // --- KYORUGI GENERATION ---
+        // --- KYORUGI & KYUKPA GENERATION ---
+
+        // Kyukpa also uses Single Elimination, so it shares this logic.
 
         // Use a different strategy:
         // Kyorugi matches rely on database auto-increment IDs for linking (previous generation logic)

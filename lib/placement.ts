@@ -109,6 +109,27 @@ export async function findCategoryForPlayer(
             if (player.poomsaeType && cat.subtype !== player.poomsaeType) return false
         }
 
+        // 6. Kyukpa Specifics (Breaking)
+        if (targetType === 'KYUKPA') {
+            // Belt Logic (Similar to Poomsae - strict match if specified, or name match)
+            if (cat.belt) {
+                if (player.belt && cat.belt !== player.belt) return false
+            } else if (player.belt) {
+                const normalizedCatName = cat.name.toLowerCase()
+                const normalizedPlayerBelt = player.belt.toLowerCase()
+
+                // If category implies a specific belt (e.g. "White Belt"), check for it
+                // Allow "White" to match "White Belt" etc.
+                const beltKeywords = ['white', 'yellow', 'green', 'blue', 'red', 'brown', 'black', 'poom', 'dan']
+                const mentionedBelts = beltKeywords.filter(b => normalizedCatName.includes(b))
+
+                if (mentionedBelts.length > 0) {
+                    if (!normalizedCatName.includes(normalizedPlayerBelt)) return false
+                }
+            }
+            // Weight is IGNORED for Kyukpa
+        }
+
         return true
     })
 

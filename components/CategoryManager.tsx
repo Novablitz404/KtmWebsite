@@ -331,6 +331,7 @@ export default function CategoryManager({
                                                             : 'cursor-pointer border-gray-200 hover:border-red-300 hover:shadow-sm bg-white'
                                                         }
                                                         ${cat.type === 'POOMSAE' && !isEditingCourts ? 'bg-purple-50/50' : ''}
+                                                        ${cat.type === 'KYUKPA' && !isEditingCourts ? 'bg-orange-50/50' : ''}
                                                     `}
                                                 >
                                                     <div className="flex justify-between items-start">
@@ -347,7 +348,9 @@ export default function CategoryManager({
                                                         )}
                                                     </div>
                                                     <div className="flex items-center gap-2 mt-2 h-7">
-                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider ${cat.type === 'POOMSAE' ? 'bg-purple-200 text-purple-800' : 'bg-blue-100 text-blue-700'}`}>
+                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider ${cat.type === 'POOMSAE' ? 'bg-purple-200 text-purple-800' :
+                                                                cat.type === 'KYUKPA' ? 'bg-orange-200 text-orange-800' :
+                                                                    'bg-blue-100 text-blue-700'}`}>
                                                             {cat.type}
                                                         </span>
                                                         {cat.skillLevel && (
@@ -411,7 +414,8 @@ export default function CategoryManager({
                                         fullWidth
                                         options={[
                                             { label: 'Kyorugi', value: 'KYORUGI' },
-                                            { label: 'Poomsae', value: 'POOMSAE' }
+                                            { label: 'Poomsae', value: 'POOMSAE' },
+                                            { label: 'Kyukpa', value: 'KYUKPA' }
                                         ]}
                                     />
                                 </div>

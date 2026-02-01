@@ -52,7 +52,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
     // Form State (Details)
     const [weight, setWeight] = useState<string>('')
     const [belt, setBelt] = useState<string>('')
-    const [eventType, setEventType] = useState<'KYORUGI' | 'POOMSAE'>('KYORUGI')
+    const [eventType, setEventType] = useState<'KYORUGI' | 'POOMSAE' | 'KYUKPA'>('KYORUGI')
     const [poomsaeType, setPoomsaeType] = useState<string>('INDIVIDUAL')
     const [teamId, setTeamId] = useState<string>('')
     const [submitting, setSubmitting] = useState(false)
@@ -266,7 +266,8 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
                                 onChange={(val: any) => setEventType(val)}
                                 options={[
                                     { value: 'KYORUGI', label: 'Kyorugi (Sparring)' },
-                                    { value: 'POOMSAE', label: 'Poomsae (Forms)' }
+                                    { value: 'POOMSAE', label: 'Poomsae (Forms)' },
+                                    { value: 'KYUKPA', label: 'Kyukpa (Breaking)' }
                                 ]}
                                 placeholder="Select Event Type"
                                 required
@@ -284,9 +285,9 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
                                     onChange={(e) => setWeight(e.target.value)}
                                     className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
                                     required={eventType === 'KYORUGI'}
-                                    disabled={eventType === 'POOMSAE'}
+                                    disabled={eventType === 'POOMSAE' || eventType === 'KYUKPA'}
                                 />
-                                {eventType === 'POOMSAE' && <p className="text-[10px] text-gray-400">Not required for Poomsae</p>}
+                                {(eventType === 'POOMSAE' || eventType === 'KYUKPA') && <p className="text-[10px] text-gray-400">Not required for {eventType === 'POOMSAE' ? 'Poomsae' : 'Kyukpa'}</p>}
                             </div>
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Current Belt</label>

@@ -7,7 +7,6 @@ import { createClient } from '@supabase/supabase-js'
 
 export async function getOrganizationDashboardData() {
     const user = await currentUser()
-    console.log("Server Action: getOrganizationDashboardData - Clerk User:", user?.id)
     if (!user) return null
 
     const dbUser = await prisma.user.findUnique({
@@ -22,11 +21,8 @@ export async function getOrganizationDashboardData() {
             }
         }
     })
-    console.log("Server Action: dbUser found:", dbUser?.id)
-    console.log("Server Action: Org found:", dbUser?.organization?.name)
 
     if (!dbUser || !dbUser.organization) {
-        console.log("Server Action: returning NULL because user or org is missing")
         return null
     }
     const orgId = dbUser.organization.id
