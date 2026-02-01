@@ -69,7 +69,7 @@ export async function createTournament(formData: FormData) {
             const filename = `header-${timestamp}-${safeName}`
 
             const { error: uploadError } = await supabase.storage
-                .from('images')
+                .from('uploads')
                 .upload(filename, buffer, {
                     contentType: headerImage.type,
                     upsert: false
@@ -78,7 +78,7 @@ export async function createTournament(formData: FormData) {
             if (uploadError) throw uploadError
 
             const { data: { publicUrl } } = supabase.storage
-                .from('images')
+                .from('uploads')
                 .getPublicUrl(filename)
 
             headerImageUrl = publicUrl
