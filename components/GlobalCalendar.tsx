@@ -52,6 +52,7 @@ export default function GlobalCalendar({
     const [currentMonth, setCurrentMonth] = useState(selectedDate || new Date())
     const [view, setView] = useState<'day' | 'month' | 'year'>('day')
     const [position, setPosition] = useState<'bottom' | 'top'>('bottom')
+    const [hPosition, setHPosition] = useState<'left' | 'right'>('left')
 
     // Handle click outside to close
     useEffect(() => {
@@ -68,14 +69,26 @@ export default function GlobalCalendar({
     useEffect(() => {
         if (isOpen && containerRef.current) {
             const rect = containerRef.current.getBoundingClientRect()
-            const spaceBelow = window.innerHeight - rect.bottom
-            const calendarHeight = 350 // Approximate max height
+            const viewportWidth = window.innerWidth
+            const viewportHeight = window.innerHeight
 
-            // If space below is less than calendar height, show on top
-            if (spaceBelow < calendarHeight) {
+            const calendarWidth = 320 // matches w-[320px] in className
+            const calendarHeight = 350 // approximate max height
+
+            // Vertical collision
+            const spaceBelow = viewportHeight - rect.bottom
+            if (spaceBelow < calendarHeight && rect.top > calendarHeight) {
                 setPosition('top')
             } else {
                 setPosition('bottom')
+            }
+
+            // Horizontal collision
+            const spaceRight = viewportWidth - rect.left
+            if (spaceRight < calendarWidth && rect.right > calendarWidth) {
+                setHPosition('right')
+            } else {
+                setHPosition('left')
             }
         }
     }, [isOpen])
@@ -153,8 +166,10 @@ export default function GlobalCalendar({
             {/* Dropdown Calendar */}
             {isOpen && (
                 <div className={`
-                    absolute z-50 p-4 w-[320px] bg-white rounded-xl shadow-xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200 left-0
-                    ${position === 'top' ? 'bottom-full mb-1 origin-bottom-left' : 'top-full mt-1 origin-top-left'}
+                    absolute z-50 p-4 w-[320px] bg-white rounded-xl shadow-xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200
+                    ${position === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'}
+                    ${hPosition === 'right' ? 'right-0 origin-right' : 'left-0 origin-left'}
+                    ${position === 'top' ? (hPosition === 'right' ? 'origin-bottom-right' : 'origin-bottom-left') : (hPosition === 'right' ? 'origin-top-right' : 'origin-top-left')}
                 `}>
                     {/* Header */}
                     <div className="flex items-center justify-between mb-4">

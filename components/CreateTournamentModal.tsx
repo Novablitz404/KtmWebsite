@@ -28,6 +28,9 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
     const [error, setError] = useState('')
     const [imagePreview, setImagePreview] = useState<string | null>(null)
     const [selectedTemplate, setSelectedTemplate] = useState('')
+    const [startDate, setStartDate] = useState<Date | undefined>(undefined)
+    const [registrationStart, setRegistrationStart] = useState<Date | undefined>(undefined)
+    const [registrationEnd, setRegistrationEnd] = useState<Date | undefined>(undefined)
 
     // Cropper State
     const [showCropper, setShowCropper] = useState(false)
@@ -261,8 +264,9 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                 <div>
                                     <GlobalCalendar
                                         label="Tournament Date"
-                                        value={undefined} // Controlled input needing state if not using form, detailed below
+                                        value={startDate}
                                         onChange={(date) => {
+                                            setStartDate(date)
                                             const input = document.getElementById('startDate') as HTMLInputElement
                                             if (input) input.value = format(date, 'yyyy-MM-dd')
                                         }}
@@ -275,8 +279,9 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                 <div>
                                     <GlobalCalendar
                                         label="Registration Opens"
-                                        value={undefined}
+                                        value={registrationStart}
                                         onChange={(date) => {
+                                            setRegistrationStart(date)
                                             const input = document.getElementById('registrationStart') as HTMLInputElement
                                             if (input) input.value = format(date, 'yyyy-MM-dd')
                                         }}
@@ -289,8 +294,9 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                 <div>
                                     <GlobalCalendar
                                         label="Registration Closes"
-                                        value={undefined}
+                                        value={registrationEnd}
                                         onChange={(date) => {
+                                            setRegistrationEnd(date)
                                             const input = document.getElementById('registrationEnd') as HTMLInputElement
                                             if (input) input.value = format(date, 'yyyy-MM-dd')
                                         }}
