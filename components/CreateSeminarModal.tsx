@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { format } from 'date-fns'
 import { X, Calendar, MapPin, DollarSign, Image as ImageIcon, Check } from 'lucide-react'
 import { createSeminar } from '@/app/organization/actions'
 import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
 import ImageCropperModal from '@/components/ImageCropperModal'
 import GlobalCalendar from '@/components/GlobalCalendar'
 
@@ -13,6 +15,7 @@ interface CreateSeminarModalProps {
 }
 
 export default function CreateSeminarModal({ isOpen, onClose }: CreateSeminarModalProps) {
+    const queryClient = useQueryClient()
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [imagePreview, setImagePreview] = useState<string | null>(null)
 
@@ -73,6 +76,7 @@ export default function CreateSeminarModal({ isOpen, onClose }: CreateSeminarMod
             toast.error(result.error)
         } else {
             toast.success('Seminar created!')
+            queryClient.invalidateQueries({ queryKey: ['organization-events-data'] })
             onClose()
             setImagePreview(null)
             setCroppedImageBlob(null)
@@ -189,7 +193,7 @@ export default function CreateSeminarModal({ isOpen, onClose }: CreateSeminarMod
                                     onChange={(date) => {
                                         setStartDate(date)
                                         const input = document.getElementsByName('startDate')[0] as HTMLInputElement
-                                        if (input) input.value = date.toISOString().split('T')[0]
+                                        if (input) input.value = format(date, 'yyyy-MM-dd')
                                     }}
                                     placeholder="Start date..."
                                     className="w-full"
@@ -204,7 +208,7 @@ export default function CreateSeminarModal({ isOpen, onClose }: CreateSeminarMod
                                     onChange={(date) => {
                                         setEndDate(date)
                                         const input = document.getElementsByName('endDate')[0] as HTMLInputElement
-                                        if (input) input.value = date.toISOString().split('T')[0]
+                                        if (input) input.value = format(date, 'yyyy-MM-dd')
                                     }}
                                     placeholder="End date..."
                                     className="w-full"
@@ -219,7 +223,7 @@ export default function CreateSeminarModal({ isOpen, onClose }: CreateSeminarMod
                                     onChange={(date) => {
                                         setRegistrationDeadline(date)
                                         const input = document.getElementsByName('registrationDeadline')[0] as HTMLInputElement
-                                        if (input) input.value = date.toISOString().split('T')[0]
+                                        if (input) input.value = format(date, 'yyyy-MM-dd')
                                     }}
                                     placeholder="Deadline..."
                                     className="w-full"

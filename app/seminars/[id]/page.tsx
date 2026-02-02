@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ArrowLeft, Calendar, MapPin, DollarSign, Users } from 'lucide-react'
 import SeminarStatusActions from '@/components/organization/SeminarStatusActions'
 import EventRegistrationButton from '@/components/EventRegistrationButton'
+import SeminarTabs from '@/components/seminar/SeminarTabs'
 // import ParticipantsTable from './ParticipantsTable' // I'll need to create this or make it generic later
 
 interface PageProps {
@@ -26,6 +27,7 @@ export default async function ManageSeminarPage({ params }: PageProps) {
         })
     }
 
+    // Optimized query with relations for the management tabs
     const seminar = await prisma.seminar.findUnique({
         where: { id },
         include: {
@@ -89,6 +91,14 @@ export default async function ManageSeminarPage({ params }: PageProps) {
         )
     }
 
+    // If manager, return the Tabbed Interface
+    if (canManage) {
+        // We need to cast the seminar to match the expected type because of how Prisma types work with includes
+        // The component expects ExtendedSeminar which matches the query result structure
+        return <SeminarTabs seminar={seminar as any} />
+    }
+
+    // Public / Athlete View
     const statusConfig: Record<string, { bg: string, text: string }> = {
         UPCOMING: { bg: 'bg-blue-50', text: 'text-blue-700' },
         OPEN: { bg: 'bg-green-50', text: 'text-green-700' },
@@ -106,7 +116,7 @@ export default async function ManageSeminarPage({ params }: PageProps) {
                 <div className="flex flex-col gap-6">
                     <div>
                         <Link
-                            href={canManage ? "/organization?view=events" : "/"} // Updated logical back link
+                            href="/"
                             className="inline-flex items-center text-sm text-gray-500 hover:text-gray-900 mb-4 transition-colors"
                         >
                             <ArrowLeft className="w-4 h-4 mr-1" />
@@ -156,18 +166,14 @@ export default async function ManageSeminarPage({ params }: PageProps) {
                             </div>
 
                             <div className="flex flex-col items-end gap-3">
-                                {canManage ? (
-                                    <SeminarStatusActions seminarId={seminar.id} currentStatus={seminar.status} />
-                                ) : (
-                                    <EventRegistrationButton
-                                        eventId={seminar.id}
-                                        eventType="seminar"
-                                        isRegistered={!!seminar.registrations.find(r => r.playerId === dbUser?.id)}
-                                        status={seminar.registrations.find(r => r.playerId === dbUser?.id)?.status}
-                                        paymentStatus={seminar.registrations.find(r => r.playerId === dbUser?.id)?.paymentStatus}
-                                        disabled={seminar.status !== 'OPEN' && seminar.status !== 'UPCOMING'}
-                                    />
-                                )}
+                                <EventRegistrationButton
+                                    eventId={seminar.id}
+                                    eventType="seminar"
+                                    isRegistered={!!seminar.registrations.find(r => r.playerId === dbUser?.id)}
+                                    status={seminar.registrations.find(r => r.playerId === dbUser?.id)?.status}
+                                    paymentStatus={seminar.registrations.find(r => r.playerId === dbUser?.id)?.paymentStatus}
+                                    disabled={seminar.status !== 'OPEN' && seminar.status !== 'UPCOMING'}
+                                />
                             </div>
                         </div>
                     </div>
@@ -198,16 +204,6 @@ export default async function ManageSeminarPage({ params }: PageProps) {
                         </div>
                     </div>
                 </div>
-
-                {/* Participants Section (Placeholder for now) */}
-                <div className="space-y-4">
-                    <h2 className="text-xl font-bold text-gray-900">Registered Participants</h2>
-                    <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-500">
-                        Participants table coming soon...
-                    </div>
-                    {/* <ParticipantsTable registrations={seminar.registrations} readonly={!canManage} /> */}
-                </div>
-
             </div>
         </main>
     )

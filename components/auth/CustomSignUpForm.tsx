@@ -5,6 +5,7 @@ import { useSignUp } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
+import { format } from 'date-fns'
 import { Eye, EyeOff, Loader2, ArrowLeft, ArrowRight, Check, Building2, User } from 'lucide-react'
 import CustomSelect from '@/app/components/ui/CustomSelect'
 import GlobalCalendar from '@/components/GlobalCalendar'
@@ -261,7 +262,9 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
             formData.append('firstName', firstName)
             formData.append('lastName', lastName)
             formData.append('clubName', clubName) // Reused as Organization Name if role=ORGANIZER
-            formData.append('birthDate', birthDate) // Reused as Est. Date if role=ORGANIZER
+            if (birthDate) {
+                formData.append('birthDate', birthDate) // Reused as Est. Date if role=ORGANIZER
+            }
 
             if (!isOrganization) {
                 // Only append gender/belt if NOT a club master (Athletes only)
@@ -376,18 +379,16 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                     </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-5xl mx-auto">
+                <div className="bg-gray-100 p-1.5 rounded-2xl flex flex-col md:flex-row gap-1 md:gap-0 max-w-4xl mx-auto">
                     {/* Athlete Option */}
                     <button
                         onClick={() => {
                             setRole('ATHLETE')
                             setStep('account')
                         }}
-                        className="group relative flex flex-col items-center justify-center w-full py-6 px-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md hover:border-red-600 hover:ring-1 hover:ring-red-600 transition-all duration-200"
+                        className="flex-1 py-4 px-6 rounded-xl font-bold text-xs md:text-sm text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-sm transition-all duration-200 text-center uppercase tracking-wide"
                     >
-                        <h3 className="text-sm md:text-base font-bold text-gray-800 group-hover:text-red-700 transition-colors uppercase tracking-wide text-center">
-                            Athlete / User
-                        </h3>
+                        Athlete / User
                     </button>
 
                     {/* Club Master Option */}
@@ -396,11 +397,9 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                             setRole('CLUB_MASTER')
                             setStep('account')
                         }}
-                        className="group relative flex flex-col items-center justify-center w-full py-6 px-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md hover:border-blue-600 hover:ring-1 hover:ring-blue-600 transition-all duration-200"
+                        className="flex-1 py-4 px-6 rounded-xl font-bold text-xs md:text-sm text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-sm transition-all duration-200 text-center uppercase tracking-wide"
                     >
-                        <h3 className="text-sm md:text-base font-bold text-gray-800 group-hover:text-blue-700 transition-colors uppercase tracking-wide text-center">
-                            Club
-                        </h3>
+                        Club
                     </button>
 
                     {/* Organization Option */}
@@ -409,11 +408,9 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                             setRole('ORGANIZER')
                             setStep('account')
                         }}
-                        className="group relative flex flex-col items-center justify-center w-full py-6 px-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md hover:border-purple-600 hover:ring-1 hover:ring-purple-600 transition-all duration-200"
+                        className="flex-1 py-4 px-6 rounded-xl font-bold text-xs md:text-sm text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-sm transition-all duration-200 text-center uppercase tracking-wide"
                     >
-                        <h3 className="text-sm md:text-base font-bold text-gray-800 group-hover:text-purple-700 transition-colors uppercase tracking-wide text-center">
-                            Organization
-                        </h3>
+                        Organization
                     </button>
                 </div>
 
@@ -651,7 +648,7 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                                     <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Date Established</label>
                                     <GlobalCalendar
                                         value={birthDate}
-                                        onChange={(date) => setBirthDate(date.toISOString().split('T')[0])}
+                                        onChange={(date) => setBirthDate(format(date, 'yyyy-MM-dd'))}
                                         placeholder="Select date..."
                                         className="w-full"
                                         fullWidth
@@ -674,7 +671,7 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                                             <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Date of Birth</label>
                                             <GlobalCalendar
                                                 value={birthDate}
-                                                onChange={(date) => setBirthDate(date.toISOString().split('T')[0])}
+                                                onChange={(date) => setBirthDate(format(date, 'yyyy-MM-dd'))}
                                                 placeholder="Select birth date..."
                                                 className="w-full"
                                                 fullWidth

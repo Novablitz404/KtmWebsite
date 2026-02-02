@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { format } from 'date-fns'
 import { Star, Plus, X, Calendar, MapPin, DollarSign, Trash2, Users, ListFilter } from 'lucide-react'
 import { createPromotionTest, deletePromotionTest, updatePromotionTestStatus } from '@/app/organization/actions'
 import { toast } from 'sonner'
@@ -201,7 +202,7 @@ export default function PromotionsWidget({ promotionTests: initial }: { promotio
                                         value={undefined}
                                         onChange={(date) => {
                                             const input = document.getElementsByName('testDate')[0] as HTMLInputElement
-                                            if (input) input.value = date.toISOString().split('T')[0]
+                                            if (input) input.value = format(date, 'yyyy-MM-dd')
                                         }}
                                         placeholder="Select date..."
                                         className="w-full"
@@ -215,7 +216,7 @@ export default function PromotionsWidget({ promotionTests: initial }: { promotio
                                         value={undefined}
                                         onChange={(date) => {
                                             const input = document.getElementsByName('registrationDeadline')[0] as HTMLInputElement
-                                            if (input) input.value = date.toISOString().split('T')[0]
+                                            if (input) input.value = format(date, 'yyyy-MM-dd')
                                         }}
                                         placeholder="Select date..."
                                         className="w-full"

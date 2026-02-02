@@ -1,0 +1,359 @@
+'use client'
+
+import { useState } from 'react'
+import { format } from 'date-fns'
+import { X, Calendar, MapPin, DollarSign, Image as ImageIcon, Check, Save, Trash2, Loader2, AlertTriangle } from 'lucide-react'
+import { updateSeminar, deleteSeminar } from '@/app/organization/actions'
+import { toast } from 'sonner'
+import { useRouter } from 'next/navigation'
+import ImageCropperModal from '@/components/ImageCropperModal'
+import GlobalCalendar from '@/components/GlobalCalendar'
+import { Seminar } from '@prisma/client'
+
+interface SeminarSettingsProps {
+    seminar: Seminar
+}
+
+export default function SeminarSettings({ seminar }: SeminarSettingsProps) {
+    const router = useRouter()
+    const [isSaving, setIsSaving] = useState(false)
+    const [isDeleting, setIsDeleting] = useState(false)
+    const [imagePreview, setImagePreview] = useState<string | null>(seminar.bannerUrl)
+
+    // Cropper State
+    const [showCropper, setShowCropper] = useState(false)
+    const [tempImage, setTempImage] = useState<string | null>(null)
+    const [croppedImageBlob, setCroppedImageBlob] = useState<Blob | null>(null)
+
+    // Date State
+    const [startDate, setStartDate] = useState<Date | undefined>(seminar.startDate ? new Date(seminar.startDate) : undefined)
+    const [endDate, setEndDate] = useState<Date | undefined>(seminar.endDate ? new Date(seminar.endDate) : undefined)
+    const [registrationDeadline, setRegistrationDeadline] = useState<Date | undefined>(seminar.registrationDeadline ? new Date(seminar.registrationDeadline) : undefined)
+
+    const handleBackdropChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (file) {
+            if (!file.type.startsWith('image/')) {
+                toast.error('Please upload an image file')
+                e.target.value = ''
+                return
+            }
+            if (file.size > 10 * 1024 * 1024) {
+                toast.error('Image size must be less than 10MB')
+                e.target.value = ''
+                return
+            }
+
+            const objectUrl = URL.createObjectURL(file)
+            setTempImage(objectUrl)
+            setShowCropper(true)
+            e.target.value = ''
+        }
+    }
+
+    const removeImage = () => {
+        setCroppedImageBlob(null)
+        if (imagePreview && imagePreview !== seminar.bannerUrl) URL.revokeObjectURL(imagePreview)
+        setImagePreview(null)
+    }
+
+    async function handleUpdate(e: React.FormEvent<HTMLFormElement>) {
+        e.preventDefault()
+        setIsSaving(true)
+
+        const formData = new FormData(e.currentTarget)
+        formData.append('seminarId', seminar.id)
+
+        // Append cropped image if exists
+        if (croppedImageBlob) {
+            formData.delete('banner')
+            formData.append('banner', croppedImageBlob, 'banner.jpg')
+        }
+
+        const result = await updateSeminar(formData)
+
+        if (result.error) {
+            toast.error(result.error)
+        } else {
+            toast.success('Seminar updated successfully!')
+            setCroppedImageBlob(null)
+            router.refresh()
+        }
+        setIsSaving(false)
+    }
+
+    async function handleDelete() {
+        if (!confirm('Are you strictly sure you want to delete this seminar? This action cannot be undone.')) return
+
+        setIsDeleting(true)
+        const result = await deleteSeminar(seminar.id)
+
+        if (result.error) {
+            toast.error(result.error)
+            setIsDeleting(false)
+        } else {
+            toast.success('Seminar deleted')
+            router.push('/organization?view=events')
+        }
+    }
+
+    return (
+        <div className="max-w-4xl space-y-8 animate-in fade-in duration-300">
+            <div>
+                <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+                <p className="text-gray-500">Manage seminar details and configuration.</p>
+            </div>
+
+            <form onSubmit={handleUpdate} className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-6">
+                <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        <Save className="w-5 h-5 text-indigo-500" />
+                        General Information
+                    </h3>
+
+                    {/* Banner Image Upload */}
+                    <div className="mb-6">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Seminar Banner Image
+                        </label>
+                        <div className="relative group">
+                            <div className={`
+                                w-full h-48 rounded-xl border-2 border-dashed border-gray-300 
+                                flex flex-col items-center justify-center 
+                                bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer overflow-hidden
+                                ${imagePreview ? 'border-sky-500' : ''}
+                            `}>
+                                {imagePreview ? (
+                                    <>
+                                        <img src={imagePreview} alt="Banner Preview" className="w-full h-full object-cover" />
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.preventDefault()
+                                                removeImage()
+                                            }}
+                                            className="absolute top-2 right-2 p-1 bg-white/80 rounded-full hover:bg-white text-gray-600 hover:text-red-500 transition-colors shadow-sm"
+                                        >
+                                            <X className="w-5 h-5" />
+                                        </button>
+                                    </>
+                                ) : (
+                                    <label htmlFor="settings-banner" className="w-full h-full flex flex-col items-center justify-center cursor-pointer p-4">
+                                        <ImageIcon className="w-10 h-10 text-gray-400 mb-2 group-hover:text-sky-500 transition-colors" />
+                                        <p className="text-sm font-medium text-gray-600">Click to upload banner image</p>
+                                        <p className="text-xs text-gray-500 mt-1">Recommended: 1200x400</p>
+                                        <p className="text-xs text-gray-400">PNG, JPG, GIF (Max 10MB)</p>
+                                    </label>
+                                )}
+                            </div>
+                            <input
+                                type="file"
+                                id="settings-banner"
+                                accept="image/*"
+                                onChange={handleBackdropChange}
+                                className="hidden"
+                            />
+                        </div>
+                        {croppedImageBlob && (
+                            <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
+                                <Check className="w-3 h-3" /> New image ready to upload
+                            </p>
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-6">
+                        {/* Name */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Seminar Title <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                                name="name"
+                                type="text"
+                                defaultValue={seminar.name}
+                                required
+                                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
+                            />
+                        </div>
+
+                        {/* Description */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <textarea
+                                name="description"
+                                defaultValue={seminar.description || ''}
+                                rows={4}
+                                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all resize-none"
+                            />
+                        </div>
+
+                        {/* Dates Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <GlobalCalendar
+                                    label="Start Date"
+                                    value={startDate}
+                                    onChange={(date) => {
+                                        setStartDate(date)
+                                        const input = document.getElementById('settings-startDate') as HTMLInputElement
+                                        if (input) input.value = format(date, 'yyyy-MM-dd')
+                                    }}
+                                    placeholder="Start date..."
+                                    className="w-full"
+                                    fullWidth
+                                />
+                                <input type="hidden" id="settings-startDate" name="startDate" defaultValue={startDate ? format(startDate, 'yyyy-MM-dd') : ''} required />
+                            </div>
+                            <div>
+                                <GlobalCalendar
+                                    label="End Date"
+                                    value={endDate}
+                                    onChange={(date) => {
+                                        setEndDate(date)
+                                        const input = document.getElementById('settings-endDate') as HTMLInputElement
+                                        if (input) input.value = format(date, 'yyyy-MM-dd')
+                                    }}
+                                    placeholder="End date..."
+                                    className="w-full"
+                                    fullWidth
+                                />
+                                <input type="hidden" id="settings-endDate" name="endDate" defaultValue={endDate ? format(endDate, 'yyyy-MM-dd') : ''} />
+                            </div>
+                            <div>
+                                <GlobalCalendar
+                                    label="Reg. Deadline"
+                                    value={registrationDeadline}
+                                    onChange={(date) => {
+                                        setRegistrationDeadline(date)
+                                        const input = document.getElementById('settings-registrationDeadline') as HTMLInputElement
+                                        if (input) input.value = format(date, 'yyyy-MM-dd')
+                                    }}
+                                    placeholder="Deadline..."
+                                    className="w-full"
+                                    fullWidth
+                                />
+                                <input type="hidden" id="settings-registrationDeadline" name="registrationDeadline" defaultValue={registrationDeadline ? format(registrationDeadline, 'yyyy-MM-dd') : ''} />
+                            </div>
+                        </div>
+
+                        {/* Venue & Fee */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Venue
+                                </label>
+                                <input
+                                    name="venue"
+                                    type="text"
+                                    defaultValue={seminar.venue || ''}
+                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Fee (₱)
+                                </label>
+                                <input
+                                    name="fee"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    defaultValue={seminar.fee || ''}
+                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Visibility */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Visibility</label>
+                            <div className="flex bg-gray-100 p-1 rounded-xl w-full md:w-1/2">
+                                <label className="flex-1 cursor-pointer">
+                                    <input type="radio" name="visibility" value="PRIVATE" className="sr-only peer" defaultChecked={seminar.visibility === 'PRIVATE'} />
+                                    <span className="flex items-center justify-center py-1.5 text-sm font-medium rounded-lg text-gray-500 peer-checked:bg-white peer-checked:text-gray-900 peer-checked:shadow-sm transition-all">
+                                        Private
+                                    </span>
+                                </label>
+                                <label className="flex-1 cursor-pointer">
+                                    <input type="radio" name="visibility" value="PUBLIC" className="sr-only peer" defaultChecked={seminar.visibility === 'PUBLIC'} />
+                                    <span className="flex items-center justify-center py-1.5 text-sm font-medium rounded-lg text-gray-500 peer-checked:bg-white peer-checked:text-gray-900 peer-checked:shadow-sm transition-all">
+                                        Public
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex justify-end pt-4 border-t border-gray-100">
+                    <button
+                        type="submit"
+                        disabled={isSaving}
+                        className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-colors"
+                    >
+                        {isSaving ? (
+                            <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Saving...
+                            </>
+                        ) : (
+                            <>
+                                <Save className="w-4 h-4 mr-2" />
+                                Save Changes
+                            </>
+                        )}
+                    </button>
+                </div>
+            </form>
+
+            {/* Danger Zone */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-red-100">
+                <h3 className="text-lg font-semibold text-red-600 mb-4 flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5" />
+                    Danger Zone
+                </h3>
+                <div className="bg-red-50 p-4 rounded-lg border border-red-100 flex items-center justify-between">
+                    <div>
+                        <h4 className="text-sm font-medium text-red-900">Delete Seminar</h4>
+                        <p className="text-xs text-red-600 mt-1">Permanently remove this seminar and all its data. This action cannot be undone.</p>
+                    </div>
+                    <button
+                        onClick={handleDelete}
+                        disabled={isDeleting}
+                        className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 transition-colors"
+                    >
+                        {isDeleting ? (
+                            <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Deleting...
+                            </>
+                        ) : (
+                            <>
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Delete Seminar
+                            </>
+                        )}
+                    </button>
+                </div>
+            </div>
+
+            {/* Image Cropper */}
+            {showCropper && tempImage && (
+                <ImageCropperModal
+                    imageUrl={tempImage!}
+                    aspectRatio={3 / 1}
+                    onCropComplete={(croppedBlob) => {
+                        setCroppedImageBlob(croppedBlob)
+                        setImagePreview(URL.createObjectURL(croppedBlob))
+                        setShowCropper(false)
+                        setTempImage(null)
+                    }}
+                    onClose={() => {
+                        setShowCropper(false)
+                        setTempImage(null)
+                    }}
+                />
+            )}
+        </div>
+    )
+}

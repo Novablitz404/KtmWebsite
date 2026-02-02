@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useState, useRef } from 'react'
+import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
 import { createTournament } from '@/app/actions'
 import { X, Image as ImageIcon, Check } from 'lucide-react'
@@ -263,7 +264,7 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                         value={undefined} // Controlled input needing state if not using form, detailed below
                                         onChange={(date) => {
                                             const input = document.getElementById('startDate') as HTMLInputElement
-                                            if (input) input.value = date.toISOString().split('T')[0]
+                                            if (input) input.value = format(date, 'yyyy-MM-dd')
                                         }}
                                         placeholder="Select date..."
                                         className="w-full"
@@ -277,7 +278,7 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                         value={undefined}
                                         onChange={(date) => {
                                             const input = document.getElementById('registrationStart') as HTMLInputElement
-                                            if (input) input.value = date.toISOString().split('T')[0]
+                                            if (input) input.value = format(date, 'yyyy-MM-dd')
                                         }}
                                         placeholder="Select date..."
                                         className="w-full"
@@ -291,7 +292,7 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                         value={undefined}
                                         onChange={(date) => {
                                             const input = document.getElementById('registrationEnd') as HTMLInputElement
-                                            if (input) input.value = date.toISOString().split('T')[0]
+                                            if (input) input.value = format(date, 'yyyy-MM-dd')
                                         }}
                                         placeholder="Select date..."
                                         className="w-full"

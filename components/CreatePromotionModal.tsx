@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { format } from 'date-fns'
 import { X, Calendar, MapPin, DollarSign, Image as ImageIcon, Check } from 'lucide-react'
 import { createPromotionTest } from '@/app/organization/actions'
 import { toast } from 'sonner'
@@ -186,7 +187,7 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
                                     onChange={(date) => {
                                         setTestDate(date)
                                         const input = document.getElementsByName('testDate')[0] as HTMLInputElement
-                                        if (input) input.value = date.toISOString().split('T')[0]
+                                        if (input) input.value = format(date, 'yyyy-MM-dd')
                                     }}
                                     placeholder="Select date..."
                                     className="w-full"
@@ -201,7 +202,7 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
                                     onChange={(date) => {
                                         setRegistrationDeadline(date)
                                         const input = document.getElementsByName('registrationDeadline')[0] as HTMLInputElement
-                                        if (input) input.value = date.toISOString().split('T')[0]
+                                        if (input) input.value = format(date, 'yyyy-MM-dd')
                                     }}
                                     placeholder="Select date..."
                                     className="w-full"

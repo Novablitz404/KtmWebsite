@@ -930,6 +930,14 @@ export async function completeOnboarding(formData: FormData) {
     const user = await currentUser()
     if (!user) throw new Error('Not authenticated')
 
+    console.log('Completing onboarding for:', {
+        role: formData.get('role'),
+        email: user.emailAddresses[0].emailAddress,
+        firstName: formData.get('firstName'),
+        lastName: formData.get('lastName'),
+        birthDate: formData.get('birthDate')
+    })
+
     const role = formData.get('role') as string
     const firstNameRaw = formData.get('firstName') as string
     const lastNameRaw = formData.get('lastName') as string
@@ -943,26 +951,28 @@ export async function completeOnboarding(formData: FormData) {
     const belt = formData.get('belt') as string
 
     // Validation
+    const isAthlete = role === 'ATHLETE'
     const isOrganizer = role === 'ORGANIZER'
     const isManager = role === 'MANAGER'
+    const isCoOrganizer = role === 'CO_ORGANIZER'
 
     // Basic requirements for everyone
-    if (!firstName || !lastName || !birthDateStr) {
-        throw new Error('Name and date information are required')
+    if (!firstName || !lastName) {
+        throw new Error('Name information is required')
     }
 
     // Role-specific requirements
-    if (isOrganizer) {
-        if (!clubName) throw new Error('Organization name is required')
-        // Belt/Gender optional for Organizer
-    } else if (!isManager) {
-        // Athletes and Club Masters need everything
-        if (!gender || !belt || !clubName) {
-            throw new Error('All profile fields are required')
+    if (isAthlete) {
+        if (!birthDateStr || !gender || !belt || !clubName) {
+            throw new Error('All profile fields are required for athletes')
+        }
+    } else if (isOrganizer) {
+        if (!clubName || !birthDateStr) {
+            throw new Error('Organization name and established date are required')
         }
     }
 
-    const birthDate = new Date(birthDateStr)
+    const birthDate = birthDateStr ? new Date(birthDateStr) : null
 
     // Check if user already exists (by clerkId OR email)
     const existingUser = await prisma.user.findFirst({
@@ -1069,7 +1079,7 @@ export async function completeOnboarding(formData: FormData) {
         await prisma.organization.create({
             data: {
                 name: assignedClubName, // Using clubName as Organization Name
-                establishedAt: birthDate, // Using birthDate as Established Date
+                establishedAt: (birthDate as Date) || undefined, // Using birthDate as Established Date
                 ownerId: dbUser.id,
                 status: 'PENDING' // Requires admin approval
             }

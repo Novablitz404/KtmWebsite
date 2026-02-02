@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { format } from 'date-fns'
 import { X, UserPlus, Loader2, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClubMember } from '@/app/club/actions'
@@ -231,7 +232,7 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
                                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Birth Date</label>
                                 <GlobalCalendar
                                     value={birthDate}
-                                    onChange={(date: Date) => setBirthDate(date.toISOString().split('T')[0])}
+                                    onChange={(date: Date) => setBirthDate(format(date, 'yyyy-MM-dd'))}
                                     placeholder="Select birth date..."
                                     className="w-full"
                                     fullWidth

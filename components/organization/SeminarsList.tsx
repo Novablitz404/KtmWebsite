@@ -1,8 +1,7 @@
 'use client'
 
-import { Calendar, MapPin, DollarSign, Users, Settings } from 'lucide-react'
+import { Calendar, MapPin, Users, Settings } from 'lucide-react'
 import Link from 'next/link'
-import SeminarStatusActions from '@/components/organization/SeminarStatusActions'
 
 const statusConfig: Record<string, { bg: string, text: string }> = {
     UPCOMING: { bg: 'bg-blue-50', text: 'text-blue-700' },
@@ -60,9 +59,6 @@ export default function SeminarsList({ seminars }: SeminarsListProps) {
                             <tr key={seminar.id} className="hover:bg-gray-50/50 transition-colors">
                                 <td className="px-6 py-4">
                                     <span className="font-semibold text-gray-900">{seminar.name}</span>
-                                    {seminar.description && (
-                                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{seminar.description}</p>
-                                    )}
                                 </td>
                                 <td className="px-6 py-4 text-gray-600 text-sm">
                                     <div className="flex items-center gap-1.5">
@@ -86,10 +82,7 @@ export default function SeminarsList({ seminars }: SeminarsListProps) {
                                 </td>
                                 <td className="px-6 py-4 text-gray-600 text-sm">
                                     {seminar.fee ? (
-                                        <div className="flex items-center gap-1">
-                                            <DollarSign className="w-4 h-4 text-gray-400" />
-                                            ₱{seminar.fee.toFixed(0)}
-                                        </div>
+                                        <span>₱{seminar.fee.toFixed(0)}</span>
                                     ) : (
                                         <span className="text-green-600 font-medium">Free</span>
                                     )}
@@ -107,7 +100,6 @@ export default function SeminarsList({ seminars }: SeminarsListProps) {
                                 </td>
                                 <td className="px-6 py-4 text-right">
                                     <div className="flex items-center justify-end gap-2">
-                                        <SeminarStatusActions seminarId={seminar.id} currentStatus={seminar.status} />
                                         <Link
                                             href={`/seminars/${seminar.id}`}
                                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm group"

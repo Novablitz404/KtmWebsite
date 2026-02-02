@@ -439,6 +439,7 @@ export async function createSeminar(formData: FormData) {
         }
     })
 
+    revalidatePath('/organization')
     return { success: true, seminar }
 }
 
@@ -500,6 +501,159 @@ export async function deleteSeminar(seminarId: string) {
 
     revalidatePath('/organization')
     revalidatePath('/admin')
+    return { success: true }
+}
+
+export async function updateSeminar(formData: FormData) {
+    const user = await currentUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return { error: 'No organization found' }
+
+    const seminarId = formData.get('seminarId') as string
+    if (!seminarId) return { error: 'Seminar ID is required' }
+
+    const seminar = await prisma.seminar.findUnique({
+        where: { id: seminarId }
+    })
+
+    if (!seminar || seminar.organizationId !== dbUser.organization.id) {
+        return { error: 'Seminar not found or unauthorized' }
+    }
+
+    const name = formData.get('name') as string
+    const description = formData.get('description') as string
+    const startDate = formData.get('startDate') as string
+    const endDate = formData.get('endDate') as string
+    const registrationDeadline = formData.get('registrationDeadline') as string
+    const venue = formData.get('venue') as string
+    const feeStr = formData.get('fee') as string
+    const visibility = (formData.get('visibility') as string) || 'PRIVATE'
+    const bannerFile = formData.get('banner') as File | null
+
+    if (!name || !startDate) return { error: 'Name and start date are required' }
+
+    let bannerUrl = seminar.bannerUrl
+    if (bannerFile && bannerFile.size > 0) {
+        try {
+            const supabase = createClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.SUPABASE_SERVICE_ROLE_KEY!
+            )
+
+            const bytes = await bannerFile.arrayBuffer()
+            const buffer = Buffer.from(bytes)
+            const timestamp = Date.now()
+            const safeName = bannerFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+            const filename = `seminar-banner-${timestamp}-${safeName}`
+
+            const { error: uploadError } = await supabase.storage
+                .from('uploads')
+                .upload(filename, buffer, { contentType: bannerFile.type, upsert: false })
+
+            if (uploadError) throw uploadError
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('uploads')
+                .getPublicUrl(filename)
+
+            bannerUrl = publicUrl
+        } catch (error) {
+            console.error('Banner upload error:', error)
+            return { error: 'Failed to upload Banner Image' }
+        }
+    }
+
+    await prisma.seminar.update({
+        where: { id: seminarId },
+        data: {
+            name,
+            description: description || null,
+            startDate: new Date(startDate),
+            endDate: endDate ? new Date(endDate) : null,
+            registrationDeadline: registrationDeadline ? new Date(registrationDeadline) : null,
+            venue: venue || null,
+            fee: feeStr ? parseFloat(feeStr) : null,
+            visibility,
+            bannerUrl
+        }
+    })
+
+    revalidatePath('/organization')
+    revalidatePath(`/seminars/${seminarId}`)
+    return { success: true }
+}
+
+export async function updateSeminarRegistrationStatus(registrationId: string, status?: string, paymentStatus?: string) {
+    const user = await currentUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: { organization: true }
+    })
+
+    // Verify permission (Organization Owner of the seminar)
+    const registration = await prisma.seminarRegistration.findUnique({
+        where: { id: registrationId },
+        include: { seminar: true }
+    })
+
+    if (!registration) return { error: 'Registration not found' }
+
+    const isAdmin = dbUser?.role === 'ADMIN'
+    const isOwner = dbUser?.organization?.id === registration.seminar.organizationId
+
+    if (!isAdmin && !isOwner) {
+        return { error: 'Unauthorized' }
+    }
+
+    const data: any = {}
+    if (status) data.status = status
+    if (paymentStatus) data.paymentStatus = paymentStatus
+
+    await prisma.seminarRegistration.update({
+        where: { id: registrationId },
+        data
+    })
+
+    revalidatePath(`/seminars/${registration.seminarId}`)
+    return { success: true }
+}
+
+export async function deleteSeminarRegistration(registrationId: string) {
+    const user = await currentUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: { organization: true }
+    })
+
+    const registration = await prisma.seminarRegistration.findUnique({
+        where: { id: registrationId },
+        include: { seminar: true }
+    })
+
+    if (!registration) return { error: 'Registration not found' }
+
+    const isAdmin = dbUser?.role === 'ADMIN'
+    const isOwner = dbUser?.organization?.id === registration.seminar.organizationId
+
+    if (!isAdmin && !isOwner) {
+        return { error: 'Unauthorized' }
+    }
+
+    await prisma.seminarRegistration.delete({
+        where: { id: registrationId }
+    })
+
+    revalidatePath(`/seminars/${registration.seminarId}`)
     return { success: true }
 }
 

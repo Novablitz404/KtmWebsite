@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { format } from 'date-fns'
 import { Megaphone, Plus, X, AlertTriangle, Info, Bell, Trash2, ListFilter } from 'lucide-react'
 import GlobalDropdown from '@/components/GlobalDropdown'
 import GlobalCalendar from '@/components/GlobalCalendar'
@@ -185,7 +186,7 @@ export default function AnnouncementsWidget({ announcements: initialAnnouncement
                                         value={undefined}
                                         onChange={(date) => {
                                             const input = document.getElementsByName('expiresAt')[0] as HTMLInputElement
-                                            if (input) input.value = date.toISOString().split('T')[0]
+                                            if (input) input.value = format(date, 'yyyy-MM-dd')
                                         }}
                                         placeholder="Select date..."
                                         className="w-full"
