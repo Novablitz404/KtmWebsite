@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import { updateProfile } from '@/app/actions'
 import CustomSelect from '@/app/components/ui/CustomSelect'
 import LoadingButton from '@/components/ui/LoadingButton'
+import GlobalCalendar from '@/components/GlobalCalendar'
 import { toast } from 'sonner'
 
 interface ProfileFormProps {
@@ -31,6 +32,7 @@ export default function ProfileForm({ user, initialImageUrl, customTrigger }: Pr
     // Controlled state for custom selects
     const [belt, setBelt] = useState(user.belt || 'Black')
     const [gender, setGender] = useState(user.gender || 'Male')
+    const [birthDate, setBirthDate] = useState<Date | undefined>(user.birthDate ? new Date(user.birthDate) : undefined)
 
     const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -109,7 +111,11 @@ export default function ProfileForm({ user, initialImageUrl, customTrigger }: Pr
                     </div>
 
                     <div className="p-6">
-                        <form action={handleSubmit} className="space-y-6">
+                        <form onSubmit={(e) => {
+                            e.preventDefault()
+                            const formData = new FormData(e.currentTarget)
+                            handleSubmit(formData)
+                        }} className="space-y-6">
 
                             {/* Profile Image Upload */}
                             <div className="flex flex-col items-center">
@@ -153,16 +159,23 @@ export default function ProfileForm({ user, initialImageUrl, customTrigger }: Pr
                                         className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all bg-gray-50/50 focus:bg-white"
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Birth Date</label>
-                                    <input
-                                        type="date"
-                                        name="birthDate"
-                                        defaultValue={formatDateForInput(user.birthDate)}
-                                        required
-                                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all bg-gray-50/50 focus:bg-white"
-                                    />
-                                </div>
+                                {user.role !== 'CLUB_MASTER' && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Birth Date</label>
+                                        <GlobalCalendar
+                                            value={birthDate}
+                                            onChange={(date) => {
+                                                setBirthDate(date)
+                                                const input = document.getElementsByName('birthDate')[0] as HTMLInputElement
+                                                if (input) input.value = date.toISOString().split('T')[0]
+                                            }}
+                                            placeholder="Select birth date..."
+                                            className="w-full"
+                                            fullWidth
+                                        />
+                                        <input type="hidden" name="birthDate" value={birthDate ? birthDate.toISOString().split('T')[0] : ''} required />
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Club</label>
                                     <input

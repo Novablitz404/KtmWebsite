@@ -128,7 +128,7 @@ export default function GlobalDropdown({
             {isOpen && (
                 <div
                     className={`
-                        absolute z-50 mt-1 ${fullWidth ? 'w-full' : width} rounded-xl shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none 
+                        absolute z-50 mt-1 ${fullWidth ? 'w-full' : width} rounded-xl shadow-lg bg-white border border-gray-100 focus:outline-none 
                         transform opacity-100 scale-100 transition-all duration-200 origin-top overflow-hidden flex flex-col
                         ${align === 'right' ? 'right-0' : 'left-0'}
                     `}

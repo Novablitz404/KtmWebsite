@@ -27,6 +27,7 @@ export default function ClubSettingsButton({
     const [showSettings, setShowSettings] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [logoPreview, setLogoPreview] = useState<string | null>(clubLogo || null)
+    const [fileError, setFileError] = useState<string | null>(null)
 
     useEffect(() => {
         setLogoPreview(clubLogo || null)
@@ -118,8 +119,10 @@ export default function ClubSettingsButton({
                                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                         onChange={(e) => {
                                             const file = e.target.files?.[0]
+                                            setFileError(null)
                                             if (file) {
                                                 if (file.size > 5 * 1024 * 1024) {
+                                                    setFileError('File size must be less than 5MB')
                                                     toast.error('File size must be less than 5MB')
                                                     e.target.value = ''
                                                     return
@@ -130,7 +133,10 @@ export default function ClubSettingsButton({
                                         }}
                                     />
                                 </div>
-                                {logoPreview && (
+                                {fileError && (
+                                    <p className="text-xs text-red-600 font-medium mt-2">{fileError}</p>
+                                )}
+                                {logoPreview && !fileError && (
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -138,7 +144,7 @@ export default function ClubSettingsButton({
                                         }}
                                         className="text-xs text-red-500 mt-2 hover:underline"
                                     >
-                                        Remove Preview
+                                        Clear Preview
                                     </button>
                                 )}
                             </div>
@@ -175,7 +181,7 @@ export default function ClubSettingsButton({
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={submitting}
+                                    disabled={submitting || !!fileError}
                                     className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                 >
                                     {submitting ? 'Saving...' : 'Save Changes'}

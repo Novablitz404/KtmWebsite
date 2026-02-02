@@ -263,6 +263,7 @@ model Organization {
 
   announcements  Announcement[]
   promotionTests PromotionTest[]
+  seminars       Seminar[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -327,7 +328,8 @@ model PromotionTestRegistration {
   playerName  String // Name for display
   clubName    String?
   currentBelt String
-  targetBelt  String
+  targetBelt  String? // Made optional per user simplicity request
+  age         Int?    // Snapshot of age at registration
 
   status        String @default("PENDING") // PENDING, APPROVED, PASSED, FAILED
   paymentStatus String @default("UNPAID") // UNPAID, PAID
@@ -335,6 +337,51 @@ model PromotionTestRegistration {
   createdAt DateTime @default(now())
 
   @@index([promotionTestId])
+}
+
+model Seminar {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name                 String
+  description          String?   @db.Text
+  startDate            DateTime
+  endDate              DateTime?
+  registrationDeadline DateTime?
+  venue                String?
+  fee                  Float?
+  status               String    @default("UPCOMING") // UPCOMING, OPEN, CLOSED, COMPLETED, CANCELLED
+
+  visibility String  @default("PRIVATE") // PRIVATE, PUBLIC
+  bannerUrl  String?
+
+  registrations      SeminarRegistration[]
+  participatingClubs ClubEventParticipation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId, startDate])
+}
+
+model SeminarRegistration {
+  id        String  @id @default(cuid())
+  seminarId String
+  seminar   Seminar @relation(fields: [seminarId], references: [id], onDelete: Cascade)
+
+  playerId    String?
+  playerName  String
+  clubName    String?
+  belt        String? // Added
+  age         Int?    // Added
+  
+  status        String @default("PENDING") // PENDING, APPROVED, REJECTED
+  paymentStatus String @default("UNPAID") // UNPAID, PAID
+
+  createdAt DateTime @default(now())
+
+  @@index([seminarId])
 }
 
 // ============================================
@@ -500,10 +547,14 @@ model ClubEventParticipation {
   promotionTestId String?
   promotionTest   PromotionTest? @relation(fields: [promotionTestId], references: [id], onDelete: Cascade)
 
+  seminarId String?
+  seminar   Seminar? @relation(fields: [seminarId], references: [id], onDelete: Cascade)
+
   joinedAt DateTime @default(now())
 
   @@unique([clubId, tournamentId])
   @@unique([clubId, promotionTestId])
+  @@unique([clubId, seminarId])
   @@index([clubId])
 }
 

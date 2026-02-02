@@ -1879,7 +1879,8 @@ export async function getUpcomingTournaments() {
             categories: {
                 select: {
                     id: true,
-                    name: true
+                    name: true,
+                    type: true
                 }
             }
         },

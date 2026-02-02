@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Filter, X } from 'lucide-react'
 import { useState, useTransition } from 'react'
+import GlobalDropdown from '@/components/GlobalDropdown'
 
 export default function RankingFilters() {
     const router = useRouter()
@@ -11,10 +12,35 @@ export default function RankingFilters() {
 
     // Filter Options
     const disciplines = ['KYORUGI', 'POOMSAE']
-    const divisions = ['Toddler', 'Grade School', 'Cadet', 'Junior', 'Senior']
-    const skills = ['Novice', 'Advance']
-    const belts = ['White', 'Yellow', 'Blue', 'Red', 'Black']
+    const divisions = ['Grade School', 'Cadet', 'Junior', 'Senior']
+    const skills = ['Advance', 'Novice']
+    const belts = ['White', 'Yellow', 'Blue', 'Red', 'Brown', 'Black']
     const genders = ['Male', 'Female']
+
+    // Category Mappings (Standard WT)
+    // Category Mappings (Matched with prisma/seed-tap-elite-combined.ts)
+    const categoryMap: Record<string, string[]> = {
+        'Grade School': [
+            'Under 112cm', 'Under 120cm', 'Under 128cm', 'Under 136cm',
+            'Under 144cm', 'Under 152cm', 'Under 160cm', 'Under 168cm', 'Over 168cm'
+        ],
+        'Cadet': [
+            'Fin', 'Fly', 'Bantam', 'Feather',
+            'Light', 'Welter', 'Lt Middle', 'Middle',
+            'Lt Heavy', 'Heavy'
+        ],
+        'Junior': [
+            'Fin', 'Fly', 'Bantam', 'Feather',
+            'Light', 'Welter', 'Lt Middle', 'Middle',
+            'Lt Heavy', 'Heavy'
+        ],
+        'Senior': [
+            'Under 54kg', 'Under 58kg', 'Under 63kg', 'Under 68kg',
+            'Under 74kg', 'Under 80kg', 'Under 87kg', 'Over 87kg', // Male
+            'Under 46kg', 'Under 49kg', 'Under 53kg', 'Under 57kg',
+            'Under 62kg', 'Under 67kg', 'Under 73kg', 'Over 73kg'  // Female
+        ],
+    }
 
     // Helpers to get current value
     const getVal = (key: string) => searchParams.get(key) || ''
@@ -64,19 +90,62 @@ export default function RankingFilters() {
                 )}
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 {/* Discipline Removed - Handled by Tabs */}
                 {/* Division */}
-                <select
+                {/* Division */}
+                <GlobalDropdown
+                    label="Division"
                     value={getVal('division')}
-                    onChange={(e) => updateFilter('division', e.target.value)}
-                    className="w-full text-sm border-gray-200 rounded-lg focus:ring-red-500 focus:border-red-500"
-                >
-                    <option value="">All Divisions</option>
-                    {divisions.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
+                    onChange={(val) => {
+                        const params = new URLSearchParams(searchParams.toString())
+                        if (val) params.set('division', val)
+                        else params.delete('division')
+                        params.delete('weightCategory') // Reset dependent filter
+                        startTransition(() => router.push(`/rankings?${params.toString()}`))
+                    }}
+                    options={[
+                        { label: 'All Divisions', value: '' },
+                        ...divisions.map(d => ({ label: d, value: d }))
+                    ]}
+                    className="w-full"
+                    fullWidth
+                />
 
-                {/* Skill */}
+                {/* Categories (Dependent on Division) */}
+                {/* Categories (Dependent) */}
+                <GlobalDropdown
+                    label="Category"
+                    value={getVal('weightCategory')}
+                    onChange={(val) => updateFilter('weightCategory', val)}
+                    options={[
+                        { label: 'All Categories', value: '' },
+                        ...(categoryMap[getVal('division')] || []).map(c => ({ label: c, value: c }))
+                    ]}
+                    className="w-full"
+                    fullWidth
+                    trigger={
+                        <button
+                            type="button"
+                            disabled={!getVal('division') || !categoryMap[getVal('division')]}
+                            className={`inline-flex justify-between items-center rounded-lg border border-gray-200 shadow-sm px-4 py-2 bg-white text-sm font-medium transition-all w-full ${!getVal('division') ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
+                        >
+                            <span className="truncate">{getVal('weightCategory') || 'All Categories'}</span>
+                            <svg className="ml-2 h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                        </button>
+                    }
+                />
+
+                {/* Skill Level - Only show if relevant (Logic: Kyorugi is strict Advance, Poomsae has no skill. So hide for now?)
+                    Actually, user said "Kyorugi: Advance only" and "Poomsae: No skill level".
+                    So the dropdown is effectively useless for both default cases.
+                    Let's hide it unless there's a specific need, or keep it disabled/readonly?
+                    User request: "remove the novice"
+                    Let's hide the dropdown completely to avoid confusion.
+                 */}
+                {/*
                 <select
                     value={getVal('skillLevel')}
                     onChange={(e) => updateFilter('skillLevel', e.target.value)}
@@ -85,26 +154,35 @@ export default function RankingFilters() {
                     <option value="">All Skill Levels</option>
                     {skills.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
+                */}
 
                 {/* Belt */}
-                <select
+                {/* Belt */}
+                <GlobalDropdown
+                    label="Belt"
                     value={getVal('belt')}
-                    onChange={(e) => updateFilter('belt', e.target.value)}
-                    className="w-full text-sm border-gray-200 rounded-lg focus:ring-red-500 focus:border-red-500"
-                >
-                    <option value="">All Belts</option>
-                    {belts.map(b => <option key={b} value={b}>{b}</option>)}
-                </select>
+                    onChange={(val) => updateFilter('belt', val)}
+                    options={[
+                        { label: 'All Belts', value: '' },
+                        ...belts.map(b => ({ label: b, value: b }))
+                    ]}
+                    className="w-full"
+                    fullWidth
+                />
 
                 {/* Gender */}
-                <select
+                {/* Gender */}
+                <GlobalDropdown
+                    label="Gender"
                     value={getVal('gender')}
-                    onChange={(e) => updateFilter('gender', e.target.value)}
-                    className="w-full text-sm border-gray-200 rounded-lg focus:ring-red-500 focus:border-red-500"
-                >
-                    <option value="">All Genders</option>
-                    {genders.map(g => <option key={g} value={g}>{g}</option>)}
-                </select>
+                    onChange={(val) => updateFilter('gender', val)}
+                    options={[
+                        { label: 'All Genders', value: '' },
+                        ...genders.map(g => ({ label: g, value: g }))
+                    ]}
+                    className="w-full"
+                    fullWidth
+                />
             </div>
 
             {isPending && (

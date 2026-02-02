@@ -86,10 +86,12 @@ export default function CustomSignInForm({ hideBranding = false }: CustomSignInF
                         emailAddressId: emailFactor.emailAddressId,
                     })
                     setStep('verification')
+                    setLoading(false) // Stop loading when switching steps to allow user input
                 } else {
                     // Maybe password is the first factor and we need to check other strategies
                     console.log('Available first factors:', result.supportedFirstFactors)
                     setError(`Email verification not available. Available methods: ${result.supportedFirstFactors?.map(f => f.strategy).join(', ') || 'none'}`)
+                    setLoading(false)
                 }
             } else if (result.status === 'needs_second_factor') {
                 // Second factor required - could be email_code (new device) or TOTP (2FA)
@@ -107,9 +109,11 @@ export default function CustomSignInForm({ hideBranding = false }: CustomSignInF
                         emailAddressId: emailSecondFactor.emailAddressId,
                     })
                     setStep('verification') // Reuse the email verification UI
+                    setLoading(false)
                 } else {
                     // Fall back to TOTP 2FA
                     setStep('2fa')
+                    setLoading(false)
                 }
             } else {
                 console.error('Sign in process incomplete', result)
@@ -122,8 +126,7 @@ export default function CustomSignInForm({ hideBranding = false }: CustomSignInF
             } else {
                 setError('Something went wrong. Please try again.')
             }
-        } finally {
-            setLoading(false)
+            setLoading(false) // Only stop loading on error
         }
     }
 
@@ -170,7 +173,6 @@ export default function CustomSignInForm({ hideBranding = false }: CustomSignInF
             } else {
                 setError('Invalid code. Please try again.')
             }
-        } finally {
             setLoading(false)
         }
     }
@@ -204,7 +206,6 @@ export default function CustomSignInForm({ hideBranding = false }: CustomSignInF
             } else {
                 setError('Invalid authenticator code. Please try again.')
             }
-        } finally {
             setLoading(false)
         }
     }

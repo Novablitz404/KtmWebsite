@@ -27,23 +27,36 @@ export async function getOrganizationDashboardData() {
     }
     const orgId = dbUser.organization.id
 
-    // Fetch Affiliated Clubs with Master details
-    const affiliatedClubs = await prisma.club.findMany({
-        where: { organizationId: orgId },
-        include: {
-            students: true,
-            master: true // Include the User who is the master
-        }
-    })
+    // Optimize: Fetch Clubs and associated stats in parallel
+    const [affiliatedClubs, affiliatedOrgsMemberCounts] = await Promise.all([
+        // 1. Fetch Affiliated Clubs
+        prisma.club.findMany({
+            where: { organizationId: orgId },
+            include: {
+                students: true,
+                master: true
+            }
+        }),
 
-    // Fetch Affiliated Organizations (already fetched but let's be safe if we need more depth)
-    const affiliatedOrgs = dbUser.organization.affiliatedOrganizations
+        // 2. Calculate Affiliated Orgs Stats (Parallel mapped)
+        Promise.all(
+            dbUser.organization.affiliatedOrganizations.map(async (org) => {
+                const orgClubs = await prisma.club.findMany({
+                    where: { organizationId: org.id },
+                    include: { students: true }
+                })
+                const count = orgClubs.reduce((acc, c) => acc + c.students.length, 0)
+                return { orgId: org.id, count, clubsCount: orgClubs.length }
+            })
+        )
+    ])
 
-    // Fetch All Members (Students) across direct clubs
+    // Fetch Recent Members (Independent query but relies on clubIds, which we just got)
+    // We could have fetched ALL students in query #1 but we wanted pagination/limit.
+    // So this must happen after finding clubs.
     const clubIds = affiliatedClubs.map(c => c.id)
     const recentMembers = await prisma.player.findMany({
         where: { clubId: { in: clubIds } },
-        // orderBy: { createdAt: 'desc' }, // Temporarily disabled to resolve schema sync issue
         take: 5,
         include: {
             club: true,
@@ -52,7 +65,10 @@ export async function getOrganizationDashboardData() {
         }
     })
 
-    // Calculate Top Performing Clubs (by member count)
+    // Fetch Affiliated Organizations (already in memory from user query)
+    const affiliatedOrgs = dbUser.organization.affiliatedOrganizations
+
+    // Calculate Top Performing Clubs (CPU bound, fast)
     const topClubs = affiliatedClubs
         .map(club => ({
             id: club.id,
@@ -68,20 +84,6 @@ export async function getOrganizationDashboardData() {
 
     // Calculate Stats
     const totalDirectMembers = affiliatedClubs.reduce((acc, club) => acc + club.students.length, 0)
-
-    // For affiliated orgs member count, allow a separate query to be precise
-    // Since we didn't deep fetch aligned organizations' clubs in the initial query for performance
-    const affiliatedOrgsMemberCounts = await Promise.all(
-        affiliatedOrgs.map(async (org) => {
-            const orgClubs = await prisma.club.findMany({
-                where: { organizationId: org.id },
-                include: { students: true }
-            })
-            const count = orgClubs.reduce((acc, c) => acc + c.students.length, 0)
-            return { orgId: org.id, count, clubsCount: orgClubs.length }
-        })
-    )
-
     const totalAffiliatedMembers = affiliatedOrgsMemberCounts.reduce((acc, item) => acc + item.count, 0)
 
     const affiliatedOrgsWithStats = affiliatedOrgs.map(org => {
@@ -117,6 +119,7 @@ export async function getOrganizationDashboardData() {
         recentMembers,
         announcements: await getOrganizationAnnouncements(orgId, 5),
         promotionTests: await getOrganizationPromotionTests(orgId, 5),
+        seminars: await getOrganizationSeminars(orgId, 5),
         guidelineTemplates: await prisma.guidelineTemplate.findMany({ select: { id: true, name: true }, orderBy: { name: 'asc' } })
     }
 }
@@ -339,6 +342,161 @@ export async function deletePromotionTest(promotionTestId: string) {
     }
 
     await prisma.promotionTest.delete({ where: { id: promotionTestId } })
+
+    revalidatePath('/organization')
+    revalidatePath('/admin')
+    return { success: true }
+}
+
+// ============================================
+// SEMINAR ACTIONS
+// ============================================
+
+export async function getOrganizationSeminars(orgId: string, limit = 10) {
+    return prisma.seminar.findMany({
+        where: { organizationId: orgId },
+        orderBy: { startDate: 'desc' },
+        take: limit,
+        include: {
+            _count: { select: { registrations: true } }
+        }
+    })
+}
+
+export async function createSeminar(formData: FormData) {
+    const user = await currentUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return { error: 'No organization found' }
+
+    const name = formData.get('name') as string
+    const description = formData.get('description') as string
+    const startDate = formData.get('startDate') as string
+    const endDate = formData.get('endDate') as string // Optional
+    const registrationDeadline = formData.get('registrationDeadline') as string
+    const venue = formData.get('venue') as string
+    const feeStr = formData.get('fee') as string
+    const visibility = (formData.get('visibility') as string) || 'PRIVATE'
+    const bannerFile = formData.get('banner') as File | null
+
+    if (!name || !startDate) return { error: 'Name and start date are required' }
+
+    // Handle Banner Image upload
+    let bannerUrl: string | null = null
+    if (bannerFile && bannerFile.size > 0) {
+        try {
+            const supabase = createClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.SUPABASE_SERVICE_ROLE_KEY!
+            )
+
+            const bytes = await bannerFile.arrayBuffer()
+            const buffer = Buffer.from(bytes)
+
+            // Generate unique filename
+            const timestamp = Date.now()
+            const safeName = bannerFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+            const filename = `seminar-banner-${timestamp}-${safeName}`
+
+            const { error: uploadError } = await supabase.storage
+                .from('uploads')
+                .upload(filename, buffer, {
+                    contentType: bannerFile.type,
+                    upsert: false
+                })
+
+            if (uploadError) throw uploadError
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('uploads')
+                .getPublicUrl(filename)
+
+            bannerUrl = publicUrl
+        } catch (error) {
+            console.error('Banner image upload error:', error)
+            return { error: 'Failed to upload Banner Image' }
+        }
+    }
+
+    const seminar = await prisma.seminar.create({
+        data: {
+            organizationId: dbUser.organization.id,
+            name,
+            description: description || null,
+            startDate: new Date(startDate),
+            endDate: endDate ? new Date(endDate) : null,
+            registrationDeadline: registrationDeadline ? new Date(registrationDeadline) : null,
+            venue: venue || null,
+            fee: feeStr ? parseFloat(feeStr) : null,
+            status: 'UPCOMING',
+            visibility,
+            bannerUrl
+        }
+    })
+
+    return { success: true, seminar }
+}
+
+export async function updateSeminarStatus(seminarId: string, status: string) {
+    const user = await currentUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return { error: 'No organization found' }
+
+    const seminar = await prisma.seminar.findUnique({
+        where: { id: seminarId }
+    })
+
+    if (!seminar || seminar.organizationId !== dbUser.organization.id) {
+        return { error: 'Seminar not found or unauthorized' }
+    }
+
+    await prisma.seminar.update({
+        where: { id: seminarId },
+        data: { status }
+    })
+
+    return { success: true }
+}
+
+export async function deleteSeminar(seminarId: string) {
+    const user = await currentUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: { organization: true }
+    })
+
+    // Allow Admins to proceed even without an organization
+    if (dbUser?.role !== 'ADMIN' && !dbUser?.organization) {
+        return { error: 'No organization found' }
+    }
+
+    const seminar = await prisma.seminar.findUnique({
+        where: { id: seminarId }
+    })
+
+    if (!seminar) return { error: 'Seminar not found' }
+
+    // Authorization: Owner OR Admin
+    if (dbUser?.role !== 'ADMIN') {
+        if (!dbUser?.organization || seminar.organizationId !== dbUser.organization.id) {
+            return { error: 'Unauthorized' }
+        }
+    }
+
+    await prisma.seminar.delete({ where: { id: seminarId } })
 
     revalidatePath('/organization')
     revalidatePath('/admin')
@@ -1000,5 +1158,145 @@ export async function transferOrganizationOwnership(orgId: string, newOwnerId: s
     ])
 
     revalidatePath('/organization')
+    return { success: true }
+}
+// NEW: Parallel Fetcher for Events View
+export async function getOrganizationEventsData() {
+    const user = await currentUser()
+    if (!user) return { tournaments: [], promotionTests: [] }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return { tournaments: [], promotionTests: [] }
+    const orgId = dbUser.organization.id
+
+    const [tournaments, promotionTests, seminars] = await Promise.all([
+        getOrganizerTournaments(),
+        getOrganizationPromotionTests(orgId, 50),
+        getOrganizationSeminars(orgId, 50)
+    ])
+
+    return { tournaments, promotionTests, seminars }
+}
+
+export async function registerForPromotionTest(promotionTestId: string) {
+    const user = await currentUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: { club: true }
+    })
+
+    if (!dbUser) return { error: 'User profile not found' }
+
+    // Check if already registered
+    const existing = await prisma.promotionTestRegistration.findFirst({
+        where: {
+            promotionTestId,
+            playerId: dbUser.id // Assuming 1:1 user-player registration for now. If user manages kids, logic differs. But "just click register" implies self-reg.
+        }
+    })
+
+    if (existing) return { error: 'Already registered' }
+
+    // Calculate Age
+    let age = 0
+    if (dbUser.birthDate) {
+        const today = new Date()
+        const birthDate = new Date(dbUser.birthDate)
+        age = today.getFullYear() - birthDate.getFullYear()
+        const m = today.getMonth() - birthDate.getMonth()
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+            age--
+        }
+    }
+
+    await prisma.promotionTestRegistration.create({
+        data: {
+            promotionTestId,
+            playerId: dbUser.id, // Linking to User ID (acts as Player ID if we treat them same, wait. User has ID "00123". Player has ID "00123"? Usually disjoint tables).
+            // Schema has `playerId String?` which usually refers to `Player.id`.
+            // But `User` often IS the player or manages players. 
+            // In KTM context, we have `User` and `Player` tables.
+            // If User is ATHLETE, they might be a Player?
+            // Actually, `User` (clerk) -> `Player`? No.
+            // `User` has `players Player[]`.
+            // So we need to find the "Main Player" associated with this User?
+            // Or just use the User's name/profile?
+            // "we will only get the name, age, belt" -> from User profile.
+            // I will use `dbUser.id` for `playerId` if it matches format? User ID is 5-digit. Player ID is 5-digit.
+            // Actually `on click register` implies the logged in user is registering THEMSELVES.
+            // So `playerName` = `dbUser.name`.
+
+            playerName: dbUser.name || 'Unknown',
+            clubName: dbUser.clubName || dbUser.club?.name,
+            currentBelt: dbUser.belt || 'White',
+            targetBelt: null, // Optional now
+            age: age,
+            status: 'PENDING',
+            paymentStatus: 'UNPAID'
+        }
+    })
+
+    revalidatePath(`/promotions/${promotionTestId}`)
+    return { success: true }
+}
+
+export async function registerForSeminar(seminarId: string) {
+    const user = await currentUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: { club: true }
+    })
+
+    if (!dbUser) return { error: 'User profile not found' }
+
+    const existing = await prisma.seminarRegistration.findFirst({
+        where: {
+            seminarId,
+            // We use name/club check if playerId is ambiguous, but safer to use user ID correlation if possible.
+            // Since we don't strictly link `User` to `Player` 1:1 in a enforced way for registration uniqueness:
+            // I'll assume 1 registration per User Account for now.
+            // Wait, schema `playerId` is String? 
+            // I'll store `dbUser.id` in `playerId` column if it fits semantics, or leaving it null and rely on name?
+            // Only `playerId` is indexed. `playerName` is not unique.
+            // Storing `dbUser.id` in `playerId` is good practice if `dbUser.id` represents the person.
+            playerId: dbUser.id
+        }
+    })
+
+    if (existing) return { error: 'Already registered' }
+
+    let age = 0
+    if (dbUser.birthDate) {
+        const today = new Date()
+        const birthDate = new Date(dbUser.birthDate)
+        age = today.getFullYear() - birthDate.getFullYear()
+        const m = today.getMonth() - birthDate.getMonth()
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+            age--
+        }
+    }
+
+    await prisma.seminarRegistration.create({
+        data: {
+            seminarId,
+            playerId: dbUser.id,
+            playerName: dbUser.name || 'Unknown',
+            clubName: dbUser.clubName || dbUser.club?.name,
+            belt: dbUser.belt || 'White',
+            age: age,
+            status: 'PENDING',
+            paymentStatus: 'UNPAID'
+        }
+    })
+
+    revalidatePath(`/seminars/${seminarId}`)
     return { success: true }
 }

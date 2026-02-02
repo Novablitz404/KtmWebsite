@@ -22,6 +22,7 @@ import Header from '@/components/Header'
 import { Toaster } from 'sonner'
 import AuthLoadingWrapper from '@/components/AuthLoadingWrapper'
 import QueryProvider from '@/app/providers/QueryProvider'
+import PageTransition from '@/components/PageTransition'
 
 export default function RootLayout({
   children,
@@ -39,7 +40,9 @@ export default function RootLayout({
             <Toaster position="top-center" richColors />
             <AuthLoadingWrapper>
               <Header />
-              {children}
+              <PageTransition>
+                {children}
+              </PageTransition>
             </AuthLoadingWrapper>
           </QueryProvider>
         </body>

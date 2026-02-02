@@ -58,11 +58,8 @@ export default function TournamentsList({ tournaments, embedded = false }: Tourn
                             <tr>
                                 <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
                                     <div className="flex flex-col items-center justify-center">
-                                        <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mb-3">
-                                            <Trophy className="w-6 h-6 text-gray-300" />
-                                        </div>
                                         <p className="font-medium text-gray-900">No tournaments found</p>
-                                        <p className="text-sm text-gray-400 mt-1">Get started by creating your first tournament.</p>
+                                        <p className="text-sm text-gray-400 mt-1">Click "Create" to schedule a new tournament.</p>
                                     </div>
                                 </td>
                             </tr>

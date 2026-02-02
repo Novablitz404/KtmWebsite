@@ -3,17 +3,19 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getOrganizerTournaments } from '@/app/organization/actions'
+import { getOrganizerTournaments, getOrganizationEventsData } from '@/app/organization/actions'
 import { getPromotionTests } from '@/app/promotions/actions'
 import TournamentsList from '@/components/TournamentsList'
 import PromotionsList from '@/app/promotions/PromotionsList'
 import { TournamentsTableSkeleton, PromotionsTableSkeleton } from '@/components/Skeletons'
-import { Trophy, Award, Plus, ChevronLeft, ChevronRight } from 'lucide-react'
+import { GraduationCap, Trophy, Award, Plus, ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import CreateTournamentModal from '@/components/CreateTournamentModal'
 import CreatePromotionModal from '@/components/CreatePromotionModal'
+import CreateSeminarModal from '@/components/CreateSeminarModal'
+import SeminarsList from '@/components/organization/SeminarsList'
 
-type EventType = 'tournaments' | 'promotions'
+type EventType = 'tournaments' | 'promotions' | 'seminars'
 const ITEMS_PER_PAGE = 10
 
 interface OrganizationEventsViewProps {
@@ -26,25 +28,28 @@ export default function OrganizationEventsView({ searchQuery = '', templates = [
     const [currentPage, setCurrentPage] = useState(1)
     const [isTournamentModalOpen, setIsTournamentModalOpen] = useState(false)
     const [isPromotionModalOpen, setIsPromotionModalOpen] = useState(false)
+    const [isSeminarModalOpen, setIsSeminarModalOpen] = useState(false)
 
     // Reset page when switching event type or search query changes
     useEffect(() => {
         setCurrentPage(1)
     }, [eventType, searchQuery])
 
-    // Fetch tournaments
-    const { data: tournaments, isLoading: tournamentsLoading } = useQuery({
-        queryKey: ['organizer-tournaments'],
-        queryFn: () => getOrganizerTournaments(),
+    // Fetch BOTH tournaments and promotions in parallel via one server action
+    const { data, isLoading } = useQuery({
+        queryKey: ['organization-events-data'],
+        queryFn: () => getOrganizationEventsData(),
         staleTime: 1000 * 60 * 5
     })
 
-    // Fetch promotions
-    const { data: promotionTests, isLoading: promotionsLoading } = useQuery({
-        queryKey: ['promotion-tests'],
-        queryFn: () => getPromotionTests(),
-        staleTime: 1000 * 60 * 5
-    })
+    const tournaments = data?.tournaments
+    const promotionTests = data?.promotionTests
+    const seminars = data?.seminars
+
+    // Loading derivation
+    const tournamentsLoading = isLoading
+    const promotionsLoading = isLoading
+    const seminarsLoading = isLoading
 
     // Filter data by search query
     const filteredTournaments = useMemo(() => {
@@ -65,8 +70,17 @@ export default function OrganizationEventsView({ searchQuery = '', templates = [
         )
     }, [promotionTests, searchQuery])
 
+    const filteredSeminars = useMemo(() => {
+        if (!searchQuery.trim() || !seminars) return seminars || []
+        const query = searchQuery.toLowerCase()
+        return seminars.filter((s: any) =>
+            s.name?.toLowerCase().includes(query) ||
+            s.venue?.toLowerCase().includes(query)
+        )
+    }, [seminars, searchQuery])
+
     // Pagination Logic
-    const currentData = eventType === 'tournaments' ? filteredTournaments : filteredPromotions
+    const currentData = eventType === 'tournaments' ? filteredTournaments : eventType === 'promotions' ? filteredPromotions : filteredSeminars
     const totalItems = currentData?.length || 0
     const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE)
 
@@ -84,8 +98,10 @@ export default function OrganizationEventsView({ searchQuery = '', templates = [
     const handleCreateClick = () => {
         if (eventType === 'tournaments') {
             setIsTournamentModalOpen(true)
-        } else {
+        } else if (eventType === 'promotions') {
             setIsPromotionModalOpen(true)
+        } else {
+            setIsSeminarModalOpen(true)
         }
     }
 
@@ -115,6 +131,16 @@ export default function OrganizationEventsView({ searchQuery = '', templates = [
                         <Award size={16} />
                         Promotions
                     </button>
+                    <button
+                        onClick={() => setEventType('seminars')}
+                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${eventType === 'seminars'
+                            ? 'bg-white text-red-600 shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                    >
+                        <GraduationCap size={16} />
+                        Seminars
+                    </button>
                 </div>
 
                 {/* Create Button */}
@@ -137,17 +163,23 @@ export default function OrganizationEventsView({ searchQuery = '', templates = [
                         ) : (
                             <TournamentsList tournaments={paginatedData as any} embedded={true} />
                         )
-                    ) : (
+                    ) : eventType === 'promotions' ? (
                         promotionsLoading ? (
                             <PromotionsTableSkeleton />
                         ) : (
                             <PromotionsList promotionTests={paginatedData as any} />
                         )
+                    ) : (
+                        seminarsLoading ? (
+                            <PromotionsTableSkeleton /> // Reusing skeleton for now
+                        ) : (
+                            <SeminarsList seminars={paginatedData as any} />
+                        )
                     )}
                 </div>
 
                 {/* Fixed Pagination Footer */}
-                {!tournamentsLoading && !promotionsLoading && totalItems > 0 && (
+                {!tournamentsLoading && !promotionsLoading && !seminarsLoading && totalItems > 0 && (
                     <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white flex items-center justify-end z-10">
                         <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-100">
                             <button
@@ -192,6 +224,10 @@ export default function OrganizationEventsView({ searchQuery = '', templates = [
             <CreatePromotionModal
                 isOpen={isPromotionModalOpen}
                 onClose={() => setIsPromotionModalOpen(false)}
+            />
+            <CreateSeminarModal
+                isOpen={isSeminarModalOpen}
+                onClose={() => setIsSeminarModalOpen(false)}
             />
         </div>
     )

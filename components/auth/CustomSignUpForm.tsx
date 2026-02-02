@@ -7,6 +7,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { Eye, EyeOff, Loader2, ArrowLeft, ArrowRight, Check, Building2, User } from 'lucide-react'
 import CustomSelect from '@/app/components/ui/CustomSelect'
+import GlobalCalendar from '@/components/GlobalCalendar'
 import { completeOnboarding, checkEmailAvailability } from '@/app/actions'
 import { toast } from 'sonner'
 
@@ -209,7 +210,7 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
 
             // 3. Move to Verify Step
             setStep('verification')
-            setLoading(false)
+            setLoading(false) // Safe to stop loading because we are just showing a new form
 
         } catch (err: any) {
             setLoading(false)
@@ -278,7 +279,7 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
             router.push('/')
 
         } catch (err: any) {
-            setLoading(false)
+            setLoading(false) // Only stop loading on error
             console.error('Verification error', err)
             if (err.errors && err.errors.length > 0) {
                 setError(err.errors[0].longMessage || err.errors[0].message)
@@ -630,12 +631,12 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Date Established</label>
-                                    <input
-                                        type="date"
-                                        value={birthDate} // Reuse birthDate state
-                                        onChange={(e) => setBirthDate(e.target.value)}
-                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
-                                        required
+                                    <GlobalCalendar
+                                        value={birthDate}
+                                        onChange={(date) => setBirthDate(date.toISOString().split('T')[0])}
+                                        placeholder="Select date..."
+                                        className="w-full"
+                                        fullWidth
                                     />
                                 </div>
                             </>
@@ -653,12 +654,12 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                                     <>
                                         <div>
                                             <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Date of Birth</label>
-                                            <input
-                                                type="date"
+                                            <GlobalCalendar
                                                 value={birthDate}
-                                                onChange={(e) => setBirthDate(e.target.value)}
-                                                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
-                                                required
+                                                onChange={(date) => setBirthDate(date.toISOString().split('T')[0])}
+                                                placeholder="Select birth date..."
+                                                className="w-full"
+                                                fullWidth
                                             />
                                         </div>
 

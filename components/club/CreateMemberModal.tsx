@@ -5,7 +5,8 @@ import { X, UserPlus, Loader2, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClubMember } from '@/app/club/actions'
 import { useQueryClient } from '@tanstack/react-query'
-import CustomSelect from '@/app/components/ui/CustomSelect'
+import GlobalDropdown from '@/components/GlobalDropdown'
+import GlobalCalendar from '@/components/GlobalCalendar'
 
 interface CreateMemberModalProps {
     isOpen: boolean
@@ -15,18 +16,10 @@ interface CreateMemberModalProps {
 const BELT_OPTIONS = [
     'White',
     'Yellow',
-    'Yellow - Green',
-    'Green',
-    'Green - Blue',
     'Blue',
-    'Blue - Red',
     'Red',
-    'Red - Black (Poom)',
-    'Black 1st Dan',
-    'Black 2nd Dan',
-    'Black 3rd Dan',
-    'Black 4th Dan',
-    'Black 5th Dan',
+    'Brown',
+    'Black',
 ]
 
 const GENDER_OPTIONS = ['Male', 'Female']
@@ -177,22 +170,34 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
                                 />
                             </div>
 
-                            {/* Gender & Belt Row - Using CustomSelect */}
+                            {/* Gender & Belt Row - Standardized Dropdowns */}
                             <div className="grid grid-cols-2 gap-3">
-                                <CustomSelect
-                                    label="Gender"
-                                    value={gender}
-                                    onChange={setGender}
-                                    options={GENDER_OPTIONS}
-                                    placeholder="Select..."
-                                />
-                                <CustomSelect
-                                    label="Belt"
-                                    value={belt}
-                                    onChange={setBelt}
-                                    options={BELT_OPTIONS}
-                                    placeholder="Select..."
-                                />
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                        Gender
+                                    </label>
+                                    <GlobalDropdown
+                                        label="Select..."
+                                        value={gender}
+                                        onChange={setGender}
+                                        options={GENDER_OPTIONS.map(g => ({ label: g, value: g }))}
+                                        fullWidth
+                                        className="w-full"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                        Belt
+                                    </label>
+                                    <GlobalDropdown
+                                        label="Select..."
+                                        value={belt}
+                                        onChange={setBelt}
+                                        options={BELT_OPTIONS.map(b => ({ label: b, value: b }))}
+                                        fullWidth
+                                        className="w-full"
+                                    />
+                                </div>
                             </div>
 
                             {/* Weight & Height Row */}
@@ -224,11 +229,12 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
                             {/* Birth Date */}
                             <div className="space-y-1.5">
                                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Birth Date</label>
-                                <input
-                                    type="date"
+                                <GlobalCalendar
                                     value={birthDate}
-                                    onChange={(e) => setBirthDate(e.target.value)}
-                                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm"
+                                    onChange={(date: Date) => setBirthDate(date.toISOString().split('T')[0])}
+                                    placeholder="Select birth date..."
+                                    className="w-full"
+                                    fullWidth
                                 />
                             </div>
 

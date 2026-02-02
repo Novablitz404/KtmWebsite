@@ -2,17 +2,17 @@
 
 import { useState } from 'react'
 import { X, Calendar, MapPin, DollarSign, Image as ImageIcon, Check } from 'lucide-react'
-import { createPromotionTest } from '@/app/organization/actions'
+import { createSeminar } from '@/app/organization/actions'
 import { toast } from 'sonner'
 import ImageCropperModal from '@/components/ImageCropperModal'
 import GlobalCalendar from '@/components/GlobalCalendar'
 
-interface CreatePromotionModalProps {
+interface CreateSeminarModalProps {
     isOpen: boolean
     onClose: () => void
 }
 
-export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotionModalProps) {
+export default function CreateSeminarModal({ isOpen, onClose }: CreateSeminarModalProps) {
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [imagePreview, setImagePreview] = useState<string | null>(null)
 
@@ -21,7 +21,9 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
     const [tempImage, setTempImage] = useState<string | null>(null)
     const [croppedImageBlob, setCroppedImageBlob] = useState<Blob | null>(null)
 
-    const [testDate, setTestDate] = useState<Date | undefined>(undefined)
+    // Date State
+    const [startDate, setStartDate] = useState<Date | undefined>(undefined)
+    const [endDate, setEndDate] = useState<Date | undefined>(undefined)
     const [registrationDeadline, setRegistrationDeadline] = useState<Date | undefined>(undefined)
 
     if (!isOpen) return null
@@ -65,16 +67,17 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
             formData.append('banner', croppedImageBlob, 'banner.jpg')
         }
 
-        const result = await createPromotionTest(formData)
+        const result = await createSeminar(formData)
 
         if (result.error) {
             toast.error(result.error)
         } else {
-            toast.success('Promotion test created!')
+            toast.success('Seminar created!')
             onClose()
             setImagePreview(null)
             setCroppedImageBlob(null)
-            setTestDate(undefined)
+            setStartDate(undefined)
+            setEndDate(undefined)
             setRegistrationDeadline(undefined)
         }
         setIsSubmitting(false)
@@ -94,7 +97,7 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
 
                     {/* Header */}
                     <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-                        <h2 className="text-xl font-bold text-gray-900">Schedule New Promotion Test</h2>
+                        <h2 className="text-xl font-bold text-gray-900">Create New Seminar</h2>
                         <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
                             <X className="w-5 h-5" />
                         </button>
@@ -104,14 +107,14 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
                         {/* Banner Image Upload */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Promotion Banner Image
+                                Seminar Banner Image
                             </label>
                             <div className="relative group">
                                 <div className={`
                                     w-full h-48 rounded-xl border-2 border-dashed border-gray-300 
                                     flex flex-col items-center justify-center 
                                     bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer overflow-hidden
-                                    ${imagePreview ? 'border-amber-500' : ''}
+                                    ${imagePreview ? 'border-sky-500' : ''}
                                 `}>
                                     {imagePreview ? (
                                         <>
@@ -129,7 +132,7 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
                                         </>
                                     ) : (
                                         <label htmlFor="banner" className="w-full h-full flex flex-col items-center justify-center cursor-pointer p-4">
-                                            <ImageIcon className="w-10 h-10 text-gray-400 mb-2 group-hover:text-amber-500 transition-colors" />
+                                            <ImageIcon className="w-10 h-10 text-gray-400 mb-2 group-hover:text-sky-500 transition-colors" />
                                             <p className="text-sm font-medium text-gray-600">Click to upload banner image</p>
                                             <p className="text-xs text-gray-500 mt-1">Recommended: 1200x400</p>
                                             <p className="text-xs text-gray-400">PNG, JPG, GIF (Max 10MB)</p>
@@ -154,14 +157,14 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
                         {/* Name */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Test Name <span className="text-red-500">*</span>
+                                Seminar Title <span className="text-red-500">*</span>
                             </label>
                             <input
                                 name="name"
                                 type="text"
                                 required
-                                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all"
-                                placeholder="e.g., January 2026 Belt Promotion"
+                                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
+                                placeholder="e.g., International Poomsae Seminar 2026"
                             />
                         </div>
 
@@ -171,39 +174,54 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
                             <textarea
                                 name="description"
                                 rows={3}
-                                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all resize-none"
-                                placeholder="Details about the promotion test..."
+                                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all resize-none"
+                                placeholder="Details about the seminar (topics, speakers, schedule)..."
                             />
                         </div>
 
 
                         {/* Grid for Date/Deadline/Visibility */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                             <div>
                                 <GlobalCalendar
-                                    label="Test Date"
-                                    value={testDate}
+                                    label="Start Date"
+                                    value={startDate}
                                     onChange={(date) => {
-                                        setTestDate(date)
-                                        const input = document.getElementsByName('testDate')[0] as HTMLInputElement
+                                        setStartDate(date)
+                                        const input = document.getElementsByName('startDate')[0] as HTMLInputElement
                                         if (input) input.value = date.toISOString().split('T')[0]
                                     }}
-                                    placeholder="Select date..."
+                                    placeholder="Start date..."
                                     className="w-full"
                                     fullWidth
                                 />
-                                <input type="hidden" name="testDate" required />
+                                <input type="hidden" name="startDate" required />
                             </div>
                             <div>
                                 <GlobalCalendar
-                                    label="Registration Deadline"
+                                    label="End Date (Optional)"
+                                    value={endDate}
+                                    onChange={(date) => {
+                                        setEndDate(date)
+                                        const input = document.getElementsByName('endDate')[0] as HTMLInputElement
+                                        if (input) input.value = date.toISOString().split('T')[0]
+                                    }}
+                                    placeholder="End date..."
+                                    className="w-full"
+                                    fullWidth
+                                />
+                                <input type="hidden" name="endDate" />
+                            </div>
+                            <div>
+                                <GlobalCalendar
+                                    label="Reg. Deadline"
                                     value={registrationDeadline}
                                     onChange={(date) => {
                                         setRegistrationDeadline(date)
                                         const input = document.getElementsByName('registrationDeadline')[0] as HTMLInputElement
                                         if (input) input.value = date.toISOString().split('T')[0]
                                     }}
-                                    placeholder="Select date..."
+                                    placeholder="Deadline..."
                                     className="w-full"
                                     fullWidth
                                 />
@@ -237,7 +255,7 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
                                 <input
                                     name="venue"
                                     type="text"
-                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all"
+                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
                                     placeholder="Location"
                                 />
                             </div>
@@ -250,19 +268,20 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
                                     type="number"
                                     step="0.01"
                                     min="0"
-                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all"
+                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
                                     placeholder="0.00"
                                 />
                             </div>
                         </div>
 
+                        {/* Submit */}
                         <div className="pt-2">
                             <button
                                 type="submit"
                                 disabled={isSubmitting}
-                                className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white font-medium px-8 py-2.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-amber-200"
+                                className="w-full sm:w-auto bg-sky-500 hover:bg-sky-600 text-white font-medium px-8 py-2.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-sky-200"
                             >
-                                {isSubmitting ? 'Creating...' : 'Create Promotion Test'}
+                                {isSubmitting ? 'Creating...' : 'Create Seminar'}
                             </button>
                         </div>
                     </form>

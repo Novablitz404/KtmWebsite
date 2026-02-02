@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { X, Search, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
-import CustomSelect from '@/app/components/ui/CustomSelect'
+import GlobalDropdown from '@/components/GlobalDropdown'
 import { searchClubMembers, getUpcomingTournaments, registerForTournament, findPlayerCategory } from '@/app/actions'
 
 interface AddAthleteModalProps {
@@ -26,6 +26,11 @@ interface Tournament {
     id: string
     name: string
     startDate: Date
+    categories: {
+        id: string
+        name: string
+        type: string
+    }[]
 }
 
 interface Category {
@@ -57,7 +62,17 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
     const [teamId, setTeamId] = useState<string>('')
     const [submitting, setSubmitting] = useState(false)
 
-    // Load Tournaments on Mount
+
+
+    // Derived state for available event types
+    const selectedTournamentObj = tournaments.find(t => t.id === selectedTournament)
+    const availableEventTypes = selectedTournamentObj
+        ? [
+            { value: 'KYORUGI', label: 'Kyorugi (Sparring)' },
+            { value: 'POOMSAE', label: 'Poomsae (Forms)' },
+            { value: 'KYUKPA', label: 'Kyukpa (Breaking)' }
+        ].filter(type => selectedTournamentObj.categories.some(c => c.type === type.value))
+        : []
     useEffect(() => {
         if (isOpen) {
             getUpcomingTournaments().then(setTournaments).catch(() => toast.error('Failed to load tournaments'))
@@ -248,30 +263,29 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
 
                         {/* Tournament Selection */}
                         <div className="space-y-4">
-                            <CustomSelect
-                                label="Tournament"
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Tournament</label>
+                            <GlobalDropdown
                                 value={selectedTournament}
                                 onChange={setSelectedTournament}
                                 options={tournaments.map(t => ({ value: t.id, label: t.name }))}
-                                placeholder="Select Tournament"
-                                required
+                                fullWidth
+                                searchable
                             />
                         </div>
 
                         {/* Event Category Selection */}
                         <div className="space-y-4">
-                            <CustomSelect
-                                label="Event Category"
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Event Category</label>
+                            <GlobalDropdown
                                 value={eventType}
                                 onChange={(val: any) => setEventType(val)}
-                                options={[
-                                    { value: 'KYORUGI', label: 'Kyorugi (Sparring)' },
-                                    { value: 'POOMSAE', label: 'Poomsae (Forms)' },
-                                    { value: 'KYUKPA', label: 'Kyukpa (Breaking)' }
-                                ]}
-                                placeholder="Select Event Type"
-                                required
+                                options={availableEventTypes}
+                                fullWidth
+                            // If no tournament is selected or no compatible events found, this might be empty
                             />
+                            {selectedTournament && availableEventTypes.length === 0 && (
+                                <p className="text-xs text-red-500">No event categories available for this tournament.</p>
+                            )}
                         </div>
 
                         {/* Player Details */}
@@ -305,8 +319,8 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
                         {eventType === 'POOMSAE' && (
                             <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
                                 <div className="space-y-2">
-                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Poomsae Type</label>
-                                    <CustomSelect
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Poomsae Type</label>
+                                    <GlobalDropdown
                                         value={poomsaeType}
                                         onChange={setPoomsaeType}
                                         options={[
@@ -314,6 +328,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
                                             { value: 'PAIR', label: 'Pair' },
                                             { value: 'TEAM', label: 'Team' }
                                         ]}
+                                        fullWidth
                                     />
                                 </div>
                                 <div className="space-y-2">

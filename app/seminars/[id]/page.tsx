@@ -3,15 +3,15 @@ import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Calendar, MapPin, DollarSign, Users } from 'lucide-react'
-import ParticipantsTable from './ParticipantsTable'
-import PromotionStatusActions from '../PromotionStatusActions'
+import SeminarStatusActions from '@/components/organization/SeminarStatusActions'
 import EventRegistrationButton from '@/components/EventRegistrationButton'
+// import ParticipantsTable from './ParticipantsTable' // I'll need to create this or make it generic later
 
 interface PageProps {
     params: Promise<{ id: string }>
 }
 
-export default async function ManagePromotionPage({ params }: PageProps) {
+export default async function ManageSeminarPage({ params }: PageProps) {
     const { id } = await params
     const user = await currentUser()
     let dbUser = null
@@ -26,7 +26,7 @@ export default async function ManagePromotionPage({ params }: PageProps) {
         })
     }
 
-    const promotionTest = await prisma.promotionTest.findUnique({
+    const seminar = await prisma.seminar.findUnique({
         where: { id },
         include: {
             registrations: {
@@ -35,11 +35,11 @@ export default async function ManagePromotionPage({ params }: PageProps) {
         }
     })
 
-    if (!promotionTest) {
+    if (!seminar) {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
                 <div className="text-center">
-                    <h1 className="text-2xl font-bold text-gray-900">Promotion Test Not Found</h1>
+                    <h1 className="text-2xl font-bold text-gray-900">Seminar Not Found</h1>
                     <Link href="/" className="text-indigo-600 hover:text-indigo-500 mt-4 inline-block">
                         Return to Home
                     </Link>
@@ -50,23 +50,12 @@ export default async function ManagePromotionPage({ params }: PageProps) {
 
     // Verify ownership or public access
     const isAdmin = dbUser?.role === 'ADMIN'
-    const isOwner = dbUser?.organization?.id === promotionTest.organizationId
-
-    // Check affiliation (Club matches Organization)
-    const isAffiliatedClub = dbUser?.club?.organizationId === promotionTest.organizationId
-
-    // Check Organization Affiliation (if user is an Org Owner or Member of an affiliated Org)
-    // For now, simpler check: is their Club part of the Org?
+    const isOwner = dbUser?.organization?.id === seminar.organizationId
+    const isAffiliatedClub = dbUser?.club?.organizationId === seminar.organizationId
     const isAffiliated = isAffiliatedClub
 
     const canManage = isOwner || isAdmin
-    const isPublic = promotionTest.visibility === 'PUBLIC'
-
-    // Access Rule:
-    // 1. Can Manage (Owner/Admin) -> ALWAYS ALLOW
-    // 2. Public -> ALWAYS ALLOW
-    // 3. Private -> ALLOW ONLY IF AFFILIATED
-
+    const isPublic = seminar.visibility === 'PUBLIC'
     const canView = canManage || isPublic || isAffiliated
 
     if (!canView) {
@@ -80,9 +69,9 @@ export default async function ManagePromotionPage({ params }: PageProps) {
                         <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
                             <span className="text-2xl">🔒</span>
                         </div>
-                        <h1 className="text-xl font-bold text-gray-900 mb-2">Private Event</h1>
+                        <h1 className="text-xl font-bold text-gray-900 mb-2">Private Seminar</h1>
                         <p className="text-gray-500 mb-6">
-                            This promotion test is private. Only members of affiliated clubs can view and register.
+                            This seminar is private. Only members of affiliated clubs can view and register.
                         </p>
                         <div className="space-y-3">
                             <Link href="/" className="block w-full py-2 px-4 bg-gray-900 text-white rounded-xl font-medium hover:bg-gray-800 transition-colors">
@@ -104,10 +93,10 @@ export default async function ManagePromotionPage({ params }: PageProps) {
         UPCOMING: { bg: 'bg-blue-50', text: 'text-blue-700' },
         OPEN: { bg: 'bg-green-50', text: 'text-green-700' },
         CLOSED: { bg: 'bg-gray-100', text: 'text-gray-700' },
-        COMPLETED: { bg: 'bg-indigo-50', text: 'text-indigo-700' },
+        COMPLETED: { bg: 'bg-purple-50', text: 'text-purple-700' },
         CANCELLED: { bg: 'bg-red-50', text: 'text-red-700' }
     }
-    const statusStyle = statusConfig[promotionTest.status]
+    const statusStyle = statusConfig[seminar.status] || statusConfig.UPCOMING
 
     return (
         <main className="min-h-screen bg-gray-50">
@@ -117,18 +106,18 @@ export default async function ManagePromotionPage({ params }: PageProps) {
                 <div className="flex flex-col gap-6">
                     <div>
                         <Link
-                            href={canManage ? "/promotions" : "/"}
+                            href={canManage ? "/organization?view=events" : "/"} // Updated logical back link
                             className="inline-flex items-center text-sm text-gray-500 hover:text-gray-900 mb-4 transition-colors"
                         >
                             <ArrowLeft className="w-4 h-4 mr-1" />
-                            {canManage ? "Back to Promotions" : "Back to Home"}
+                            Return
                         </Link>
                         <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                             <div>
                                 <div className="flex items-center gap-3 mb-2">
-                                    <h1 className="text-3xl font-bold text-gray-900">{promotionTest.name}</h1>
+                                    <h1 className="text-3xl font-bold text-gray-900">{seminar.name}</h1>
                                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusStyle.bg} ${statusStyle.text}`}>
-                                        {promotionTest.status}
+                                        {seminar.status}
                                     </span>
                                     {isPublic && (
                                         <span className="px-3 py-1 rounded-full text-sm font-medium bg-purple-50 text-purple-700">
@@ -141,42 +130,42 @@ export default async function ManagePromotionPage({ params }: PageProps) {
                                     <div className="flex items-center gap-1.5">
                                         <Calendar className="w-4 h-4 text-gray-400" />
                                         <span>
-                                            {new Date(promotionTest.testDate).toLocaleDateString(undefined, {
+                                            {new Date(seminar.startDate).toLocaleDateString(undefined, {
                                                 year: 'numeric',
                                                 month: 'long',
                                                 day: 'numeric'
                                             })}
                                         </span>
                                     </div>
-                                    {promotionTest.venue && (
+                                    {seminar.venue && (
                                         <div className="flex items-center gap-1.5">
                                             <MapPin className="w-4 h-4 text-gray-400" />
-                                            <span>{promotionTest.venue}</span>
+                                            <span>{seminar.venue}</span>
                                         </div>
                                     )}
-                                    {promotionTest.fee && (
+                                    {seminar.fee && (
                                         <div className="flex items-center gap-1.5">
                                             <DollarSign className="w-4 h-4 text-gray-400" />
-                                            <span>₱{promotionTest.fee.toFixed(2)}</span>
+                                            <span>₱{seminar.fee.toFixed(2)}</span>
                                         </div>
                                     )}
                                 </div>
-                                {promotionTest.description && (
-                                    <p className="mt-4 text-gray-600 max-w-2xl">{promotionTest.description}</p>
+                                {seminar.description && (
+                                    <p className="mt-4 text-gray-600 max-w-2xl">{seminar.description}</p>
                                 )}
                             </div>
 
                             <div className="flex flex-col items-end gap-3">
                                 {canManage ? (
-                                    <PromotionStatusActions promotionTestId={promotionTest.id} currentStatus={promotionTest.status} />
+                                    <SeminarStatusActions seminarId={seminar.id} currentStatus={seminar.status} />
                                 ) : (
                                     <EventRegistrationButton
-                                        eventId={promotionTest.id}
-                                        eventType="promotion"
-                                        isRegistered={!!promotionTest.registrations.find(r => r.playerId === dbUser?.id)}
-                                        status={promotionTest.registrations.find(r => r.playerId === dbUser?.id)?.status}
-                                        paymentStatus={promotionTest.registrations.find(r => r.playerId === dbUser?.id)?.paymentStatus}
-                                        disabled={promotionTest.status !== 'OPEN' && promotionTest.status !== 'UPCOMING'}
+                                        eventId={seminar.id}
+                                        eventType="seminar"
+                                        isRegistered={!!seminar.registrations.find(r => r.playerId === dbUser?.id)}
+                                        status={seminar.registrations.find(r => r.playerId === dbUser?.id)?.status}
+                                        paymentStatus={seminar.registrations.find(r => r.playerId === dbUser?.id)?.paymentStatus}
+                                        disabled={seminar.status !== 'OPEN' && seminar.status !== 'UPCOMING'}
                                     />
                                 )}
                             </div>
@@ -184,18 +173,14 @@ export default async function ManagePromotionPage({ params }: PageProps) {
                     </div>
                 </div>
 
-                {/* Promotion Banner */}
-                {promotionTest.bannerUrl && (
+                {/* Seminar Banner */}
+                {seminar.bannerUrl && (
                     <div className="relative w-full aspect-[3/1] rounded-2xl overflow-hidden shadow-lg bg-gray-100">
                         <img
-                            src={promotionTest.bannerUrl}
-                            alt={promotionTest.name}
+                            src={seminar.bannerUrl}
+                            alt={seminar.name}
                             className="w-full h-full object-cover"
                         />
-                        {/* Optional: Add gradient overlay if you want text over it, but currently design separates text. 
-                             Adding subtle gradient for polish anyway or just keeping it clean image.
-                             Let's keep it clean image as the title is outside.
-                         */}
                     </div>
                 )}
 
@@ -203,21 +188,24 @@ export default async function ManagePromotionPage({ params }: PageProps) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
                         <div className="flex items-center gap-4">
-                            <div className="p-3 bg-indigo-50 rounded-lg text-indigo-600">
+                            <div className="p-3 bg-sky-50 rounded-lg text-sky-600">
                                 <Users className="w-6 h-6" />
                             </div>
                             <div>
-                                <p className="text-sm font-medium text-gray-500">Total Participants</p>
-                                <p className="text-2xl font-bold text-gray-900">{promotionTest.registrations.length}</p>
+                                <p className="text-sm font-medium text-gray-500">Total Registered</p>
+                                <p className="text-2xl font-bold text-gray-900">{seminar.registrations.length}</p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Participants Section */}
+                {/* Participants Section (Placeholder for now) */}
                 <div className="space-y-4">
-                    <h2 className="text-xl font-bold text-gray-900">Participants</h2>
-                    <ParticipantsTable registrations={promotionTest.registrations} readonly={!canManage} />
+                    <h2 className="text-xl font-bold text-gray-900">Registered Participants</h2>
+                    <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-500">
+                        Participants table coming soon...
+                    </div>
+                    {/* <ParticipantsTable registrations={seminar.registrations} readonly={!canManage} /> */}
                 </div>
 
             </div>

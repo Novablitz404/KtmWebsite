@@ -11,7 +11,7 @@ interface Registration {
     playerName: string
     clubName: string | null
     currentBelt: string
-    targetBelt: string
+    targetBelt: string | null
     status: string
     paymentStatus: string
     createdAt: Date
@@ -133,7 +133,7 @@ export default function ParticipantsTable({ registrations, readonly = false }: P
                                             <div className="flex items-center gap-2 text-sm">
                                                 <span className="px-2 py-0.5 bg-gray-100 rounded text-gray-700">{reg.currentBelt}</span>
                                                 <span className="text-gray-400">→</span>
-                                                <span className="px-2 py-0.5 bg-amber-50 border border-amber-100 text-amber-800 font-medium">{reg.targetBelt}</span>
+                                                <span className="px-2 py-0.5 bg-amber-50 border border-amber-100 text-amber-800 font-medium">{reg.targetBelt || '-'}</span>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">

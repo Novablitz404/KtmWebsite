@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createTournament } from '@/app/actions'
 import { X, Image as ImageIcon, Check } from 'lucide-react'
 import GlobalDropdown from './GlobalDropdown'
+import GlobalCalendar from './GlobalCalendar'
 import ImageCropperModal from './ImageCropperModal'
 import ActionLoadingOverlay from './ActionLoadingOverlay'
 import { useQueryClient } from '@tanstack/react-query'
@@ -257,38 +258,46 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                             {/* Date Row */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
-                                    <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
-                                        Tournament Date <span className="text-red-500">*</span>
-                                    </label>
-                                    <input
-                                        type="date"
-                                        name="startDate"
-                                        id="startDate"
-                                        required
-                                        className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                                    <GlobalCalendar
+                                        label="Tournament Date"
+                                        value={undefined} // Controlled input needing state if not using form, detailed below
+                                        onChange={(date) => {
+                                            const input = document.getElementById('startDate') as HTMLInputElement
+                                            if (input) input.value = date.toISOString().split('T')[0]
+                                        }}
+                                        placeholder="Select date..."
+                                        className="w-full"
+                                        fullWidth
                                     />
+                                    <input type="hidden" name="startDate" id="startDate" required />
                                 </div>
                                 <div>
-                                    <label htmlFor="registrationStart" className="block text-sm font-medium text-gray-700 mb-1">
-                                        Registration Opens
-                                    </label>
-                                    <input
-                                        type="date"
-                                        name="registrationStart"
-                                        id="registrationStart"
-                                        className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                                    <GlobalCalendar
+                                        label="Registration Opens"
+                                        value={undefined}
+                                        onChange={(date) => {
+                                            const input = document.getElementById('registrationStart') as HTMLInputElement
+                                            if (input) input.value = date.toISOString().split('T')[0]
+                                        }}
+                                        placeholder="Select date..."
+                                        className="w-full"
+                                        fullWidth
                                     />
+                                    <input type="hidden" name="registrationStart" id="registrationStart" />
                                 </div>
                                 <div>
-                                    <label htmlFor="registrationEnd" className="block text-sm font-medium text-gray-700 mb-1">
-                                        Registration Closes
-                                    </label>
-                                    <input
-                                        type="date"
-                                        name="registrationEnd"
-                                        id="registrationEnd"
-                                        className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                                    <GlobalCalendar
+                                        label="Registration Closes"
+                                        value={undefined}
+                                        onChange={(date) => {
+                                            const input = document.getElementById('registrationEnd') as HTMLInputElement
+                                            if (input) input.value = date.toISOString().split('T')[0]
+                                        }}
+                                        placeholder="Select date..."
+                                        className="w-full"
+                                        fullWidth
                                     />
+                                    <input type="hidden" name="registrationEnd" id="registrationEnd" />
                                 </div>
                             </div>
 

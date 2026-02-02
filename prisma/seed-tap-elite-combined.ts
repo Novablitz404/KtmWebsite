@@ -3,9 +3,9 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 async function main() {
-    console.log('Seeding Unified Tap Elite Guidelines (Kyorugi + Poomsae) ...')
+    console.log('Seeding General Guidelines (Kyorugi + Poomsae) ...')
 
-    const templateName = 'Tap Elite Unified 2026'
+    const templateName = 'General Guidelines - Kyorugi + Poomsae'
 
     // Cleanup
     const existing = await prisma.guidelineTemplate.findUnique({

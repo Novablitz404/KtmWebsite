@@ -129,6 +129,22 @@ export default async function RegisterPage({ params }: Props) {
         }
     )
 
+    // Check available category types for this tournament
+    const availableTypes = await prisma.category.findMany({
+        where: {
+            tournamentId: tournament.id
+        },
+        select: {
+            type: true
+        },
+        distinct: ['type']
+    }).then(types => types.map(t => t.type))
+
+    // If no categories found (e.g. not generated yet), assume strictly what's in the template if we parsed it,
+    // or fallback to all or none. For now, if empty, we might defaulting to Kyorugi? 
+    // Or better, let's assume if categories exist, we use them. 
+    // If NO categories exist, the user can't register anyway (findCategoryForPlayer would fail).
+
     return (
         <main className="min-h-screen bg-gray-50 pb-2 flex flex-col items-center justify-center">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2">
@@ -137,6 +153,7 @@ export default async function RegisterPage({ params }: Props) {
                     user={dbUser}
                     suggestedCategory={predictedCategory}
                     existingRegistrations={existingRegistrations}
+                    availableTypes={availableTypes.length > 0 ? availableTypes : ['KYORUGI', 'POOMSAE', 'KYUKPA']} // Fallback
                 />
             </div>
         </main>

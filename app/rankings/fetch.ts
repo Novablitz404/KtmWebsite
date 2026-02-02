@@ -36,21 +36,38 @@ export async function fetchRankings(
             medal: { not: null }, // Only those with results
             userId: { not: null }, // Only linked users can have K-Points (need verification status)
 
-            // Player-level filters
-            ...(filters.gender ? { gender: filters.gender } : {}),
-            ...(filters.belt ? { belt: filters.belt } : {}),
-            ...(filters.skillLevel ? { skillLevel: filters.skillLevel } : {}),
-            ...(filters.division ? { division: { contains: filters.division, mode: 'insensitive' } } : {}),
+            AND: [
+                // 1. Mandatory Exclusions
+                { division: { notIn: ['Supertoddler', 'Toddler'] } },
+
+                // 2. Dynamic Division Filter
+                ...(filters.division ? [{ division: { contains: filters.division, mode: 'insensitive' as const } }] : [])
+            ],
 
             category: {
                 tournament: {
-                    status: { in: ['COMPLETED', 'ONGOING'] }, // Usually COMPLETED
+                    status: { in: ['COMPLETED', 'ONGOING'] },
                     startDate: { gte: cutoffDate }
                 },
 
-                // Category-level filters
+                // Category-level filters (Dynamic)
                 ...(filters.type ? { type: filters.type } : {}),
-            }
+
+                // Weight Category Filter
+                ...(filters.weightCategory ? { name: { contains: filters.weightCategory, mode: 'insensitive' } } : {}),
+            },
+
+            // Player-level filters
+            ...(filters.gender ? { gender: filters.gender } : {}),
+            ...(filters.belt ? { belt: filters.belt } : {}),
+
+            // Skill Level Logic:
+            // - If Poomsae: Ignore skill level (Concept doesn't apply)
+            // - If Kyorugi (default): Show ONLY Advance players (Exclude Novice)
+            ...(filters.type === 'POOMSAE'
+                ? {}
+                : { skillLevel: 'Advance' } // Explicitly require 'Advance' for Kyorugi
+            ),
         },
         include: {
             user: {

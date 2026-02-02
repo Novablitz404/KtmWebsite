@@ -49,13 +49,15 @@ interface RegisterConfirmProps {
     }
     suggestedCategory: Category | null
     existingRegistrations?: ExistingRegistration[]
+    availableTypes: string[]
 }
 
 export default function RegisterConfirm({
     tournament,
     user,
     suggestedCategory,
-    existingRegistrations = []
+    existingRegistrations = [],
+    availableTypes
 }: RegisterConfirmProps) {
     const router = useRouter()
     const [submitting, setSubmitting] = useState(false)
@@ -67,7 +69,13 @@ export default function RegisterConfirm({
     const sigCanvas = useRef<SignatureCanvas>(null)
 
     // Selection State
-    const [eventType, setEventType] = useState<string>(suggestedCategory?.type || 'KYORUGI')
+    // Default to the first available type if suggested type is not available?
+    // Or prefer suggested if matches.
+    const initialType = suggestedCategory?.type && availableTypes.includes(suggestedCategory.type)
+        ? suggestedCategory.type
+        : (availableTypes.includes('KYORUGI') ? 'KYORUGI' : availableTypes[0] || 'KYORUGI')
+
+    const [eventType, setEventType] = useState<string>(initialType)
     const [poomsaeSubtype, setPoomsaeSubtype] = useState<string>('INDIVIDUAL')
     const [activeCategory, setActiveCategory] = useState<Category | null>(suggestedCategory)
     const [isDetecting, setIsDetecting] = useState(false)
@@ -291,21 +299,34 @@ export default function RegisterConfirm({
                         Event Selection
                     </h3>
 
-                    <div className="grid grid-cols-2 gap-4 mb-6">
-                        <button
-                            onClick={() => setEventType('KYORUGI')}
-                            className={`p-4 rounded-xl border-2 text-left transition-all ${eventType === 'KYORUGI' ? 'border-indigo-600 bg-indigo-50 text-indigo-900' : 'border-gray-200 hover:border-gray-300'}`}
-                        >
-                            <span className="block font-bold">Kyorugi</span>
-                            <span className="text-sm opacity-75">Sparring matches</span>
-                        </button>
-                        <button
-                            onClick={() => setEventType('POOMSAE')}
-                            className={`p-4 rounded-xl border-2 text-left transition-all ${eventType === 'POOMSAE' ? 'border-purple-600 bg-purple-50 text-purple-900' : 'border-gray-200 hover:border-gray-300'}`}
-                        >
-                            <span className="block font-bold">Poomsae</span>
-                            <span className="text-sm opacity-75">Forms competition</span>
-                        </button>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+                        {availableTypes.includes('KYORUGI') && (
+                            <button
+                                onClick={() => setEventType('KYORUGI')}
+                                className={`p-4 rounded-xl border-2 text-left transition-all ${eventType === 'KYORUGI' ? 'border-indigo-600 bg-indigo-50 text-indigo-900' : 'border-gray-200 hover:border-gray-300'}`}
+                            >
+                                <span className="block font-bold">Kyorugi</span>
+                                <span className="text-sm opacity-75">Sparring matches</span>
+                            </button>
+                        )}
+                        {availableTypes.includes('POOMSAE') && (
+                            <button
+                                onClick={() => setEventType('POOMSAE')}
+                                className={`p-4 rounded-xl border-2 text-left transition-all ${eventType === 'POOMSAE' ? 'border-purple-600 bg-purple-50 text-purple-900' : 'border-gray-200 hover:border-gray-300'}`}
+                            >
+                                <span className="block font-bold">Poomsae</span>
+                                <span className="text-sm opacity-75">Forms competition</span>
+                            </button>
+                        )}
+                        {availableTypes.includes('KYUKPA') && (
+                            <button
+                                onClick={() => setEventType('KYUKPA')}
+                                className={`p-4 rounded-xl border-2 text-left transition-all ${eventType === 'KYUKPA' ? 'border-orange-600 bg-orange-50 text-orange-900' : 'border-gray-200 hover:border-gray-300'}`}
+                            >
+                                <span className="block font-bold">Kyukpa</span>
+                                <span className="text-sm opacity-75">Breaking</span>
+                            </button>
+                        )}
                     </div>
 
                     {eventType === 'POOMSAE' && (

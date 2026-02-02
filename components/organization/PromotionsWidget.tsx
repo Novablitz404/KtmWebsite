@@ -6,6 +6,7 @@ import { createPromotionTest, deletePromotionTest, updatePromotionTestStatus } f
 import { toast } from 'sonner'
 import Link from 'next/link'
 import GlobalDropdown from '@/components/GlobalDropdown'
+import GlobalCalendar from '@/components/GlobalCalendar'
 
 interface PromotionTest {
     id: string
@@ -195,21 +196,32 @@ export default function PromotionsWidget({ promotionTests: initial }: { promotio
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Test Date *</label>
-                                    <input
-                                        name="testDate"
-                                        type="date"
-                                        required
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                                    <GlobalCalendar
+                                        label="Test Date"
+                                        value={undefined}
+                                        onChange={(date) => {
+                                            const input = document.getElementsByName('testDate')[0] as HTMLInputElement
+                                            if (input) input.value = date.toISOString().split('T')[0]
+                                        }}
+                                        placeholder="Select date..."
+                                        className="w-full"
+                                        fullWidth
                                     />
+                                    <input type="hidden" name="testDate" required />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Registration Deadline</label>
-                                    <input
-                                        name="registrationDeadline"
-                                        type="date"
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                                    <GlobalCalendar
+                                        label="Registration Deadline"
+                                        value={undefined}
+                                        onChange={(date) => {
+                                            const input = document.getElementsByName('registrationDeadline')[0] as HTMLInputElement
+                                            if (input) input.value = date.toISOString().split('T')[0]
+                                        }}
+                                        placeholder="Select date..."
+                                        className="w-full"
+                                        fullWidth
                                     />
+                                    <input type="hidden" name="registrationDeadline" />
                                 </div>
                             </div>
 

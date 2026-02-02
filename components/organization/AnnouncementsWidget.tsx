@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Megaphone, Plus, X, AlertTriangle, Info, Bell, Trash2, ListFilter } from 'lucide-react'
 import GlobalDropdown from '@/components/GlobalDropdown'
+import GlobalCalendar from '@/components/GlobalCalendar'
 import { createAnnouncement, deleteAnnouncement } from '@/app/organization/actions'
 import { toast } from 'sonner'
 
@@ -179,12 +180,18 @@ export default function AnnouncementsWidget({ announcements: initialAnnouncement
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Expires</label>
-                                    <input
-                                        name="expiresAt"
-                                        type="date"
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                    <GlobalCalendar
+                                        label="Expires"
+                                        value={undefined}
+                                        onChange={(date) => {
+                                            const input = document.getElementsByName('expiresAt')[0] as HTMLInputElement
+                                            if (input) input.value = date.toISOString().split('T')[0]
+                                        }}
+                                        placeholder="Select date..."
+                                        className="w-full"
+                                        fullWidth
                                     />
+                                    <input type="hidden" name="expiresAt" />
                                 </div>
                             </div>
 
