@@ -27,14 +27,14 @@ interface CustomSignUpFormProps {
     headerMode?: 'mobile' | 'desktop'
 }
 
-type Step = 'account' | 'profile' | 'verification'
+type Step = 'role-selection' | 'account' | 'profile' | 'verification'
 
 export default function CustomSignUpForm({ clubs, organizations, headerMode = 'mobile' }: CustomSignUpFormProps) {
     const { isLoaded, signUp, setActive } = useSignUp()
     const router = useRouter()
 
     // Steps State
-    const [step, setStep] = useState<Step>('account')
+    const [step, setStep] = useState<Step>('role-selection')
 
     // Account Data
     const [email, setEmail] = useState('')
@@ -81,8 +81,10 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
 
         if (roleParam === 'MANAGER') {
             setRole('MANAGER')
+            setStep('account')
         } else if (roleParam === 'CO_ORGANIZER') {
             setRole('CO_ORGANIZER')
+            setStep('account')
         }
 
         if (emailParam) {
@@ -356,6 +358,77 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
     // RENDER STEPS
     // ----------------------------------------------------
 
+    // STEP 0: ROLE SELECTION
+    if (step === 'role-selection') {
+        return (
+            <div className={`w-full max-w-4xl mx-auto flex flex-col justify-center ${headerMode === 'desktop' ? '' : 'min-h-[80vh] md:min-h-0 p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100'}`}>
+                <div className={`text-center mb-10 ${headerMode === 'desktop' ? 'md:text-center' : ''}`}>
+                    {headerMode !== 'desktop' && (
+                        <div className="relative w-20 h-20 mx-auto mb-6">
+                            <Image src="/KTMLogo.png" alt="KTM Logo" fill className="object-contain" priority />
+                        </div>
+                    )}
+                    <h1 className={`${headerMode === 'desktop' ? 'text-4xl' : 'text-3xl'} font-black text-gray-900 tracking-tight`}>
+                        Join the KTM Community
+                    </h1>
+                    <p className="text-gray-500 mt-3 text-lg">
+                        Choose how you want to participate
+                    </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-5xl mx-auto">
+                    {/* Athlete Option */}
+                    <button
+                        onClick={() => {
+                            setRole('ATHLETE')
+                            setStep('account')
+                        }}
+                        className="group relative flex flex-col items-center justify-center w-full py-6 px-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md hover:border-red-600 hover:ring-1 hover:ring-red-600 transition-all duration-200"
+                    >
+                        <h3 className="text-sm md:text-base font-bold text-gray-800 group-hover:text-red-700 transition-colors uppercase tracking-wide text-center">
+                            Athlete / User
+                        </h3>
+                    </button>
+
+                    {/* Club Master Option */}
+                    <button
+                        onClick={() => {
+                            setRole('CLUB_MASTER')
+                            setStep('account')
+                        }}
+                        className="group relative flex flex-col items-center justify-center w-full py-6 px-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md hover:border-blue-600 hover:ring-1 hover:ring-blue-600 transition-all duration-200"
+                    >
+                        <h3 className="text-sm md:text-base font-bold text-gray-800 group-hover:text-blue-700 transition-colors uppercase tracking-wide text-center">
+                            Club
+                        </h3>
+                    </button>
+
+                    {/* Organization Option */}
+                    <button
+                        onClick={() => {
+                            setRole('ORGANIZER')
+                            setStep('account')
+                        }}
+                        className="group relative flex flex-col items-center justify-center w-full py-6 px-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md hover:border-purple-600 hover:ring-1 hover:ring-purple-600 transition-all duration-200"
+                    >
+                        <h3 className="text-sm md:text-base font-bold text-gray-800 group-hover:text-purple-700 transition-colors uppercase tracking-wide text-center">
+                            Organization
+                        </h3>
+                    </button>
+                </div>
+
+                <div className="mt-10 text-center">
+                    <p className="text-sm text-gray-500">
+                        Already have an account?{' '}
+                        <Link href="/sign-in" className="font-bold text-red-600 hover:text-red-700">
+                            Sign In
+                        </Link>
+                    </p>
+                </div>
+            </div>
+        )
+    }
+
     // STEP 1: ACCOUNT
     if (step === 'account') {
         return (
@@ -377,71 +450,16 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                     </p>
                 </div>
 
-                {/* DYNAMIC ROLE SWITCHER (Moved to Top) */}
-                <div className={`mb-6 text-center text-sm text-gray-500 ${isManager ? 'hidden' : ''}`}>
-                    {role === 'ATHLETE' && (
-                        <>
-                            Are you a Club Master?{' '}
-                            <button
-                                type="button"
-                                onClick={() => { setRole('CLUB_MASTER'); setClubName(''); setOrganizationId(''); setError(null); }}
-                                className="text-red-600 font-bold hover:underline"
-                            >
-                                Click Here
-                            </button>
-                            {' '}or an Organization?{' '}
-                            <button
-                                type="button"
-                                onClick={() => { setRole('ORGANIZER'); setClubName(''); setOrganizationId(''); setError(null); }}
-                                className="text-red-600 font-bold hover:underline"
-                            >
-                                Click Here
-                            </button>
-                        </>
-                    )}
-
-                    {role === 'CLUB_MASTER' && (
-                        <>
-                            Are you an Athlete?{' '}
-                            <button
-                                type="button"
-                                onClick={() => { setRole('ATHLETE'); setClubName(''); setOrganizationId(''); setError(null); }}
-                                className="text-red-600 font-bold hover:underline"
-                            >
-                                Click here
-                            </button>
-                            {' '}or an Organization?{' '}
-                            <button
-                                type="button"
-                                onClick={() => { setRole('ORGANIZER'); setClubName(''); setOrganizationId(''); setError(null); }}
-                                className="text-red-600 font-bold hover:underline"
-                            >
-                                Click Here
-                            </button>
-                        </>
-                    )}
-
-                    {role === 'ORGANIZER' && (
-                        <>
-                            Are you an Athlete?{' '}
-                            <button
-                                type="button"
-                                onClick={() => { setRole('ATHLETE'); setClubName(''); setOrganizationId(''); setError(null); }}
-                                className="text-red-600 font-bold hover:underline"
-                            >
-                                Click Here
-                            </button>
-                            {' '}or a Club Master?{' '}
-                            <button
-                                type="button"
-                                onClick={() => { setRole('CLUB_MASTER'); setClubName(''); setOrganizationId(''); setError(null); }}
-                                className="text-red-600 font-bold hover:underline"
-                            >
-                                Click Here
-                            </button>
-                        </>
-                    )}
-                </div>
+                {/* Back Button */}
+                <button
+                    onClick={() => {
+                        setStep('role-selection')
+                        setError(null)
+                    }}
+                    className="absolute top-6 left-6 z-10 flex items-center text-gray-400 hover:text-gray-600 transition-colors text-sm font-medium"
+                >
+                    <ArrowLeft size={16} className="mr-1" /> Back
+                </button>
 
                 <form onSubmit={handleAccountNext} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
