@@ -152,7 +152,7 @@ export default async function RegisterPage({ params }: Props) {
                     tournament={tournament}
                     user={dbUser}
                     suggestedCategory={predictedCategory}
-                    existingRegistrations={existingRegistrations}
+                    existingRegistrations={existingRegistrations as any}
                     availableTypes={availableTypes.length > 0 ? availableTypes : ['KYORUGI', 'POOMSAE', 'KYUKPA']} // Fallback
                 />
             </div>

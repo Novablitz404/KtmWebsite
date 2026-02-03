@@ -87,7 +87,7 @@ export async function fetchRankings(
     const userPointsMap = new Map<string, RankingEntry & { clerkId?: string }>();
 
     for (const p of playersWithMedals) {
-        if (!p.user) continue;
+        if (!p.user || !p.category) continue;
 
         // Use our ranking engine logic
         const points = calculateKPoints(

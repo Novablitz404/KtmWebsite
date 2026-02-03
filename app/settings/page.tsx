@@ -183,7 +183,7 @@ export default async function ProfilePage() {
                         clubLogoUrl={clubLogoUrl}
                         stats={{
                             registrations: dbUser.players.length,
-                            events: new Set(dbUser.players.map(p => p.category.tournament.id)).size,
+                            events: new Set(dbUser.players.map(p => p.category?.tournament.id).filter((id): id is string => !!id)).size,
                             medals: 0
                         }}
                     />

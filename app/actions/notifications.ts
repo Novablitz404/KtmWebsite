@@ -163,7 +163,7 @@ export async function notifyRegistrationApproved(playerId: string, tournamentNam
 
     await notifyUser(player.userId, {
         title: 'Registration Approved! ✅',
-        body: `Your registration for ${tournamentName} (${player.category.name}) has been approved.`,
+        body: `Your registration for ${tournamentName}${player.category ? ` (${player.category.name})` : ''} has been approved.`,
         url: '/athlete/events',
         tag: `registration-${playerId}`
     })

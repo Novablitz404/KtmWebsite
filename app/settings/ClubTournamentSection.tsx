@@ -49,6 +49,7 @@ export default async function ClubTournamentSection({ clubName }: ClubTournament
     }>()
 
     clubPlayers.forEach(player => {
+        if (!player.category) return
         const tournament = player.category.tournament
         if (!tournamentMap.has(tournament.id)) {
             tournamentMap.set(tournament.id, {
