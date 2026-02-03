@@ -10,6 +10,7 @@ const isPublicRoute = createRouteMatcher([
     '/about',
     '/events',
     '/rankings(.*)', // Allow detailed views if added later
+    '/seminars(.*)',
     '/privacy',
     '/terms',
     '/terms',

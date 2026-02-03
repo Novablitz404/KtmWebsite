@@ -4,13 +4,14 @@ import { useState, useEffect } from 'react'
 import { fetchAvailableEvents, toggleEventParticipation } from '@/app/actions'
 import { toast } from 'sonner'
 import { Search, MapPin, Calendar, Check, Plus, Loader2 } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 
 interface Event {
     id: string
     name: string
     date: Date
     venue: string | null
-    type: 'TOURNAMENT' | 'PROMOTION_TEST'
+    type: 'TOURNAMENT' | 'PROMOTION_TEST' | 'SEMINAR'
     isJoined: boolean
 }
 
@@ -20,8 +21,9 @@ interface ClubEventBrowserProps {
 }
 
 export default function ClubEventBrowser({ clubId, onClose }: ClubEventBrowserProps) {
-    const [activeTab, setActiveTab] = useState<'TOURNAMENT' | 'PROMOTION_TEST'>('TOURNAMENT')
-    const [events, setEvents] = useState<{ tournaments: Event[], promotionTests: Event[] } | null>(null)
+    const queryClient = useQueryClient()
+    const [activeTab, setActiveTab] = useState<'TOURNAMENT' | 'PROMOTION_TEST' | 'SEMINAR'>('TOURNAMENT')
+    const [events, setEvents] = useState<{ tournaments: Event[], promotionTests: Event[], seminars: Event[] } | null>(null)
     const [loading, setLoading] = useState(true)
     const [processingId, setProcessingId] = useState<string | null>(null)
     const [searchQuery, setSearchQuery] = useState('')
@@ -58,7 +60,7 @@ export default function ClubEventBrowser({ clubId, onClose }: ClubEventBrowserPr
             // Update local state
             setEvents(prev => {
                 if (!prev) return null
-                const key = event.type === 'TOURNAMENT' ? 'tournaments' : 'promotionTests'
+                const key = event.type === 'TOURNAMENT' ? 'tournaments' : event.type === 'PROMOTION_TEST' ? 'promotionTests' : 'seminars'
                 return {
                     ...prev,
                     [key]: prev[key].map(e =>
@@ -68,6 +70,7 @@ export default function ClubEventBrowser({ clubId, onClose }: ClubEventBrowserPr
             })
 
             toast.success(event.isJoined ? 'Left event' : 'Joined event')
+            queryClient.invalidateQueries({ queryKey: ['club-home', clubId] })
         } catch {
             toast.error('Something went wrong')
         } finally {
@@ -76,7 +79,7 @@ export default function ClubEventBrowser({ clubId, onClose }: ClubEventBrowserPr
     }
 
     const filteredEvents = events
-        ? (activeTab === 'TOURNAMENT' ? events.tournaments : events.promotionTests)
+        ? (activeTab === 'TOURNAMENT' ? events.tournaments : activeTab === 'PROMOTION_TEST' ? events.promotionTests : (events.seminars || []))
             .filter(e => e.name.toLowerCase().includes(searchQuery.toLowerCase()))
         : []
 
@@ -100,7 +103,7 @@ export default function ClubEventBrowser({ clubId, onClose }: ClubEventBrowserPr
                 {/* Tabs & Search */}
                 <div className="p-4 border-b border-gray-100 bg-gray-50/50 space-y-4">
                     <div className="flex p-1 bg-gray-200/50 rounded-xl">
-                        {(['TOURNAMENT', 'PROMOTION_TEST'] as const).map((tab) => (
+                        {(['TOURNAMENT', 'PROMOTION_TEST', 'SEMINAR'] as const).map((tab) => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
@@ -109,7 +112,7 @@ export default function ClubEventBrowser({ clubId, onClose }: ClubEventBrowserPr
                                     : 'text-gray-500 hover:text-gray-700'
                                     }`}
                             >
-                                {tab === 'TOURNAMENT' ? 'Tournaments' : 'Promotion Tests'}
+                                {tab === 'TOURNAMENT' ? 'Tournaments' : tab === 'PROMOTION_TEST' ? 'Promotion Tests' : 'Seminars'}
                             </button>
                         ))}
                     </div>

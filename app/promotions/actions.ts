@@ -126,3 +126,56 @@ export async function getPromotionTests() {
 
     return promotionTests
 }
+
+export async function getUpcomingPromotions(clubId: string) {
+    try {
+        const tests = await prisma.promotionTest.findMany({
+            where: {
+                participatingClubs: {
+                    some: { clubId }
+                },
+                testDate: { gte: new Date() },
+                status: 'UPCOMING'
+            },
+            orderBy: { testDate: 'asc' }
+        })
+        return tests
+    } catch (error) {
+        console.error('Failed to fetch upcoming promotions:', error)
+        return []
+    }
+}
+
+export async function registerForPromotion(input: {
+    promotionTestId: string
+    playerId: string
+    playerName: string
+    clubName: string
+    currentBelt: string
+    targetBelt?: string
+    age?: number
+}) {
+    const { promotionTestId, playerId, playerName, clubName, currentBelt, targetBelt, age } = input
+
+    try {
+        const registration = await prisma.promotionTestRegistration.create({
+            data: {
+                promotionTestId,
+                playerId,
+                playerName,
+                clubName: clubName || null,
+                currentBelt,
+                targetBelt: targetBelt || null,
+                age: age || null,
+                status: 'PENDING',
+                paymentStatus: 'UNPAID'
+            }
+        })
+
+        revalidatePath('/club')
+        return { success: true, registrationId: registration.id }
+    } catch (error) {
+        console.error('Promotion registration error:', error)
+        return { error: 'Failed to register for promotion test' }
+    }
+}

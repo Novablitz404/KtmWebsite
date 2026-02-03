@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
 import ImageCropperModal from '@/components/ImageCropperModal'
 import GlobalCalendar from '@/components/GlobalCalendar'
+import PaymentMethodsInput, { PaymentMethodData } from '@/components/PaymentMethodsInput'
 
 interface CreateSeminarModalProps {
     isOpen: boolean
@@ -23,6 +24,9 @@ export default function CreateSeminarModal({ isOpen, onClose }: CreateSeminarMod
     const [showCropper, setShowCropper] = useState(false)
     const [tempImage, setTempImage] = useState<string | null>(null)
     const [croppedImageBlob, setCroppedImageBlob] = useState<Blob | null>(null)
+
+    // Payment Methods State
+    const [paymentMethods, setPaymentMethods] = useState<PaymentMethodData[]>([])
 
     // Date State
     const [startDate, setStartDate] = useState<Date | undefined>(undefined)
@@ -70,6 +74,16 @@ export default function CreateSeminarModal({ isOpen, onClose }: CreateSeminarMod
             formData.append('banner', croppedImageBlob, 'banner.jpg')
         }
 
+        // Append QR Code Blobs manually
+        paymentMethods.forEach(pm => {
+            // Remove potential empty file input from FormData
+            formData.delete(`qrCode_${pm.id}`)
+
+            if (pm.qrCodeBlob) {
+                formData.append(`qrCode_${pm.id}`, pm.qrCodeBlob, 'qr-code.png')
+            }
+        })
+
         const result = await createSeminar(formData)
 
         if (result.error) {
@@ -83,6 +97,7 @@ export default function CreateSeminarModal({ isOpen, onClose }: CreateSeminarMod
             setStartDate(undefined)
             setEndDate(undefined)
             setRegistrationDeadline(undefined)
+            setPaymentMethods([])
         }
         setIsSubmitting(false)
     }
@@ -276,6 +291,17 @@ export default function CreateSeminarModal({ isOpen, onClose }: CreateSeminarMod
                                     placeholder="0.00"
                                 />
                             </div>
+                        </div>
+
+                        {/* Payment Methods */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Payment Methods
+                            </label>
+                            <PaymentMethodsInput
+                                value={paymentMethods}
+                                onChange={setPaymentMethods}
+                            />
                         </div>
 
                         {/* Submit */}

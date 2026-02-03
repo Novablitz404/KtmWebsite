@@ -2009,7 +2009,7 @@ export async function fetchLandingPageEvents() {
     currentDate.setHours(0, 0, 0, 0)
 
     // Parallel fetch
-    const [upcomingTournaments, upcomingPromotions] = await Promise.all([
+    const [upcomingTournaments, upcomingPromotions, upcomingSeminars] = await Promise.all([
         prisma.tournament.findMany({
             where: {
                 startDate: { gte: currentDate },
@@ -2024,6 +2024,13 @@ export async function fetchLandingPageEvents() {
                 visibility: 'PUBLIC'
             },
             orderBy: { testDate: 'asc' },
+            take: 6
+        }),
+        prisma.seminar.findMany({
+            where: {
+                startDate: { gte: currentDate }
+            },
+            orderBy: { startDate: 'asc' },
             take: 6
         })
     ])
@@ -2056,8 +2063,23 @@ export async function fetchLandingPageEvents() {
         link: `/events/promotion/${p.id}` // Placeholder link logic from page.tsx discussion
     }))
 
+    // Normalize seminars
+    const normalizedSeminars = upcomingSeminars.map(s => ({
+        id: s.id,
+        type: 'SEMINAR',
+        name: s.name,
+        date: s.startDate,
+        venue: s.venue,
+        imageUrl: s.bannerUrl,
+        status: s.status,
+        visibility: s.visibility,
+        regStart: null,
+        regEnd: s.registrationDeadline,
+        link: `/seminars/${s.id}`
+    }))
+
     // Combine and sort
-    return [...normalizedTournaments, ...normalizedPromotions]
+    return [...normalizedTournaments, ...normalizedPromotions, ...normalizedSeminars]
         .sort((a, b) => a.date.getTime() - b.date.getTime())
         .slice(0, 6)
 }
@@ -2116,34 +2138,73 @@ export async function fetchAthleteDashboardData(clerkId: string) {
         take: 10
     })
 
+    // Fetch seminar registrations
+    const userPlayerIds = await prisma.player.findMany({
+        where: { userId: dbUser.id },
+        select: { id: true }
+    }).then(ps => ps.map(p => p.id))
+
+    const seminarRegistrations = await prisma.seminarRegistration.findMany({
+        where: { playerId: { in: userPlayerIds } },
+        select: { seminarId: true, status: true }
+    })
+
     // Fetch generic upcoming events for the club (My Events)
     let clubUpcomingEvents: any[] = []
     if (clubId) {
         const today = new Date()
         today.setHours(0, 0, 0, 0)
 
-        clubUpcomingEvents = await prisma.tournament.findMany({
-            where: {
-                participatingClubs: { some: { clubId } },
-                startDate: { gte: today },
-                status: { not: 'CANCELLED' } // detailed view handles cancelled, but dashboard list maybe clean?
-            },
-            orderBy: { startDate: 'asc' },
-            take: 20,
-            select: {
-                id: true,
-                name: true,
-                startDate: true,
-                venue: true,
-                status: true
-            }
-        })
+        const [tournaments, seminars] = await Promise.all([
+            prisma.tournament.findMany({
+                where: {
+                    participatingClubs: { some: { clubId } },
+                    startDate: { gte: today },
+                    status: { not: 'CANCELLED' }
+                },
+                orderBy: { startDate: 'asc' },
+                take: 20,
+                select: {
+                    id: true,
+                    name: true,
+                    startDate: true,
+                    venue: true,
+                    status: true
+                }
+            }),
+            prisma.seminar.findMany({
+                where: {
+                    participatingClubs: { some: { clubId } },
+                    startDate: { gte: today },
+                    status: { not: 'CANCELLED' }
+                },
+                orderBy: { startDate: 'asc' },
+                take: 20,
+                select: {
+                    id: true,
+                    name: true,
+                    startDate: true,
+                    venue: true,
+                    status: true
+                }
+            })
+        ])
+
+        const combinedEvents = [
+            ...tournaments.map(t => ({ ...t, type: 'TOURNAMENT' })),
+            ...seminars.map(s => ({ ...s, type: 'SEMINAR' }))
+        ]
+
+        clubUpcomingEvents = combinedEvents
+            .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
+            .slice(0, 20)
     }
 
     return {
         user: dbUser,
         clubLogo,
         registrations,
+        seminarRegistrations,
         clubUpcomingEvents
     }
 }
@@ -2233,7 +2294,7 @@ export async function fetchTournamentsData(userId: string, page: number = 1) {
         }
     })
 
-    const registeredTournamentIds = userRegistrations.map(r => r.category.tournamentId)
+    const registeredTournamentIds = userRegistrations.map(r => r.category?.tournamentId).filter(Boolean)
 
     return {
         tournaments,
@@ -2250,7 +2311,7 @@ export async function fetchTournamentsData(userId: string, page: number = 1) {
 
 export async function fetchAvailableEvents(clubId: string) {
     try {
-        const [tournaments, promotionTests] = await Promise.all([
+        const [tournaments, promotionTests, seminars] = await Promise.all([
             // Fetch upcoming tournaments
             prisma.tournament.findMany({
                 where: {
@@ -2280,6 +2341,23 @@ export async function fetchAvailableEvents(clubId: string) {
                     }
                 },
                 orderBy: { testDate: 'asc' }
+            }),
+            // Fetch upcoming seminars
+            prisma.seminar.findMany({
+                where: {
+                    status: { in: ['UPCOMING', 'OPEN'] },
+                    startDate: {
+                        gte: new Date(new Date().setHours(0, 0, 0, 0))
+                    }
+                },
+                include: {
+                    participatingClubs: {
+                        where: {
+                            clubId: clubId
+                        }
+                    }
+                },
+                orderBy: { startDate: 'asc' }
             })
         ])
 
@@ -2299,6 +2377,14 @@ export async function fetchAvailableEvents(clubId: string) {
                 venue: t.venue,
                 type: 'PROMOTION_TEST' as const,
                 isJoined: t.participatingClubs.length > 0
+            })),
+            seminars: seminars.map((t: any) => ({
+                id: t.id,
+                name: t.name,
+                date: t.startDate,
+                venue: t.venue,
+                type: 'SEMINAR' as const,
+                isJoined: t.participatingClubs.length > 0
             }))
         }
     } catch (error) {
@@ -2308,24 +2394,26 @@ export async function fetchAvailableEvents(clubId: string) {
 }
 
 export async function toggleEventParticipation(
-    type: 'TOURNAMENT' | 'PROMOTION_TEST',
+    type: 'TOURNAMENT' | 'PROMOTION_TEST' | 'SEMINAR',
     id: string,
     join: boolean,
     clubId: string
 ) {
     try {
+        const dataKey = type === 'TOURNAMENT' ? 'tournamentId' : type === 'PROMOTION_TEST' ? 'promotionTestId' : 'seminarId'
+
         if (join) {
             await prisma.clubEventParticipation.create({
                 data: {
                     clubId,
-                    ...(type === 'TOURNAMENT' ? { tournamentId: id } : { promotionTestId: id })
+                    [dataKey]: id
                 }
             })
         } else {
             await prisma.clubEventParticipation.deleteMany({
                 where: {
                     clubId,
-                    ...(type === 'TOURNAMENT' ? { tournamentId: id } : { promotionTestId: id })
+                    [dataKey]: id
                 }
             })
         }
@@ -2608,7 +2696,7 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
                     include: { category: true }
                 })
 
-                if (player) {
+                if (player && player.category) {
                     // Find next heavier category
                     const siblings = await prisma.category.findMany({
                         where: {
@@ -2790,4 +2878,146 @@ export async function checkEmailAvailability(email: string) {
     })
 
     return { available: !user }
+}
+
+// --- SEMINAR REGISTRATION ACTION ---
+
+export async function registerForSeminar(formData: FormData) {
+    const seminarId = formData.get('seminarId') as string
+    const proofFile = formData.get('proofOfPayment') as File | null
+    const waiverSigned = formData.get('waiverSigned') === 'true'
+
+    if (!seminarId) {
+        return { error: 'Seminar ID is required' }
+    }
+    if (!proofFile || proofFile.size === 0) {
+        return { error: 'Proof of Payment is required' }
+    }
+    if (!waiverSigned) {
+        return { error: 'You must agree to the waiver' }
+    }
+
+    // 1. Authenticate User
+    const user = await currentUser()
+    if (!user) {
+        return { error: 'You must be logged in to register' }
+    }
+
+    // 2. Fetch User Profile & Player Record
+    // We assume the user has a "Self" player Record or we use their User Profile to find the player ID?
+    // In KTM schema, SeminarRegistration links to `playerId`.
+    // We should find the Player record associated with this user.
+    // If multiple players (e.g. parent managing kids), we usually need to select which player.
+    // BUT for "My Events" athlete flow, it's usually the logged-in athlete themselves.
+    // Let's assume the user IS the player for now (Role: ATHLETE).
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: { players: true } // Fetch linked players
+    })
+
+    if (!dbUser) {
+        return { error: 'User profile not found' }
+    }
+
+    // Determine Player ID
+    // If user has player records, use the one that matches their name/club or just the first one?
+    // Ideally, we should have passed `playerId` from the form if the user manages multiple.
+    // For now, let's look for a player record that matches the user's main profile.
+    let playerId = dbUser.players.find(p => p.name === dbUser.name)?.id
+
+    // Fallback: If no generic "self" player found, maybe they are registering as a new player?
+    // Or we just checking if ANY player exists?
+    // In this system, Athletes usually have a Player record created upon joining a club or first tournament.
+    // If not, we might need to create a temporary one or fail.
+    // Let's create a "Self" player record if missing, so registration can link to something.
+    if (!playerId) {
+        // Try to find club ID
+        const club = dbUser.clubName ? await prisma.club.findFirst({ where: { name: dbUser.clubName } }) : null
+
+        // Create a player record for the user
+        const newPlayer = await prisma.player.create({
+            data: {
+                id: Math.floor(Math.random() * 100000).toString().padStart(5, '0'), // Simple ID gen
+                name: dbUser.name || 'Unknown',
+                userId: dbUser.id,
+                gender: dbUser.gender || 'Male',
+                belt: dbUser.belt || 'White',
+                clubId: club?.id, // Correctly link via ID
+                registrationStatus: 'APPROVED' // It's their own profile
+            }
+        })
+        playerId = newPlayer.id
+    }
+
+    // 3. Check for Existing Registration
+    const existing = await prisma.seminarRegistration.findFirst({
+        where: {
+            seminarId,
+            playerId
+        }
+    })
+
+    if (existing) {
+        return { error: 'You are already registered for this seminar.' }
+    }
+
+    // 4. Upload Proof of Payment
+    let proofUrl = null
+    try {
+        const bytes = await proofFile.arrayBuffer()
+        const buffer = Buffer.from(bytes)
+        const timestamp = Date.now()
+        const safeName = proofFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+        const filename = `proof-${seminarId}-${playerId}-${timestamp}-${safeName}`
+
+        const { error: uploadError } = await supabase.storage
+            .from('seminar-proofs')
+            .upload(filename, buffer, {
+                contentType: proofFile.type,
+                upsert: false
+            })
+
+        if (uploadError) throw uploadError
+
+        const { data: { publicUrl } } = supabase.storage
+            .from('seminar-proofs')
+            .getPublicUrl(filename)
+
+        proofUrl = publicUrl
+    } catch (error) {
+        console.error('Proof upload failed:', error)
+        return { error: 'Failed to upload proof of payment. Please try again.' }
+    }
+
+    // 5. Create Registration Record
+    try {
+        await prisma.seminarRegistration.create({
+            data: {
+                seminarId,
+                playerId,
+                playerName: dbUser.name || 'Unknown',
+                clubName: dbUser.clubName,
+                belt: dbUser.belt,
+                // age: Calculate age? Optional for now.
+                status: 'PENDING',
+                paymentStatus: 'PAID', // Marked as PAID (Pending Verification) by user claim? Or UNPAID?
+                // Usually "PENDING" status implies payment is under review.
+                // Let's keep paymentStatus as 'UNPAID' or 'PENDING_VERIFICATION' if enum allowed.
+                // Schema has default "UNPAID". Let's leave it UNPAID until admin verifies?
+                // OR if they uploaded proof, we can say it's PENDING verification.
+                // Schema says: status String @default("PENDING") // PENDING, APPROVED, REJECTED
+                // Let's trust usage of 'status' for the overall approval including payment.
+
+                proofOfPaymentUrl: proofUrl,
+                waiverSignedAt: new Date()
+            }
+        })
+
+        revalidatePath(`/seminars/${seminarId}`)
+        return { success: true }
+    } catch (error) {
+        console.error('Registration failed:', error)
+        return { error: 'Failed to create registration record.' }
+    }
 }

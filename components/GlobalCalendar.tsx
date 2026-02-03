@@ -72,8 +72,8 @@ export default function GlobalCalendar({
             const viewportWidth = window.innerWidth
             const viewportHeight = window.innerHeight
 
-            const calendarWidth = 320 // matches w-[320px] in className
-            const calendarHeight = 350 // approximate max height
+            const calendarWidth = 280 // matches w-[280px] in className
+            const calendarHeight = 300 // approximate max height
 
             // Vertical collision
             const spaceBelow = viewportHeight - rect.bottom
@@ -139,7 +139,7 @@ export default function GlobalCalendar({
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
                 className={`
-                    relative w-full bg-white border rounded-xl shadow-sm px-4 py-2.5 text-left text-sm cursor-default transition-all flex items-center justify-between
+                    relative w-full bg-white border rounded-xl shadow-sm px-3 py-2 text-left text-sm cursor-default transition-all flex items-center justify-between
                     ${error ? 'border-red-300 ring-4 ring-red-500/10' : 'border-gray-200 hover:border-gray-300 focus:ring-2 focus:ring-gray-200'}
                 `}
             >
@@ -166,33 +166,33 @@ export default function GlobalCalendar({
             {/* Dropdown Calendar */}
             {isOpen && (
                 <div className={`
-                    absolute z-50 p-4 w-[320px] bg-white rounded-xl shadow-xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200
+                    absolute z-50 p-3 w-[280px] bg-white rounded-xl shadow-xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200
                     ${position === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'}
                     ${hPosition === 'right' ? 'right-0 origin-right' : 'left-0 origin-left'}
                     ${position === 'top' ? (hPosition === 'right' ? 'origin-bottom-right' : 'origin-bottom-left') : (hPosition === 'right' ? 'origin-top-right' : 'origin-top-left')}
                 `}>
                     {/* Header */}
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center justify-between mb-2">
                         <button
                             type="button"
                             onClick={handlePrevMonth}
                             className="p-1 hover:bg-gray-100 rounded-lg text-gray-600"
                         >
-                            <ChevronLeft className="w-5 h-5" />
+                            <ChevronLeft className="w-4 h-4" />
                         </button>
 
                         <div className="flex gap-1">
                             <button
                                 type="button"
                                 onClick={() => setView(view === 'month' ? 'day' : 'month')}
-                                className="px-2 py-1 hover:bg-gray-100 rounded-md text-sm font-semibold text-gray-900"
+                                className="px-1.5 py-0.5 hover:bg-gray-100 rounded-md text-xs font-semibold text-gray-900"
                             >
                                 {format(currentMonth, 'MMMM')}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setView(view === 'year' ? 'day' : 'year')}
-                                className="px-2 py-1 hover:bg-gray-100 rounded-md text-sm font-semibold text-gray-900"
+                                className="px-1.5 py-0.5 hover:bg-gray-100 rounded-md text-xs font-semibold text-gray-900"
                             >
                                 {format(currentMonth, 'yyyy')}
                             </button>
@@ -203,21 +203,21 @@ export default function GlobalCalendar({
                             onClick={handleNextMonth}
                             className="p-1 hover:bg-gray-100 rounded-lg text-gray-600"
                         >
-                            <ChevronRight className="w-5 h-5" />
+                            <ChevronRight className="w-4 h-4" />
                         </button>
                     </div>
 
                     {/* Views */}
                     {view === 'day' && (
                         <>
-                            <div className="grid grid-cols-7 mb-2">
+                            <div className="grid grid-cols-7 mb-1">
                                 {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
-                                    <div key={day} className="text-center text-xs font-medium text-gray-400 py-1">
+                                    <div key={day} className="text-center text-[10px] font-medium text-gray-400 py-1">
                                         {day}
                                     </div>
                                 ))}
                             </div>
-                            <div className="grid grid-cols-7 gap-1">
+                            <div className="grid grid-cols-7 gap-0.5">
                                 {days.map((day, dayIdx) => {
                                     const isSelected = selectedDate ? isSameDay(day, selectedDate) : false
                                     const isCurrentMonth = isSameMonth(day, currentMonth)
@@ -228,7 +228,7 @@ export default function GlobalCalendar({
                                             type="button"
                                             onClick={() => handleDateClick(day)}
                                             className={`
-                                                h-9 w-9 rounded-lg text-sm flex items-center justify-center transition-colors
+                                                h-8 w-8 rounded-lg text-xs flex items-center justify-center transition-colors
                                                 ${!isCurrentMonth && 'text-gray-300'}
                                                 ${isCurrentMonth && !isSelected && 'text-gray-700 hover:bg-gray-100'}
                                                 ${isSelected && 'bg-red-600 text-white font-semibold shadow-md'}
@@ -253,7 +253,7 @@ export default function GlobalCalendar({
                                         setView('day')
                                     }}
                                     className={`
-                                        p-2 rounded-lg text-sm hover:bg-gray-100
+                                        p-1.5 rounded-lg text-xs hover:bg-gray-100
                                         ${getMonth(currentMonth) === idx ? 'bg-red-50 text-red-600 font-semibold' : 'text-gray-700'}
                                     `}
                                 >
@@ -274,7 +274,7 @@ export default function GlobalCalendar({
                                         setView('day')
                                     }}
                                     className={`
-                                        p-2 rounded-lg text-sm hover:bg-gray-100
+                                        p-1.5 rounded-lg text-xs hover:bg-gray-100
                                         ${getYear(currentMonth) === year ? 'bg-red-50 text-red-600 font-semibold' : 'text-gray-700'}
                                     `}
                                 >

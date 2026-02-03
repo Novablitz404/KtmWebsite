@@ -136,20 +136,37 @@ export default function LandingPage({ upcomingTournaments, user }: LandingPagePr
                                                 />
                                             ) : (
                                                 <div className="absolute inset-0 flex items-center justify-center bg-red-50">
-                                                    <span className="text-5xl">{event.type === 'PROMOTION' ? '🥋' : '🏆'}</span>
+                                                    <span className="text-5xl">
+                                                        {event.type === 'PROMOTION' ? '🥋' : event.type === 'SEMINAR' ? '🎓' : '🏆'}
+                                                    </span>
                                                 </div>
                                             )}
 
                                             {/* Status Badge */}
-                                            <div className="absolute top-3 right-3 flex gap-2">
+                                            <div className="absolute top-3 right-3 flex items-center gap-2">
+                                                {event.visibility === 'PRIVATE' && (
+                                                    <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-gray-600 text-white border border-gray-700 shadow-sm flex items-center gap-1">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                                            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                                                        </svg>
+                                                        Private
+                                                    </span>
+                                                )}
                                                 {event.type === 'PROMOTION' && (
                                                     <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border bg-amber-100 text-amber-800 border-amber-200">
                                                         TEST
                                                     </span>
                                                 )}
-                                                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${statusColor}`}>
-                                                    {statusBadge}
-                                                </span>
+                                                {event.type === 'SEMINAR' && (
+                                                    <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border bg-purple-100 text-purple-800 border-purple-200">
+                                                        SEMINAR
+                                                    </span>
+                                                )}
+                                                {!event.visibility?.includes('PRIVATE') && (
+                                                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${statusColor}`}>
+                                                        {statusBadge}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
 

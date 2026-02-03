@@ -16,7 +16,7 @@ export default async function Home() {
     // Parallel fetch all needed data upfront
     const existingUser = await prisma.user.findUnique({
       where: { clerkId: user.id },
-      select: { id: true, role: true }
+      select: { id: true, role: true, imageUrl: true }
     })
 
     // Admin setup (whitelist based) - still redirect admins to admin panel
@@ -32,7 +32,8 @@ export default async function Home() {
             data: {
               clerkId: user.id,
               role: 'ADMIN',
-              name: user.firstName ? `${user.firstName} ${user.lastName}` : existingByEmail.name
+              name: user.firstName ? `${user.firstName} ${user.lastName}` : existingByEmail.name,
+              imageUrl: user.imageUrl
             }
           })
         } else {
@@ -50,7 +51,8 @@ export default async function Home() {
               email: userEmail,
               name: user.firstName ? `${user.firstName} ${user.lastName}` : 'Super Admin',
               role: 'ADMIN',
-              clubName: 'KTM Admin'
+              clubName: 'KTM Admin',
+              imageUrl: user.imageUrl
             }
           })
         }
@@ -68,6 +70,14 @@ export default async function Home() {
 
     // For existing users, redirect to their role-specific dashboard
     if (existingUser) {
+      // Sync profile image if changed
+      if (user.imageUrl && existingUser.imageUrl !== user.imageUrl) {
+        await prisma.user.update({
+          where: { id: existingUser.id },
+          data: { imageUrl: user.imageUrl }
+        })
+      }
+
       if (existingUser.role === 'ORGANIZER') {
         // Check organization status before redirecting
         const organization = await prisma.organization.findUnique({

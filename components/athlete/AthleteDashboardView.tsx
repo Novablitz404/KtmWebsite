@@ -334,17 +334,42 @@ export default function AthleteDashboardView({
                                             {/* Mobile View - Cards */}
                                             <div className="md:hidden p-4 space-y-3">
                                                 {data?.clubUpcomingEvents?.map((event: any) => {
-                                                    const isRegistered = registrations.some((r: any) => r.category?.tournament?.id === event.id)
+                                                    const isSeminar = event.type === 'SEMINAR'
+
+                                                    // Find registration object to get status
+                                                    const seminarReg = isSeminar
+                                                        ? (data as any)?.seminarRegistrations?.find((r: any) => r.seminarId === event.id)
+                                                        : null
+
+                                                    const tournamentReg = !isSeminar
+                                                        ? registrations.find((r: any) => r.category?.tournament?.id === event.id)
+                                                        : null
+
+                                                    const isRegistered = !!(seminarReg || tournamentReg)
+                                                    const status = isSeminar
+                                                        ? seminarReg?.status
+                                                        : tournamentReg?.registrationStatus
+
+                                                    const detailsLink = isSeminar ? `/seminars/${event.id}` : `/tournament/${event.id}`
 
                                                     return (
-                                                        <div key={event.id} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                                                        <div key={`${event.type}-${event.id}`} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
                                                             {/* Row 1: Name & Status */}
                                                             <div className="flex justify-between items-start mb-2">
-                                                                <span className="font-bold text-gray-900 text-base pr-2">{event.name}</span>
+                                                                <div className="flex flex-col">
+                                                                    <span className="font-bold text-gray-900 text-base pr-2">{event.name}</span>
+                                                                    {isSeminar && <span className="text-[10px] uppercase font-bold text-purple-600 bg-purple-50 self-start px-2 py-0.5 rounded-full mt-1">Seminar</span>}
+                                                                </div>
                                                                 {isRegistered ? (
-                                                                    <span className="flex-shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
-                                                                        Registered
-                                                                    </span>
+                                                                    status === 'APPROVED' ? (
+                                                                        <span className="flex-shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                                                                            Approved
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="flex-shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                                                                            {status || 'Pending'}
+                                                                        </span>
+                                                                    )
                                                                 ) : (
                                                                     <span className="flex-shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
                                                                         Not Joined
@@ -368,21 +393,21 @@ export default function AthleteDashboardView({
                                                             {/* Row 3: Buttons */}
                                                             <div className="flex items-center gap-3">
                                                                 <Link
-                                                                    href={`/tournament/${event.id}`}
+                                                                    href={detailsLink}
                                                                     className="flex-1 text-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                                                                 >
                                                                     Details
                                                                 </Link>
                                                                 {!isRegistered ? (
                                                                     <Link
-                                                                        href={`/tournament/${event.id}/register`}
+                                                                        href={isSeminar ? `/seminars/${event.id}/register` : `/tournament/${event.id}/register`}
                                                                         className="flex-1 text-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
                                                                     >
                                                                         Register
                                                                     </Link>
                                                                 ) : (
                                                                     <button
-                                                                        onClick={() => handleUnregister(event.id, event.name)}
+                                                                        onClick={() => isSeminar ? window.location.href = detailsLink : handleUnregister(event.id, event.name)}
                                                                         className="flex-1 text-center px-4 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
                                                                     >
                                                                         Withdraw
@@ -406,13 +431,32 @@ export default function AthleteDashboardView({
                                                 </thead>
                                                 <tbody className="bg-white divide-y divide-gray-50">
                                                     {data?.clubUpcomingEvents?.map((event: any) => {
-                                                        const isRegistered = registrations.some((r: any) => r.category?.tournament?.id === event.id)
+                                                        const isSeminar = event.type === 'SEMINAR'
+
+                                                        // Find registration object to get status
+                                                        const seminarReg = isSeminar
+                                                            ? (data as any)?.seminarRegistrations?.find((r: any) => r.seminarId === event.id)
+                                                            : null
+
+                                                        const tournamentReg = !isSeminar
+                                                            ? registrations.find((r: any) => r.category?.tournament?.id === event.id)
+                                                            : null
+
+                                                        const isRegistered = !!(seminarReg || tournamentReg)
+                                                        const status = isSeminar
+                                                            ? seminarReg?.status
+                                                            : tournamentReg?.registrationStatus
+
+                                                        const detailsLink = isSeminar ? `/seminars/${event.id}` : `/tournament/${event.id}`
 
                                                         return (
-                                                            <tr key={event.id} className="hover:bg-gray-50/50 transition-colors">
+                                                            <tr key={`${event.type}-${event.id}`} className="hover:bg-gray-50/50 transition-colors">
                                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                                     <div className="flex flex-col">
-                                                                        <span className="text-sm font-bold text-gray-900">{event.name}</span>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="text-sm font-bold text-gray-900">{event.name}</span>
+                                                                            {isSeminar && <span className="text-[10px] uppercase font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">Seminar</span>}
+                                                                        </div>
                                                                         {event.venue && <span className="text-xs text-gray-500">{event.venue}</span>}
                                                                     </div>
                                                                 </td>
@@ -426,9 +470,15 @@ export default function AthleteDashboardView({
                                                                 </td>
                                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                                     {isRegistered ? (
-                                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
-                                                                            Registered
-                                                                        </span>
+                                                                        status === 'APPROVED' ? (
+                                                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                                                                                Approved
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                                                                                {status || 'Pending'}
+                                                                            </span>
+                                                                        )
                                                                     ) : (
                                                                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
                                                                             -
@@ -438,21 +488,21 @@ export default function AthleteDashboardView({
                                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                                     <div className="flex items-center justify-end gap-2">
                                                                         <Link
-                                                                            href={`/tournament/${event.id}`}
+                                                                            href={detailsLink}
                                                                             className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                                                                         >
                                                                             Details
                                                                         </Link>
                                                                         {!isRegistered ? (
                                                                             <Link
-                                                                                href={`/tournament/${event.id}/register`}
+                                                                                href={isSeminar ? `/seminars/${event.id}/register` : `/tournament/${event.id}/register`}
                                                                                 className="px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
                                                                             >
                                                                                 Register
                                                                             </Link>
                                                                         ) : (
                                                                             <button
-                                                                                onClick={() => handleUnregister(event.id, event.name)}
+                                                                                onClick={() => isSeminar ? window.location.href = detailsLink : handleUnregister(event.id, event.name)}
                                                                                 className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
                                                                             >
                                                                                 Withdraw
@@ -557,7 +607,7 @@ export default function AthleteDashboardView({
                             clubLogoUrl={clubLogo}
                             stats={{
                                 registrations: registrations.length,
-                                events: new Set(registrations.map(r => r.category.tournament.id)).size,
+                                events: new Set(registrations.map((r: any) => r.category?.tournament?.id).filter(Boolean)).size,
                                 medals: 0
                             }}
                         />

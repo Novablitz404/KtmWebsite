@@ -10,13 +10,15 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
     const { id } = await params;
     const user = await currentUser()
     let currentUserId = undefined
+    let dbUserRole = undefined
 
     if (user) {
         const dbUser = await prisma.user.findUnique({
             where: { clerkId: user.id },
-            select: { id: true }
+            select: { id: true, role: true }
         })
         currentUserId = dbUser?.id
+        dbUserRole = dbUser?.role
     }
 
     // Optimized query: include relations but only select needed fields where possible
@@ -164,11 +166,7 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
     // Determine permissions
     const isOrganizer = user && tournament.organizerId === currentUserId
     const isManager = user && tournament.managers.some(m => m.id === currentUserId)
-    let isAdmin = false
-    if (user && currentUserId) {
-        const dbUser = await prisma.user.findUnique({ where: { id: currentUserId }, select: { role: true } })
-        isAdmin = dbUser?.role === 'ADMIN'
-    }
+    const isAdmin = dbUserRole === 'ADMIN'
 
     // Fallback: If currentUserId was already fetched at top, use it.
     // wait, I fetched dbUser at top but didn't save role.
@@ -227,6 +225,7 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
                     totalPlayersCount={totalPlayersCount}
                     pendingManagerInvites={pendingManagerInvites}
                     publicView={false}
+                    userRole={dbUserRole}
                 />
             ) : (
                 <div className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-10">

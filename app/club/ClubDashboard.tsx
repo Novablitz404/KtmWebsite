@@ -5,6 +5,7 @@ import { Upload, X, Home, Settings, ClipboardList, Users, Bell, Trophy, Medal, C
 import Link from 'next/link'
 import { approveRegistrations, unapproveRegistration, deleteRegistration, updatePlayerDetails, bulkUnapproveRegistrations, bulkDeleteRegistrations, fetchClubDashboardData, removeMemberFromClub, updateClubMember, getClubSmartProposals } from '@/app/actions'
 import { updateRegistrationStatus } from '@/app/promotions/actions'
+import { approveSeminarRegistration, unapproveSeminarRegistration, deleteSeminarRegistration, updateSeminarRegistrationStatus, updateSeminarParticipantDetails } from '@/app/seminars/actions'
 
 import CustomSelect from '@/app/components/ui/CustomSelect'
 import { toast } from 'sonner'
@@ -80,6 +81,17 @@ interface PromotionRegistration {
     eventDate: Date
 }
 
+interface SeminarRegistration {
+    id: string
+    name: string
+    status: string
+    paymentStatus: string // "UNPAID", "PAID"
+    belt: string | null
+    eventName: string
+    eventDate: Date
+    imageUrl?: string | null
+}
+
 interface ClubDashboardProps {
     pendingPlayers: Player[]
     approvedPlayers: Player[]
@@ -150,22 +162,18 @@ export default function ClubDashboard({
     const filteredApprovedPlayers = (rawApproved || []).filter(isUpcoming)
 
     const clubTournaments = (streamedData ? streamedData.clubTournaments : propClubTournaments) as TournamentStats[]
+    const upcomingEvents = (streamedData ? (streamedData as any).upcomingEvents : []) as Array<{ id: string, name: string, startDate: string, type: 'TOURNAMENT' | 'SEMINAR' | 'PROMOTION', athleteCount: number }>
     const totalMembers = streamedData ? streamedData.totalMembers : (membersData?.paginatedMembers?.length || 0)
     const topPerformers = streamedData ? (streamedData as any).topPerformers : []
 
     // Calculate totals
-    // Calculate totals
     const totalMedals = clubTournaments.reduce((sum, t) => sum + (t.gold + t.silver + t.bronze), 0)
 
     // Next Event Logic
-    const upcomingTournaments = clubTournaments
-        .filter(t => new Date(t.startDate) > new Date())
-        .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
+    const nextEvent = upcomingEvents[0]
 
-    const nextTournament = upcomingTournaments[0]
-
-    const daysUntil = nextTournament
-        ? Math.ceil((new Date(nextTournament.startDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+    const daysUntil = nextEvent
+        ? Math.ceil((new Date(nextEvent.startDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
         : 0
 
 
@@ -227,7 +235,7 @@ export default function ClubDashboard({
     const [tournamentPage, setTournamentPage] = useState(1)
     const [registrationsPage, setRegistrationsPage] = useState(1)
     const [activeTab, setActiveTab] = useState<'ALL' | 'PENDING' | 'APPROVED'>('ALL')
-    const [registrationType, setRegistrationType] = useState<'TOURNAMENT' | 'PROMOTION'>('TOURNAMENT')
+    const [registrationType, setRegistrationType] = useState<'TOURNAMENT' | 'PROMOTION' | 'SEMINAR'>('TOURNAMENT')
     const [isAddAthleteOpen, setIsAddAthleteOpen] = useState(false)
     const [isCreateMemberOpen, setIsCreateMemberOpen] = useState(false)
     const [registrationSearchQuery, setRegistrationSearchQuery] = useState('')
@@ -317,6 +325,28 @@ export default function ClubDashboard({
 
     const totalPromotionPages = Math.ceil(filteredPromotions.length / registrationsPerPage)
     const currentPromotions = filteredPromotions.slice(
+        (registrationsPage - 1) * registrationsPerPage,
+        registrationsPage * registrationsPerPage
+    )
+
+    // Seminar Logic
+    const rawSeminars = ((streamedData as any)?.seminarRegistrations || []) as SeminarRegistration[]
+    const filteredSeminars = rawSeminars.filter(p => {
+        // Status Filter
+        const statusMatch = activeTab === 'ALL' ? true :
+            activeTab === 'PENDING' ? p.status === 'PENDING' :
+                p.status === 'APPROVED'
+
+        // Search Filter
+        const searchMatch = !registrationSearchQuery ||
+            p.name.toLowerCase().includes(registrationSearchQuery.toLowerCase()) ||
+            p.eventName.toLowerCase().includes(registrationSearchQuery.toLowerCase())
+
+        return statusMatch && searchMatch
+    })
+
+    const totalSeminarPages = Math.ceil(filteredSeminars.length / registrationsPerPage)
+    const currentSeminars = filteredSeminars.slice(
         (registrationsPage - 1) * registrationsPerPage,
         registrationsPage * registrationsPerPage
     )
@@ -536,6 +566,58 @@ export default function ClubDashboard({
         }
     }
 
+    const handleSeminarStatusChange = async (registrationId: string, newStatus: string) => {
+        setSubmitting(true)
+        try {
+            const res = await updateSeminarRegistrationStatus(registrationId, newStatus)
+            if (res.error) {
+                toast.error(res.error)
+            } else {
+                toast.success(`Registration ${newStatus.toLowerCase()}`)
+                queryClient.invalidateQueries({ queryKey: ['club-home', clubId] })
+            }
+        } catch {
+            toast.error('Failed to update status')
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    const handleSeminarDelete = async (id: string) => {
+        if (!confirm('Are you sure you want to delete this registration?')) return
+        setSubmitting(true)
+        try {
+            await deleteSeminarRegistration([id])
+            toast.success('Registration deleted')
+            queryClient.invalidateQueries({ queryKey: ['club-home', clubId] })
+        } catch {
+            toast.error('Failed to delete')
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    const [editingSeminar, setEditingSeminar] = useState<SeminarRegistration | null>(null)
+
+    const handleSeminarSave = async (data: { name: string, belt: string }) => {
+        if (!editingSeminar) return
+        setSubmitting(true)
+        try {
+            const res = await updateSeminarParticipantDetails(editingSeminar.id, data)
+            if (res.error) {
+                toast.error(res.error)
+            } else {
+                toast.success('Participant details updated')
+                setEditingSeminar(null)
+                queryClient.invalidateQueries({ queryKey: ['club-home', clubId] })
+            }
+        } catch {
+            toast.error('Failed to update details')
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
     return (
@@ -683,23 +765,25 @@ export default function ClubDashboard({
                                                         <Skeleton className="h-32 w-full rounded-2xl" />
                                                         <Skeleton className="h-16 w-full rounded-lg" />
                                                     </div>
-                                                ) : nextTournament ? (
+                                                ) : nextEvent ? (
                                                     <>
                                                         {/* Next Event Card */}
-                                                        {/* Next Event Card */}
                                                         <Link
-                                                            href={`/tournament/${nextTournament.id}`}
+                                                            href={nextEvent.type === 'TOURNAMENT' ? `/tournament/${nextEvent.id}` : '#'}
                                                             className="bg-gradient-to-br from-red-600 to-red-700 rounded-2xl p-5 text-white shadow-lg cursor-pointer hover:shadow-xl transition-all block"
                                                         >
                                                             <div className="flex items-start justify-between">
                                                                 <div>
-                                                                    <div className="mb-2">
+                                                                    <div className="mb-2 flex items-center gap-2">
+                                                                        <span className="text-xs font-medium text-red-100 uppercase tracking-wider bg-red-800/30 px-2 py-0.5 rounded-full border border-red-400/20">
+                                                                            {nextEvent.type}
+                                                                        </span>
                                                                         <span className="text-xs font-medium text-red-200 uppercase tracking-wider">Next Event</span>
                                                                     </div>
-                                                                    <h3 className="text-lg font-bold mb-1 line-clamp-1">{nextTournament.name}</h3>
+                                                                    <h3 className="text-lg font-bold mb-1 line-clamp-1">{nextEvent.name}</h3>
                                                                     <p className="text-red-200 text-xs mt-2 flex items-center gap-1">
                                                                         <Clock size={12} />
-                                                                        {new Date(nextTournament.startDate).toLocaleDateString('en-US', {
+                                                                        {new Date(nextEvent.startDate).toLocaleDateString('en-US', {
                                                                             month: 'short',
                                                                             day: 'numeric',
                                                                             year: 'numeric'
@@ -714,22 +798,30 @@ export default function ClubDashboard({
                                                         </Link>
 
                                                         {/* Other upcoming events */}
-                                                        {upcomingTournaments.length > 1 && (
+                                                        {upcomingEvents.length > 1 && (
                                                             <div className="mt-2 space-y-2">
                                                                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-4 mb-2">Later</p>
-                                                                {upcomingTournaments.slice(1, 2).map(t => (
+                                                                {upcomingEvents.slice(1, 3).map(event => (
                                                                     <Link
-                                                                        key={t.id}
-                                                                        href={`/tournament/${t.id}`}
+                                                                        key={event.id}
+                                                                        href={event.type === 'TOURNAMENT' ? `/tournament/${event.id}` : '#'}
                                                                         className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-red-100 hover:bg-red-50 cursor-pointer transition-all group"
                                                                     >
-                                                                        <div className="w-10 h-10 rounded-lg bg-gray-50 flex flex-col items-center justify-center text-xs border border-gray-200 group-hover:border-red-200 group-hover:bg-white">
-                                                                            <span className="text-gray-500 font-bold uppercase">{new Date(t.startDate).toLocaleDateString('en-US', { month: 'short' })}</span>
-                                                                            <span className="text-gray-900 font-bold">{new Date(t.startDate).getDate()}</span>
+                                                                        <div className="w-10 h-10 rounded-lg bg-gray-50 flex flex-col items-center justify-center text-[10px] leading-tight border border-gray-200 group-hover:border-red-200 group-hover:bg-white text-center">
+                                                                            <span className="text-gray-500 font-bold uppercase">{new Date(event.startDate).toLocaleDateString('en-US', { month: 'short' })}</span>
+                                                                            <span className="text-gray-900 font-bold">{new Date(event.startDate).getDate()}</span>
                                                                         </div>
                                                                         <div className="flex-1 min-w-0">
-                                                                            <h4 className="text-sm font-semibold text-gray-900 truncate group-hover:text-red-700">{t.name}</h4>
-                                                                            <p className="text-xs text-gray-500 truncate">{t.athleteCount || 0} athletes registered</p>
+                                                                            <div className="flex items-center gap-1.5 mb-0.5">
+                                                                                <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${event.type === 'TOURNAMENT' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
+                                                                                    event.type === 'SEMINAR' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                                                                        'bg-emerald-50 text-emerald-600 border-emerald-100'
+                                                                                    }`}>
+                                                                                    {event.type}
+                                                                                </span>
+                                                                            </div>
+                                                                            <h4 className="text-sm font-semibold text-gray-900 truncate group-hover:text-red-700">{event.name}</h4>
+                                                                            <p className="text-xs text-gray-500 truncate">{event.athleteCount || 0} athletes registered</p>
                                                                         </div>
                                                                         <ChevronRight size={16} className="text-gray-300 group-hover:text-red-400" />
                                                                     </Link>
@@ -897,6 +989,7 @@ export default function ClubDashboard({
                                                                 onClick={() => {
                                                                     setRegistrationType('TOURNAMENT')
                                                                     setRegistrationsPage(1)
+                                                                    setSelectedRegistrationIds(new Set())
                                                                 }}
                                                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${registrationType === 'TOURNAMENT'
                                                                     ? 'bg-red-600 text-white shadow-sm'
@@ -905,10 +998,12 @@ export default function ClubDashboard({
                                                             >
                                                                 Tournaments
                                                             </button>
+
                                                             <button
                                                                 onClick={() => {
                                                                     setRegistrationType('PROMOTION')
                                                                     setRegistrationsPage(1)
+                                                                    setSelectedRegistrationIds(new Set())
                                                                 }}
                                                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${registrationType === 'PROMOTION'
                                                                     ? 'bg-red-600 text-white shadow-sm'
@@ -917,20 +1012,35 @@ export default function ClubDashboard({
                                                             >
                                                                 Promotions
                                                             </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setRegistrationType('SEMINAR')
+                                                                    setRegistrationsPage(1)
+                                                                    setSelectedRegistrationIds(new Set())
+                                                                }}
+                                                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${registrationType === 'SEMINAR'
+                                                                    ? 'bg-red-600 text-white shadow-sm'
+                                                                    : 'text-red-600 hover:bg-red-100'
+                                                                    }`}
+                                                            >
+                                                                Seminars
+                                                            </button>
                                                         </div>
 
                                                         <div className="h-6 w-px bg-gray-200 hidden sm:block" />
 
                                                         <div className="flex gap-2">
-                                                            <button
-                                                                onClick={() => setBulkSelectMode(!bulkSelectMode)}
-                                                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${bulkSelectMode
-                                                                    ? 'bg-red-600 text-white'
-                                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                                                    }`}
-                                                            >
-                                                                {bulkSelectMode ? 'Done' : 'Select'}
-                                                            </button>
+                                                            {registrationType !== 'SEMINAR' && (
+                                                                <button
+                                                                    onClick={() => setBulkSelectMode(!bulkSelectMode)}
+                                                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${bulkSelectMode
+                                                                        ? 'bg-red-600 text-white'
+                                                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                                                        }`}
+                                                                >
+                                                                    {bulkSelectMode ? 'Done' : 'Select'}
+                                                                </button>
+                                                            )}
 
                                                             <div className="flex p-1 bg-gray-100 rounded-xl">
                                                                 {(['ALL', 'PENDING', 'APPROVED'] as const).map((tab) => (
@@ -946,9 +1056,9 @@ export default function ClubDashboard({
                                                                             : 'text-gray-500 hover:text-gray-700'
                                                                             }`}
                                                                     >
-                                                                        {tab === 'ALL' ? `All ${registrationType === 'TOURNAMENT' ? allRegistrations.length : rawPromotions.length}` :
-                                                                            tab === 'PENDING' ? `Pending ${registrationType === 'TOURNAMENT' ? pendingPlayers.length : rawPromotions.filter(p => p.status === 'PENDING').length}` :
-                                                                                `Done ${registrationType === 'TOURNAMENT' ? approvedPlayers.length : rawPromotions.filter(p => p.status === 'APPROVED').length}`}
+                                                                        {tab === 'ALL' ? `All ${registrationType === 'TOURNAMENT' ? allRegistrations.length : registrationType === 'PROMOTION' ? rawPromotions.length : rawSeminars.length}` :
+                                                                            tab === 'PENDING' ? `Pending ${registrationType === 'TOURNAMENT' ? pendingPlayers.length : registrationType === 'PROMOTION' ? rawPromotions.filter(p => p.status === 'PENDING').length : rawSeminars.filter(p => p.status === 'PENDING').length}` :
+                                                                                `Done ${registrationType === 'TOURNAMENT' ? approvedPlayers.length : registrationType === 'PROMOTION' ? rawPromotions.filter(p => p.status === 'APPROVED').length : rawSeminars.filter(p => p.status === 'APPROVED').length}`}
                                                                     </button>
                                                                 ))}
                                                             </div>
@@ -968,7 +1078,7 @@ export default function ClubDashboard({
                                                 <div className={`min-h-[85vh] ${bulkSelectMode ? 'pb-24' : ''}`}>
 
                                                     {/* Player List */}
-                                                    {(registrationType === 'TOURNAMENT' ? currentRegistrations : currentPromotions).length === 0 ? (
+                                                    {(registrationType === 'TOURNAMENT' ? currentRegistrations : registrationType === 'PROMOTION' ? currentPromotions : currentSeminars).length === 0 ? (
                                                         <div className="p-8 text-center min-h-[300px] flex flex-col items-center justify-center">
                                                             <p className="text-4xl mb-4">📋</p>
                                                             <p className="text-gray-900 font-medium mb-1">No {registrationType.toLowerCase()} registrations found</p>
@@ -1121,35 +1231,119 @@ export default function ClubDashboard({
                                                                             </div>
                                                                         </div>
                                                                     )
-                                                                })) : (
-                                                                // Promotion List
-                                                                currentPromotions.map((promo, index) => {
-                                                                    const isPending = promo.status === 'PENDING'
-                                                                    const isLastItems = currentPromotions.length > 2 && index >= currentPromotions.length - 2
+                                                                })) : registrationType === 'PROMOTION' ? (
+                                                                    // Promotion List
+                                                                    currentPromotions.map((promo, index) => {
+                                                                        const isPending = promo.status === 'PENDING'
+                                                                        const isLastItems = currentPromotions.length > 2 && index >= currentPromotions.length - 2
 
-                                                                    return (
-                                                                        <div key={promo.id} className="flex items-center gap-3 md:px-4 md:py-3 p-4 rounded-2xl md:rounded-none shadow-sm md:shadow-none border border-gray-100 md:border-0 bg-white md:bg-transparent">
-                                                                            <div className="w-10 h-10 rounded-full bg-red-100 text-red-700 flex items-center justify-center font-bold text-sm">
-                                                                                {promo.name.charAt(0)}
-                                                                            </div>
-                                                                            <div className="flex-1 min-w-0">
-                                                                                <div className="flex items-center gap-2">
-                                                                                    <h3 className="font-semibold text-gray-900 text-sm truncate">{promo.name}</h3>
-                                                                                    {isPending ? (
-                                                                                        <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-yellow-100 text-yellow-700">PENDING</span>
-                                                                                    ) : (
-                                                                                        <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-green-100 text-green-700">APPROVED</span>
+                                                                        return (
+                                                                            <div key={promo.id} className="flex items-center gap-3 md:px-4 md:py-3 p-4 rounded-2xl md:rounded-none shadow-sm md:shadow-none border border-gray-100 md:border-0 bg-white md:bg-transparent">
+                                                                                <div className="w-10 h-10 rounded-full bg-red-100 text-red-700 flex items-center justify-center font-bold text-sm">
+                                                                                    {promo.name.charAt(0)}
+                                                                                </div>
+                                                                                <div className="flex-1 min-w-0">
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <h3 className="font-semibold text-gray-900 text-sm truncate">{promo.name}</h3>
+                                                                                        {isPending ? (
+                                                                                            <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-yellow-100 text-yellow-700">PENDING</span>
+                                                                                        ) : (
+                                                                                            <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-green-100 text-green-700">APPROVED</span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <p className="text-xs text-gray-500 truncate mt-0.5">
+                                                                                        {promo.eventName} • {promo.currentBelt} → {promo.targetBelt}
+                                                                                    </p>
+                                                                                </div>
+
+                                                                                {/* Actions */}
+                                                                                <div className="relative">
+                                                                                    <button
+                                                                                        onClick={() => setActionMenuOpen(actionMenuOpen === promo.id ? null : promo.id)}
+                                                                                        className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                                                                                    >
+                                                                                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                                                                            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                                                                                        </svg>
+                                                                                    </button>
+
+                                                                                    {actionMenuOpen === promo.id && (
+                                                                                        <div className={`absolute right-0 w-40 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-50 ${isLastItems ? 'bottom-8' : 'top-8'}`}>
+                                                                                            {/* Backdrop */}
+                                                                                            <div className="fixed inset-0 z-40" onClick={() => setActionMenuOpen(null)} />
+                                                                                            <div className="relative z-50">
+                                                                                                {isPending ? (
+                                                                                                    <button
+                                                                                                        onClick={() => {
+                                                                                                            handlePromotionStatusChange(promo.id, 'APPROVED')
+                                                                                                            setActionMenuOpen(null)
+                                                                                                        }}
+                                                                                                        className="w-full px-4 py-2.5 text-left text-sm font-medium text-green-600 hover:bg-green-50 flex items-center gap-2"
+                                                                                                    >
+                                                                                                        Approve
+                                                                                                    </button>
+                                                                                                ) : (
+                                                                                                    <button
+                                                                                                        onClick={() => {
+                                                                                                            handlePromotionStatusChange(promo.id, 'PENDING')
+                                                                                                            setActionMenuOpen(null)
+                                                                                                        }}
+                                                                                                        className="w-full px-4 py-2.5 text-left text-sm font-medium text-yellow-600 hover:bg-yellow-50 flex items-center gap-2"
+                                                                                                    >
+                                                                                                        Unapprove
+                                                                                                    </button>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        </div>
                                                                                     )}
                                                                                 </div>
+                                                                            </div>
+                                                                        )
+                                                                    })) : (
+                                                                // Seminar List
+                                                                currentSeminars.map((seminar, index) => {
+                                                                    const isPending = seminar.status === 'PENDING'
+                                                                    const isLastItems = currentSeminars.length > 2 && index >= currentSeminars.length - 2
+
+                                                                    return (
+                                                                        <div key={seminar.id} className="flex items-center gap-3 md:px-4 md:py-3 p-4 rounded-2xl md:rounded-none shadow-sm md:shadow-none border border-gray-100 md:border-0 bg-white md:bg-transparent">
+                                                                            {seminar.imageUrl ? (
+                                                                                <img src={seminar.imageUrl} alt={seminar.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                                                                            ) : (
+                                                                                <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm">
+                                                                                    {seminar.name.charAt(0)}
+                                                                                </div>
+                                                                            )}
+                                                                            <div className="flex-1 min-w-0">
+                                                                                <div className="flex items-center gap-3">
+                                                                                    <h3 className="font-semibold text-gray-900 text-sm truncate">{seminar.name}</h3>
+                                                                                    {/* Registration Status */}
+                                                                                    <span className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold ${isPending
+                                                                                        ? 'bg-yellow-100 text-yellow-700'
+                                                                                        : seminar.status === 'APPROVED'
+                                                                                            ? 'bg-green-100 text-green-700'
+                                                                                            : 'bg-red-100 text-red-700'
+                                                                                        }`}>
+                                                                                        {seminar.status}
+                                                                                    </span>
+                                                                                    {/* Payment Status */}
+                                                                                    <span className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold ${seminar.paymentStatus === 'PAID'
+                                                                                        ? 'bg-emerald-100 text-emerald-700'
+                                                                                        : 'bg-gray-100 text-gray-600'
+                                                                                        }`}>
+                                                                                        {seminar.paymentStatus === 'PAID' ? 'PAID' : 'UNPAID'}
+                                                                                    </span>
+                                                                                </div>
                                                                                 <p className="text-xs text-gray-500 truncate mt-0.5">
-                                                                                    {promo.eventName} • {promo.currentBelt} → {promo.targetBelt}
+                                                                                    {seminar.eventName} • {new Date(seminar.eventDate).toLocaleDateString()}
+                                                                                    {seminar.belt && <span className="ml-2 text-gray-400">| {seminar.belt}</span>}
                                                                                 </p>
                                                                             </div>
 
                                                                             {/* Actions */}
                                                                             <div className="relative">
                                                                                 <button
-                                                                                    onClick={() => setActionMenuOpen(actionMenuOpen === promo.id ? null : promo.id)}
+                                                                                    onClick={() => setActionMenuOpen(actionMenuOpen === seminar.id ? null : seminar.id)}
                                                                                     className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                                                                                 >
                                                                                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -1157,45 +1351,35 @@ export default function ClubDashboard({
                                                                                     </svg>
                                                                                 </button>
 
-                                                                                {actionMenuOpen === promo.id && (
+                                                                                {actionMenuOpen === seminar.id && (
                                                                                     <div className={`absolute right-0 w-40 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-50 ${isLastItems ? 'bottom-8' : 'top-8'}`}>
                                                                                         {/* Backdrop */}
                                                                                         <div className="fixed inset-0 z-40" onClick={() => setActionMenuOpen(null)} />
                                                                                         <div className="relative z-50">
-                                                                                            {isPending ? (
-                                                                                                <button
-                                                                                                    onClick={() => {
-                                                                                                        handlePromotionStatusChange(promo.id, 'APPROVED')
-                                                                                                        setActionMenuOpen(null)
-                                                                                                    }}
-                                                                                                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-green-600 hover:bg-green-50 flex items-center gap-2"
-                                                                                                >
-                                                                                                    Approve
-                                                                                                </button>
-                                                                                            ) : (
-                                                                                                <button
-                                                                                                    onClick={() => {
-                                                                                                        handlePromotionStatusChange(promo.id, 'PENDING')
-                                                                                                        setActionMenuOpen(null)
-                                                                                                    }}
-                                                                                                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-yellow-600 hover:bg-yellow-50 flex items-center gap-2"
-                                                                                                >
-                                                                                                    Unapprove
-                                                                                                </button>
-                                                                                            )}
+                                                                                            <button
+                                                                                                onClick={() => {
+                                                                                                    setEditingSeminar(seminar)
+                                                                                                    setActionMenuOpen(null)
+                                                                                                }}
+                                                                                                className="w-full px-4 py-2.5 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                                                                            >
+                                                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                                                                </svg>
+                                                                                                Edit Details
+                                                                                            </button>
                                                                                         </div>
                                                                                     </div>
                                                                                 )}
                                                                             </div>
                                                                         </div>
                                                                     )
-                                                                })
-                                                            )}
+                                                                }))}
                                                         </div>
                                                     )}
 
                                                     {/* Pagination */}
-                                                    {(registrationType === 'TOURNAMENT' ? totalRegistrationPages : totalPromotionPages) > 1 && (
+                                                    {(registrationType === 'TOURNAMENT' ? totalRegistrationPages : registrationType === 'PROMOTION' ? totalPromotionPages : totalSeminarPages) > 1 && (
                                                         <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
                                                             <button
                                                                 onClick={() => setRegistrationsPage(p => Math.max(1, p - 1))}
@@ -1205,11 +1389,11 @@ export default function ClubDashboard({
                                                                 Previous
                                                             </button>
                                                             <span className="text-xs font-semibold text-gray-500">
-                                                                Page {registrationsPage} of {registrationType === 'TOURNAMENT' ? totalRegistrationPages : totalPromotionPages}
+                                                                Page {registrationsPage} of {registrationType === 'TOURNAMENT' ? totalRegistrationPages : registrationType === 'PROMOTION' ? totalPromotionPages : totalSeminarPages}
                                                             </span>
                                                             <button
-                                                                onClick={() => setRegistrationsPage(p => Math.min(registrationType === 'TOURNAMENT' ? totalRegistrationPages : totalPromotionPages, p + 1))}
-                                                                disabled={registrationsPage === (registrationType === 'TOURNAMENT' ? totalRegistrationPages : totalPromotionPages)}
+                                                                onClick={() => setRegistrationsPage(p => Math.min(registrationType === 'TOURNAMENT' ? totalRegistrationPages : registrationType === 'PROMOTION' ? totalPromotionPages : totalSeminarPages, p + 1))}
+                                                                disabled={registrationsPage === (registrationType === 'TOURNAMENT' ? totalRegistrationPages : registrationType === 'PROMOTION' ? totalPromotionPages : totalSeminarPages)}
                                                                 className="px-3 py-1 rounded-md text-sm font-medium text-gray-600 hover:bg-white hover:shadow-sm disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:shadow-none transition-all"
                                                             >
                                                                 Next
@@ -1501,7 +1685,6 @@ export default function ClubDashboard({
                                                 className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
                                             />
                                         </div>
-
                                         <div className="flex justify-end gap-3 mt-8">
                                             <button
                                                 type="button"
@@ -1514,6 +1697,83 @@ export default function ClubDashboard({
                                                 type="submit"
                                                 disabled={submitting}
                                                 className="px-4 py-2 bg-red-600 text-white font-medium rounded-xl hover:bg-red-700 transition-colors shadow-sm disabled:opacity-50"
+                                            >
+                                                {submitting ? 'Saving...' : 'Save Changes'}
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        )
+                    }
+
+                    {/* ✏️ Edit Seminar Participant Modal */}
+                    {
+                        editingSeminar && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                                <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditingSeminar(null)} />
+                                <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 animate-in fade-in zoom-in-95 duration-200">
+                                    <div className="flex justify-between items-start mb-6">
+                                        <div>
+                                            <h3 className="text-xl font-bold text-gray-900">Edit Participant</h3>
+                                            <p className="text-gray-500 text-sm mt-1">{editingSeminar.name}</p>
+                                        </div>
+                                        <button
+                                            onClick={() => setEditingSeminar(null)}
+                                            className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+
+                                    <form
+                                        onSubmit={(e) => {
+                                            e.preventDefault()
+                                            const formData = new FormData(e.currentTarget)
+                                            handleSeminarSave({
+                                                name: formData.get('name') as string,
+                                                belt: formData.get('belt') as string
+                                            })
+                                        }}
+                                        className="space-y-4"
+                                    >
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                                            <input
+                                                type="text"
+                                                name="name"
+                                                defaultValue={editingSeminar.name}
+                                                className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
+                                                placeholder="Enter full name"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <CustomSelect
+                                                label="Belt Rank"
+                                                value={editingSeminar.belt || 'White'}
+                                                onChange={(val) => {
+                                                    setEditingSeminar({ ...editingSeminar, belt: val })
+                                                }}
+                                                options={['White', 'Yellow', 'Blue', 'Red', 'Brown', 'Black']}
+                                                className="w-full"
+                                                name="belt"
+                                            />
+                                            <input type="hidden" name="belt" value={editingSeminar.belt || 'White'} />
+                                        </div>
+
+                                        <div className="flex justify-end gap-3 mt-8">
+                                            <button
+                                                type="button"
+                                                onClick={() => setEditingSeminar(null)}
+                                                className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 border border-gray-200"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                disabled={submitting}
+                                                className="px-4 py-2 rounded-xl text-sm font-bold text-white bg-red-600 hover:bg-red-700 shadow-lg shadow-red-100 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                             >
                                                 {submitting ? 'Saving...' : 'Save Changes'}
                                             </button>
@@ -1587,6 +1847,7 @@ export default function ClubDashboard({
                 onClose={() => setIsAddAthleteOpen(false)}
                 clubId={clubId}
                 clubName={clubName || ''}
+                defaultType={registrationType}
             />
 
             <CreateMemberModal

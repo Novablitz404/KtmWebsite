@@ -9,8 +9,8 @@ export default async function EventsPage() {
     const now = new Date()
     now.setHours(0, 0, 0, 0)
 
-    // Fetch all tournaments grouped by status
-    const [upcoming, past] = await Promise.all([
+    // Fetch all tournaments and seminars
+    const [tournamentsUpcoming, tournamentsPast, seminarsUpcoming, seminarsPast] = await Promise.all([
         prisma.tournament.findMany({
             where: {
                 startDate: { gte: now },
@@ -26,12 +26,63 @@ export default async function EventsPage() {
                 ]
             },
             orderBy: { startDate: 'desc' }
+        }),
+        prisma.seminar.findMany({
+            where: {
+                startDate: { gte: now },
+                status: { not: 'CANCELLED' }
+            },
+            orderBy: { startDate: 'asc' }
+        }),
+        prisma.seminar.findMany({
+            where: {
+                OR: [
+                    { startDate: { lt: now } },
+                    { status: 'CANCELLED' }
+                ]
+            },
+            orderBy: { startDate: 'desc' }
         })
     ])
 
+    // Normalize and Merge
+    const normalizeTournament = (t: any) => ({
+        id: t.id,
+        type: 'TOURNAMENT' as const,
+        name: t.name,
+        startDate: t.startDate,
+        venue: t.venue,
+        headerImageUrl: t.headerImageUrl, // keep usage consistent or map to generic 'imageUrl'
+        status: t.status,
+        link: `/tournament/${t.id}`
+    })
+
+    const normalizeSeminar = (s: any) => ({
+        id: s.id,
+        type: 'SEMINAR' as const,
+        name: s.name,
+        startDate: s.startDate,
+        venue: s.venue,
+        headerImageUrl: s.bannerUrl, // Map bannerUrl to headerImageUrl for component compatibility
+        status: s.status,
+        visibility: s.visibility,
+        link: `/seminars/${s.id}`
+    })
+
+    const upcoming = [
+        ...tournamentsUpcoming.map(normalizeTournament),
+        ...seminarsUpcoming.map(normalizeSeminar)
+    ].sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
+
+    const allPast = [
+        ...tournamentsPast.map(normalizeTournament),
+        ...seminarsPast.map(normalizeSeminar)
+    ].sort((a, b) => b.startDate.getTime() - a.startDate.getTime())
+
     // Separate cancelled from past
-    const cancelled = past.filter(t => t.status === 'CANCELLED')
-    const finished = past.filter(t => t.status !== 'CANCELLED')
+    // Separate cancelled from past
+    const cancelled = allPast.filter(t => t.status === 'CANCELLED')
+    const finished = allPast.filter(t => t.status !== 'CANCELLED')
 
     return (
         <main className="min-h-screen bg-gray-50">
@@ -63,8 +114,8 @@ export default async function EventsPage() {
                         </div>
                     ) : (
                         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                            {upcoming.map((tournament, index) => (
-                                <TournamentCard key={tournament.id} tournament={tournament} priority={index < 3} />
+                            {upcoming.map((event, index) => (
+                                <TournamentCard key={`${event.type}-${event.id}`} tournament={event} priority={index < 3} />
                             ))}
                         </div>
                     )}
@@ -83,8 +134,8 @@ export default async function EventsPage() {
                         </div>
                     ) : (
                         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                            {finished.map((tournament) => (
-                                <TournamentCard key={tournament.id} tournament={tournament} finished />
+                            {finished.map((event) => (
+                                <TournamentCard key={`${event.type}-${event.id}`} tournament={event} finished />
                             ))}
                         </div>
                     )}
@@ -99,8 +150,8 @@ export default async function EventsPage() {
                         </div>
 
                         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                            {cancelled.map((tournament) => (
-                                <TournamentCard key={tournament.id} tournament={tournament} cancelled />
+                            {cancelled.map((event) => (
+                                <TournamentCard key={`${event.type}-${event.id}`} tournament={event} cancelled />
                             ))}
                         </div>
                     </section>
@@ -127,6 +178,9 @@ interface TournamentCardProps {
         venue: string | null
         headerImageUrl: string | null
         status: string
+        type?: 'TOURNAMENT' | 'SEMINAR'
+        link?: string
+        visibility?: string
     }
     priority?: boolean
     finished?: boolean
@@ -135,6 +189,8 @@ interface TournamentCardProps {
 
 function TournamentCard({ tournament, priority, finished, cancelled }: TournamentCardProps) {
     const isCancelled = cancelled || tournament.status === 'CANCELLED'
+    const isSeminar = tournament.type === 'SEMINAR'
+    const isPrivate = tournament.visibility === 'PRIVATE'
 
     const CardContent = (
         <>
@@ -150,12 +206,20 @@ function TournamentCard({ tournament, priority, finished, cancelled }: Tournamen
                     />
                 ) : (
                     <div className="absolute inset-0 flex items-center justify-center bg-red-50">
-                        <span className="text-4xl">🥋</span>
+                        <span className="text-4xl">{isSeminar ? '🎓' : '🥋'}</span>
                     </div>
                 )}
 
                 {/* Status Badge */}
-                <div className="absolute top-3 right-3">
+                <div className="absolute top-3 right-3 flex flex-col items-end gap-1">
+                    {isPrivate && (
+                        <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-gray-600 text-white border border-gray-700 shadow-sm flex items-center gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                            </svg>
+                            Private
+                        </span>
+                    )}
                     {isCancelled && (
                         <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-red-100 text-red-700 border border-red-200">
                             Cancelled
@@ -209,7 +273,7 @@ function TournamentCard({ tournament, priority, finished, cancelled }: Tournamen
 
     return (
         <Link
-            href={`/tournament/${tournament.id}`}
+            href={tournament.link || `/tournament/${tournament.id}`}
             className="group bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-red-300 hover:shadow-md transition-all"
         >
             {CardContent}

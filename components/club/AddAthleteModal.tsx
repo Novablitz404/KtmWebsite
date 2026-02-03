@@ -1,15 +1,18 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { X, Search, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { X, Search, Loader2, AlertCircle, CheckCircle2, Upload, CreditCard } from 'lucide-react'
 import { toast } from 'sonner'
 import GlobalDropdown from '@/components/GlobalDropdown'
 import { searchClubMembers, getUpcomingTournaments, registerForTournament, findPlayerCategory } from '@/app/actions'
+import { getUpcomingSeminars, registerForSeminar } from '@/app/seminars/actions'
+import { getUpcomingPromotions, registerForPromotion } from '@/app/promotions/actions'
 
 interface AddAthleteModalProps {
     isOpen: boolean
     onClose: () => void
     clubId: string
     clubName: string
+    defaultType?: 'TOURNAMENT' | 'SEMINAR' | 'PROMOTION'
 }
 
 interface Member {
@@ -39,7 +42,28 @@ interface Category {
     type: string
 }
 
-export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: AddAthleteModalProps) {
+interface Seminar {
+    id: string
+    name: string
+    startDate: Date
+    fee: number | null
+    paymentMethods: {
+        id: string
+        type: string
+        name: string
+        accountName: string
+        accountNumber: string
+        qrCodeUrl: string | null
+    }[]
+}
+
+interface PromotionTest {
+    id: string
+    name: string
+    testDate: Date
+}
+
+export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, defaultType = 'TOURNAMENT' }: AddAthleteModalProps) {
     // Member Search State
     const [searchQuery, setSearchQuery] = useState('')
     const [searchResults, setSearchResults] = useState<Member[]>([])
@@ -49,6 +73,20 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
     // Selection State
     const [tournaments, setTournaments] = useState<Tournament[]>([])
     const [selectedTournament, setSelectedTournament] = useState<string>('')
+
+    const [seminars, setSeminars] = useState<Seminar[]>([])
+    const [selectedSeminarId, setSelectedSeminarId] = useState<string>('')
+
+    const [promotions, setPromotions] = useState<PromotionTest[]>([])
+    const [selectedPromotionId, setSelectedPromotionId] = useState<string>('')
+
+    // Seminar Specific State
+    const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<string>('')
+    const [proofOfPayment, setProofOfPayment] = useState<File | null>(null)
+    const [proofPreview, setProofPreview] = useState<string | null>(null)
+
+    // Promotion Specific State
+    const [targetBelt, setTargetBelt] = useState<string>('')
 
     // Auto-Detection State
     const [tentativeCategory, setTentativeCategory] = useState<Category | null>(null)
@@ -62,7 +100,38 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
     const [teamId, setTeamId] = useState<string>('')
     const [submitting, setSubmitting] = useState(false)
 
+    const [activeTab, setActiveTab] = useState<'TOURNAMENT' | 'SEMINAR' | 'PROMOTION'>(defaultType)
 
+    // Initial tab setup when modal opens
+    useEffect(() => {
+        if (isOpen) {
+            setActiveTab(defaultType)
+        }
+    }, [isOpen, defaultType])
+
+    // Load data based on active tab
+    useEffect(() => {
+        if (isOpen) {
+            if (activeTab === 'TOURNAMENT' && tournaments.length === 0) {
+                getUpcomingTournaments().then(setTournaments).catch(() => toast.error('Failed to load tournaments'))
+            } else if (activeTab === 'SEMINAR' && seminars.length === 0) {
+                getUpcomingSeminars(clubId).then(setSeminars).catch(() => toast.error('Failed to load seminars'))
+            } else if (activeTab === 'PROMOTION' && promotions.length === 0) {
+                getUpcomingPromotions(clubId).then(setPromotions).catch(() => toast.error('Failed to load promotions'))
+            }
+        }
+    }, [isOpen, activeTab, clubId, tournaments.length, seminars.length, promotions.length])
+
+    // Handle Proof of Payment Preview
+    useEffect(() => {
+        if (!proofOfPayment) {
+            setProofPreview(null)
+            return
+        }
+        const reader = new FileReader()
+        reader.onloadend = () => setProofPreview(reader.result as string)
+        reader.readAsDataURL(proofOfPayment)
+    }, [proofOfPayment])
 
     // Derived state for available event types
     const selectedTournamentObj = tournaments.find(t => t.id === selectedTournament)
@@ -73,11 +142,6 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
             { value: 'KYUKPA', label: 'Kyukpa (Breaking)' }
         ].filter(type => selectedTournamentObj.categories.some(c => c.type === type.value))
         : []
-    useEffect(() => {
-        if (isOpen) {
-            getUpcomingTournaments().then(setTournaments).catch(() => toast.error('Failed to load tournaments'))
-        }
-    }, [isOpen])
 
     // Auto-Detect Category Logic
     useEffect(() => {
@@ -145,37 +209,87 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!selectedMember || !selectedTournament || !tentativeCategory || !weight || !belt) {
-            toast.error('Please fill in all fields and ensure a category is detected')
+
+        if (!selectedMember) {
+            toast.error('Please select an athlete')
             return
         }
 
         setSubmitting(true)
         try {
-            const res = await registerForTournament({
-                categoryId: tentativeCategory.id,
-                userId: selectedMember.id,
-                name: selectedMember.name || 'Unknown',
-                gender: selectedMember.gender || 'MALE',
-                belt: belt,
-                weight: parseFloat(weight),
-                clubName: clubName,
-                poomsaeType: eventType === 'POOMSAE' ? poomsaeType : undefined,
-                teamId: eventType === 'POOMSAE' ? teamId : undefined
-            })
+            if (activeTab === 'TOURNAMENT') {
+                if (!selectedTournament || !tentativeCategory) {
+                    toast.error('Please select a tournament and ensure a category is detected')
+                    setSubmitting(false)
+                    return
+                }
 
-            if (res.error) {
-                toast.error(res.error)
-            } else {
-                toast.success('Athlete registered successfully')
-                onClose()
-                // Reset state
-                setSelectedMember(null)
-                setSelectedTournament('')
-                setTentativeCategory(null)
-                setWeight('')
-                setBelt('')
-                setEventType('KYORUGI')
+                const res = await registerForTournament({
+                    categoryId: tentativeCategory.id,
+                    userId: selectedMember.id,
+                    name: selectedMember.name || 'Unknown',
+                    gender: selectedMember.gender || 'MALE',
+                    belt: belt,
+                    weight: parseFloat(weight) || 0,
+                    clubName: clubName,
+                    poomsaeType: eventType === 'POOMSAE' ? poomsaeType : undefined,
+                    teamId: eventType === 'POOMSAE' ? teamId : undefined
+                })
+
+                if (res.error) toast.error(res.error)
+                else {
+                    toast.success('Athlete registered for tournament')
+                    onClose()
+                }
+            } else if (activeTab === 'SEMINAR') {
+                if (!selectedSeminarId) {
+                    toast.error('Please select a seminar')
+                    setSubmitting(false)
+                    return
+                }
+
+                if (!proofOfPayment) {
+                    toast.error('Please upload proof of payment')
+                    setSubmitting(false)
+                    return
+                }
+
+                const formData = new FormData()
+                formData.append('seminarId', selectedSeminarId)
+                formData.append('playerId', selectedMember.id)
+                formData.append('playerName', selectedMember.name || 'Unknown')
+                formData.append('clubName', clubName)
+                formData.append('belt', belt)
+                formData.append('proofOfPayment', proofOfPayment)
+
+                const res = await registerForSeminar(formData)
+                if (res.error) toast.error(res.error)
+                else {
+                    toast.success('Athlete registered for seminar')
+                    onClose()
+                }
+            } else if (activeTab === 'PROMOTION') {
+                if (!selectedPromotionId) {
+                    toast.error('Please select a promotion test')
+                    setSubmitting(false)
+                    return
+                }
+
+                const res = await registerForPromotion({
+                    promotionTestId: selectedPromotionId,
+                    playerId: selectedMember.id,
+                    playerName: selectedMember.name || 'Unknown',
+                    clubName: clubName,
+                    currentBelt: belt,
+                    targetBelt: targetBelt,
+                    age: selectedMember.birthDate ? new Date().getFullYear() - new Date(selectedMember.birthDate).getFullYear() : undefined
+                })
+
+                if (res.error) toast.error(res.error)
+                else {
+                    toast.success('Athlete registered for promotion test')
+                    onClose()
+                }
             }
         } catch (error) {
             toast.error('Registration failed')
@@ -191,10 +305,33 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-gray-900">Add Athlete to Tournament</h2>
+                    <h2 className="text-lg font-bold text-gray-900">
+                        {activeTab === 'TOURNAMENT' ? 'Add Athlete to Tournament' :
+                            activeTab === 'SEMINAR' ? 'Add Athlete to Seminar' :
+                                'Add Athlete to Promotion'}
+                    </h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors">
                         <X className="w-5 h-5" />
                     </button>
+                </div>
+
+                {/* Event Type Switcher (only if not pre-selected or force-shown) */}
+                <div className="px-6 py-2 bg-gray-50/50 border-b border-gray-100">
+                    <div className="flex p-1 bg-gray-200/50 rounded-xl">
+                        {(['TOURNAMENT', 'SEMINAR', 'PROMOTION'] as const).map((tab) => (
+                            <button
+                                key={tab}
+                                type="button"
+                                onClick={() => setActiveTab(tab)}
+                                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${activeTab === tab
+                                    ? 'bg-white text-gray-900 shadow-sm'
+                                    : 'text-gray-500 hover:text-gray-700'
+                                    }`}
+                            >
+                                {tab.charAt(0) + tab.slice(1).toLowerCase()}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 {/* Content */}
@@ -261,120 +398,255 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
                             )}
                         </div>
 
-                        {/* Tournament Selection */}
-                        <div className="space-y-4">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Tournament</label>
-                            <GlobalDropdown
-                                value={selectedTournament}
-                                onChange={setSelectedTournament}
-                                options={tournaments.map(t => ({ value: t.id, label: t.name }))}
-                                fullWidth
-                                searchable
-                            />
-                        </div>
-
-                        {/* Event Category Selection */}
-                        <div className="space-y-4">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Event Category</label>
-                            <GlobalDropdown
-                                value={eventType}
-                                onChange={(val: any) => setEventType(val)}
-                                options={availableEventTypes}
-                                fullWidth
-                            // If no tournament is selected or no compatible events found, this might be empty
-                            />
-                            {selectedTournament && availableEventTypes.length === 0 && (
-                                <p className="text-xs text-red-500">No event categories available for this tournament.</p>
-                            )}
-                        </div>
-
-                        {/* Player Details */}
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Weight (kg)</label>
-                                <input
-                                    type="number"
-                                    step="0.1"
-                                    value={weight}
-                                    onChange={(e) => setWeight(e.target.value)}
-                                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
-                                    required={eventType === 'KYORUGI'}
-                                    disabled={eventType === 'POOMSAE' || eventType === 'KYUKPA'}
-                                />
-                                {(eventType === 'POOMSAE' || eventType === 'KYUKPA') && <p className="text-[10px] text-gray-400">Not required for {eventType === 'POOMSAE' ? 'Poomsae' : 'Kyukpa'}</p>}
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Current Belt</label>
-                                <input
-                                    type="text"
-                                    value={belt}
-                                    onChange={(e) => setBelt(e.target.value)}
-                                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        {/* Poomsae Specifics - Only show if Poomsae selected */}
-                        {eventType === 'POOMSAE' && (
-                            <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Poomsae Type</label>
+                        {/* Event Selection */}
+                        {activeTab === 'TOURNAMENT' && (
+                            <>
+                                <div className="space-y-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Tournament</label>
                                     <GlobalDropdown
-                                        value={poomsaeType}
-                                        onChange={setPoomsaeType}
-                                        options={[
-                                            { value: 'INDIVIDUAL', label: 'Individual' },
-                                            { value: 'PAIR', label: 'Pair' },
-                                            { value: 'TEAM', label: 'Team' }
-                                        ]}
+                                        value={selectedTournament}
+                                        onChange={setSelectedTournament}
+                                        options={tournaments.map(t => ({ value: t.id, label: t.name }))}
                                         fullWidth
+                                        searchable
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Team ID (Optional)</label>
-                                    <input
-                                        type="text"
-                                        placeholder="e.g. 1, A, B"
-                                        value={teamId}
-                                        onChange={(e) => setTeamId(e.target.value)}
-                                        className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
+
+                                <div className="space-y-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Event Category</label>
+                                    <GlobalDropdown
+                                        value={eventType}
+                                        onChange={(val: any) => setEventType(val)}
+                                        options={availableEventTypes}
+                                        fullWidth
                                     />
+                                    {selectedTournament && availableEventTypes.length === 0 && (
+                                        <p className="text-xs text-red-500">No event categories available for this tournament.</p>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Weight (kg)</label>
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            value={weight}
+                                            onChange={(e) => setWeight(e.target.value)}
+                                            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
+                                            required={eventType === 'KYORUGI'}
+                                            disabled={eventType === 'POOMSAE' || eventType === 'KYUKPA'}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Current Belt</label>
+                                        <input
+                                            type="text"
+                                            value={belt}
+                                            onChange={(e) => setBelt(e.target.value)}
+                                            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+
+                                {eventType === 'POOMSAE' && (
+                                    <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Poomsae Type</label>
+                                            <GlobalDropdown
+                                                value={poomsaeType}
+                                                onChange={setPoomsaeType}
+                                                options={[
+                                                    { value: 'INDIVIDUAL', label: 'Individual' },
+                                                    { value: 'PAIR', label: 'Pair' },
+                                                    { value: 'TEAM', label: 'Team' }
+                                                ]}
+                                                fullWidth
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Team ID (Optional)</label>
+                                            <input
+                                                type="text"
+                                                placeholder="e.g. 1, A, B"
+                                                value={teamId}
+                                                onChange={(e) => setTeamId(e.target.value)}
+                                                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Detailed Category</label>
+                                    {isDetecting ? (
+                                        <div className="flex items-center gap-2 text-gray-500 text-sm">
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            <span>Detecting category...</span>
+                                        </div>
+                                    ) : tentativeCategory ? (
+                                        <div className="flex items-start gap-3">
+                                            <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5" />
+                                            <div>
+                                                <p className="font-bold text-gray-900 text-sm">{tentativeCategory.name}</p>
+                                                <p className="text-xs text-green-600 mt-0.5">Auto-detected based on profile</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-start gap-3">
+                                            <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5" />
+                                            <div>
+                                                <p className="font-medium text-gray-700 text-sm">No Category Found</p>
+                                                <p className="text-xs text-gray-500 mt-0.5">Please check weight, age, and requirements.</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
+
+                        {activeTab === 'SEMINAR' && (
+                            <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <div className="space-y-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Seminar</label>
+                                    <GlobalDropdown
+                                        value={selectedSeminarId}
+                                        onChange={setSelectedSeminarId}
+                                        options={seminars.map(s => ({ value: s.id, label: s.name }))}
+                                        fullWidth
+                                        searchable
+                                    />
+                                    {selectedSeminarId && seminars.find(s => s.id === selectedSeminarId)?.fee && (
+                                        <div className="flex items-center justify-between px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-lg">
+                                            <span className="text-xs font-medium text-emerald-700">Registration Fee</span>
+                                            <span className="font-bold text-emerald-700">₱{seminars.find(s => s.id === selectedSeminarId)?.fee}</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="space-y-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                                    <div className="grid grid-cols-1 gap-3">
+                                        {seminars.find(s => s.id === selectedSeminarId)?.paymentMethods.map(pm => (
+                                            <button
+                                                key={pm.id}
+                                                type="button"
+                                                onClick={() => setSelectedPaymentMethodId(pm.id)}
+                                                className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${selectedPaymentMethodId === pm.id
+                                                    ? 'bg-indigo-50 border-indigo-200 ring-1 ring-indigo-200'
+                                                    : 'bg-white border-gray-100 hover:border-gray-200'
+                                                    }`}
+                                            >
+                                                <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
+                                                    <CreditCard className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-bold text-gray-900">{pm.name}</p>
+                                                    <p className="text-xs text-gray-500">{pm.accountName} • {pm.accountNumber}</p>
+                                                </div>
+                                                {selectedPaymentMethodId === pm.id && (
+                                                    <CheckCircle2 className="w-5 h-5 text-indigo-600 ml-auto" />
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {selectedPaymentMethodId && seminars.find(s => s.id === selectedSeminarId)?.paymentMethods.find(pm => pm.id === selectedPaymentMethodId)?.qrCodeUrl && (
+                                    <div className="space-y-3 animate-in fade-in zoom-in-95 duration-300">
+                                        <label className="block text-sm font-medium text-gray-700">Scan to Pay</label>
+                                        <div className="flex flex-col items-center justify-center p-4 bg-gray-50 border border-gray-100 rounded-2xl">
+                                            <div className="relative w-48 h-48 bg-white p-2 rounded-xl shadow-sm border border-gray-100">
+                                                <img
+                                                    src={seminars.find(s => s.id === selectedSeminarId)?.paymentMethods.find(pm => pm.id === selectedPaymentMethodId)?.qrCodeUrl || ''}
+                                                    alt="Payment QR Code"
+                                                    className="w-full h-full object-contain"
+                                                />
+                                            </div>
+                                            <p className="mt-3 text-xs text-center text-gray-500 max-w-[200px]">
+                                                Scan this QR code using your payment app to complete the registration fee payment.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="space-y-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Upload Proof of Payment</label>
+                                    <div className="relative group">
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={(e) => setProofOfPayment(e.target.files?.[0] || null)}
+                                            className="hidden"
+                                            id="proof-upload"
+                                        />
+                                        <label
+                                            htmlFor="proof-upload"
+                                            className={`flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${proofPreview ? 'border-indigo-300 bg-indigo-50/30' : 'border-gray-200 bg-gray-50 group-hover:bg-gray-100 group-hover:border-gray-300'
+                                                }`}
+                                        >
+                                            {proofPreview ? (
+                                                <div className="relative w-full h-full p-2">
+                                                    <img src={proofPreview} alt="Proof" className="w-full h-full object-contain rounded-xl" />
+                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
+                                                        <span className="text-white text-xs font-bold">Change Image</span>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col items-center">
+                                                    <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                                                    <p className="text-sm font-medium text-gray-600">Click to upload receipt</p>
+                                                    <p className="text-xs text-gray-400 mt-1">PNG, JPG or PDF up to 10MB</p>
+                                                </div>
+                                            )}
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
                         )}
 
-                        {/* Tentative Category Display */}
-                        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Detailed Category</label>
-                            {isDetecting ? (
-                                <div className="flex items-center gap-2 text-gray-500 text-sm">
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    <span>Detecting category...</span>
+                        {activeTab === 'PROMOTION' && (
+                            <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <div className="space-y-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Promotion Test</label>
+                                    <GlobalDropdown
+                                        value={selectedPromotionId}
+                                        onChange={setSelectedPromotionId}
+                                        options={promotions.map(p => ({ value: p.id, label: p.name }))}
+                                        fullWidth
+                                        searchable
+                                    />
                                 </div>
-                            ) : tentativeCategory ? (
-                                <div className="flex items-start gap-3">
-                                    <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5" />
-                                    <div>
-                                        <p className="font-bold text-gray-900 text-sm">{tentativeCategory.name}</p>
-                                        <p className="text-xs text-green-600 mt-0.5">Auto-detected based on profile</p>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Current Belt</label>
+                                        <input
+                                            type="text"
+                                            value={belt}
+                                            onChange={(e) => setBelt(e.target.value)}
+                                            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Target Belt</label>
+                                        <input
+                                            type="text"
+                                            value={targetBelt}
+                                            onChange={(e) => setTargetBelt(e.target.value)}
+                                            placeholder="Next Rank"
+                                            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
+                                        />
                                     </div>
                                 </div>
-                            ) : (
-                                <div className="flex items-start gap-3">
-                                    <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5" />
-                                    <div>
-                                        <p className="font-medium text-gray-700 text-sm">No Category Found</p>
-                                        <p className="text-xs text-gray-500 mt-0.5">Please check weight, age, and requirements.</p>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                            </div>
+                        )}
 
                         {/* Submit */}
                         <button
                             type="submit"
-                            disabled={submitting || !tentativeCategory}
+                            disabled={submitting || !selectedMember || (activeTab === 'TOURNAMENT' && !tentativeCategory)}
                             className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-sm shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                         >
                             {submitting ? (
@@ -383,7 +655,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName }: A
                                     Registering...
                                 </>
                             ) : (
-                                'Register Athlete'
+                                activeTab === 'TOURNAMENT' ? 'Register Athlete' : 'Add Athlete'
                             )}
                         </button>
                     </form>

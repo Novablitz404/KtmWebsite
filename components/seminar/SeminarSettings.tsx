@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { X, Calendar, MapPin, DollarSign, Image as ImageIcon, Check, Save, Trash2, Loader2, AlertTriangle } from 'lucide-react'
 import { updateSeminar, deleteSeminar } from '@/app/organization/actions'
@@ -8,10 +8,11 @@ import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import ImageCropperModal from '@/components/ImageCropperModal'
 import GlobalCalendar from '@/components/GlobalCalendar'
-import { Seminar } from '@prisma/client'
+import { Seminar, PaymentMethod } from '@prisma/client'
+import PaymentMethodsInput, { PaymentMethodData } from '@/components/PaymentMethodsInput'
 
 interface SeminarSettingsProps {
-    seminar: Seminar
+    seminar: Seminar & { paymentMethods?: PaymentMethod[] }
 }
 
 export default function SeminarSettings({ seminar }: SeminarSettingsProps) {
@@ -29,6 +30,34 @@ export default function SeminarSettings({ seminar }: SeminarSettingsProps) {
     const [startDate, setStartDate] = useState<Date | undefined>(seminar.startDate ? new Date(seminar.startDate) : undefined)
     const [endDate, setEndDate] = useState<Date | undefined>(seminar.endDate ? new Date(seminar.endDate) : undefined)
     const [registrationDeadline, setRegistrationDeadline] = useState<Date | undefined>(seminar.registrationDeadline ? new Date(seminar.registrationDeadline) : undefined)
+
+    // Payment Methods State
+    const [paymentMethods, setPaymentMethods] = useState<PaymentMethodData[]>(
+        seminar.paymentMethods?.map(pm => ({
+            id: pm.id,
+            type: pm.type as any,
+            name: pm.name,
+            accountName: pm.accountName,
+            accountNumber: pm.accountNumber,
+            qrCodeBlob: null,
+            existingQrCodeUrl: pm.qrCodeUrl
+        })) || []
+    )
+
+    // Sync state with props when router moves or data refreshes
+    useEffect(() => {
+        setPaymentMethods(
+            seminar.paymentMethods?.map(pm => ({
+                id: pm.id,
+                type: pm.type as any,
+                name: pm.name,
+                accountName: pm.accountName,
+                accountNumber: pm.accountNumber,
+                qrCodeBlob: null,
+                existingQrCodeUrl: pm.qrCodeUrl
+            })) || []
+        )
+    }, [seminar.paymentMethods])
 
     const handleBackdropChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
@@ -70,6 +99,16 @@ export default function SeminarSettings({ seminar }: SeminarSettingsProps) {
             formData.append('banner', croppedImageBlob, 'banner.jpg')
         }
 
+        // Append QR Code Blobs manually
+        paymentMethods.forEach(pm => {
+            // Remove potential empty key from file input
+            formData.delete(`qrCode_${pm.id}`)
+
+            if (pm.qrCodeBlob) {
+                formData.append(`qrCode_${pm.id}`, pm.qrCodeBlob, 'qr-code.png')
+            }
+        })
+
         const result = await updateSeminar(formData)
 
         if (result.error) {
@@ -93,7 +132,7 @@ export default function SeminarSettings({ seminar }: SeminarSettingsProps) {
             setIsDeleting(false)
         } else {
             toast.success('Seminar deleted')
-            router.push('/organization?view=events')
+            router.push('/organization?tab=events')
         }
     }
 
@@ -281,6 +320,17 @@ export default function SeminarSettings({ seminar }: SeminarSettingsProps) {
                                     </span>
                                 </label>
                             </div>
+                        </div>
+
+                        {/* Payment Methods */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Payment Methods
+                            </label>
+                            <PaymentMethodsInput
+                                value={paymentMethods}
+                                onChange={setPaymentMethods}
+                            />
                         </div>
                     </div>
                 </div>

@@ -9,6 +9,11 @@ const nextConfig: NextConfig = {
         hostname: 'pxvxupzgwortdvcyclxl.supabase.co',
         pathname: '/storage/v1/object/public/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'unjsmncquvssasvjunii.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
     ],
   },
   transpilePackages: ['@react-pdf/renderer'],

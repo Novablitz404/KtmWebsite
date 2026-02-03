@@ -55,7 +55,7 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
-    const [pendingPlayers, approvedPlayers, participatingTournaments, promotionRegistrations] = await Promise.all([
+    const [pendingPlayers, approvedPlayers, participatingTournaments, participatingPromotions, participatingSeminars, promotionRegistrations, seminarRegistrations] = await Promise.all([
         // 1. Pending players
         prisma.player.findMany({
             where: {
@@ -128,17 +128,9 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
         // 3. Participating Tournaments
         prisma.tournament.findMany({
             where: {
-                participatingClubs: {
-                    some: {
-                        clubId: clubId
-                    }
-                },
-                startDate: {
-                    gte: today
-                },
-                status: {
-                    not: 'CANCELLED'
-                }
+                participatingClubs: { some: { clubId: clubId } },
+                startDate: { gte: today },
+                status: { not: 'CANCELLED' }
             },
             select: {
                 id: true,
@@ -166,6 +158,46 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
             orderBy: { startDate: 'desc' },
             take: 50
         }),
+        // 3.1 Participating Promotions
+        prisma.promotionTest.findMany({
+            where: {
+                participatingClubs: { some: { clubId: clubId } },
+                testDate: { gte: today },
+                status: { not: 'CANCELLED' }
+            },
+            select: {
+                id: true,
+                name: true,
+                testDate: true,
+                venue: true,
+                _count: {
+                    select: {
+                        registrations: { where: { clubName: clubName } }
+                    }
+                }
+            },
+            orderBy: { testDate: 'asc' }
+        }),
+        // 3.2 Participating Seminars
+        prisma.seminar.findMany({
+            where: {
+                participatingClubs: { some: { clubId: clubId } },
+                startDate: { gte: today },
+                status: { not: 'CANCELLED' }
+            },
+            select: {
+                id: true,
+                name: true,
+                startDate: true,
+                venue: true,
+                _count: {
+                    select: {
+                        registrations: { where: { clubName: clubName } }
+                    }
+                }
+            },
+            orderBy: { startDate: 'asc' }
+        }),
         // 4. Promotion Registrations (Pending & Approved)
         prisma.promotionTestRegistration.findMany({
             where: {
@@ -181,9 +213,7 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
                 status: true,
                 currentBelt: true,
                 targetBelt: true,
-                playerId: true, // Assuming this is User ID or Clerk ID? Schema says "If registered player". 
-                // We'll treat it as Clerk ID for now or fetch User if needed. 
-                // Actually, if we can't reliably get Clerk ID / Email without User relation, we skip email.
+                playerId: true,
                 promotionTest: {
                     select: {
                         name: true,
@@ -192,6 +222,31 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
                 }
             },
             orderBy: { promotionTest: { testDate: 'asc' } }
+        }),
+        // 5. Seminar Registrations
+        prisma.seminarRegistration.findMany({
+            where: {
+                clubName: clubName,
+                status: { in: ['PENDING', 'APPROVED'] },
+                seminar: {
+                    startDate: { gte: today }
+                }
+            },
+            select: {
+                id: true,
+                playerName: true,
+                playerId: true,
+                status: true,
+                paymentStatus: true,
+                belt: true,
+                seminar: {
+                    select: {
+                        name: true,
+                        startDate: true
+                    }
+                }
+            },
+            orderBy: { seminar: { startDate: 'asc' } }
         })
     ])
 
@@ -208,7 +263,6 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
             athleteCount += category.players.length
             category.players.forEach(p => clubAthleteNames.add(p.name))
 
-            // Finals: matches with no nextMatchId
             const finals = category.matches.filter(m => !m.nextMatchId)
 
             finals.forEach(finalMatch => {
@@ -224,7 +278,6 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
                 }
             })
 
-            // Semi-finals: matches whose nextMatch is a final
             const semiFinals = category.matches.filter(m =>
                 m.nextMatchId && finals.some(f => f.id === m.nextMatchId)
             )
@@ -250,6 +303,31 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
             bronze
         }
     })
+
+    // Create unified upcomingEvents list
+    const upcomingEvents = [
+        ...clubTournaments.map(t => ({
+            id: t.id,
+            name: t.name,
+            startDate: t.startDate,
+            type: 'TOURNAMENT' as const,
+            athleteCount: t.athleteCount
+        })),
+        ...participatingPromotions.map(p => ({
+            id: p.id,
+            name: p.name,
+            startDate: p.testDate,
+            type: 'PROMOTION' as const,
+            athleteCount: p._count.registrations
+        })),
+        ...participatingSeminars.map(s => ({
+            id: s.id,
+            name: s.name,
+            startDate: s.startDate,
+            type: 'SEMINAR' as const,
+            athleteCount: s._count.registrations
+        }))
+    ].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
 
     // Calculate Top Performers across all fetched tournaments
     const athleteStats = new Map<string, { name: string, gold: number, silver: number, bronze: number }>()
@@ -316,10 +394,23 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
         })
         .slice(0, 5) // Top 5
 
+    // Fetch images for seminar registrations
+    const seminarPlayerIds = seminarRegistrations
+        .map(r => r.playerId)
+        .filter((id): id is string => !!id)
+
+    const seminarPlayers = await prisma.player.findMany({
+        where: { id: { in: seminarPlayerIds } },
+        select: { id: true, user: { select: { imageUrl: true } } }
+    })
+
+    const playerImageMap = new Map(seminarPlayers.map(p => [p.id, p.user?.imageUrl || null]))
+
     return {
         pendingPlayers,
         approvedPlayers,
         clubTournaments,
+        upcomingEvents,
         topPerformers,
         promotionRegistrations: promotionRegistrations.map(reg => ({
             id: reg.id,
@@ -331,6 +422,16 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
             targetBelt: reg.targetBelt,
             eventName: reg.promotionTest.name,
             eventDate: reg.promotionTest.testDate,
+        })),
+        seminarRegistrations: seminarRegistrations.map(reg => ({
+            id: reg.id,
+            name: reg.playerName,
+            status: reg.status,
+            paymentStatus: reg.paymentStatus,
+            belt: reg.belt,
+            imageUrl: reg.playerId ? playerImageMap.get(reg.playerId) : null,
+            eventName: reg.seminar.name,
+            eventDate: reg.seminar.startDate
         }))
     }
 })
@@ -342,15 +443,17 @@ export const getClubMemberCount = cache(async (clubName: string) => {
 })
 
 export const getClubHomeData = cache(async (clubId: string, clubName: string) => {
-    const { pendingPlayers, approvedPlayers, clubTournaments, topPerformers, promotionRegistrations } = await getClubEventsData(clubId, clubName)
+    const { pendingPlayers, approvedPlayers, clubTournaments, upcomingEvents, topPerformers, promotionRegistrations, seminarRegistrations } = await getClubEventsData(clubId, clubName)
     const totalMembers = await getClubMemberCount(clubName)
 
     return {
         pendingPlayers,
         approvedPlayers,
         clubTournaments,
+        upcomingEvents,
         totalMembers,
         topPerformers,
-        promotionRegistrations
+        promotionRegistrations,
+        seminarRegistrations
     }
 })

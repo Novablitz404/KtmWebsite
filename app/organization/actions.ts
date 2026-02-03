@@ -382,6 +382,8 @@ export async function createSeminar(formData: FormData) {
     const venue = formData.get('venue') as string
     const feeStr = formData.get('fee') as string
     const visibility = (formData.get('visibility') as string) || 'PRIVATE'
+    const paymentInstructions = formData.get('paymentInstructions') as string
+    const paymentMethodsJson = formData.get('paymentMethods') as string
     const bannerFile = formData.get('banner') as File | null
 
     if (!name || !startDate) return { error: 'Name and start date are required' }
@@ -435,7 +437,52 @@ export async function createSeminar(formData: FormData) {
             fee: feeStr ? parseFloat(feeStr) : null,
             status: 'UPCOMING',
             visibility,
-            bannerUrl
+            paymentInstructions: paymentInstructions || null,
+            bannerUrl,
+            paymentMethods: {
+                create: await Promise.all(JSON.parse(paymentMethodsJson || '[]').map(async (pm: any) => {
+                    let qrCodeUrl = null
+                    const qrKey = `qrCode_${pm.id}`
+                    const qrFile = formData.get(qrKey) as File | null
+
+                    console.log(`[createSeminar] Processing method ${pm.id}, Key: ${qrKey}, File: ${qrFile ? `${qrFile.name} (${qrFile.size} bytes)` : 'null'}`)
+
+                    if (qrFile && qrFile.size > 0) {
+                        try {
+                            const supabase = createClient(
+                                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                                process.env.SUPABASE_SERVICE_ROLE_KEY!
+                            )
+                            const bytes = await qrFile.arrayBuffer()
+                            const buffer = Buffer.from(bytes)
+                            const timestamp = Date.now()
+                            const safeName = qrFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+                            const filename = `payment-qr-${timestamp}-${safeName}`
+
+                            const { error: uploadError } = await supabase.storage
+                                .from('qr-codes')
+                                .upload(filename, buffer, { contentType: qrFile.type, upsert: false })
+
+                            if (!uploadError) {
+                                const { data: { publicUrl } } = supabase.storage
+                                    .from('qr-codes')
+                                    .getPublicUrl(filename)
+                                qrCodeUrl = publicUrl
+                            }
+                        } catch (e) {
+                            console.error('QR Upload Error', e)
+                        }
+                    }
+
+                    return {
+                        type: pm.type,
+                        name: pm.name,
+                        accountName: pm.accountName,
+                        accountNumber: pm.accountNumber,
+                        qrCodeUrl
+                    }
+                }))
+            }
         }
     })
 
@@ -534,7 +581,10 @@ export async function updateSeminar(formData: FormData) {
     const venue = formData.get('venue') as string
     const feeStr = formData.get('fee') as string
     const visibility = (formData.get('visibility') as string) || 'PRIVATE'
+    const paymentInstructions = formData.get('paymentInstructions') as string
     const bannerFile = formData.get('banner') as File | null
+
+    const paymentMethodsJson = formData.get('paymentMethods') as string
 
     if (!name || !startDate) return { error: 'Name and start date are required' }
 
@@ -569,24 +619,158 @@ export async function updateSeminar(formData: FormData) {
         }
     }
 
-    await prisma.seminar.update({
-        where: { id: seminarId },
-        data: {
-            name,
-            description: description || null,
-            startDate: new Date(startDate),
-            endDate: endDate ? new Date(endDate) : null,
-            registrationDeadline: registrationDeadline ? new Date(registrationDeadline) : null,
-            venue: venue || null,
-            fee: feeStr ? parseFloat(feeStr) : null,
-            visibility,
-            bannerUrl
+    // Process Payment Methods
+    const paymentMethodsData: {
+        type: string
+        name: string
+        accountName: string
+        accountNumber: string
+        qrCodeUrl: string | null
+    }[] = []
+    if (paymentMethodsJson) {
+        const rawMethods = JSON.parse(paymentMethodsJson)
+        for (const pm of rawMethods) {
+            let qrCodeUrl = pm.existingQrCodeUrl || null
+            const qrKey = `qrCode_${pm.id}`
+            const qrFile = formData.get(qrKey) as File | null
+
+            console.log(`[updateSeminar] Processing method ${pm.id}, Key: ${qrKey}, File: ${qrFile ? `${qrFile.name} (${qrFile.size} bytes)` : 'null'}`)
+
+            if (qrFile && qrFile.size > 0) {
+                try {
+                    const supabase = createClient(
+                        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                        process.env.SUPABASE_SERVICE_ROLE_KEY!
+                    )
+                    const bytes = await qrFile.arrayBuffer()
+                    const buffer = Buffer.from(bytes)
+                    const timestamp = Date.now()
+                    const safeName = qrFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+                    const filename = `payment-qr-${timestamp}-${safeName}`
+
+                    const { error: uploadError } = await supabase.storage
+                        .from('qr-codes')
+                        .upload(filename, buffer, { contentType: qrFile.type, upsert: false })
+
+                    if (!uploadError) {
+                        const { data: { publicUrl } } = supabase.storage
+                            .from('qr-codes')
+                            .getPublicUrl(filename)
+                        qrCodeUrl = publicUrl
+                    }
+                } catch (e) {
+                    console.error('QR Upload Error', e)
+                }
+            }
+
+            paymentMethodsData.push({
+                type: pm.type,
+                name: pm.name,
+                accountName: pm.accountName,
+                accountNumber: pm.accountNumber,
+                qrCodeUrl
+            })
         }
+    }
+
+    // Use transaction to update seminar and replace payment methods
+    await prisma.$transaction(async (tx) => {
+        await tx.paymentMethod.deleteMany({ where: { seminarId } })
+
+        await tx.seminar.update({
+            where: { id: seminarId },
+            data: {
+                name,
+                description: description || null,
+                startDate: new Date(startDate),
+                endDate: endDate ? new Date(endDate) : null,
+                registrationDeadline: registrationDeadline ? new Date(registrationDeadline) : null,
+                venue: venue || null,
+                fee: feeStr ? parseFloat(feeStr) : null,
+                visibility,
+                paymentInstructions: paymentInstructions || null,
+                bannerUrl,
+                paymentMethods: {
+                    create: paymentMethodsData
+                }
+            }
+        })
     })
+
+
+
+
 
     revalidatePath('/organization')
     revalidatePath(`/seminars/${seminarId}`)
     return { success: true }
+}
+export async function fetchSeminarRegistrations(
+    seminarId: string,
+    page: number = 1,
+    limit: number = 10,
+    search: string = ''
+) {
+    const user = await currentUser()
+    if (!user) return { error: 'Unauthorized', registrations: [], total: 0, totalPages: 0 }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: { organization: true }
+    })
+
+    // Verify permission (Organization Owner of the seminar OR Admin)
+    const seminar = await prisma.seminar.findUnique({
+        where: { id: seminarId },
+        select: { organizationId: true }
+    })
+
+    if (!seminar) return { error: 'Seminar not found', registrations: [], total: 0, totalPages: 0 }
+
+    const isAdmin = dbUser?.role === 'ADMIN'
+    const isOwner = dbUser?.organization?.id === seminar.organizationId
+
+    if (!isAdmin && !isOwner) {
+        return { error: 'Unauthorized', registrations: [], total: 0, totalPages: 0 }
+    }
+
+    const where: any = {
+        seminarId,
+        ...(search ? {
+            OR: [
+                { playerName: { contains: search, mode: 'insensitive' } },
+                { clubName: { contains: search, mode: 'insensitive' } }
+            ]
+        } : {})
+    }
+
+    const [total, registrations] = await Promise.all([
+        prisma.seminarRegistration.count({ where }),
+        prisma.seminarRegistration.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            skip: (page - 1) * limit,
+            take: limit
+        })
+    ])
+
+    // Manually fetch user images since there's no FK relation
+    const playerIds = registrations.map(r => r.playerId).filter(Boolean) as string[]
+    const users = await prisma.user.findMany({
+        where: { id: { in: playerIds } },
+        select: { id: true, imageUrl: true }
+    })
+
+    const registrationsWithUser = registrations.map(r => {
+        const user = users.find(u => u.id === r.playerId)
+        return { ...r, user: user ? { imageUrl: user.imageUrl } : null }
+    })
+
+    return {
+        registrations: registrationsWithUser,
+        total,
+        totalPages: Math.ceil(total / limit)
+    }
 }
 
 export async function updateSeminarRegistrationStatus(registrationId: string, status?: string, paymentStatus?: string) {

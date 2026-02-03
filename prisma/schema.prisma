@@ -140,6 +140,7 @@ model User {
   role    String @default("ATHLETE") // ATHLETE, CLUB_MASTER, ASSISTANT_CLUB_MASTER, ORGANIZER, MANAGER
 
   // Profile Fields
+  imageUrl  String? // From Clerk
   name      String?
   birthDate DateTime? // For calculating age/division
   belt      String?
@@ -190,8 +191,8 @@ model Player {
   poomsaeType String? // "INDIVIDUAL", "PAIR", "TEAM" - indicated by Athlete
 
 
-  categoryId String
-  category   Category @relation(fields: [categoryId], references: [id])
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
 
   userId String?
   user   User?   @relation(fields: [userId], references: [id])
@@ -355,6 +356,8 @@ model Seminar {
 
   visibility String  @default("PRIVATE") // PRIVATE, PUBLIC
   bannerUrl  String?
+  paymentInstructions String? @db.Text // Instructions for payment (Bank details, GCash, etc.)
+  paymentMethods      PaymentMethod[]
 
   registrations      SeminarRegistration[]
   participatingClubs ClubEventParticipation[]
@@ -363,6 +366,22 @@ model Seminar {
   updatedAt DateTime @updatedAt
 
   @@index([organizationId, startDate])
+}
+
+model PaymentMethod {
+  id        String   @id @default(cuid())
+  seminarId String
+  seminar   Seminar  @relation(fields: [seminarId], references: [id], onDelete: Cascade)
+
+  type          String // "BANK", "EWALLET", "OTHER"
+  name          String // "BDO", "GCash"
+  accountName   String
+  accountNumber String
+  qrCodeUrl     String?
+
+  createdAt DateTime @default(now())
+
+  @@index([seminarId])
 }
 
 model SeminarRegistration {
@@ -378,6 +397,9 @@ model SeminarRegistration {
   
   status        String @default("PENDING") // PENDING, APPROVED, REJECTED
   paymentStatus String @default("UNPAID") // UNPAID, PAID
+  
+  proofOfPaymentUrl String?
+  waiverSignedAt    DateTime?
 
   createdAt DateTime @default(now())
 
