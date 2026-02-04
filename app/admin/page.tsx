@@ -16,7 +16,7 @@ export default async function AdminPage() {
     }
 
     // Parallel Data Fetching
-    const [stats, pendingOrgs, potentialOwners] = await Promise.all([
+    const [stats, pendingOrgs, potentialOwners, approvedTournamentRegistrations, approvedSeminarRegistrations] = await Promise.all([
         // 1. Stats
         prisma.user.groupBy({
             by: ['role'],
@@ -37,6 +37,14 @@ export default async function AdminPage() {
             },
             select: { id: true, name: true, email: true, role: true },
             orderBy: { name: 'asc' }
+        }),
+        // 4. Count approved tournament registrations
+        prisma.player.count({
+            where: { registrationStatus: 'APPROVED' }
+        }),
+        // 5. Count approved seminar registrations
+        prisma.seminarRegistration.count({
+            where: { status: 'APPROVED' }
         })
     ])
 
@@ -46,7 +54,18 @@ export default async function AdminPage() {
         return acc
     }, {} as Record<string, number>)
     const totalUsers = Object.values(countByRole).reduce((a, b) => a + b, 0)
-    const processedStats = { totalUsers, countByRole }
+
+    // Calculate Revenue (100 pesos per approved registration)
+    const FEE_PER_REGISTRATION = 100
+    const totalRevenue = (approvedTournamentRegistrations + approvedSeminarRegistrations) * FEE_PER_REGISTRATION
+
+    const processedStats = {
+        totalUsers,
+        countByRole,
+        totalRevenue,
+        approvedTournamentRegistrations,
+        approvedSeminarRegistrations
+    }
 
     // Format Data for Client
     const formattedPendingOrgs = pendingOrgs.map(org => ({

@@ -2311,8 +2311,49 @@ export async function fetchTournamentsData(userId: string, page: number = 1) {
 
 export async function fetchAvailableEvents(clubId: string) {
     try {
+        // Get club's organization hierarchy
+        const club = await prisma.club.findUnique({
+            where: { id: clubId },
+            include: {
+                organization: {
+                    select: {
+                        id: true,
+                        parentOrganizationId: true
+                    }
+                }
+            }
+        })
+
+        const clubOrgId = club?.organizationId
+        const clubParentOrgId = club?.organization?.parentOrganizationId
+
+        // Build list of organization IDs in the same "family"
+        // This includes: the club's own org, the parent org, and all sibling orgs
+        let familyOrgIds: string[] = clubOrgId ? [clubOrgId] : []
+
+        if (clubParentOrgId) {
+            // Add parent org
+            familyOrgIds.push(clubParentOrgId)
+
+            // Add all sibling organizations (orgs with same parent)
+            const siblings = await prisma.organization.findMany({
+                where: { parentOrganizationId: clubParentOrgId },
+                select: { id: true }
+            })
+            familyOrgIds = [...new Set([...familyOrgIds, ...siblings.map(o => o.id)])]
+        }
+
+        // Also check: if the club's org IS a parent org, include all child orgs
+        if (clubOrgId) {
+            const childOrgs = await prisma.organization.findMany({
+                where: { parentOrganizationId: clubOrgId },
+                select: { id: true }
+            })
+            familyOrgIds = [...new Set([...familyOrgIds, ...childOrgs.map(o => o.id)])]
+        }
+
         const [tournaments, promotionTests, seminars] = await Promise.all([
-            // Fetch upcoming tournaments
+            // Fetch upcoming tournaments (open to all - no visibility filter)
             prisma.tournament.findMany({
                 where: {
                     startDate: {
@@ -2328,10 +2369,17 @@ export async function fetchAvailableEvents(clubId: string) {
                 },
                 orderBy: { startDate: 'asc' }
             }),
-            // Fetch open promotion tests
+            // Fetch promotion tests - filter by visibility and org family
             prisma.promotionTest.findMany({
                 where: {
-                    status: { in: ['UPCOMING', 'OPEN'] }
+                    status: { in: ['UPCOMING', 'OPEN'] },
+                    OR: [
+                        { visibility: 'PUBLIC' },
+                        {
+                            visibility: 'PRIVATE',
+                            organizationId: { in: familyOrgIds }
+                        }
+                    ]
                 },
                 include: {
                     participatingClubs: {
@@ -2342,13 +2390,20 @@ export async function fetchAvailableEvents(clubId: string) {
                 },
                 orderBy: { testDate: 'asc' }
             }),
-            // Fetch upcoming seminars
+            // Fetch seminars - filter by visibility and org family
             prisma.seminar.findMany({
                 where: {
                     status: { in: ['UPCOMING', 'OPEN'] },
                     startDate: {
                         gte: new Date(new Date().setHours(0, 0, 0, 0))
-                    }
+                    },
+                    OR: [
+                        { visibility: 'PUBLIC' },
+                        {
+                            visibility: 'PRIVATE',
+                            organizationId: { in: familyOrgIds }
+                        }
+                    ]
                 },
                 include: {
                     participatingClubs: {

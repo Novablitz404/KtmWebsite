@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Check, X, Loader2 } from 'lucide-react'
+import { Check, X, Loader2, Clock, Building2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { approveOrganization, rejectOrganization } from '@/app/admin/actions'
 import { useRouter } from 'next/navigation'
@@ -57,75 +57,96 @@ export default function PendingOrganizations({ organizations }: PendingOrganizat
     }
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 h-full flex flex-col overflow-hidden">
-            <div className="p-6 pb-4 border-b border-gray-100">
-                <h3 className="text-lg font-bold text-gray-800">Pending Approvals</h3>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
+                        <Clock className="w-5 h-5 text-amber-600" />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-900">Pending Approvals</h3>
+                        <p className="text-xs text-gray-400">Organizations awaiting review</p>
+                    </div>
+                </div>
+                {organizations.length > 0 && (
+                    <span className="px-3 py-1 bg-amber-50 text-amber-700 text-xs font-bold rounded-full">
+                        {organizations.length} pending
+                    </span>
+                )}
             </div>
 
-            <div className="flex-1 overflow-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50 sticky top-0 z-10">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Organization</th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Owner</th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
-                            <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-100">
-                        {organizations.length === 0 ? (
-                            <tr>
-                                <td colSpan={4} className="px-6 py-12 text-center text-gray-400 text-sm">
-                                    No pending approvals.
-                                </td>
-                            </tr>
-                        ) : (
-                            organizations.map((org) => (
-                                <tr key={org.id} className="hover:bg-gray-50/50 transition-colors">
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className="font-semibold text-gray-900 text-sm">{org.name}</span>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="flex flex-col">
-                                            <span className="text-sm text-gray-900">{org.owner.name || 'Unknown'}</span>
-                                            <span className="text-xs text-gray-500">{org.owner.email}</span>
+            {/* Content */}
+            {organizations.length === 0 ? (
+                <div className="px-6 py-16 text-center">
+                    <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <Check className="w-8 h-8 text-gray-300" />
+                    </div>
+                    <p className="text-gray-400 font-medium">All caught up!</p>
+                    <p className="text-xs text-gray-300 mt-1">No pending approvals at the moment</p>
+                </div>
+            ) : (
+                <div className="divide-y divide-gray-50">
+                    {organizations.map((org) => (
+                        <div key={org.id} className="px-6 py-4 hover:bg-gray-50/50 transition-colors">
+                            <div className="flex items-center justify-between gap-4">
+                                {/* Organization Info */}
+                                <div className="flex items-center gap-4 min-w-0 flex-1">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-gray-100 to-gray-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                                        <Building2 className="w-5 h-5 text-gray-400" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="font-semibold text-gray-900 truncate">{org.name}</p>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                            <span className="text-sm text-gray-500 truncate">{org.owner.name || 'Unknown'}</span>
+                                            <span className="text-gray-300">•</span>
+                                            <span className="text-xs text-gray-400">{org.owner.email}</span>
                                         </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {new Date(org.createdAt).toLocaleDateString()}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                                        <div className="flex items-center justify-end gap-2">
-                                            <button
-                                                onClick={() => handleApprove(org.id)}
-                                                disabled={isPending}
-                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
-                                                title="Approve"
-                                            >
-                                                {actionId === org.id && isPending ? (
-                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                ) : (
-                                                    <Check className="w-3.5 h-3.5" />
-                                                )}
-                                                Approve
-                                            </button>
-                                            <button
-                                                onClick={() => handleReject(org.id)}
-                                                disabled={isPending}
-                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
-                                                title="Reject"
-                                            >
-                                                <X className="w-3.5 h-3.5" />
-                                                Reject
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
+                                    </div>
+                                </div>
+
+                                {/* Date */}
+                                <div className="hidden sm:block text-right flex-shrink-0">
+                                    <p className="text-xs text-gray-400">Submitted</p>
+                                    <p className="text-sm font-medium text-gray-600">
+                                        {new Date(org.createdAt).toLocaleDateString(undefined, {
+                                            month: 'short',
+                                            day: 'numeric',
+                                            year: 'numeric'
+                                        })}
+                                    </p>
+                                </div>
+
+                                {/* Actions */}
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                    <button
+                                        onClick={() => handleApprove(org.id)}
+                                        disabled={isPending}
+                                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-500 text-white hover:bg-emerald-600 text-xs font-bold rounded-xl transition-all disabled:opacity-50 shadow-sm hover:shadow"
+                                        title="Approve"
+                                    >
+                                        {actionId === org.id && isPending ? (
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        ) : (
+                                            <Check className="w-3.5 h-3.5" />
+                                        )}
+                                        Approve
+                                    </button>
+                                    <button
+                                        onClick={() => handleReject(org.id)}
+                                        disabled={isPending}
+                                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 text-xs font-bold rounded-xl transition-all disabled:opacity-50"
+                                        title="Reject"
+                                    >
+                                        <X className="w-3.5 h-3.5" />
+                                        Reject
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     )
 }

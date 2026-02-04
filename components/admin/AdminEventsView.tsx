@@ -163,8 +163,8 @@ export default function AdminEventsView({ }: AdminEventsViewProps) {
                                 ) : (
                                     items.map((item: any) => (
                                         <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className="font-semibold text-gray-900 text-sm">{item.name}</span>
+                                            <td className="px-6 py-4">
+                                                <span className="font-semibold text-gray-900 text-sm block truncate max-w-[200px]" title={item.name}>{item.name}</span>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex flex-col gap-1">
