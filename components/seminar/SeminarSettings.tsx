@@ -137,29 +137,26 @@ export default function SeminarSettings({ seminar }: SeminarSettingsProps) {
     }
 
     return (
-        <div className="max-w-4xl space-y-8 animate-in fade-in duration-300">
+        <div className="space-y-6 animate-in fade-in duration-300">
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-                <p className="text-gray-500">Manage seminar details and configuration.</p>
+                <h1 className="text-3xl font-black text-gray-900 tracking-tight">Settings</h1>
+                <p className="text-gray-500 font-medium pt-1">Manage seminar details and configuration.</p>
             </div>
 
-            <form onSubmit={handleUpdate} className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-6">
+            <form onSubmit={handleUpdate} className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-8">
                 <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                        <Save className="w-5 h-5 text-indigo-500" />
-                        General Information
-                    </h3>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-6">General Information</p>
 
                     {/* Banner Image Upload */}
-                    <div className="mb-6">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <div className="mb-8">
+                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
                             Seminar Banner Image
                         </label>
                         <div className="relative group">
                             <div className={`
-                                w-full h-48 rounded-xl border-2 border-dashed border-gray-300 
+                                w-full h-48 rounded-2xl border-2 border-dashed border-gray-100 
                                 flex flex-col items-center justify-center 
-                                bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer overflow-hidden
+                                bg-gray-50/50 hover:bg-gray-100/50 transition-colors cursor-pointer overflow-hidden
                                 ${imagePreview ? 'border-sky-500' : ''}
                             `}>
                                 {imagePreview ? (
@@ -171,17 +168,16 @@ export default function SeminarSettings({ seminar }: SeminarSettingsProps) {
                                                 e.preventDefault()
                                                 removeImage()
                                             }}
-                                            className="absolute top-2 right-2 p-1 bg-white/80 rounded-full hover:bg-white text-gray-600 hover:text-red-500 transition-colors shadow-sm"
+                                            className="absolute top-4 right-4 p-2 bg-white/90 rounded-full hover:bg-white text-gray-600 hover:text-red-500 transition-all shadow-lg backdrop-blur-sm"
                                         >
                                             <X className="w-5 h-5" />
                                         </button>
                                     </>
                                 ) : (
                                     <label htmlFor="settings-banner" className="w-full h-full flex flex-col items-center justify-center cursor-pointer p-4">
-                                        <ImageIcon className="w-10 h-10 text-gray-400 mb-2 group-hover:text-sky-500 transition-colors" />
-                                        <p className="text-sm font-medium text-gray-600">Click to upload banner image</p>
-                                        <p className="text-xs text-gray-500 mt-1">Recommended: 1200x400</p>
-                                        <p className="text-xs text-gray-400">PNG, JPG, GIF (Max 10MB)</p>
+                                        <ImageIcon className="w-10 h-10 text-gray-300 mb-3 group-hover:text-sky-500 transition-colors" />
+                                        <p className="text-sm font-bold text-gray-600">Click to upload banner</p>
+                                        <p className="text-[10px] text-gray-400 mt-2 font-black uppercase tracking-widest">Recommended: 1200x400 (Max 10MB)</p>
                                     </label>
                                 )}
                             </div>
@@ -194,16 +190,16 @@ export default function SeminarSettings({ seminar }: SeminarSettingsProps) {
                             />
                         </div>
                         {croppedImageBlob && (
-                            <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
-                                <Check className="w-3 h-3" /> New image ready to upload
+                            <p className="text-[10px] text-green-600 mt-3 font-black uppercase tracking-widest flex items-center gap-1.5">
+                                <Check className="w-3.5 h-3.5" /> New image ready to upload
                             </p>
                         )}
                     </div>
 
-                    <div className="grid grid-cols-1 gap-6">
+                    <div className="grid grid-cols-1 gap-8">
                         {/* Name */}
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
                                 Seminar Title <span className="text-red-500">*</span>
                             </label>
                             <input
@@ -211,23 +207,23 @@ export default function SeminarSettings({ seminar }: SeminarSettingsProps) {
                                 type="text"
                                 defaultValue={seminar.name}
                                 required
-                                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
+                                className="w-full px-5 py-3 rounded-xl border border-gray-100 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all font-medium text-gray-900"
                             />
                         </div>
 
                         {/* Description */}
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Description</label>
                             <textarea
                                 name="description"
                                 defaultValue={seminar.description || ''}
                                 rows={4}
-                                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all resize-none"
+                                className="w-full px-5 py-3 rounded-xl border border-gray-100 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all resize-none font-medium text-gray-900"
                             />
                         </div>
 
                         {/* Dates Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div>
                                 <GlobalCalendar
                                     label="Start Date"
@@ -276,20 +272,20 @@ export default function SeminarSettings({ seminar }: SeminarSettingsProps) {
                         </div>
 
                         {/* Venue & Fee */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
                                     Venue
                                 </label>
                                 <input
                                     name="venue"
                                     type="text"
                                     defaultValue={seminar.venue || ''}
-                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
+                                    className="w-full px-5 py-3 rounded-xl border border-gray-100 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all font-medium text-gray-900"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
                                     Fee (₱)
                                 </label>
                                 <input
@@ -298,24 +294,24 @@ export default function SeminarSettings({ seminar }: SeminarSettingsProps) {
                                     step="0.01"
                                     min="0"
                                     defaultValue={seminar.fee || ''}
-                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
+                                    className="w-full px-5 py-3 rounded-xl border border-gray-100 focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 outline-none transition-all font-medium text-gray-900"
                                 />
                             </div>
                         </div>
 
                         {/* Visibility */}
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Visibility</label>
-                            <div className="flex bg-gray-100 p-1 rounded-xl w-full md:w-1/2">
+                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Visibility</label>
+                            <div className="flex bg-gray-50 p-1.5 rounded-2xl w-full md:w-1/2 border border-gray-100">
                                 <label className="flex-1 cursor-pointer">
                                     <input type="radio" name="visibility" value="PRIVATE" className="sr-only peer" defaultChecked={seminar.visibility === 'PRIVATE'} />
-                                    <span className="flex items-center justify-center py-1.5 text-sm font-medium rounded-lg text-gray-500 peer-checked:bg-white peer-checked:text-gray-900 peer-checked:shadow-sm transition-all">
+                                    <span className="flex items-center justify-center py-2.5 text-xs font-black uppercase tracking-widest rounded-xl text-gray-400 peer-checked:bg-white peer-checked:text-indigo-600 peer-checked:shadow-sm transition-all">
                                         Private
                                     </span>
                                 </label>
                                 <label className="flex-1 cursor-pointer">
                                     <input type="radio" name="visibility" value="PUBLIC" className="sr-only peer" defaultChecked={seminar.visibility === 'PUBLIC'} />
-                                    <span className="flex items-center justify-center py-1.5 text-sm font-medium rounded-lg text-gray-500 peer-checked:bg-white peer-checked:text-gray-900 peer-checked:shadow-sm transition-all">
+                                    <span className="flex items-center justify-center py-2.5 text-xs font-black uppercase tracking-widest rounded-xl text-gray-400 peer-checked:bg-white peer-checked:text-indigo-600 peer-checked:shadow-sm transition-all">
                                         Public
                                     </span>
                                 </label>
@@ -323,32 +319,34 @@ export default function SeminarSettings({ seminar }: SeminarSettingsProps) {
                         </div>
 
                         {/* Payment Methods */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <div className="pt-4">
+                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">
                                 Payment Methods
                             </label>
-                            <PaymentMethodsInput
-                                value={paymentMethods}
-                                onChange={setPaymentMethods}
-                            />
+                            <div className="p-1 rounded-3xl border border-gray-50 bg-gray-50/30">
+                                <PaymentMethodsInput
+                                    value={paymentMethods}
+                                    onChange={setPaymentMethods}
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="flex justify-end pt-4 border-t border-gray-100">
+                <div className="flex justify-end pt-8 border-t border-gray-50">
                     <button
                         type="submit"
                         disabled={isSaving}
-                        className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-colors"
+                        className="inline-flex items-center px-8 py-4 border border-transparent rounded-full shadow-xl text-sm font-black uppercase tracking-widest text-white bg-gray-900 hover:bg-gray-800 focus:outline-none focus:ring-4 focus:ring-gray-900/10 disabled:opacity-50 transition-all hover:-translate-y-0.5"
                     >
                         {isSaving ? (
                             <>
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                <Loader2 className="w-5 h-5 mr-3 animate-spin" />
                                 Saving...
                             </>
                         ) : (
                             <>
-                                <Save className="w-4 h-4 mr-2" />
+                                <Save className="w-5 h-5 mr-3" />
                                 Save Changes
                             </>
                         )}
@@ -357,29 +355,31 @@ export default function SeminarSettings({ seminar }: SeminarSettingsProps) {
             </form>
 
             {/* Danger Zone */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-red-100">
-                <h3 className="text-lg font-semibold text-red-600 mb-4 flex items-center gap-2">
-                    <AlertTriangle className="w-5 h-5" />
+            <div className="bg-white p-8 rounded-3xl border border-red-50 shadow-sm overflow-hidden relative">
+                <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-red-50/50 rounded-full blur-3xl" />
+
+                <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4" />
                     Danger Zone
-                </h3>
-                <div className="bg-red-50 p-4 rounded-lg border border-red-100 flex items-center justify-between">
+                </p>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
                     <div>
-                        <h4 className="text-sm font-medium text-red-900">Delete Seminar</h4>
-                        <p className="text-xs text-red-600 mt-1">Permanently remove this seminar and all its data. This action cannot be undone.</p>
+                        <h4 className="text-lg font-bold text-gray-900">Delete Seminar</h4>
+                        <p className="text-sm font-medium text-gray-500 mt-1max-w-md">Permanently remove this seminar and all associated registrations. This action is irreversible.</p>
                     </div>
                     <button
                         onClick={handleDelete}
                         disabled={isDeleting}
-                        className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 transition-colors"
+                        className="inline-flex items-center px-8 py-4 border-2 border-red-100 rounded-full text-sm font-black uppercase tracking-widest text-red-600 hover:bg-red-50 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:opacity-50 transition-all"
                     >
                         {isDeleting ? (
                             <>
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                <Loader2 className="w-5 h-5 mr-3 animate-spin" />
                                 Deleting...
                             </>
                         ) : (
                             <>
-                                <Trash2 className="w-4 h-4 mr-2" />
+                                <Trash2 className="w-5 h-5 mr-3" />
                                 Delete Seminar
                             </>
                         )}

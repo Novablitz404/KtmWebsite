@@ -41,7 +41,7 @@ export default function SeminarTabs({ seminar, userRole }: SeminarTabsProps) {
 
 
     return (
-        <div className="flex h-screen bg-gray-50 overflow-hidden">
+        <div className="flex min-h-screen bg-gray-50">
             {/* Mobile Sidebar Overlay */}
             {isSidebarOpen && (
                 <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
@@ -101,7 +101,7 @@ export default function SeminarTabs({ seminar, userRole }: SeminarTabsProps) {
             </aside>
 
             {/* Main Content */}
-            <div className="flex-1 md:ml-64 min-w-0 flex flex-col h-screen overflow-hidden">
+            <div className="flex-1 md:ml-64 min-w-0 flex flex-col min-h-screen">
                 {/* Mobile Header Trigger */}
                 <div className="md:hidden flex items-center p-4 bg-white border-b border-gray-200 sticky top-0 z-30 shadow-sm">
                     <button onClick={() => setSidebarOpen(true)} className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-lg">
@@ -110,154 +110,154 @@ export default function SeminarTabs({ seminar, userRole }: SeminarTabsProps) {
                     <span className="font-semibold ml-2 text-gray-900 truncate">{seminar.name}</span>
                 </div>
 
-                <div className="flex-1 flex flex-col min-h-0 p-4 md:p-8">
-                    <div className="max-w-7xl mx-auto w-full h-full flex flex-col">
-                        {activeTab === 'overview' && (
-                            <div className="animate-in fade-in duration-300 space-y-8 overflow-y-auto h-full pr-2 pb-10 custom-scrollbar">
-                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                    <div>
-                                        <h1 className="text-3xl font-black text-gray-900 tracking-tight">Seminar Dashboard</h1>
-                                        <p className="text-gray-500 font-medium pt-1">Performance metrics and financial breakdown.</p>
+                <div className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">
+                    {activeTab === 'overview' && (
+                        <div className="animate-in fade-in duration-300 space-y-8">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div>
+                                    <h1 className="text-3xl font-black text-gray-900 tracking-tight">Seminar Dashboard</h1>
+                                    <p className="text-gray-500 font-medium pt-1">Performance metrics and financial breakdown.</p>
+                                </div>
+                                <div className="flex items-center gap-2 px-6 py-2 bg-gray-900 rounded-full shadow-lg">
+                                    <div className={`w-2 h-2 rounded-full ${seminar.status === 'OPEN' ? 'bg-green-400' : 'bg-amber-400'} animate-pulse`} />
+                                    <span className="text-xs font-black text-white uppercase tracking-[0.2em]">{seminar.status}</span>
+                                </div>
+                            </div>
+
+                            {/* Main Performance Grid */}
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                {/* Revenue Card */}
+                                <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                                    <div className="flex items-start justify-between mb-6">
+                                        <div>
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Revenue (Collected)</p>
+                                            <h3 className="text-4xl font-black text-gray-900 leading-none">
+                                                ₱{((seminar.registrations.filter(r => r.paymentStatus === 'PAID').length) * (seminar.fee || 0)).toLocaleString()}
+                                            </h3>
+                                            <p className="text-xs text-gray-400 mt-2 font-medium">
+                                                Based on {seminar.registrations.filter(r => r.paymentStatus === 'PAID').length} paid registrations out of ₱{((seminar.registrations.length) * (seminar.fee || 0)).toLocaleString()} potential.
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-2 px-6 py-2 bg-gray-900 rounded-full shadow-lg">
-                                        <div className={`w-2 h-2 rounded-full ${seminar.status === 'OPEN' ? 'bg-green-400' : 'bg-amber-400'} animate-pulse`} />
-                                        <span className="text-xs font-black text-white uppercase tracking-[0.2em]">{seminar.status}</span>
+
+                                    {/* Financial Graph (Visual) */}
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
+                                            <span className="text-gray-400">Cash Flow Completion</span>
+                                            <span className="text-gray-900">
+                                                {seminar.registrations.length > 0
+                                                    ? Math.round((seminar.registrations.filter(r => r.paymentStatus === 'PAID').length / seminar.registrations.length) * 100)
+                                                    : 0}%
+                                            </span>
+                                        </div>
+                                        <div className="h-3 w-full bg-gray-50 rounded-full overflow-hidden flex">
+                                            <div
+                                                className="h-full bg-gray-900 transition-all duration-1000 ease-out"
+                                                style={{ width: `${seminar.registrations.length > 0 ? (seminar.registrations.filter(r => r.paymentStatus === 'PAID').length / seminar.registrations.length) * 100 : 0}%` }}
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-8 pt-2">
+                                            <div className="space-y-0.5">
+                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Confirmed</p>
+                                                <p className="text-base font-bold text-gray-900">₱{((seminar.registrations.filter(r => r.paymentStatus === 'PAID').length) * (seminar.fee || 0)).toLocaleString()}</p>
+                                            </div>
+                                            <div className="space-y-0.5">
+                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Outstanding</p>
+                                                <p className="text-base font-bold text-gray-300">₱{((seminar.registrations.filter(r => r.paymentStatus !== 'PAID').length) * (seminar.fee || 0)).toLocaleString()}</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
-                                {/* Main Performance Grid */}
-                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                    {/* Revenue Card */}
-                                    <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                                        <div className="flex items-start justify-between mb-6">
-                                            <div>
-                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Revenue (Collected)</p>
-                                                <h3 className="text-4xl font-black text-gray-900 leading-none">
-                                                    ₱{((seminar.registrations.filter(r => r.paymentStatus === 'PAID').length) * (seminar.fee || 0)).toLocaleString()}
-                                                </h3>
-                                                <p className="text-xs text-gray-400 mt-2 font-medium">
-                                                    Based on {seminar.registrations.filter(r => r.paymentStatus === 'PAID').length} paid registrations out of ₱{((seminar.registrations.length) * (seminar.fee || 0)).toLocaleString()} potential.
-                                                </p>
-                                            </div>
-                                        </div>
+                                {/* Participant Breakdown / Status Bar Graph */}
+                                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-6">Registration Status</p>
 
-                                        {/* Financial Graph (Visual) */}
-                                        <div className="space-y-4">
-                                            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
-                                                <span className="text-gray-400">Cash Flow Completion</span>
-                                                <span className="text-gray-900">
-                                                    {seminar.registrations.length > 0
-                                                        ? Math.round((seminar.registrations.filter(r => r.paymentStatus === 'PAID').length / seminar.registrations.length) * 100)
-                                                        : 0}%
-                                                </span>
-                                            </div>
-                                            <div className="h-3 w-full bg-gray-50 rounded-full overflow-hidden flex">
-                                                <div
-                                                    className="h-full bg-gray-900 transition-all duration-1000 ease-out"
-                                                    style={{ width: `${seminar.registrations.length > 0 ? (seminar.registrations.filter(r => r.paymentStatus === 'PAID').length / seminar.registrations.length) * 100 : 0}%` }}
-                                                />
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-8 pt-2">
-                                                <div className="space-y-0.5">
-                                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Confirmed</p>
-                                                    <p className="text-base font-bold text-gray-900">₱{((seminar.registrations.filter(r => r.paymentStatus === 'PAID').length) * (seminar.fee || 0)).toLocaleString()}</p>
-                                                </div>
-                                                <div className="space-y-0.5">
-                                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Outstanding</p>
-                                                    <p className="text-base font-bold text-gray-300">₱{((seminar.registrations.filter(r => r.paymentStatus !== 'PAID').length) * (seminar.fee || 0)).toLocaleString()}</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Participant Breakdown / Status Bar Graph */}
-                                    <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-6">Registration Status</p>
-
-                                        <div className="flex flex-col gap-4 h-[140px] justify-center">
-                                            {[
-                                                { label: 'Approved', count: seminar.registrations.filter(r => r.status === 'APPROVED').length, color: 'bg-green-500' },
-                                                { label: 'Pending', count: seminar.registrations.filter(r => r.status === 'PENDING').length, color: 'bg-amber-500' },
-                                                { label: 'Unpaid', count: seminar.registrations.filter(r => r.paymentStatus === 'UNPAID').length, color: 'bg-red-500' }
-                                            ].map((stat, i) => {
-                                                const percentage = seminar.registrations.length > 0 ? (stat.count / seminar.registrations.length) * 100 : 0;
-                                                return (
-                                                    <div key={i} className="space-y-1.5">
-                                                        <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider">
-                                                            <span className="text-gray-600">{stat.label}</span>
-                                                            <span className="text-gray-900">{stat.count} ({Math.round(percentage)}%)</span>
-                                                        </div>
-                                                        <div className="h-2 w-full bg-gray-50 rounded-full overflow-hidden">
-                                                            <div
-                                                                className={`h-full ${stat.color} transition-all duration-700`}
-                                                                style={{ width: `${percentage}%` }}
-                                                            />
-                                                        </div>
+                                    <div className="flex flex-col gap-4 h-[140px] justify-center">
+                                        {[
+                                            { label: 'Approved', count: seminar.registrations.filter(r => r.status === 'APPROVED').length, color: 'bg-green-500' },
+                                            { label: 'Pending', count: seminar.registrations.filter(r => r.status === 'PENDING').length, color: 'bg-amber-500' },
+                                            { label: 'Unpaid', count: seminar.registrations.filter(r => r.paymentStatus === 'UNPAID').length, color: 'bg-red-500' }
+                                        ].map((stat, i) => {
+                                            const percentage = seminar.registrations.length > 0 ? (stat.count / seminar.registrations.length) * 100 : 0;
+                                            return (
+                                                <div key={i} className="space-y-1.5">
+                                                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider">
+                                                        <span className="text-gray-600">{stat.label}</span>
+                                                        <span className="text-gray-900">{stat.count} ({Math.round(percentage)}%)</span>
                                                     </div>
-                                                );
-                                            })}
-                                        </div>
-
-                                        <div className="mt-6 pt-6 border-t border-gray-50 flex items-center justify-between">
-                                            <div>
-                                                <p className="text-3xl font-black text-gray-900 leading-none">{seminar.registrations.length}</p>
-                                                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">Total Applicants</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Secondary Metrics */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4">
-                                    <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
-                                        <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-6">Seminar Logistics</p>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-                                            <div className="space-y-1">
-                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Date</p>
-                                                <p className="text-sm font-bold text-gray-900">{new Date(seminar.startDate).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</p>
-                                            </div>
-                                            <div className="space-y-1">
-                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Location</p>
-                                                <p className="text-sm font-bold text-gray-900 truncate" title={seminar.venue || 'TBA'}>{seminar.venue || 'TBA'}</p>
-                                            </div>
-                                            <div className="space-y-1">
-                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Registration Fee</p>
-                                                <p className="text-sm font-bold text-gray-900">₱{seminar.fee?.toLocaleString() || '0'}</p>
-                                            </div>
-                                            <div className="space-y-1">
-                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Capacity Used</p>
-                                                <p className="text-sm font-bold text-gray-900">{seminar.registrations.length} Participants</p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-gray-900 p-8 rounded-3xl shadow-xl flex flex-col justify-center relative overflow-hidden">
-                                        <div className="relative z-10 text-center">
-                                            <p className="text-xs font-black text-gray-400 uppercase tracking-[0.3em] mb-4">Event Countdown</p>
-                                            <div className="flex items-center justify-center gap-4">
-                                                <div className="flex flex-col items-center">
-                                                    <p className="text-6xl font-black text-white">
-                                                        {Math.max(0, Math.ceil((new Date(seminar.startDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))}
-                                                    </p>
-                                                    <p className="text-[10px] font-black text-gray-500 uppercase mt-2">Days left</p>
+                                                    <div className="h-2 w-full bg-gray-50 rounded-full overflow-hidden">
+                                                        <div
+                                                            className={`h-full ${stat.color} transition-all duration-700`}
+                                                            style={{ width: `${percentage}%` }}
+                                                        />
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    <div className="mt-6 pt-6 border-t border-gray-50 flex items-center justify-between">
+                                        <div>
+                                            <p className="text-3xl font-black text-gray-900 leading-none">{seminar.registrations.length}</p>
+                                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">Total Applicants</p>
                                         </div>
-                                        {/* Abstract background element */}
-                                        <div className="absolute top-0 right-0 -mr-12 -mt-12 w-48 h-48 bg-white/5 rounded-full blur-3xl" />
                                     </div>
                                 </div>
                             </div>
-                        )}
 
-                        {activeTab === 'participants' && (
-                            <SeminarParticipants registrations={seminar.registrations} seminarId={seminar.id} />
-                        )}
+                            {/* Secondary Metrics */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4">
+                                <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+                                    <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-6">Seminar Logistics</p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Date</p>
+                                            <p className="text-sm font-bold text-gray-900">{new Date(seminar.startDate).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Location</p>
+                                            <p className="text-sm font-bold text-gray-900 truncate" title={seminar.venue || 'TBA'}>{seminar.venue || 'TBA'}</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Registration Fee</p>
+                                            <p className="text-sm font-bold text-gray-900">₱{seminar.fee?.toLocaleString() || '0'}</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Capacity Used</p>
+                                            <p className="text-sm font-bold text-gray-900">{seminar.registrations.length} Participants</p>
+                                        </div>
+                                    </div>
+                                </div>
 
-                        {activeTab === 'settings' && (
+                                <div className="bg-gray-900 p-8 rounded-3xl shadow-xl flex flex-col justify-center relative overflow-hidden">
+                                    <div className="relative z-10 text-center">
+                                        <p className="text-xs font-black text-gray-400 uppercase tracking-[0.3em] mb-4">Event Countdown</p>
+                                        <div className="flex items-center justify-center gap-4">
+                                            <div className="flex flex-col items-center">
+                                                <p className="text-6xl font-black text-white">
+                                                    {Math.max(0, Math.ceil((new Date(seminar.startDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))}
+                                                </p>
+                                                <p className="text-[10px] font-black text-gray-500 uppercase mt-2">Days left</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {/* Abstract background element */}
+                                    <div className="absolute top-0 right-0 -mr-12 -mt-12 w-48 h-48 bg-white/5 rounded-full blur-3xl" />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'participants' && (
+                        <SeminarParticipants registrations={seminar.registrations} seminarId={seminar.id} />
+                    )}
+
+                    {activeTab === 'settings' && (
+                        <div className="animate-in fade-in duration-300">
                             <SeminarSettings seminar={seminar} />
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
