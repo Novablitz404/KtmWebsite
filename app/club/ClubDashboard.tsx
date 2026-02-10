@@ -1668,7 +1668,14 @@ export default function ClubDashboard({
                                                 label="Belt Rank"
                                                 value={editingMember.belt || 'White'}
                                                 onChange={(val) => setEditingMember({ ...editingMember, belt: val })}
-                                                options={['White', 'Yellow', 'Blue', 'Red', 'Brown', 'Black']}
+                                                options={[
+                                                    'White',
+                                                    'Low Yellow', 'High Yellow',
+                                                    'Low Blue', 'High Blue',
+                                                    'Low Red', 'High Red',
+                                                    'Low Brown', 'High Brown',
+                                                    'Black'
+                                                ]}
                                                 className="w-full"
                                                 name="belt"
                                             />

@@ -1666,3 +1666,107 @@ export async function registerForSeminar(seminarId: string) {
     revalidatePath(`/seminars/${seminarId}`)
     return { success: true }
 }
+
+// ============================================
+// CLUB MEMBER MANAGEMENT (FOR ORGANIZATION)
+// ============================================
+
+export async function getClubMembersForOrg(clubId: string) {
+    const user = await currentUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return { error: 'No organization found' }
+
+    // Verify Club belongs to Organization
+    const club = await prisma.club.findUnique({
+        where: { id: clubId }
+    })
+
+    if (!club || club.organizationId !== dbUser.organization.id) {
+        return { error: 'Club not found or unauthorized' }
+    }
+
+    // Fetch members (Users) of the club
+    const members = await prisma.user.findMany({
+        where: {
+            clubName: club.name,
+            role: 'ATHLETE'
+        },
+        orderBy: { name: 'asc' },
+        select: {
+            id: true,
+            name: true,
+            email: true,
+            belt: true,
+            gender: true,
+            weight: true,
+            height: true,
+            birthDate: true,
+            imageUrl: true
+        }
+    })
+
+    return { success: true, members }
+}
+
+export async function updateClubMemberAsOrg(userId: string, data: {
+    name?: string,
+    belt?: string,
+    gender?: string,
+    weight?: number,
+    height?: number
+}) {
+    const user = await currentUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    // 1. Verify Requestor is Org Admin/Owner
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return { error: 'No organization found' }
+
+    // 2. Fetch Target User
+    const targetUser = await prisma.user.findUnique({
+        where: { id: userId }
+    })
+
+    if (!targetUser || !targetUser.clubName) return { error: 'User not found or not in a club' }
+
+    // 3. Verify Target User's Club belongs to Requestor's Organization
+    // We have to find the club by name since User only stores clubName
+    // Potential Issue: Multiple clubs with same name? Assuming distinct names for now or finding first match.
+    // Better: We should ideally link User -> Club with valid ID.
+    // Current workaround: Find a club with this name that belongs to THIS organization.
+    const club = await prisma.club.findFirst({
+        where: {
+            name: targetUser.clubName,
+            organizationId: dbUser.organization.id
+        }
+    })
+
+    if (!club) {
+        return { error: 'This user does not belong to a club under your organization.' }
+    }
+
+    // 4. Update User
+    await prisma.user.update({
+        where: { id: userId },
+        data: {
+            name: data.name || undefined,
+            belt: data.belt || undefined,
+            gender: data.gender || undefined,
+            weight: data.weight || undefined,
+            height: data.height || undefined
+        }
+    })
+
+    revalidatePath('/organization')
+    return { success: true }
+}

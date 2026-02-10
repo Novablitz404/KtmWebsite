@@ -14,7 +14,7 @@ export default function RankingFilters() {
     const disciplines = ['KYORUGI', 'POOMSAE']
     const divisions = ['Grade School', 'Cadet', 'Junior', 'Senior']
     const skills = ['Advance', 'Novice']
-    const belts = ['White', 'Yellow', 'Blue', 'Red', 'Brown', 'Black']
+    const belts = ['White', 'Low Yellow', 'High Yellow', 'Low Blue', 'High Blue', 'Low Red', 'High Red', 'Low Brown', 'High Brown', 'Black']
     const genders = ['Male', 'Female']
 
     // Category Mappings (Standard WT)

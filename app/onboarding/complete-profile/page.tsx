@@ -237,7 +237,14 @@ export default function CompleteProfilePage() {
                                     label="Current Belt Rank"
                                     value={formData.belt}
                                     onChange={(val) => setFormData({ ...formData, belt: val })}
-                                    options={['White', 'Low Yellow', 'High Yellow', 'Low Blue', 'High Blue', 'Low Red', 'High Red', 'Low Brown', 'High Brown', 'Black']}
+                                    options={[
+                                        'White',
+                                        'Low Yellow', 'High Yellow',
+                                        'Low Blue', 'High Blue',
+                                        'Low Red', 'High Red',
+                                        'Low Brown', 'High Brown',
+                                        'Black'
+                                    ]}
                                     required
                                     className="w-full"
                                 />
