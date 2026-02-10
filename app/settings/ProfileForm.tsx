@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { updateProfile } from '@/app/actions'
-import CustomSelect from '@/app/components/ui/CustomSelect'
+import GlobalDropdown from '@/components/GlobalDropdown'
 import LoadingButton from '@/components/ui/LoadingButton'
 import GlobalCalendar from '@/components/GlobalCalendar'
 import { toast } from 'sonner'
@@ -187,7 +187,7 @@ export default function ProfileForm({ user, initialImageUrl, customTrigger }: Pr
                                     />
                                 </div>
                                 <div>
-                                    <CustomSelect
+                                    <GlobalDropdown
                                         label="Belt"
                                         name="belt"
                                         value={belt}
@@ -203,7 +203,7 @@ export default function ProfileForm({ user, initialImageUrl, customTrigger }: Pr
                                     />
                                 </div>
                                 <div>
-                                    <CustomSelect
+                                    <GlobalDropdown
                                         label="Gender"
                                         name="gender"
                                         value={gender}

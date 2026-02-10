@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Clock, Users } from 'lucide-react'
 import { format, startOfWeek, addDays, isSameDay, addWeeks, subWeeks } from 'date-fns'
-import CustomSelect from '@/app/components/ui/CustomSelect'
+import GlobalDropdown from '@/components/GlobalDropdown'
 
 interface Tournament {
     id: string
@@ -113,14 +113,14 @@ export default function ClubScheduleWidget({ tournaments, isLoading }: ClubSched
                 <h2 className="text-xl font-bold text-gray-900">Schedule</h2>
                 <div className="flex items-center gap-2">
                     <div className="w-36">
-                        <CustomSelect
+                        <GlobalDropdown
                             value={addDays(currentWeekStart, 3).getMonth().toString()}
                             onChange={handleMonthChange}
                             options={monthOptions}
                         />
                     </div>
                     <div className="w-24">
-                        <CustomSelect
+                        <GlobalDropdown
                             value={addDays(currentWeekStart, 3).getFullYear().toString()}
                             onChange={handleYearChange}
                             options={yearOptions}

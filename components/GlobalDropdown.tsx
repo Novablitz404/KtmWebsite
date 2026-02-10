@@ -19,11 +19,13 @@ interface DropdownOption {
     disabled?: boolean
 }
 
+// ... imports
+
 interface GlobalDropdownProps {
     label?: string | React.ReactNode
     icon?: React.ReactNode
     items?: DropdownItem[]
-    options?: DropdownOption[]
+    options?: DropdownOption[] | string[] // Support string array
     value?: string
     onChange?: (value: string) => void
     name?: string
@@ -33,6 +35,7 @@ interface GlobalDropdownProps {
     trigger?: React.ReactNode
     fullWidth?: boolean
     searchable?: boolean
+    required?: boolean // Added for form compatibility
 }
 
 export default function GlobalDropdown({
@@ -48,14 +51,20 @@ export default function GlobalDropdown({
     width = 'w-56',
     trigger,
     fullWidth = false,
-    searchable = false
+    searchable = false,
+    required = false
 }: GlobalDropdownProps) {
     const [isOpen, setIsOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
     const dropdownRef = useRef<HTMLDivElement>(null)
 
+    // Normalize options
+    const normalizedOptions: DropdownOption[] = options?.map(opt =>
+        typeof opt === 'string' ? { value: opt, label: opt } : opt
+    ) || []
+
     // Find selected option label/icon if in select mode
-    const selectedOption = options?.find(opt => opt.value === value)
+    const selectedOption = normalizedOptions.find(opt => opt.value === value)
 
     // Effective label to show in trigger
     const displayLabel = selectedOption ? selectedOption.label : (label || 'Select')
@@ -80,7 +89,7 @@ export default function GlobalDropdown({
         }
     }, [isOpen])
 
-    const filteredOptions = options?.filter(opt =>
+    const filteredOptions = normalizedOptions.filter(opt =>
         opt.label.toLowerCase().includes(searchQuery.toLowerCase())
     )
 
@@ -92,6 +101,7 @@ export default function GlobalDropdown({
         <div className={`relative inline-block text-left ${fullWidth ? 'w-full' : ''} ${className}`} ref={dropdownRef}>
             {/* Hidden Input for Forms */}
             {name && <input type="hidden" name={name} value={value} />}
+            {required && <input type="hidden" value={value} required={required} />}
 
             <div onClick={() => setIsOpen(!isOpen)} className={fullWidth ? 'w-full' : ''}>
                 {trigger ? (
@@ -99,7 +109,7 @@ export default function GlobalDropdown({
                 ) : (
                     <button
                         type="button"
-                        className={`inline-flex justify-between items-center rounded-lg border border-gray-200 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all ${fullWidth ? 'w-full' : ''}`}
+                        className={`inline-flex justify-between items-center rounded-xl border border-gray-200 shadow-sm px-4 py-2.5 bg-white text-sm font-medium ${!selectedOption ? 'text-gray-500' : 'text-gray-900'} hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all ${fullWidth ? 'w-full' : width}`}
                         aria-expanded="true"
                         aria-haspopup="true"
                     >
@@ -145,7 +155,7 @@ export default function GlobalDropdown({
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 onClick={(e) => e.stopPropagation()}
                                 placeholder="Search..."
-                                className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50 focus:bg-white transition-colors"
+                                className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 bg-gray-50 focus:bg-white transition-colors"
                             />
                         </div>
                     )}
@@ -198,7 +208,7 @@ export default function GlobalDropdown({
                                 className={`
                                     w-full text-left px-4 py-2.5 text-sm flex items-center justify-between group transition-colors
                                     ${opt.disabled ? 'opacity-50 cursor-not-allowed text-gray-400' : 'text-gray-700 hover:bg-gray-50'}
-                                    ${value === opt.value ? 'bg-indigo-50 text-indigo-700 font-medium' : ''}
+                                    ${value === opt.value ? 'bg-red-50 text-red-700 font-medium' : ''}
                                 `}
                                 role="menuitem"
                             >
@@ -207,7 +217,7 @@ export default function GlobalDropdown({
                                     {opt.label}
                                 </div>
                                 {value === opt.value && (
-                                    <span className="text-indigo-600">
+                                    <span className="text-red-600">
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                         </svg>

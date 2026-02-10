@@ -1,13 +1,13 @@
 'use client'
 
 import { useState, useEffect, use } from 'react'
-import { Upload, X, Home, Settings, ClipboardList, Users, Bell, Trophy, Medal, Clock, Search, Calendar, Zap, ChevronRight } from 'lucide-react'
+import { Upload, X, Home, Settings, ClipboardList, Users, Bell, Trophy, Medal, Clock, Search, Calendar, Zap, ChevronRight, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { approveRegistrations, unapproveRegistration, deleteRegistration, updatePlayerDetails, bulkUnapproveRegistrations, bulkDeleteRegistrations, fetchClubDashboardData, removeMemberFromClub, updateClubMember, getClubSmartProposals } from '@/app/actions'
 import { updateRegistrationStatus } from '@/app/promotions/actions'
 import { approveSeminarRegistration, unapproveSeminarRegistration, deleteSeminarRegistration, updateSeminarRegistrationStatus, updateSeminarParticipantDetails } from '@/app/seminars/actions'
 
-import CustomSelect from '@/app/components/ui/CustomSelect'
+import GlobalDropdown from '@/components/GlobalDropdown'
 import { toast } from 'sonner'
 import ClubSettingsButton from '@/app/components/ClubSettingsButton'
 
@@ -1504,7 +1504,7 @@ export default function ClubDashboard({
                                         </div>
 
                                         <div>
-                                            <CustomSelect
+                                            <GlobalDropdown
                                                 label="Belt Rank"
                                                 value={editingPlayer.belt || 'White'}
                                                 onChange={(val) => {
@@ -1517,7 +1517,7 @@ export default function ClubDashboard({
                                         </div>
 
                                         <div>
-                                            <CustomSelect
+                                            <GlobalDropdown
                                                 label="Skill Level"
                                                 value={editingPlayer.skillLevel || 'Novice'}
                                                 onChange={(val) => {
@@ -1532,7 +1532,7 @@ export default function ClubDashboard({
                                         {/* Poomsae Event Type & Team ID */}
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <CustomSelect
+                                                <GlobalDropdown
                                                     label="Event Type"
                                                     value={editingPlayer.poomsaeType || 'INDIVIDUAL'}
                                                     onChange={(val) => {
@@ -1612,18 +1612,19 @@ export default function ClubDashboard({
                     {
                         editingMember && (
                             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                                <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditingMember(null)} />
-                                <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 animate-in fade-in zoom-in-95 duration-200">
-                                    <div className="flex justify-between items-start mb-6">
+                                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setEditingMember(null)} />
+                                <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                    {/* Header */}
+                                    <div className="flex justify-between items-start p-6 border-b border-gray-100 bg-gray-50/50">
                                         <div>
-                                            <h3 className="text-xl font-bold text-gray-900">Edit Member</h3>
-                                            <p className="text-gray-500 text-sm mt-1">{editingMember.name}</p>
+                                            <h3 className="text-xl font-bold text-gray-900">Edit Member Details</h3>
+                                            <p className="text-gray-500 text-sm mt-1">Update profile information for {editingMember.name}</p>
                                         </div>
                                         <button
                                             onClick={() => setEditingMember(null)}
-                                            className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors"
+                                            className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors"
                                         >
-                                            ✕
+                                            <X size={20} />
                                         </button>
                                     </div>
 
@@ -1638,74 +1639,96 @@ export default function ClubDashboard({
                                                 gender: formData.get('gender')
                                             })
                                         }}
-                                        className="space-y-4"
+                                        className="p-6 space-y-6"
                                     >
+                                        {/* Name Field - Full Width */}
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name</label>
                                             <input
                                                 type="text"
                                                 name="name"
                                                 defaultValue={editingMember.name || ''}
-                                                className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
-                                                placeholder="Full Name"
+                                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all"
+                                                placeholder="Enter member's full name"
                                             />
                                         </div>
 
-                                        <div>
-                                            <CustomSelect
-                                                label="Gender"
-                                                value={editingMember.gender || 'Male'}
-                                                onChange={(val) => setEditingMember({ ...editingMember, gender: val })}
-                                                options={['Male', 'Female']}
-                                                className="w-full"
-                                                name="gender"
-                                            />
-                                            <input type="hidden" name="gender" value={editingMember.gender || 'Male'} />
+                                        {/* Grid Layout for Details */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            {/* Gender */}
+                                            <div>
+                                                <GlobalDropdown
+                                                    label="Gender"
+                                                    value={editingMember.gender || 'Male'}
+                                                    onChange={(val) => setEditingMember({ ...editingMember, gender: val })}
+                                                    options={['Male', 'Female']}
+                                                    className="w-full"
+                                                    name="gender"
+                                                />
+                                                <input type="hidden" name="gender" value={editingMember.gender || 'Male'} />
+                                            </div>
+
+                                            {/* Belt Rank */}
+                                            <div>
+                                                <GlobalDropdown
+                                                    label="Belt Rank"
+                                                    value={editingMember.belt || 'White'}
+                                                    onChange={(val) => setEditingMember({ ...editingMember, belt: val })}
+                                                    options={[
+                                                        'White',
+                                                        'Low Yellow', 'High Yellow',
+                                                        'Low Blue', 'High Blue',
+                                                        'Low Red', 'High Red',
+                                                        'Low Brown', 'High Brown',
+                                                        'Black'
+                                                    ]}
+                                                    className="w-full"
+                                                    name="belt"
+                                                />
+                                                <input type="hidden" name="belt" value={editingMember.belt || 'White'} />
+                                            </div>
+
+                                            {/* Weight */}
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">Weight (kg)</label>
+                                                <div className="relative">
+                                                    <input
+                                                        type="number"
+                                                        name="weight"
+                                                        step="0.1"
+                                                        defaultValue={editingMember.weight || ''}
+                                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all pl-4 pr-12"
+                                                        placeholder="0.0"
+                                                    />
+                                                    <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-gray-400 text-sm font-medium">
+                                                        kg
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
 
-                                        <div>
-                                            <CustomSelect
-                                                label="Belt Rank"
-                                                value={editingMember.belt || 'White'}
-                                                onChange={(val) => setEditingMember({ ...editingMember, belt: val })}
-                                                options={[
-                                                    'White',
-                                                    'Low Yellow', 'High Yellow',
-                                                    'Low Blue', 'High Blue',
-                                                    'Low Red', 'High Red',
-                                                    'Low Brown', 'High Brown',
-                                                    'Black'
-                                                ]}
-                                                className="w-full"
-                                                name="belt"
-                                            />
-                                            <input type="hidden" name="belt" value={editingMember.belt || 'White'} />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Weight (kg)</label>
-                                            <input
-                                                type="number"
-                                                name="weight"
-                                                step="0.1"
-                                                defaultValue={editingMember.weight || ''}
-                                                className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
-                                            />
-                                        </div>
-                                        <div className="flex justify-end gap-3 mt-8">
+                                        {/* Footer Actions */}
+                                        <div className="flex justify-end gap-3 pt-6 border-t border-gray-100 mt-2">
                                             <button
                                                 type="button"
                                                 onClick={() => setEditingMember(null)}
-                                                className="px-4 py-2 text-gray-600 font-medium hover:bg-gray-50 rounded-xl transition-colors"
+                                                className="px-5 py-2.5 text-gray-600 font-medium hover:bg-gray-50 rounded-xl transition-colors border border-transparent hover:border-gray-200"
                                             >
                                                 Cancel
                                             </button>
                                             <button
                                                 type="submit"
                                                 disabled={submitting}
-                                                className="px-4 py-2 bg-red-600 text-white font-medium rounded-xl hover:bg-red-700 transition-colors shadow-sm disabled:opacity-50"
+                                                className="px-6 py-2.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-all shadow-lg shadow-red-500/20 hover:shadow-red-500/40 disabled:opacity-50 disabled:shadow-none"
                                             >
-                                                {submitting ? 'Saving...' : 'Save Changes'}
+                                                {submitting ? (
+                                                    <span className="flex items-center gap-2">
+                                                        <Loader2 className="animate-spin" size={16} />
+                                                        Saving...
+                                                    </span>
+                                                ) : (
+                                                    'Save Changes'
+                                                )}
                                             </button>
                                         </div>
                                     </form>
@@ -1756,13 +1779,20 @@ export default function ClubDashboard({
                                         </div>
 
                                         <div>
-                                            <CustomSelect
+                                            <GlobalDropdown
                                                 label="Belt Rank"
                                                 value={editingSeminar.belt || 'White'}
                                                 onChange={(val) => {
                                                     setEditingSeminar({ ...editingSeminar, belt: val })
                                                 }}
-                                                options={['White', 'Yellow', 'Blue', 'Red', 'Brown', 'Black']}
+                                                options={[
+                                                    'White',
+                                                    'Low Yellow', 'High Yellow',
+                                                    'Low Blue', 'High Blue',
+                                                    'Low Red', 'High Red',
+                                                    'Low Brown', 'High Brown',
+                                                    'Black'
+                                                ]}
                                                 className="w-full"
                                                 name="belt"
                                             />

@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs'
 import { toast } from 'sonner'
 import { Camera, Ruler, Weight, CheckCircle, Upload, ArrowRight, User } from 'lucide-react'
 import Image from 'next/image'
-import CustomSelect from '@/app/components/ui/CustomSelect'
+import GlobalDropdown from '@/components/GlobalDropdown'
 
 export default function CompleteProfilePage() {
     const { user, isLoaded } = useUser()
@@ -233,7 +233,7 @@ export default function CompleteProfilePage() {
 
                             {/* Belt Input */}
                             <div className="space-y-3">
-                                <CustomSelect
+                                <GlobalDropdown
                                     label="Current Belt Rank"
                                     value={formData.belt}
                                     onChange={(val) => setFormData({ ...formData, belt: val })}

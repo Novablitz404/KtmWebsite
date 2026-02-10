@@ -7,7 +7,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { Eye, EyeOff, Loader2, ArrowLeft, ArrowRight, Check, Building2, User } from 'lucide-react'
-import CustomSelect from '@/app/components/ui/CustomSelect'
+import GlobalDropdown from '@/components/GlobalDropdown'
 import GlobalCalendar from '@/components/GlobalCalendar'
 import { completeOnboarding, checkEmailAvailability } from '@/app/actions'
 import { toast } from 'sonner'
@@ -716,14 +716,14 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                                         </div>
 
                                         <div className="grid grid-cols-2 gap-4">
-                                            <CustomSelect
+                                            <GlobalDropdown
                                                 label="GENDER"
                                                 value={gender}
                                                 onChange={setGender}
                                                 options={['Male', 'Female']}
                                                 required
                                             />
-                                            <CustomSelect
+                                            <GlobalDropdown
                                                 label="BELT"
                                                 value={belt}
                                                 onChange={setBelt}

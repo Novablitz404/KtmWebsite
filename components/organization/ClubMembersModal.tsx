@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { X, Search, Edit2, Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
-import CustomSelect from '@/app/components/ui/CustomSelect'
+import GlobalDropdown from '@/components/GlobalDropdown'
 import { getClubMembersForOrg, updateClubMemberAsOrg } from '@/app/organization/actions'
 
 interface Member {
@@ -215,7 +215,7 @@ export default function ClubMembersModal({ clubId, clubName, isOpen, onClose }: 
                                 />
                             </div>
 
-                            <CustomSelect
+                            <GlobalDropdown
                                 label="Belt Rank"
                                 value={editingMember.belt || 'White'}
                                 onChange={(val) => setEditingMember({ ...editingMember, belt: val })}
@@ -231,7 +231,7 @@ export default function ClubMembersModal({ clubId, clubName, isOpen, onClose }: 
                             />
 
                             <div className="grid grid-cols-2 gap-4">
-                                <CustomSelect
+                                <GlobalDropdown
                                     label="Gender"
                                     value={editingMember.gender || 'Male'}
                                     onChange={(val) => setEditingMember({ ...editingMember, gender: val })}
