@@ -155,13 +155,24 @@ export default function ProfileEditForm({ user, initialImageUrl, onCancel, redir
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <CustomSelect
-                            label="Belt"
-                            name="belt"
-                            value={belt}
-                            onChange={setBelt}
-                            options={['White', 'Yellow', 'Blue', 'Red', 'Brown', 'Black']}
-                        />
+                        {user.role === 'ATHLETE' ? (
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Belt</label>
+                                <div className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 text-gray-500 cursor-not-allowed">
+                                    {belt || 'White'}
+                                </div>
+                                <p className="text-[10px] text-gray-400 mt-1">Contact your club master to update belt.</p>
+                                <input type="hidden" name="belt" value={belt} />
+                            </div>
+                        ) : (
+                            <CustomSelect
+                                label="Belt"
+                                name="belt"
+                                value={belt}
+                                onChange={setBelt}
+                                options={['White', 'Low Yellow', 'High Yellow', 'Low Blue', 'High Blue', 'Low Red', 'High Red', 'Low Brown', 'High Brown', 'Black']}
+                            />
+                        )}
                     </div>
                     <div>
                         <CustomSelect

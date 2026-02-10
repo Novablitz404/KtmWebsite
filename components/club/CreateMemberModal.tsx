@@ -16,10 +16,14 @@ interface CreateMemberModalProps {
 
 const BELT_OPTIONS = [
     'White',
-    'Yellow',
-    'Blue',
-    'Red',
-    'Brown',
+    'Low Yellow',
+    'High Yellow',
+    'Low Blue',
+    'High Blue',
+    'Low Red',
+    'High Red',
+    'Low Brown',
+    'High Brown',
     'Black',
 ]
 

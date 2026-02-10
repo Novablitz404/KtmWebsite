@@ -14,6 +14,10 @@ const nextConfig: NextConfig = {
         hostname: 'unjsmncquvssasvjunii.supabase.co',
         pathname: '/storage/v1/object/public/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'img.clerk.com',
+      },
     ],
   },
   transpilePackages: ['@react-pdf/renderer'],

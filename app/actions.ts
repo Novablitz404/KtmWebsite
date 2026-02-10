@@ -949,6 +949,8 @@ export async function completeOnboarding(formData: FormData) {
     const birthDateStr = formData.get('birthDate') as string
     const gender = formData.get('gender') as string
     const belt = formData.get('belt') as string
+    const weight = parseFloat(formData.get('weight') as string)
+    const height = parseFloat(formData.get('height') as string)
 
     // Validation
     const isAthlete = role === 'ATHLETE'
@@ -963,8 +965,8 @@ export async function completeOnboarding(formData: FormData) {
 
     // Role-specific requirements
     if (isAthlete) {
-        if (!birthDateStr || !gender || !belt || !clubName) {
-            throw new Error('All profile fields are required for athletes')
+        if (!birthDateStr || !gender || !belt || !clubName || isNaN(weight) || isNaN(height)) {
+            throw new Error('All profile fields, including weight and height, are required for athletes')
         }
     } else if (isOrganizer) {
         if (!clubName || !birthDateStr) {
@@ -1039,7 +1041,9 @@ export async function completeOnboarding(formData: FormData) {
             clubName: assignedClubName,
             birthDate: birthDate,
             gender: gender || null,
-            belt: belt || null
+            belt: belt || null,
+            weight: isNaN(weight) ? null : weight,
+            height: isNaN(height) ? null : height
         }
     })
 

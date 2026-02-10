@@ -1,84 +1,95 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect } from 'react'
 import { useUser } from '@clerk/nextjs'
 import { usePathname, useRouter } from 'next/navigation'
+import { useQuery } from '@tanstack/react-query'
 
 /**
- * This component wraps page content and shows a loading overlay
- * immediately when a user signs in, then redirects to the appropriate dashboard.
+ * This component wraps page content and handles:
+ * 1. Role-based redirects from home page
+ * 2. Mandatory profile completion (Image, Weight, Height)
  */
 export default function AuthLoadingWrapper({ children }: { children: React.ReactNode }) {
     const { user, isLoaded } = useUser()
     const pathname = usePathname()
     const router = useRouter()
-    const [isRedirecting, setIsRedirecting] = useState(false)
-    const hasRedirected = useRef(false)
-    const previousUserId = useRef<string | null>(null)
 
-    // Detect sign-in and redirect
+    // Fetch DB user data to check for weight/height & role
+    const { data: dbUser, isLoading: isDbLoading } = useQuery({
+        queryKey: ['userProfile', user?.id],
+        queryFn: async () => {
+            const res = await fetch('/api/user/role')
+            if (!res.ok) throw new Error('Failed to fetch user')
+            return res.json()
+        },
+        enabled: !!user?.id
+    })
+
     useEffect(() => {
-        if (!isLoaded) return
+        if (!isLoaded) return // Wait for Clerk
+        if (!user) return // Let middleware handle auth redirects
+        if (isDbLoading) return // Wait for DB Data checking
 
-        const currentUserId = user?.id || null
+        // 1. Check Profile Completeness
+        const hasImage = user.hasImage
+        const isAthlete = dbUser?.role === 'ATHLETE'
+        const hasMeasurements = dbUser?.weight && dbUser?.height
 
-        // User just signed in (went from null to having an ID)
-        if (currentUserId && !previousUserId.current && pathname === '/' && !hasRedirected.current) {
-            hasRedirected.current = true
-            setIsRedirecting(true)
+        // For athletes, require measurements. For others, only image.
+        const isProfileComplete = hasImage && (isAthlete ? hasMeasurements : true)
 
-            // Fetch user role and redirect
-            fetch('/api/user/role')
-                .then(res => res.json())
-                .then(data => {
-                    let redirectTo = '/athlete' // Default now points to Athlete Dashboard
+        const isOnboarding = pathname?.startsWith('/onboarding')
 
-                    switch (data.role) {
-                        case 'ADMIN':
-                            redirectTo = '/admin'
-                            break
-                        case 'ORGANIZER':
-                            redirectTo = '/organization'
-                            break
-                        case 'MANAGER':
-                            redirectTo = '/organization?tab=events'
-                            break
-                        case 'CLUB_MASTER':
-                        case 'ASSISTANT_CLUB_MASTER':
-                            redirectTo = '/club'
-                            break
-                        case 'ATHLETE':
-                        default:
-                            redirectTo = '/athlete'
-                            break
-                    }
-
-                    // Use replace to avoid back-button issues
-                    router.replace(redirectTo)
-                })
-                .catch(() => {
-                    // On error, default to athlete home
-                    router.replace('/athlete')
-                })
+        if (!isProfileComplete) {
+            // Strict Redirect to Onboarding
+            if (!isOnboarding) {
+                router.replace('/onboarding/complete-profile')
+            }
+            return
         }
 
-        // User signed out
-        if (!currentUserId && previousUserId.current) {
-            hasRedirected.current = false
-            setIsRedirecting(false)
+        // 2. Logic for when Profile IS Complete
+        if (isOnboarding && isProfileComplete) {
+            // If they happen to be on onboarding but are done, send them home/dashboard
+            router.replace('/')
+            return
         }
 
-        previousUserId.current = currentUserId
-    }, [isLoaded, user, pathname, router])
+        // 3. Role-Based Redirect from Root
+        if (pathname === '/') {
+            let redirectTo = '/athlete'
 
-    // Clear redirecting state once we've navigated
-    useEffect(() => {
-        if (pathname && pathname !== '/') {
-            setIsRedirecting(false)
+            switch (dbUser?.role) {
+                case 'ADMIN':
+                    redirectTo = '/admin'
+                    break
+                case 'ORGANIZER':
+                    redirectTo = '/organization'
+                    break
+                case 'MANAGER':
+                    redirectTo = '/organization?tab=events'
+                    break
+                case 'CLUB_MASTER':
+                case 'ASSISTANT_CLUB_MASTER':
+                    redirectTo = '/club'
+                    break
+                case 'ATHLETE':
+                default:
+                    redirectTo = '/athlete'
+                    break
+            }
+            router.replace(redirectTo)
         }
-    }, [pathname])
 
+    }, [isLoaded, user, dbUser, isDbLoading, pathname, router])
 
+    // Ideally, we might show a loader here while checking
+    // but the original component rendered children immediately.
+    // To prevent "flash" of dashboard content before redirect, we could return null if checking.
+    // However, for better UX on slow connections, maybe we just redirect.
+    // Let's stick to existing behavior (render children) to minimize regression, 
+    // unless user sees a flash. Middleware protects the route mostly anyway.
 
     return <>{children}</>
 }

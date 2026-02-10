@@ -28,12 +28,12 @@ export async function getOrganizationDashboardData() {
     const orgId = dbUser.organization.id
 
     // Optimize: Fetch Clubs and associated stats in parallel
-    const [affiliatedClubs, affiliatedOrgsMemberCounts] = await Promise.all([
+    const [affiliatedClubs, affiliatedOrgsMemberCounts, clubMemberCounts] = await Promise.all([
         // 1. Fetch Affiliated Clubs
         prisma.club.findMany({
             where: { organizationId: orgId },
             include: {
-                students: true,
+                students: true, // Still needed for player-specific data if any
                 master: true
             }
         }),
@@ -43,13 +43,41 @@ export async function getOrganizationDashboardData() {
             dbUser.organization.affiliatedOrganizations.map(async (org) => {
                 const orgClubs = await prisma.club.findMany({
                     where: { organizationId: org.id },
-                    include: { students: true }
+                    select: { name: true } // Only need names for lookup
                 })
-                const count = orgClubs.reduce((acc, c) => acc + c.students.length, 0)
+
+                // Count Users (Athletes) for these clubs
+                const clubNames = orgClubs.map(c => c.name)
+                const count = await prisma.user.count({
+                    where: {
+                        clubName: { in: clubNames },
+                        role: 'ATHLETE'
+                    }
+                })
+
                 return { orgId: org.id, count, clubsCount: orgClubs.length }
             })
-        )
+        ),
+
+        // 3. Count Members (Users) per Club
+        // We group by clubName to get counts directly from the User table
+        prisma.user.groupBy({
+            by: ['clubName'],
+            where: {
+                // We'd ideally filter by clubName in [list of club names], but fetching all is fine for now or we extract names
+                role: 'ATHLETE'
+            },
+            _count: {
+                _all: true
+            }
+        })
     ])
+
+    // Create a map for quick lookup: ClubName -> Count
+    const memberCountMap = new Map<string, number>()
+    clubMemberCounts.forEach(c => {
+        if (c.clubName) memberCountMap.set(c.clubName, c._count._all)
+    })
 
     // Fetch Recent Members (Independent query but relies on clubIds, which we just got)
     // We could have fetched ALL students in query #1 but we wanted pagination/limit.
@@ -74,7 +102,7 @@ export async function getOrganizationDashboardData() {
             id: club.id,
             name: club.name,
             logoUrl: club.logoUrl,
-            memberCount: club.students.length,
+            memberCount: memberCountMap.get(club.name) || 0,
             masterName: club.master?.name || "Unknown",
             masterEmail: club.master?.email
         }))
@@ -83,7 +111,7 @@ export async function getOrganizationDashboardData() {
 
 
     // Calculate Stats
-    const totalDirectMembers = affiliatedClubs.reduce((acc, club) => acc + club.students.length, 0)
+    const totalDirectMembers = affiliatedClubs.reduce((acc, club) => acc + (memberCountMap.get(club.name) || 0), 0)
     const totalAffiliatedMembers = affiliatedOrgsMemberCounts.reduce((acc, item) => acc + item.count, 0)
 
     const affiliatedOrgsWithStats = affiliatedOrgs.map(org => {
@@ -110,7 +138,7 @@ export async function getOrganizationDashboardData() {
             name: c.name,
             logoUrl: c.logoUrl,
             masterName: c.master?.name || "Unknown",
-            memberCount: c.students.length,
+            memberCount: memberCountMap.get(c.name) || 0,
             contactPhone: c.phone,
             address: c.address,
             status: c.status

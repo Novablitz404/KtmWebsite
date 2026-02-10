@@ -54,6 +54,8 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
     const [birthDate, setBirthDate] = useState('')
     const [gender, setGender] = useState('Male')
     const [belt, setBelt] = useState('White')
+    const [weight, setWeight] = useState('')
+    const [height, setHeight] = useState('')
     const [clubName, setClubName] = useState('')
     const [isClubDropdownOpen, setIsClubDropdownOpen] = useState(false)
     const [clubSearch, setClubSearch] = useState('')
@@ -142,7 +144,7 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
         e.preventDefault()
         setError(null)
 
-        if (!firstName || !lastName || !email || !password) {
+        if (!email || !password) {
             setError("All fields are required")
             return
         }
@@ -179,6 +181,10 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
         } else {
 
             // Individual Validation (Athlete/Club Master)
+            if (!firstName || !lastName) {
+                setError("First Name and Last Name are required")
+                return
+            }
 
             if (isCreatingClub) {
                 // Club Master Validation
@@ -192,8 +198,8 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                 }
             } else {
                 // Athlete Validation
-                if (!birthDate || !gender || !belt || !clubName) {
-                    setError("All profile fields are required")
+                if (!birthDate || !gender || !belt || !clubName || !weight || !height) {
+                    setError("All profile fields (including weight & height) are required")
                     return
                 }
             }
@@ -271,6 +277,8 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                 if (!isCreatingClub) {
                     formData.append('gender', gender)
                     formData.append('belt', belt)
+                    formData.append('weight', weight)
+                    formData.append('height', height)
                 }
 
                 if (isCreatingClub) {
@@ -379,16 +387,16 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                     </p>
                 </div>
 
-                <div className="bg-gray-100 p-1.5 rounded-2xl flex flex-col md:flex-row gap-1 md:gap-0 max-w-4xl mx-auto">
+                <div className="flex flex-col md:flex-row gap-4 justify-center max-w-4xl mx-auto">
                     {/* Athlete Option */}
                     <button
                         onClick={() => {
                             setRole('ATHLETE')
                             setStep('account')
                         }}
-                        className="flex-1 py-4 px-6 rounded-xl font-bold text-xs md:text-sm text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-sm transition-all duration-200 text-center uppercase tracking-wide"
+                        className="flex-1 py-4 px-8 rounded-full border border-gray-100 shadow-sm bg-white text-gray-600 font-bold text-sm md:text-base transition-all duration-300 transform hover:-translate-y-1 hover:bg-red-600 hover:text-white hover:border-red-600 hover:shadow-lg hover:shadow-red-600/20 text-center uppercase tracking-wide"
                     >
-                        Athlete / User
+                        Athlete
                     </button>
 
                     {/* Club Master Option */}
@@ -397,7 +405,7 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                             setRole('CLUB_MASTER')
                             setStep('account')
                         }}
-                        className="flex-1 py-4 px-6 rounded-xl font-bold text-xs md:text-sm text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-sm transition-all duration-200 text-center uppercase tracking-wide"
+                        className="flex-1 py-4 px-8 rounded-full border border-gray-100 shadow-sm bg-white text-gray-600 font-bold text-sm md:text-base transition-all duration-300 transform hover:-translate-y-1 hover:bg-red-600 hover:text-white hover:border-red-600 hover:shadow-lg hover:shadow-red-600/20 text-center uppercase tracking-wide"
                     >
                         Club
                     </button>
@@ -408,7 +416,7 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                             setRole('ORGANIZER')
                             setStep('account')
                         }}
-                        className="flex-1 py-4 px-6 rounded-xl font-bold text-xs md:text-sm text-gray-600 hover:text-gray-900 hover:bg-white hover:shadow-sm transition-all duration-200 text-center uppercase tracking-wide"
+                        className="flex-1 py-4 px-8 rounded-full border border-gray-100 shadow-sm bg-white text-gray-600 font-bold text-sm md:text-base transition-all duration-300 transform hover:-translate-y-1 hover:bg-red-600 hover:text-white hover:border-red-600 hover:shadow-lg hover:shadow-red-600/20 text-center uppercase tracking-wide"
                     >
                         Organization
                     </button>
@@ -459,30 +467,7 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                 </button>
 
                 <form onSubmit={handleAccountNext} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">First Name</label>
-                            <input
-                                type="text"
-                                value={firstName}
-                                onChange={(e) => setFirstName(e.target.value)}
-                                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
-                                placeholder="Juan"
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Last Name</label>
-                            <input
-                                type="text"
-                                value={lastName}
-                                onChange={(e) => setLastName(e.target.value)}
-                                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
-                                placeholder="Dela Cruz"
-                                required
-                            />
-                        </div>
-                    </div>
+
 
                     <div>
                         <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Email Address</label>
@@ -604,6 +589,33 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
 
                     <form onSubmit={handleProfileSubmit} className="space-y-4">
 
+                        {(!isManager && !isOrganization && !isCoOrganizer) && (
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">First Name <span className="text-red-500">*</span></label>
+                                    <input
+                                        type="text"
+                                        value={firstName}
+                                        onChange={(e) => setFirstName(e.target.value)}
+                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
+                                        placeholder="Juan"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Last Name <span className="text-red-500">*</span></label>
+                                    <input
+                                        type="text"
+                                        value={lastName}
+                                        onChange={(e) => setLastName(e.target.value)}
+                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
+                                        placeholder="Dela Cruz"
+                                        required
+                                    />
+                                </div>
+                            </div>
+                        )}
+
                         {/* DYNAMIC ROLE SWITCHER REMOVED FROM HERE */}
 
                         {isManager && (
@@ -645,7 +657,7 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Date Established</label>
+                                    <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Date Established <span className="text-red-500">*</span></label>
                                     <GlobalCalendar
                                         value={birthDate}
                                         onChange={(date) => setBirthDate(format(date, 'yyyy-MM-dd'))}
@@ -668,7 +680,7 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                                 {!isCreatingClub && (
                                     <>
                                         <div>
-                                            <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Date of Birth</label>
+                                            <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Date of Birth <span className="text-red-500">*</span></label>
                                             <GlobalCalendar
                                                 value={birthDate}
                                                 onChange={(date) => setBirthDate(format(date, 'yyyy-MM-dd'))}
@@ -676,6 +688,31 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                                                 className="w-full"
                                                 fullWidth
                                             />
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Weight (kg) <span className="text-red-500">*</span></label>
+                                                <input
+                                                    type="number"
+                                                    value={weight}
+                                                    onChange={(e) => setWeight(e.target.value)}
+                                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
+                                                    placeholder="55"
+                                                    required
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Height (cm) <span className="text-red-500">*</span></label>
+                                                <input
+                                                    type="number"
+                                                    value={height}
+                                                    onChange={(e) => setHeight(e.target.value)}
+                                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
+                                                    placeholder="165"
+                                                    required
+                                                />
+                                            </div>
                                         </div>
 
                                         <div className="grid grid-cols-2 gap-4">
@@ -690,7 +727,7 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                                                 label="BELT"
                                                 value={belt}
                                                 onChange={setBelt}
-                                                options={['White', 'Yellow', 'Green', 'Blue', 'Red', 'Brown', 'Black']}
+                                                options={['White', 'Low Yellow', 'High Yellow', 'Low Blue', 'High Blue', 'Low Red', 'High Red', 'Low Brown', 'High Brown', 'Black']}
                                                 required
                                             />
                                         </div>
@@ -769,7 +806,7 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                                     <>
                                         {/* JOIN CLUB MODE (ATHLETE) */}
                                         <div className="relative">
-                                            <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Club</label>
+                                            <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Club <span className="text-red-500">*</span></label>
                                             <div className="relative">
                                                 <input
                                                     type="text"

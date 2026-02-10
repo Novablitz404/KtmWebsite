@@ -169,6 +169,25 @@ export default function MembersGrid({
         }
     }
 
+    const getBeltDetails = (belt: string | null) => {
+        if (!belt) return null
+
+        let colorClass = 'bg-gray-50 text-gray-600 border-gray-200'
+        let displayName = belt
+
+        if (belt === 'Black') colorClass = 'bg-gray-900 text-white border-gray-800'
+        else if (belt.includes('Red')) colorClass = 'bg-red-50 text-red-700 border-red-100'
+        else if (belt.includes('Blue')) colorClass = 'bg-blue-50 text-blue-700 border-blue-100'
+        else if (belt.includes('Yellow')) colorClass = 'bg-yellow-50 text-yellow-700 border-yellow-100'
+        else if (belt.includes('Brown')) colorClass = 'bg-amber-100 text-amber-800 border-amber-200' // Using amber for brown
+
+        // Abbreviate Name for Low/High
+        if (belt.includes('Low')) displayName = belt.replace('Low ', 'L-')
+        if (belt.includes('High')) displayName = belt.replace('High ', 'H-')
+
+        return { colorClass, displayName }
+    }
+
     return (
         <div className="h-full flex flex-col min-h-0">
             {/* Mobile Card View */}
@@ -246,17 +265,15 @@ export default function MembersGrid({
 
                                 {/* Belt Badge */}
                                 <div className="flex gap-2">
-                                    {member.belt && (
-                                        <span className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide border shadow-sm ${member.belt === 'Black' ? 'bg-gray-900 text-white border-gray-800' :
-                                            member.belt === 'Red' ? 'bg-red-50 text-red-700 border-red-100' :
-                                                member.belt === 'Blue' ? 'bg-blue-50 text-blue-700 border-blue-100' :
-                                                    member.belt === 'Yellow' ? 'bg-yellow-50 text-yellow-700 border-yellow-100' :
-                                                        member.belt === 'Green' ? 'bg-green-50 text-green-700 border-green-100' :
-                                                            'bg-gray-50 text-gray-600 border-gray-200'
-                                            }`}>
-                                            {member.belt}
-                                        </span>
-                                    )}
+                                    {(() => {
+                                        const details = getBeltDetails(member.belt)
+                                        if (!details) return null
+                                        return (
+                                            <span className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide border shadow-sm ${details.colorClass}`}>
+                                                {details.displayName}
+                                            </span>
+                                        )
+                                    })()}
                                 </div>
 
 
@@ -271,8 +288,17 @@ export default function MembersGrid({
                                         <span className="text-[9px] text-gray-400 uppercase tracking-wider">Sex</span>
                                     </div>
                                     <div className="flex flex-col items-center justify-center p-1 bg-gray-50 rounded-lg">
-                                        <span className="text-xs font-semibold text-gray-900">{member.weight ? `${member.weight}kg` : '-'}</span>
-                                        <span className="text-[9px] text-gray-400 uppercase tracking-wider">Weight</span>
+                                        {age && age >= 5 && age <= 11 ? (
+                                            <>
+                                                <span className="text-xs font-semibold text-gray-900">{member.height ? `${member.height}cm` : '-'}</span>
+                                                <span className="text-[9px] text-gray-400 uppercase tracking-wider">Height</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span className="text-xs font-semibold text-gray-900">{member.weight ? `${member.weight}kg` : '-'}</span>
+                                                <span className="text-[9px] text-gray-400 uppercase tracking-wider">Weight</span>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
 
@@ -385,19 +411,18 @@ export default function MembersGrid({
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                {member.belt ? (
-                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border shadow-sm ${member.belt === 'Black' ? 'bg-gray-900 text-white border-gray-800' :
-                                                        member.belt === 'Red' ? 'bg-red-50 text-red-700 border-red-100' :
-                                                            member.belt === 'Blue' ? 'bg-blue-50 text-blue-700 border-blue-100' :
-                                                                member.belt === 'Yellow' ? 'bg-yellow-50 text-yellow-700 border-yellow-100' :
-                                                                    member.belt === 'Green' ? 'bg-green-50 text-green-700 border-green-100' :
-                                                                        'bg-gray-50 text-gray-600 border-gray-200'
-                                                        }`}>
-                                                        {member.belt}
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-gray-400 text-xs">-</span>
-                                                )}
+                                                {(() => {
+                                                    const details = getBeltDetails(member.belt)
+                                                    if (details) {
+                                                        return (
+                                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border shadow-sm ${details.colorClass}`}>
+                                                                {details.displayName}
+                                                            </span>
+                                                        )
+                                                    } else {
+                                                        return <span className="text-gray-400 text-xs">-</span>
+                                                    }
+                                                })()}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-center">
                                                 <div className="flex items-center justify-center gap-3 text-xs text-gray-500">
@@ -412,8 +437,17 @@ export default function MembersGrid({
                                                     </div>
                                                     <div className="w-px h-6 bg-gray-200"></div>
                                                     <div className="flex flex-col">
-                                                        <span className="font-semibold text-gray-900">{member.weight || '-'}</span>
-                                                        <span className="text-[10px] uppercase">Kg</span>
+                                                        {age && age >= 5 && age <= 11 ? (
+                                                            <>
+                                                                <span className="font-semibold text-gray-900">{member.height || '-'}</span>
+                                                                <span className="text-[10px] uppercase">Cm</span>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <span className="font-semibold text-gray-900">{member.weight || '-'}</span>
+                                                                <span className="text-[10px] uppercase">Kg</span>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </td>
