@@ -13,6 +13,7 @@ export default function CompleteProfilePage() {
     const router = useRouter()
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [formData, setFormData] = useState({
+        name: '',
         weight: '',
         height: '',
         belt: ''
@@ -30,6 +31,7 @@ export default function CompleteProfilePage() {
             .then(res => res.json())
             .then(data => {
                 setFormData({
+                    name: data.userName || user.fullName || user.firstName || '',
                     weight: data.weight ? String(data.weight) : '',
                     height: data.height ? String(data.height) : '',
                     belt: data.belt || ''
@@ -65,12 +67,15 @@ export default function CompleteProfilePage() {
             return
         }
 
+        if (!formData.name.trim()) {
+            toast.error('Please enter your full name')
+            return
+        }
+
         if (role === 'ATHLETE') {
-            if (role === 'ATHLETE') {
-                if (!formData.weight || !formData.height || !formData.belt) {
-                    toast.error('Please enter your weight, height, and belt')
-                    return
-                }
+            if (!formData.weight || !formData.height || !formData.belt) {
+                toast.error('Please enter your weight, height, and belt')
+                return
             }
         }
 
@@ -78,8 +83,7 @@ export default function CompleteProfilePage() {
 
         try {
             const submitData = new FormData()
-            submitData.append('name', user.fullName || user.firstName || 'Athlete') // API requires name
-            submitData.append('name', user.fullName || user.firstName || 'Athlete') // API requires name
+            submitData.append('name', formData.name) // Use the name from the form
             submitData.append('weight', formData.weight)
             submitData.append('height', formData.height)
             submitData.append('belt', formData.belt)
@@ -177,6 +181,26 @@ export default function CompleteProfilePage() {
                     </div>
 
                     <div className="h-px bg-gray-100 w-full"></div>
+
+                    {/* Name Input */}
+                    <div className="space-y-3">
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">
+                            Full Name <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative group">
+                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <User className="h-5 w-5 text-gray-400 group-focus-within:text-red-500 transition-colors" />
+                            </div>
+                            <input
+                                type="text"
+                                required
+                                value={formData.name}
+                                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                className="block w-full pl-12 pr-4 py-4 bg-gray-50 border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-bold text-lg"
+                                placeholder="Your Full Name"
+                            />
+                        </div>
+                    </div>
 
                     {/* Measurements Section - Only for Athletes */}
                     {role === 'ATHLETE' && (
