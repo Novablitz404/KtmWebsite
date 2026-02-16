@@ -412,10 +412,10 @@ export default function AthleteDashboardView({
 
                                                         return (
                                                             <tr key={reg.id} className="hover:bg-gray-50/50 transition-colors">
-                                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-sm font-bold text-gray-900">{tournament?.name || 'Unknown'}</span>
-                                                                        {tournament?.venue && <span className="text-xs text-gray-500">{tournament.venue}</span>}
+                                                                <td className="px-6 py-4 whitespace-nowrap max-w-[180px]">
+                                                                    <div className="flex flex-col min-w-0">
+                                                                        <span className="text-sm font-bold text-gray-900 truncate">{tournament?.name || 'Unknown'}</span>
+                                                                        {tournament?.venue && <span className="text-xs text-gray-500 truncate">{tournament.venue}</span>}
                                                                     </div>
                                                                 </td>
                                                                 <td className="px-6 py-4 whitespace-nowrap max-w-[120px]">
@@ -504,7 +504,7 @@ export default function AthleteDashboardView({
                                     ]
 
                                     return (
-                                        <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                                        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                                             <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
                                                 <span className="text-xl">🏆</span>
                                                 <h3 className="font-bold text-gray-900">Available Events</h3>
