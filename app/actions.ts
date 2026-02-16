@@ -2143,14 +2143,32 @@ export async function fetchAthleteDashboardData(clerkId: string) {
     })
 
     // Fetch seminar registrations
+    // playerId may be either a User ID (from org/club flows) or a Player ID (from self-reg flow)
     const userPlayerIds = await prisma.player.findMany({
         where: { userId: dbUser.id },
         select: { id: true }
     }).then(ps => ps.map(p => p.id))
 
     const seminarRegistrations = await prisma.seminarRegistration.findMany({
-        where: { playerId: { in: userPlayerIds } },
-        select: { seminarId: true, status: true }
+        where: {
+            playerId: { in: [dbUser.id, ...userPlayerIds] }
+        },
+        select: {
+            id: true,
+            seminarId: true,
+            status: true,
+            playerName: true,
+            qrCodeToken: true,
+            createdAt: true,
+            seminar: {
+                select: {
+                    id: true,
+                    name: true,
+                    startDate: true,
+                    venue: true
+                }
+            }
+        }
     })
 
     // Fetch generic upcoming events for the club (My Events)
@@ -2954,17 +2972,9 @@ export async function checkEmailAvailability(email: string) {
 
 export async function registerForSeminar(formData: FormData) {
     const seminarId = formData.get('seminarId') as string
-    const proofFile = formData.get('proofOfPayment') as File | null
-    const waiverSigned = formData.get('waiverSigned') === 'true'
 
     if (!seminarId) {
         return { error: 'Seminar ID is required' }
-    }
-    if (!proofFile || proofFile.size === 0) {
-        return { error: 'Proof of Payment is required' }
-    }
-    if (!waiverSigned) {
-        return { error: 'You must agree to the waiver' }
     }
 
     // 1. Authenticate User
@@ -2974,16 +2984,9 @@ export async function registerForSeminar(formData: FormData) {
     }
 
     // 2. Fetch User Profile & Player Record
-    // We assume the user has a "Self" player Record or we use their User Profile to find the player ID?
-    // In KTM schema, SeminarRegistration links to `playerId`.
-    // We should find the Player record associated with this user.
-    // If multiple players (e.g. parent managing kids), we usually need to select which player.
-    // BUT for "My Events" athlete flow, it's usually the logged-in athlete themselves.
-    // Let's assume the user IS the player for now (Role: ATHLETE).
-
     const dbUser = await prisma.user.findUnique({
         where: { clerkId: user.id },
-        include: { players: true } // Fetch linked players
+        include: { players: true }
     })
 
     if (!dbUser) {
@@ -2991,30 +2994,20 @@ export async function registerForSeminar(formData: FormData) {
     }
 
     // Determine Player ID
-    // If user has player records, use the one that matches their name/club or just the first one?
-    // Ideally, we should have passed `playerId` from the form if the user manages multiple.
-    // For now, let's look for a player record that matches the user's main profile.
     let playerId = dbUser.players.find(p => p.name === dbUser.name)?.id
 
-    // Fallback: If no generic "self" player found, maybe they are registering as a new player?
-    // Or we just checking if ANY player exists?
-    // In this system, Athletes usually have a Player record created upon joining a club or first tournament.
-    // If not, we might need to create a temporary one or fail.
-    // Let's create a "Self" player record if missing, so registration can link to something.
     if (!playerId) {
-        // Try to find club ID
         const club = dbUser.clubName ? await prisma.club.findFirst({ where: { name: dbUser.clubName } }) : null
 
-        // Create a player record for the user
         const newPlayer = await prisma.player.create({
             data: {
-                id: Math.floor(Math.random() * 100000).toString().padStart(5, '0'), // Simple ID gen
+                id: Math.floor(Math.random() * 100000).toString().padStart(5, '0'),
                 name: dbUser.name || 'Unknown',
                 userId: dbUser.id,
                 gender: dbUser.gender || 'Male',
                 belt: dbUser.belt || 'White',
-                clubId: club?.id, // Correctly link via ID
-                registrationStatus: 'APPROVED' // It's their own profile
+                clubId: club?.id,
+                registrationStatus: 'APPROVED'
             }
         })
         playerId = newPlayer.id
@@ -3032,35 +3025,7 @@ export async function registerForSeminar(formData: FormData) {
         return { error: 'You are already registered for this seminar.' }
     }
 
-    // 4. Upload Proof of Payment
-    let proofUrl = null
-    try {
-        const bytes = await proofFile.arrayBuffer()
-        const buffer = Buffer.from(bytes)
-        const timestamp = Date.now()
-        const safeName = proofFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')
-        const filename = `proof-${seminarId}-${playerId}-${timestamp}-${safeName}`
-
-        const { error: uploadError } = await supabase.storage
-            .from('seminar-proofs')
-            .upload(filename, buffer, {
-                contentType: proofFile.type,
-                upsert: false
-            })
-
-        if (uploadError) throw uploadError
-
-        const { data: { publicUrl } } = supabase.storage
-            .from('seminar-proofs')
-            .getPublicUrl(filename)
-
-        proofUrl = publicUrl
-    } catch (error) {
-        console.error('Proof upload failed:', error)
-        return { error: 'Failed to upload proof of payment. Please try again.' }
-    }
-
-    // 5. Create Registration Record
+    // 4. Create Registration Record (PENDING — awaiting clubmaster approval)
     try {
         await prisma.seminarRegistration.create({
             data: {
@@ -3069,18 +3034,7 @@ export async function registerForSeminar(formData: FormData) {
                 playerName: dbUser.name || 'Unknown',
                 clubName: dbUser.clubName,
                 belt: dbUser.belt,
-                // age: Calculate age? Optional for now.
-                status: 'PENDING',
-                paymentStatus: 'PAID', // Marked as PAID (Pending Verification) by user claim? Or UNPAID?
-                // Usually "PENDING" status implies payment is under review.
-                // Let's keep paymentStatus as 'UNPAID' or 'PENDING_VERIFICATION' if enum allowed.
-                // Schema has default "UNPAID". Let's leave it UNPAID until admin verifies?
-                // OR if they uploaded proof, we can say it's PENDING verification.
-                // Schema says: status String @default("PENDING") // PENDING, APPROVED, REJECTED
-                // Let's trust usage of 'status' for the overall approval including payment.
-
-                proofOfPaymentUrl: proofUrl,
-                waiverSignedAt: new Date()
+                status: 'PENDING'
             }
         })
 

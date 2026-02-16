@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { currentUser } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
+import crypto from 'crypto'
 
 export async function getOrganizationDashboardData() {
     const user = await currentUser()
@@ -411,7 +412,7 @@ export async function createSeminar(formData: FormData) {
     const feeStr = formData.get('fee') as string
     const visibility = (formData.get('visibility') as string) || 'PRIVATE'
     const paymentInstructions = formData.get('paymentInstructions') as string
-    const paymentMethodsJson = formData.get('paymentMethods') as string
+
     const bannerFile = formData.get('banner') as File | null
 
     if (!name || !startDate) return { error: 'Name and start date are required' }
@@ -467,50 +468,7 @@ export async function createSeminar(formData: FormData) {
             visibility,
             paymentInstructions: paymentInstructions || null,
             bannerUrl,
-            paymentMethods: {
-                create: await Promise.all(JSON.parse(paymentMethodsJson || '[]').map(async (pm: any) => {
-                    let qrCodeUrl = null
-                    const qrKey = `qrCode_${pm.id}`
-                    const qrFile = formData.get(qrKey) as File | null
 
-                    console.log(`[createSeminar] Processing method ${pm.id}, Key: ${qrKey}, File: ${qrFile ? `${qrFile.name} (${qrFile.size} bytes)` : 'null'}`)
-
-                    if (qrFile && qrFile.size > 0) {
-                        try {
-                            const supabase = createClient(
-                                process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                                process.env.SUPABASE_SERVICE_ROLE_KEY!
-                            )
-                            const bytes = await qrFile.arrayBuffer()
-                            const buffer = Buffer.from(bytes)
-                            const timestamp = Date.now()
-                            const safeName = qrFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')
-                            const filename = `payment-qr-${timestamp}-${safeName}`
-
-                            const { error: uploadError } = await supabase.storage
-                                .from('qr-codes')
-                                .upload(filename, buffer, { contentType: qrFile.type, upsert: false })
-
-                            if (!uploadError) {
-                                const { data: { publicUrl } } = supabase.storage
-                                    .from('qr-codes')
-                                    .getPublicUrl(filename)
-                                qrCodeUrl = publicUrl
-                            }
-                        } catch (e) {
-                            console.error('QR Upload Error', e)
-                        }
-                    }
-
-                    return {
-                        type: pm.type,
-                        name: pm.name,
-                        accountName: pm.accountName,
-                        accountNumber: pm.accountNumber,
-                        qrCodeUrl
-                    }
-                }))
-            }
         }
     })
 
@@ -801,7 +759,7 @@ export async function fetchSeminarRegistrations(
     }
 }
 
-export async function updateSeminarRegistrationStatus(registrationId: string, status?: string, paymentStatus?: string) {
+export async function updateSeminarRegistrationStatus(registrationId: string, status?: string) {
     const user = await currentUser()
     if (!user) return { error: 'Unauthorized' }
 
@@ -826,8 +784,15 @@ export async function updateSeminarRegistrationStatus(registrationId: string, st
     }
 
     const data: any = {}
-    if (status) data.status = status
-    if (paymentStatus) data.paymentStatus = paymentStatus
+    if (status) {
+        data.status = status
+        // Auto-generate QR token on approval, clear on other statuses
+        if (status === 'APPROVED') {
+            data.qrCodeToken = crypto.randomUUID()
+        } else {
+            data.qrCodeToken = null
+        }
+    }
 
     await prisma.seminarRegistration.update({
         where: { id: registrationId },
@@ -1658,8 +1623,7 @@ export async function registerForSeminar(seminarId: string) {
             clubName: dbUser.clubName || dbUser.club?.name,
             belt: dbUser.belt || 'White',
             age: age,
-            status: 'PENDING',
-            paymentStatus: 'UNPAID'
+            status: 'PENDING'
         }
     })
 

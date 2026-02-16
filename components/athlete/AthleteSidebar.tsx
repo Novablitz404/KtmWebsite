@@ -13,8 +13,8 @@ import {
 } from 'lucide-react'
 
 interface AthleteSidebarProps {
-    activeView: 'home' | 'settings' | 'ranking'
-    onNavigate: (view: 'home' | 'settings' | 'ranking') => void
+    activeView: 'home' | 'events' | 'settings' | 'ranking'
+    onNavigate: (view: 'home' | 'events' | 'settings' | 'ranking') => void
     userName?: string | null
     userImageUrl?: string | null
     isOpen: boolean
@@ -23,6 +23,7 @@ interface AthleteSidebarProps {
 
 const navItems = [
     { id: 'home', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'events', label: 'Events', icon: Calendar },
     { id: 'ranking', label: 'Ranking', icon: Trophy },
 ] as const
 

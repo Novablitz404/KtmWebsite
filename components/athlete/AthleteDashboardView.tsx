@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Trophy, Medal, Calendar, ChevronRight, Zap, Clock, Mail } from 'lucide-react'
+import { Trophy, Medal, Calendar, ChevronRight, Zap, Clock, Mail, QrCode, X } from 'lucide-react'
 import Link from 'next/link'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { fetchAthleteDashboardData, unregisterFromTournament } from '@/app/actions'
@@ -11,6 +11,7 @@ import AthleteSidebar from '@/components/athlete/AthleteSidebar'
 import AthleteTopBar from '@/components/athlete/AthleteTopBar'
 import ProfileEditForm from '@/app/settings/ProfileEditForm'
 import AthleteProfileView from '@/app/settings/AthleteProfileView'
+import { QRCodeSVG } from 'qrcode.react'
 
 interface AthleteDashboardViewProps {
     clerkId: string
@@ -37,8 +38,9 @@ export default function AthleteDashboardView({
     // ALL HOOKS MUST BE AT THE TOP - before any early returns
     const searchParams = useSearchParams()
     const initialView = (searchParams.get('tab') as any) || 'home'
-    const [activeView, setActiveView] = useState<'home' | 'settings' | 'ranking'>(initialView)
+    const [activeView, setActiveView] = useState<'home' | 'events' | 'settings' | 'ranking'>(initialView)
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+    const [registrationTab, setRegistrationTab] = useState<'tournament' | 'seminar' | 'promotion'>('tournament')
 
     const queryClient = useQueryClient()
 
@@ -64,6 +66,8 @@ export default function AthleteDashboardView({
     const dbUser = data?.user
     const clubLogo = data?.clubLogo
     const registrations = data?.registrations || []
+    const seminarRegs = (data as any)?.seminarRegistrations || []
+    const [viewingQr, setViewingQr] = useState<any>(null)
 
     // Calculate stats (only if we have data)
     const now = new Date()
@@ -150,252 +154,176 @@ export default function AthleteDashboardView({
                 {activeView === 'home' && (
                     <div className="flex-1 flex flex-col min-h-0 px-4 sm:px-6 lg:px-8 py-6 w-full max-w-[1600px] mx-auto md:overflow-y-auto">
 
-                        {/* Flex Layout - Desktop: side-by-side, Mobile: stacked */}
-                        <div className="flex flex-col lg:flex-row gap-6 h-full md:min-h-0">
+                        {/* Main Content */}
+                        <div className="flex flex-col gap-6 h-full md:min-h-0">
 
-                            {/* Left Column - Main Content */}
-                            <div className="flex-[2] flex flex-col gap-6 md:min-h-0">
-
-                                {/* Athlete Profile Card */}
-                                <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-                                    {!dbUser ? (
-                                        /* Compact Skeleton */
-                                        <div className="flex flex-col md:flex-row items-center gap-6 animate-pulse">
-                                            <Skeleton className="w-16 h-16 rounded-full flex-shrink-0" />
-                                            <div className="flex-1 space-y-2 text-center md:text-left w-full">
-                                                <Skeleton className="h-6 w-40 mx-auto md:mx-0" />
-                                                <Skeleton className="h-4 w-32 mx-auto md:mx-0" />
-                                            </div>
-                                            <div className="hidden md:block w-px h-12 bg-gray-100" />
-                                            <Skeleton className="h-12 w-32" />
-                                            <div className="hidden md:block w-px h-12 bg-gray-100" />
-                                            <Skeleton className="h-12 w-24" />
+                            {/* Athlete Profile Card */}
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                                {!dbUser ? (
+                                    /* Compact Skeleton */
+                                    <div className="flex flex-col md:flex-row items-center gap-6 animate-pulse">
+                                        <Skeleton className="w-16 h-16 rounded-full flex-shrink-0" />
+                                        <div className="flex-1 space-y-2 text-center md:text-left w-full">
+                                            <Skeleton className="h-6 w-40 mx-auto md:mx-0" />
+                                            <Skeleton className="h-4 w-32 mx-auto md:mx-0" />
                                         </div>
-                                    ) : (
-                                        <div className="flex flex-col md:flex-row items-center gap-6">
-                                            {/* Avatar */}
-                                            <div className="flex-shrink-0">
-                                                {imageUrl ? (
-                                                    <img
-                                                        src={imageUrl}
-                                                        alt={dbUser.name || 'Athlete'}
-                                                        className="w-16 h-16 rounded-full border-2 border-white shadow-sm object-cover bg-gray-50"
-                                                    />
-                                                ) : (
-                                                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-100 to-red-200 shadow-sm flex items-center justify-center text-2xl">
-                                                        🥋
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Info */}
-                                            <div className="flex-1 text-center md:text-left min-w-0">
-                                                <div className="flex items-center justify-center md:justify-start gap-3 flex-wrap">
-                                                    <h2 className="text-xl font-bold text-gray-900 truncate">{dbUser.name || 'Athlete'}</h2>
-                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${beltStyle.bg} ${beltStyle.text} border ${beltStyle.border}`}>
-                                                        {dbUser.belt || 'No Belt'}
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center justify-center md:justify-start gap-1.5 text-sm text-gray-500 mt-1">
-                                                    <Mail size={14} className="flex-shrink-0" />
-                                                    <span className="truncate">{dbUser.email}</span>
-                                                </div>
-                                            </div>
-
-                                            {/* Club Info */}
-                                            <div className="flex items-center gap-3 px-6 py-2 bg-gray-50 rounded-xl border border-gray-100">
-                                                {clubLogo ? (
-                                                    <img
-                                                        src={clubLogo}
-                                                        alt={dbUser.clubName || 'Club'}
-                                                        className="w-8 h-8 rounded-lg object-contain bg-white"
-                                                    />
-                                                ) : (
-                                                    <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-sm">
-                                                        🏫
-                                                    </div>
-                                                )}
-                                                <div className="text-left">
-                                                    <p className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Club</p>
-                                                    <p className="text-sm font-semibold text-gray-900 max-w-[150px] truncate">{dbUser.clubName || 'No Club'}</p>
-                                                </div>
-                                            </div>
-
-                                            {/* Physical Stats */}
-                                            {(dbUser.weight || dbUser.height) && (
-                                                <div className="flex items-center gap-4 pl-2">
-                                                    {dbUser.weight && (
-                                                        <div className="text-center">
-                                                            <p className="text-base font-bold text-gray-900">{dbUser.weight}<span className="text-xs font-normal text-gray-500 ml-0.5">kg</span></p>
-                                                            <p className="text-[10px] text-gray-400 uppercase font-medium">Weight</p>
-                                                        </div>
-                                                    )}
-                                                    {dbUser.height && (
-                                                        <div className="text-center border-l border-gray-100 pl-4">
-                                                            <p className="text-base font-bold text-gray-900">{dbUser.height}<span className="text-xs font-normal text-gray-500 ml-0.5">cm</span></p>
-                                                            <p className="text-[10px] text-gray-400 uppercase font-medium">Height</p>
-                                                        </div>
-                                                    )}
+                                        <div className="hidden md:block w-px h-12 bg-gray-100" />
+                                        <Skeleton className="h-12 w-32" />
+                                        <div className="hidden md:block w-px h-12 bg-gray-100" />
+                                        <Skeleton className="h-12 w-24" />
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col md:flex-row items-center gap-6">
+                                        {/* Avatar */}
+                                        <div className="flex-shrink-0">
+                                            {imageUrl ? (
+                                                <img
+                                                    src={imageUrl}
+                                                    alt={dbUser.name || 'Athlete'}
+                                                    className="w-16 h-16 rounded-full border-2 border-white shadow-sm object-cover bg-gray-50"
+                                                />
+                                            ) : (
+                                                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-100 to-red-200 shadow-sm flex items-center justify-center text-2xl">
+                                                    🥋
                                                 </div>
                                             )}
                                         </div>
-                                    )}
-                                </div>
 
-                                {/* Performance Stats & Next Event Row */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    {/* Performance Summary - Coming Soon */}
-                                    <div className="bg-gradient-to-br from-gray-100 to-gray-50 rounded-2xl border border-gray-200 p-5 relative overflow-hidden">
-                                        <div className="absolute top-2 right-2">
-                                            <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Coming Soon</span>
-                                        </div>
-                                        <h3 className="font-bold text-gray-900 mb-2">Performance Stats</h3>
-                                        <p className="text-sm text-gray-500">Track your wins, medals, and improvement.</p>
-                                        <div className="mt-4 grid grid-cols-3 gap-2">
-                                            <div className="text-center p-2 bg-white/50 rounded-lg">
-                                                <p className="text-lg font-bold text-gray-400">-</p>
-                                                <p className="text-[10px] text-gray-400">Win Rate</p>
+                                        {/* Info */}
+                                        <div className="flex-1 text-center md:text-left min-w-0">
+                                            <div className="flex items-center justify-center md:justify-start gap-3 flex-wrap">
+                                                <h2 className="text-xl font-bold text-gray-900 truncate">{dbUser.name || 'Athlete'}</h2>
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${beltStyle.bg} ${beltStyle.text} border ${beltStyle.border}`}>
+                                                    {dbUser.belt || 'No Belt'}
+                                                </span>
                                             </div>
-                                            <div className="text-center p-2 bg-white/50 rounded-lg">
-                                                <p className="text-lg font-bold text-gray-400">-</p>
-                                                <p className="text-[10px] text-gray-400">Medals</p>
-                                            </div>
-                                            <div className="text-center p-2 bg-white/50 rounded-lg">
-                                                <p className="text-lg font-bold text-gray-400">-</p>
-                                                <p className="text-[10px] text-gray-400">Rank</p>
+                                            <div className="flex items-center justify-center md:justify-start gap-1.5 text-sm text-gray-500 mt-1">
+                                                <Mail size={14} className="flex-shrink-0" />
+                                                <span className="truncate">{dbUser.email}</span>
                                             </div>
                                         </div>
-                                    </div>
 
-                                    {/* Next Event Widget */}
-                                    {nextEvent ? (
-                                        <div className="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl p-5 text-white shadow-lg">
-                                            <div className="flex items-start justify-between">
-                                                <div>
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <Zap size={16} className="text-yellow-300" />
-                                                        <span className="text-xs font-medium text-indigo-200 uppercase tracking-wider">Joined Event</span>
-                                                    </div>
-                                                    <h3 className="text-lg font-bold mb-1 line-clamp-1">{nextEvent.category?.tournament?.name}</h3>
-                                                    <p className="text-indigo-200 text-sm line-clamp-1">{nextEvent.category?.name}</p>
-                                                    <p className="text-indigo-200 text-xs mt-2 flex items-center gap-1">
-                                                        <Clock size={12} />
-                                                        {nextEvent.category?.tournament?.startDate
-                                                            ? new Date(nextEvent.category.tournament.startDate).toLocaleDateString('en-US', {
-                                                                month: 'short',
-                                                                day: 'numeric',
-                                                                year: 'numeric'
-                                                            })
-                                                            : '-'
-                                                        }
-                                                    </p>
+                                        {/* Club Info */}
+                                        <div className="flex items-center gap-3 px-6 py-2 bg-gray-50 rounded-xl border border-gray-100">
+                                            {clubLogo ? (
+                                                <img
+                                                    src={clubLogo}
+                                                    alt={dbUser.clubName || 'Club'}
+                                                    className="w-8 h-8 rounded-lg object-contain bg-white"
+                                                />
+                                            ) : (
+                                                <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-sm">
+                                                    🏫
                                                 </div>
-                                                {daysUntilNext !== null && (
-                                                    <div className="text-right flex-shrink-0">
-                                                        <div className="text-3xl font-black">{daysUntilNext}</div>
-                                                        <div className="text-xs text-indigo-200">days</div>
+                                            )}
+                                            <div className="text-left">
+                                                <p className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Club</p>
+                                                <p className="text-sm font-semibold text-gray-900 max-w-[150px] truncate">{dbUser.clubName || 'No Club'}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Physical Stats */}
+                                        {(dbUser.weight || dbUser.height) && (
+                                            <div className="flex items-center gap-4 pl-2">
+                                                {dbUser.weight && (
+                                                    <div className="text-center">
+                                                        <p className="text-base font-bold text-gray-900">{dbUser.weight}<span className="text-xs font-normal text-gray-500 ml-0.5">kg</span></p>
+                                                        <p className="text-[10px] text-gray-400 uppercase font-medium">Weight</p>
+                                                    </div>
+                                                )}
+                                                {dbUser.height && (
+                                                    <div className="text-center border-l border-gray-100 pl-4">
+                                                        <p className="text-base font-bold text-gray-900">{dbUser.height}<span className="text-xs font-normal text-gray-500 ml-0.5">cm</span></p>
+                                                        <p className="text-[10px] text-gray-400 uppercase font-medium">Height</p>
                                                     </div>
                                                 )}
                                             </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Performance Stats Row */}
+                            <div className="grid grid-cols-1 gap-4">
+                                {/* Performance Summary - Coming Soon */}
+                                <div className="bg-gradient-to-br from-gray-100 to-gray-50 rounded-2xl border border-gray-200 p-5 relative overflow-hidden">
+                                    <div className="absolute top-2 right-2">
+                                        <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Coming Soon</span>
+                                    </div>
+                                    <h3 className="font-bold text-gray-900 mb-2">Performance Stats</h3>
+                                    <p className="text-sm text-gray-500">Track your wins, medals, and improvement.</p>
+                                    <div className="mt-4 grid grid-cols-3 gap-2">
+                                        <div className="text-center p-2 bg-white/50 rounded-lg">
+                                            <p className="text-lg font-bold text-gray-400">-</p>
+                                            <p className="text-[10px] text-gray-400">Win Rate</p>
                                         </div>
-                                    ) : (
-                                        <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-gray-200 p-5 flex flex-col items-center justify-center text-center">
-                                            <span className="text-3xl mb-2">🏆</span>
-                                            <h3 className="font-bold text-gray-900 mb-1">No Joined Events</h3>
-                                            <p className="text-sm text-gray-500">Check the list below to join an event!</p>
+                                        <div className="text-center p-2 bg-white/50 rounded-lg">
+                                            <p className="text-lg font-bold text-gray-400">-</p>
+                                            <p className="text-[10px] text-gray-400">Medals</p>
                                         </div>
-                                    )}
+                                        <div className="text-center p-2 bg-white/50 rounded-lg">
+                                            <p className="text-lg font-bold text-gray-400">-</p>
+                                            <p className="text-[10px] text-gray-400">Rank</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* ============ SECTION 1: My Registrations ============ */}
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col">
+                                <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                                    <h2 className="text-lg font-bold text-gray-900">My Registrations</h2>
+                                    <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">
+                                        {registrations.length + seminarRegs.length} {(registrations.length + seminarRegs.length) === 1 ? 'entry' : 'entries'}
+                                    </span>
                                 </div>
 
-                                {/* ============ SECTION 1: My Registrations ============ */}
-                                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col">
-                                    <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                                        <h2 className="text-lg font-bold text-gray-900">My Registrations</h2>
-                                        <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">
-                                            {registrations.length} {registrations.length === 1 ? 'entry' : 'entries'}
-                                        </span>
-                                    </div>
+                                {/* Tabs */}
+                                <div className="flex border-b border-gray-100 px-6">
+                                    {[
+                                        { key: 'tournament', label: 'Tournament', count: registrations.length },
+                                        { key: 'seminar', label: 'Seminar', count: seminarRegs.length },
+                                        { key: 'promotion', label: 'Promotion', count: 0 },
+                                    ].map((tab) => (
+                                        <button
+                                            key={tab.key}
+                                            onClick={() => setRegistrationTab(tab.key as any)}
+                                            className={`relative px-4 py-3 text-sm font-medium transition-colors ${registrationTab === tab.key
+                                                ? 'text-red-600'
+                                                : 'text-gray-500 hover:text-gray-700'
+                                                }`}
+                                        >
+                                            <span className="flex items-center gap-1.5">
+                                                {tab.label}
+                                                {tab.count > 0 && (
+                                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${registrationTab === tab.key
+                                                        ? 'bg-red-100 text-red-600'
+                                                        : 'bg-gray-100 text-gray-500'
+                                                        }`}>
+                                                        {tab.count}
+                                                    </span>
+                                                )}
+                                            </span>
+                                            {registrationTab === tab.key && (
+                                                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-600 rounded-full" />
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
 
-                                    {registrations.length === 0 ? (
-                                        <div className="p-10 text-center">
-                                            <div className="text-4xl mb-3">📋</div>
-                                            <h3 className="text-base font-bold text-gray-900 mb-1">No registrations yet</h3>
-                                            <p className="text-gray-500 text-sm">Register for an event from the list below.</p>
-                                        </div>
-                                    ) : (
-                                        <div className="flex-1 overflow-auto">
-                                            {/* Mobile View - Cards */}
-                                            <div className="md:hidden p-4 space-y-3">
-                                                {registrations.map((reg: any) => {
-                                                    const tournament = reg.category?.tournament
-                                                    const categoryType = reg.category?.type || 'KYORUGI'
-                                                    const typeBadge = categoryType === 'POOMSAE'
-                                                        ? { label: 'Poomsae', style: 'bg-blue-50 text-blue-700 border-blue-200' }
-                                                        : categoryType === 'KYUKPA'
-                                                            ? { label: 'Kyukpa', style: 'bg-purple-50 text-purple-700 border-purple-200' }
-                                                            : { label: 'Kyorugi', style: 'bg-red-50 text-red-700 border-red-200' }
-                                                    const statusBadge = reg.registrationStatus === 'APPROVED'
-                                                        ? { label: 'Approved', style: 'bg-green-50 text-green-700 border-green-200' }
-                                                        : reg.registrationStatus === 'REJECTED'
-                                                            ? { label: 'Rejected', style: 'bg-red-50 text-red-700 border-red-200' }
-                                                            : { label: 'Pending', style: 'bg-amber-50 text-amber-700 border-amber-200' }
-
-                                                    return (
-                                                        <div key={reg.id} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-                                                            <div className="flex justify-between items-start mb-2">
-                                                                <div>
-                                                                    <span className="font-bold text-gray-900 text-base">{tournament?.name || 'Unknown'}</span>
-                                                                    <div className="flex items-center gap-2 mt-1">
-                                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${typeBadge.style}`}>
-                                                                            {typeBadge.label}
-                                                                        </span>
-                                                                        <span className="text-xs text-gray-500">{reg.category?.name}</span>
-                                                                    </div>
-                                                                </div>
-                                                                <span className={`flex-shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusBadge.style}`}>
-                                                                    {statusBadge.label}
-                                                                </span>
-                                                            </div>
-                                                            <div className="text-sm text-gray-500 mb-3">
-                                                                {tournament?.startDate
-                                                                    ? new Date(tournament.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                                                                    : '-'
-                                                                }
-                                                            </div>
-                                                            <div className="flex items-center gap-3">
-                                                                {tournament?.id && (
-                                                                    <Link
-                                                                        href={`/tournament/${tournament.id}`}
-                                                                        className="flex-1 text-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                                                                    >
-                                                                        Details
-                                                                    </Link>
-                                                                )}
-                                                                <button
-                                                                    onClick={() => handleUnregister(reg.id, `${tournament?.name} - ${reg.category?.name}`)}
-                                                                    className="flex-1 text-center px-4 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
-                                                                >
-                                                                    Withdraw
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    )
-                                                })}
+                                {/* Tournament Tab */}
+                                {registrationTab === 'tournament' && (
+                                    <>
+                                        {registrations.length === 0 ? (
+                                            <div className="p-10 text-center">
+                                                <div className="text-4xl mb-3">🏆</div>
+                                                <h3 className="text-base font-bold text-gray-900 mb-1">No tournament registrations</h3>
+                                                <p className="text-gray-500 text-sm">Browse events to register for a tournament.</p>
                                             </div>
-
-                                            {/* Desktop View - Table */}
-                                            <table className="hidden md:table min-w-full divide-y divide-gray-100">
-                                                <thead className="bg-gray-50">
-                                                    <tr>
-                                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tournament</th>
-                                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
-                                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
-                                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
-                                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                                                        <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="bg-white divide-y divide-gray-50">
+                                        ) : (
+                                            <div className="flex-1 overflow-auto">
+                                                {/* Mobile View - Cards */}
+                                                <div className="md:hidden p-4 space-y-3">
                                                     {registrations.map((reg: any) => {
                                                         const tournament = reg.category?.tournament
                                                         const categoryType = reg.category?.type || 'KYORUGI'
@@ -411,188 +339,254 @@ export default function AthleteDashboardView({
                                                                 : { label: 'Pending', style: 'bg-amber-50 text-amber-700 border-amber-200' }
 
                                                         return (
-                                                            <tr key={reg.id} className="hover:bg-gray-50/50 transition-colors">
-                                                                <td className="px-6 py-4 whitespace-nowrap max-w-[180px]">
-                                                                    <div className="flex flex-col min-w-0">
-                                                                        <span className="text-sm font-bold text-gray-900 truncate">{tournament?.name || 'Unknown'}</span>
-                                                                        {tournament?.venue && <span className="text-xs text-gray-500 truncate">{tournament.venue}</span>}
+                                                            <div key={reg.id} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                                                                <div className="flex justify-between items-start mb-2">
+                                                                    <div>
+                                                                        <span className="font-bold text-gray-900 text-base">{tournament?.name || 'Unknown'}</span>
+                                                                        <div className="flex items-center gap-2 mt-1">
+                                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${typeBadge.style}`}>
+                                                                                {typeBadge.label}
+                                                                            </span>
+                                                                            <span className="text-xs text-gray-500">{reg.category?.name}</span>
+                                                                        </div>
                                                                     </div>
-                                                                </td>
-                                                                <td className="px-6 py-4 whitespace-nowrap max-w-[120px]">
-                                                                    <span className="text-sm text-gray-700 truncate block">{reg.category?.name || '-'}</span>
-                                                                </td>
-                                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${typeBadge.style}`}>
-                                                                        {typeBadge.label}
-                                                                    </span>
-                                                                </td>
-                                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                                    <span className="text-sm text-gray-600">
-                                                                        {tournament?.startDate
-                                                                            ? new Date(tournament.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                                                                            : '-'
-                                                                        }
-                                                                    </span>
-                                                                </td>
-                                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusBadge.style}`}>
+                                                                    <span className={`flex-shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusBadge.style}`}>
                                                                         {statusBadge.label}
                                                                     </span>
-                                                                </td>
-                                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                                    <div className="flex items-center justify-end gap-2">
-                                                                        {tournament?.id && (
-                                                                            <Link
-                                                                                href={`/tournament/${tournament.id}`}
-                                                                                className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                                                                            >
-                                                                                Details
-                                                                            </Link>
-                                                                        )}
-                                                                        <button
-                                                                            onClick={() => handleUnregister(reg.id, `${tournament?.name} - ${reg.category?.name}`)}
-                                                                            className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                                                                </div>
+                                                                <div className="text-sm text-gray-500 mb-3">
+                                                                    {tournament?.startDate
+                                                                        ? new Date(tournament.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                                                                        : '-'
+                                                                    }
+                                                                </div>
+                                                                <div className="flex items-center gap-3">
+                                                                    {tournament?.id && (
+                                                                        <Link
+                                                                            href={`/tournament/${tournament.id}`}
+                                                                            className="flex-1 text-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                                                                         >
-                                                                            Withdraw
-                                                                        </button>
-                                                                    </div>
-                                                                </td>
-                                                            </tr>
-                                                        )
-                                                    })}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    )}
-                                </div>
-
-                            </div>
-
-                            {/* Right Column - Sidebar */}
-                            <div className="flex-1 flex flex-col gap-6 md:min-h-0">
-
-
-
-                                {/* Available Events */}
-                                {(() => {
-                                    const tournamentEvents = (data?.clubUpcomingEvents || []).filter((e: any) => e.type === 'TOURNAMENT')
-                                    const seminarEvents = (data?.clubUpcomingEvents || []).filter((e: any) => e.type === 'SEMINAR')
-                                    const registeredCategoryIds = new Set(registrations.map((r: any) => r.categoryId))
-
-                                    const availableTournaments = tournamentEvents
-                                        .map((event: any) => {
-                                            const categories = event.categories || []
-                                            const allTypes = [...new Set(categories.map((c: any) => c.type))] as string[]
-                                            const registeredTypes = new Set(
-                                                categories
-                                                    .filter((c: any) => registeredCategoryIds.has(c.id))
-                                                    .map((c: any) => c.type)
-                                            )
-                                            const availableTypes = allTypes.filter(t => !registeredTypes.has(t))
-                                            return { ...event, availableTypes }
-                                        })
-                                        .filter((event: any) => event.availableTypes.length > 0)
-
-                                    const registeredSeminarIds = new Set(
-                                        (data as any)?.seminarRegistrations?.map((r: any) => r.seminarId) || []
-                                    )
-                                    const availableSeminars = seminarEvents.filter((e: any) => !registeredSeminarIds.has(e.id))
-
-                                    const allAvailable = [
-                                        ...availableTournaments.map((t: any) => ({ ...t, eventType: 'TOURNAMENT' })),
-                                        ...availableSeminars.map((s: any) => ({ ...s, eventType: 'SEMINAR' }))
-                                    ]
-
-                                    return (
-                                        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                                            <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-                                                <span className="text-xl">🏆</span>
-                                                <h3 className="font-bold text-gray-900">Available Events</h3>
-                                            </div>
-
-                                            {allAvailable.length === 0 ? (
-                                                <div className="p-6 text-center">
-                                                    <div className="text-3xl mb-2">🎯</div>
-                                                    <p className="text-sm font-medium text-gray-900">All caught up!</p>
-                                                    <p className="text-xs text-gray-500 mt-1">No new events to register for.</p>
-                                                </div>
-                                            ) : (
-                                                <div className="divide-y divide-gray-50">
-                                                    {allAvailable.slice(0, 5).map((event: any) => {
-                                                        const isSeminar = event.eventType === 'SEMINAR'
-                                                        const registerLink = isSeminar ? `/seminars/${event.id}/register` : `/tournament/${event.id}/register`
-
-                                                        return (
-                                                            <div key={`sidebar-${event.eventType}-${event.id}`} className="px-5 py-3 hover:bg-gray-50/50 transition-colors">
-                                                                <div className="flex items-start justify-between gap-2">
-                                                                    <div className="min-w-0 flex-1 max-w-[150px]">
-                                                                        <p className="text-sm font-semibold text-gray-900 truncate">{event.name}</p>
-                                                                        <p className="text-xs text-gray-500 mt-0.5 truncate">
-                                                                            {new Date(event.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                                                            {event.venue && ` · ${event.venue}`}
-                                                                        </p>
-                                                                        {!isSeminar && event.availableTypes && (
-                                                                            <div className="flex items-center gap-1 mt-1.5">
-                                                                                {event.availableTypes.map((type: string) => {
-                                                                                    const badge = type === 'POOMSAE'
-                                                                                        ? { label: 'Poomsae', style: 'bg-blue-50 text-blue-600 border-blue-200' }
-                                                                                        : type === 'KYUKPA'
-                                                                                            ? { label: 'Kyukpa', style: 'bg-purple-50 text-purple-600 border-purple-200' }
-                                                                                            : { label: 'Kyorugi', style: 'bg-red-50 text-red-600 border-red-200' }
-                                                                                    return (
-                                                                                        <span key={type} className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase border ${badge.style}`}>
-                                                                                            {badge.label}
-                                                                                        </span>
-                                                                                    )
-                                                                                })}
-                                                                            </div>
-                                                                        )}
-                                                                        {isSeminar && (
-                                                                            <span className="inline-flex items-center mt-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase text-purple-600 bg-purple-50 border border-purple-200">
-                                                                                Seminar
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                    <Link
-                                                                        href={registerLink}
-                                                                        className="flex-shrink-0 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+                                                                            Details
+                                                                        </Link>
+                                                                    )}
+                                                                    <button
+                                                                        onClick={() => handleUnregister(reg.id, `${tournament?.name} - ${reg.category?.name}`)}
+                                                                        className="flex-1 text-center px-4 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
                                                                     >
-                                                                        Register
-                                                                    </Link>
+                                                                        Withdraw
+                                                                    </button>
                                                                 </div>
                                                             </div>
                                                         )
                                                     })}
                                                 </div>
-                                            )}
-                                        </div>
-                                    )
-                                })()}
 
-                                {/* Top 5 Rankings Widget */}
-                                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 flex-1 md:min-h-0 flex flex-col overflow-hidden">
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <Trophy className="w-5 h-5 text-yellow-500" />
-                                        <h3 className="font-bold text-gray-900">Top Rankings</h3>
-                                    </div>
-                                    <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
-                                        <div className="w-16 h-16 bg-gradient-to-br from-gray-50 to-gray-100 rounded-full flex items-center justify-center mb-3">
-                                            <Trophy className="w-8 h-8 text-gray-300" />
-                                        </div>
-                                        <h4 className="text-sm font-bold text-gray-900">Rankings Coming Soon</h4>
-                                        <p className="text-xs text-gray-500 mt-1 max-w-[200px]">
-                                            Global leaderboards and club rankings will be available shortly.
-                                        </p>
-                                    </div>
-                                    <button
-                                        onClick={() => setActiveView('ranking')}
-                                        className="w-full mt-4 py-2 text-sm text-center text-indigo-600 hover:text-indigo-700 font-medium hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-100"
-                                    >
-                                        Learn More
-                                    </button>
-                                </div>
+                                                {/* Desktop View - Table */}
+                                                <table className="hidden md:table min-w-full divide-y divide-gray-100">
+                                                    <thead className="bg-gray-50">
+                                                        <tr>
+                                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tournament</th>
+                                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
+                                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
+                                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                                                            <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="bg-white divide-y divide-gray-50">
+                                                        {registrations.map((reg: any) => {
+                                                            const tournament = reg.category?.tournament
+                                                            const categoryType = reg.category?.type || 'KYORUGI'
+                                                            const typeBadge = categoryType === 'POOMSAE'
+                                                                ? { label: 'Poomsae', style: 'bg-blue-50 text-blue-700 border-blue-200' }
+                                                                : categoryType === 'KYUKPA'
+                                                                    ? { label: 'Kyukpa', style: 'bg-purple-50 text-purple-700 border-purple-200' }
+                                                                    : { label: 'Kyorugi', style: 'bg-red-50 text-red-700 border-red-200' }
+                                                            const statusBadge = reg.registrationStatus === 'APPROVED'
+                                                                ? { label: 'Approved', style: 'bg-green-50 text-green-700 border-green-200' }
+                                                                : reg.registrationStatus === 'REJECTED'
+                                                                    ? { label: 'Rejected', style: 'bg-red-50 text-red-700 border-red-200' }
+                                                                    : { label: 'Pending', style: 'bg-amber-50 text-amber-700 border-amber-200' }
 
+                                                            return (
+                                                                <tr key={reg.id} className="hover:bg-gray-50/50 transition-colors">
+                                                                    <td className="px-6 py-4 whitespace-nowrap max-w-[180px]">
+                                                                        <div className="flex flex-col min-w-0">
+                                                                            <span className="text-sm font-bold text-gray-900 truncate">{tournament?.name || 'Unknown'}</span>
+                                                                            {tournament?.venue && <span className="text-xs text-gray-500 truncate">{tournament.venue}</span>}
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 whitespace-nowrap max-w-[120px]">
+                                                                        <span className="text-sm text-gray-700 truncate block">{reg.category?.name || '-'}</span>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${typeBadge.style}`}>
+                                                                            {typeBadge.label}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                                        <span className="text-sm text-gray-600">
+                                                                            {tournament?.startDate
+                                                                                ? new Date(tournament.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                                                                                : '-'
+                                                                            }
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusBadge.style}`}>
+                                                                            {statusBadge.label}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                                        <div className="flex items-center justify-end gap-2">
+                                                                            {tournament?.id && (
+                                                                                <Link
+                                                                                    href={`/tournament/${tournament.id}`}
+                                                                                    className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                                                                                >
+                                                                                    Details
+                                                                                </Link>
+                                                                            )}
+                                                                            <button
+                                                                                onClick={() => handleUnregister(reg.id, `${tournament?.name} - ${reg.category?.name}`)}
+                                                                                className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                                                                            >
+                                                                                Withdraw
+                                                                            </button>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            )
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                                {/* Seminar Tab */}
+                                {registrationTab === 'seminar' && (
+                                    <>
+                                        {seminarRegs.length === 0 ? (
+                                            <div className="p-10 text-center">
+                                                <div className="text-4xl mb-3">📚</div>
+                                                <h3 className="text-base font-bold text-gray-900 mb-1">No seminar registrations</h3>
+                                                <p className="text-gray-500 text-sm">Browse events to register for a seminar.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="flex-1 overflow-auto">
+                                                {/* Mobile View */}
+                                                <div className="md:hidden p-4 space-y-3">
+                                                    {seminarRegs.map((reg: any) => {
+                                                        const statusBadge = reg.status === 'APPROVED'
+                                                            ? { label: 'Approved', style: 'bg-green-50 text-green-700 border-green-200' }
+                                                            : reg.status === 'REJECTED'
+                                                                ? { label: 'Rejected', style: 'bg-red-50 text-red-700 border-red-200' }
+                                                                : { label: 'Pending', style: 'bg-amber-50 text-amber-700 border-amber-200' }
+                                                        return (
+                                                            <div key={reg.id} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                                                                <div className="flex justify-between items-start mb-2">
+                                                                    <div>
+                                                                        <span className="font-bold text-gray-900 text-base">{reg.seminar?.name || 'Unknown'}</span>
+                                                                        <div className="flex items-center gap-2 mt-1">
+                                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border bg-purple-50 text-purple-700 border-purple-200">
+                                                                                Seminar
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <span className={`flex-shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusBadge.style}`}>
+                                                                        {statusBadge.label}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="text-sm text-gray-500 mb-3">
+                                                                    {reg.seminar?.startDate
+                                                                        ? new Date(reg.seminar.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                                                                        : '-'
+                                                                    }
+                                                                </div>
+                                                                {reg.status === 'APPROVED' && reg.qrCodeToken && (
+                                                                    <button
+                                                                        onClick={() => setViewingQr(reg)}
+                                                                        className="w-full text-center px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors flex items-center justify-center gap-2"
+                                                                    >
+                                                                        <QrCode className="w-4 h-4" />
+                                                                        View QR Code
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+                                                {/* Desktop View */}
+                                                <table className="hidden md:table min-w-full divide-y divide-gray-100">
+                                                    <thead className="bg-gray-50">
+                                                        <tr>
+                                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Seminar</th>
+                                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                                                            <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="bg-white divide-y divide-gray-50">
+                                                        {seminarRegs.map((reg: any) => {
+                                                            const statusBadge = reg.status === 'APPROVED'
+                                                                ? { label: 'Approved', style: 'bg-green-50 text-green-700 border-green-200' }
+                                                                : reg.status === 'REJECTED'
+                                                                    ? { label: 'Rejected', style: 'bg-red-50 text-red-700 border-red-200' }
+                                                                    : { label: 'Pending', style: 'bg-amber-50 text-amber-700 border-amber-200' }
+                                                            return (
+                                                                <tr key={reg.id} className="hover:bg-gray-50/50 transition-colors">
+                                                                    <td className="px-6 py-4 whitespace-nowrap max-w-[180px]">
+                                                                        <div className="flex flex-col min-w-0">
+                                                                            <span className="text-sm font-bold text-gray-900 truncate">{reg.seminar?.name || 'Unknown'}</span>
+                                                                            {reg.seminar?.venue && <span className="text-xs text-gray-500 truncate">{reg.seminar.venue}</span>}
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                                        <span className="text-sm text-gray-600">
+                                                                            {reg.seminar?.startDate
+                                                                                ? new Date(reg.seminar.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                                                                                : '-'
+                                                                            }
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusBadge.style}`}>
+                                                                            {statusBadge.label}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                                        {reg.status === 'APPROVED' && reg.qrCodeToken && (
+                                                                            <button
+                                                                                onClick={() => setViewingQr(reg)}
+                                                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
+                                                                            >
+                                                                                <QrCode className="w-3.5 h-3.5" />
+                                                                                View QR
+                                                                            </button>
+                                                                        )}
+                                                                    </td>
+                                                                </tr>
+                                                            )
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                                {/* Promotion Tab */}
+                                {registrationTab === 'promotion' && (
+                                    <div className="p-10 text-center">
+                                        <div className="text-4xl mb-3">🥋</div>
+                                        <h3 className="text-base font-bold text-gray-900 mb-1">Promotions Coming Soon</h3>
+                                        <p className="text-gray-500 text-sm">Belt promotion test registrations will appear here.</p>
+                                    </div>
+                                )}
                             </div>
+
                         </div>
                     </div>
                 )}
@@ -621,6 +615,160 @@ export default function AthleteDashboardView({
                     </div>
                 )}
 
+                {activeView === 'events' && (
+                    <div className="flex-1 flex flex-col min-h-0 px-4 sm:px-6 lg:px-8 py-6 w-full max-w-[1600px] mx-auto md:overflow-y-auto">
+                        <div className="flex items-center justify-between mb-6">
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-900">Available Events</h2>
+                                <p className="text-sm text-gray-500 mt-1">Browse and register for upcoming tournaments and seminars</p>
+                            </div>
+                        </div>
+
+                        {(() => {
+                            const tournamentEvents = (data?.clubUpcomingEvents || []).filter((e: any) => e.type === 'TOURNAMENT')
+                            const seminarEvents = (data?.clubUpcomingEvents || []).filter((e: any) => e.type === 'SEMINAR')
+                            const registeredCategoryIds = new Set(registrations.map((r: any) => r.categoryId))
+
+                            const availableTournaments = tournamentEvents.map((event: any) => {
+                                const categories = event.categories || []
+                                const allTypes = [...new Set(categories.map((c: any) => c.type))] as string[]
+                                const registeredTypes = new Set(
+                                    categories
+                                        .filter((c: any) => registeredCategoryIds.has(c.id))
+                                        .map((c: any) => c.type)
+                                )
+                                const availableTypes = allTypes.filter(t => !registeredTypes.has(t))
+                                const isFullyRegistered = availableTypes.length === 0
+                                return { ...event, availableTypes, allTypes, isFullyRegistered }
+                            })
+
+                            const registeredSeminarIds = new Set(
+                                (data as any)?.seminarRegistrations?.map((r: any) => r.seminarId) || []
+                            )
+                            const allSeminars = seminarEvents.map((e: any) => ({
+                                ...e,
+                                isRegistered: registeredSeminarIds.has(e.id)
+                            }))
+
+                            const allEvents = [
+                                ...availableTournaments.map((t: any) => ({ ...t, eventType: 'TOURNAMENT' })),
+                                ...allSeminars.map((s: any) => ({ ...s, eventType: 'SEMINAR' }))
+                            ]
+
+                            if (allEvents.length === 0) {
+                                return (
+                                    <div className="flex flex-col items-center justify-center min-h-[40vh] text-center bg-white rounded-2xl shadow-sm border border-gray-200 p-12">
+                                        <div className="text-5xl mb-4">🎯</div>
+                                        <h3 className="text-lg font-bold text-gray-900 mb-2">No Events Available</h3>
+                                        <p className="text-sm text-gray-500 max-w-sm">There are no upcoming events for your club right now. Check back later!</p>
+                                    </div>
+                                )
+                            }
+
+                            return (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {allEvents.map((event: any) => {
+                                        const isSeminar = event.eventType === 'SEMINAR'
+                                        const isRegistered = isSeminar ? event.isRegistered : event.isFullyRegistered
+                                        const registerLink = isSeminar ? `/seminars/${event.id}/register` : `/tournament/${event.id}/register`
+                                        const eventDate = new Date(event.startDate)
+                                        const daysUntil = Math.ceil((eventDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+
+                                        return (
+                                            <div
+                                                key={`${event.eventType}-${event.id}`}
+                                                className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col"
+                                            >
+                                                {/* Color strip */}
+                                                <div className={`h-1.5 ${isSeminar ? 'bg-purple-500' : 'bg-red-500'}`} />
+
+                                                <div className="p-5 flex-1 flex flex-col">
+                                                    {/* Top: Type + Days */}
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${isSeminar
+                                                            ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                                            : 'bg-red-50 text-red-700 border-red-200'
+                                                            }`}>
+                                                            {isSeminar ? 'Seminar' : 'Tournament'}
+                                                        </span>
+                                                        {daysUntil > 0 && (
+                                                            <span className="text-xs text-gray-400 font-medium">
+                                                                {daysUntil === 1 ? 'Tomorrow' : `${daysUntil} days`}
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Name */}
+                                                    <h3 className="text-base font-bold text-gray-900 mb-1 line-clamp-2">{event.name}</h3>
+
+                                                    {/* Date & Venue */}
+                                                    <div className="space-y-1 mb-3">
+                                                        <p className="text-sm text-gray-500 flex items-center gap-1.5">
+                                                            <Calendar size={13} className="flex-shrink-0" />
+                                                            {eventDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                                                        </p>
+                                                        {event.venue && (
+                                                            <p className="text-sm text-gray-500 flex items-center gap-1.5">
+                                                                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                </svg>
+                                                                <span className="truncate">{event.venue}</span>
+                                                            </p>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Category Type Badges (for tournaments) */}
+                                                    {!isSeminar && event.allTypes && event.allTypes.length > 0 && (
+                                                        <div className="flex flex-wrap items-center gap-1.5 mb-4">
+                                                            {event.allTypes.map((type: string) => {
+                                                                const badge = type === 'POOMSAE'
+                                                                    ? { label: 'Poomsae', style: 'bg-blue-50 text-blue-600 border-blue-200' }
+                                                                    : type === 'KYUKPA'
+                                                                        ? { label: 'Kyukpa', style: 'bg-purple-50 text-purple-600 border-purple-200' }
+                                                                        : { label: 'Kyorugi', style: 'bg-red-50 text-red-600 border-red-200' }
+                                                                const isTypeRegistered = !event.availableTypes?.includes(type)
+                                                                return (
+                                                                    <span
+                                                                        key={type}
+                                                                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${badge.style} ${isTypeRegistered ? 'opacity-50 line-through' : ''}`}
+                                                                    >
+                                                                        {badge.label}
+                                                                    </span>
+                                                                )
+                                                            })}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Spacer */}
+                                                    <div className="flex-1" />
+
+                                                    {/* Action */}
+                                                    {isRegistered ? (
+                                                        <div className="flex items-center justify-center gap-2 px-4 py-2.5 bg-green-50 text-green-700 rounded-xl text-sm font-semibold border border-green-200">
+                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                            </svg>
+                                                            Registered
+                                                        </div>
+                                                    ) : (
+                                                        <Link
+                                                            href={registerLink}
+                                                            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold transition-all active:scale-95 shadow-sm"
+                                                        >
+                                                            Register Now
+                                                            <ChevronRight size={14} />
+                                                        </Link>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )
+                        })()}
+                    </div>
+                )}
 
 
 
@@ -640,6 +788,29 @@ export default function AthleteDashboardView({
                     </div>
                 )}
 
+
+
+                {/* QR Code Modal */}
+                {viewingQr && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setViewingQr(null)}>
+                        <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex justify-end mb-2">
+                                <button onClick={() => setViewingQr(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-900 mb-1">Your Seminar QR Code</h3>
+                            <p className="text-sm text-gray-500 mb-6">Present this at the event for check-in</p>
+                            <div className="flex justify-center mb-6">
+                                <div className="bg-white p-4 rounded-xl border-2 border-gray-100">
+                                    <QRCodeSVG value={viewingQr.qrCodeToken} size={200} />
+                                </div>
+                            </div>
+                            <p className="text-base font-bold text-gray-900">{viewingQr.playerName}</p>
+                            <p className="text-sm text-gray-500">{viewingQr.seminar?.name}</p>
+                        </div>
+                    </div>
+                )}
 
             </main >
         </>
@@ -835,5 +1006,7 @@ function AthleteDashboardSkeleton() {
                 </div>
             </div>
         </main>
+
+
     )
 }

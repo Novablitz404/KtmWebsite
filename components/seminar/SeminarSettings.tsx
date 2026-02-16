@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { format } from 'date-fns'
 import { X, Calendar, MapPin, DollarSign, Image as ImageIcon, Check, Save, Trash2, Loader2, AlertTriangle } from 'lucide-react'
 import { updateSeminar, deleteSeminar } from '@/app/organization/actions'
@@ -8,11 +8,10 @@ import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import ImageCropperModal from '@/components/ImageCropperModal'
 import GlobalCalendar from '@/components/GlobalCalendar'
-import { Seminar, PaymentMethod } from '@prisma/client'
-import PaymentMethodsInput, { PaymentMethodData } from '@/components/PaymentMethodsInput'
+import { Seminar } from '@prisma/client'
 
 interface SeminarSettingsProps {
-    seminar: Seminar & { paymentMethods?: PaymentMethod[] }
+    seminar: Seminar
 }
 
 export default function SeminarSettings({ seminar }: SeminarSettingsProps) {
@@ -31,33 +30,7 @@ export default function SeminarSettings({ seminar }: SeminarSettingsProps) {
     const [endDate, setEndDate] = useState<Date | undefined>(seminar.endDate ? new Date(seminar.endDate) : undefined)
     const [registrationDeadline, setRegistrationDeadline] = useState<Date | undefined>(seminar.registrationDeadline ? new Date(seminar.registrationDeadline) : undefined)
 
-    // Payment Methods State
-    const [paymentMethods, setPaymentMethods] = useState<PaymentMethodData[]>(
-        seminar.paymentMethods?.map(pm => ({
-            id: pm.id,
-            type: pm.type as any,
-            name: pm.name,
-            accountName: pm.accountName,
-            accountNumber: pm.accountNumber,
-            qrCodeBlob: null,
-            existingQrCodeUrl: pm.qrCodeUrl
-        })) || []
-    )
 
-    // Sync state with props when router moves or data refreshes
-    useEffect(() => {
-        setPaymentMethods(
-            seminar.paymentMethods?.map(pm => ({
-                id: pm.id,
-                type: pm.type as any,
-                name: pm.name,
-                accountName: pm.accountName,
-                accountNumber: pm.accountNumber,
-                qrCodeBlob: null,
-                existingQrCodeUrl: pm.qrCodeUrl
-            })) || []
-        )
-    }, [seminar.paymentMethods])
 
     const handleBackdropChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
@@ -98,16 +71,6 @@ export default function SeminarSettings({ seminar }: SeminarSettingsProps) {
             formData.delete('banner')
             formData.append('banner', croppedImageBlob, 'banner.jpg')
         }
-
-        // Append QR Code Blobs manually
-        paymentMethods.forEach(pm => {
-            // Remove potential empty key from file input
-            formData.delete(`qrCode_${pm.id}`)
-
-            if (pm.qrCodeBlob) {
-                formData.append(`qrCode_${pm.id}`, pm.qrCodeBlob, 'qr-code.png')
-            }
-        })
 
         const result = await updateSeminar(formData)
 
@@ -318,18 +281,7 @@ export default function SeminarSettings({ seminar }: SeminarSettingsProps) {
                             </div>
                         </div>
 
-                        {/* Payment Methods */}
-                        <div className="pt-4">
-                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">
-                                Payment Methods
-                            </label>
-                            <div className="p-1 rounded-3xl border border-gray-50 bg-gray-50/30">
-                                <PaymentMethodsInput
-                                    value={paymentMethods}
-                                    onChange={setPaymentMethods}
-                                />
-                            </div>
-                        </div>
+
                     </div>
                 </div>
 

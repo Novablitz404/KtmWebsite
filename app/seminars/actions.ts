@@ -2,19 +2,20 @@
 
 import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/prisma'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import crypto from 'crypto'
 
 export async function approveSeminarRegistration(ids: string[]) {
     try {
-        await prisma.seminarRegistration.updateMany({
-            where: { id: { in: ids } },
-            data: { status: 'APPROVED' }
-        })
+        // Generate unique QR tokens for each registration
+        for (const id of ids) {
+            await prisma.seminarRegistration.update({
+                where: { id },
+                data: {
+                    status: 'APPROVED',
+                    qrCodeToken: crypto.randomUUID()
+                }
+            })
+        }
 
         revalidatePath('/club')
         return { success: true, count: ids.length }
@@ -28,7 +29,7 @@ export async function unapproveSeminarRegistration(ids: string[]) {
     try {
         await prisma.seminarRegistration.updateMany({
             where: { id: { in: ids } },
-            data: { status: 'PENDING' }
+            data: { status: 'PENDING', qrCodeToken: null }
         })
 
         revalidatePath('/club')
@@ -55,9 +56,18 @@ export async function deleteSeminarRegistration(ids: string[]) {
 
 export async function updateSeminarRegistrationStatus(id: string, status: string) {
     try {
+        const data: any = { status }
+
+        // Auto-generate QR token on approval, clear on un-approve
+        if (status === 'APPROVED') {
+            data.qrCodeToken = crypto.randomUUID()
+        } else {
+            data.qrCodeToken = null
+        }
+
         await prisma.seminarRegistration.update({
             where: { id },
-            data: { status }
+            data
         })
 
         revalidatePath('/club')
@@ -96,9 +106,6 @@ export async function getUpcomingSeminars(clubId: string) {
                 startDate: { gte: new Date() },
                 status: 'UPCOMING'
             },
-            include: {
-                paymentMethods: true
-            },
             orderBy: { startDate: 'asc' }
         })
         return seminars
@@ -114,41 +121,9 @@ export async function registerForSeminar(formData: FormData) {
     const playerName = formData.get('playerName') as string
     const clubName = formData.get('clubName') as string
     const belt = formData.get('belt') as string
-    const proofFile = formData.get('proofOfPayment') as File | null
 
     if (!seminarId || !playerId || !playerName) {
         return { error: 'Missing required fields' }
-    }
-
-    let proofOfPaymentUrl: string | null = null
-
-    if (proofFile && proofFile.size > 0) {
-        try {
-            const bytes = await proofFile.arrayBuffer()
-            const buffer = Buffer.from(bytes)
-
-            const timestamp = Date.now()
-            const safeName = proofFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')
-            const filename = `proof-${timestamp}-${safeName}`
-
-            const { error: uploadError } = await supabase.storage
-                .from('uploads')
-                .upload(filename, buffer, {
-                    contentType: proofFile.type,
-                    upsert: false
-                })
-
-            if (uploadError) throw uploadError
-
-            const { data: { publicUrl } } = supabase.storage
-                .from('uploads')
-                .getPublicUrl(filename)
-
-            proofOfPaymentUrl = publicUrl
-        } catch (error) {
-            console.error('Proof upload error:', error)
-            return { error: 'Failed to upload proof of payment' }
-        }
     }
 
     try {
@@ -159,9 +134,7 @@ export async function registerForSeminar(formData: FormData) {
                 playerName,
                 clubName,
                 belt,
-                proofOfPaymentUrl,
-                status: 'PENDING',
-                paymentStatus: 'UNPAID'
+                status: 'PENDING'
             }
         })
 

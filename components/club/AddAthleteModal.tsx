@@ -47,14 +47,6 @@ interface Seminar {
     name: string
     startDate: Date
     fee: number | null
-    paymentMethods: {
-        id: string
-        type: string
-        name: string
-        accountName: string
-        accountNumber: string
-        qrCodeUrl: string | null
-    }[]
 }
 
 interface PromotionTest {
@@ -81,9 +73,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
     const [selectedPromotionId, setSelectedPromotionId] = useState<string>('')
 
     // Seminar Specific State
-    const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<string>('')
-    const [proofOfPayment, setProofOfPayment] = useState<File | null>(null)
-    const [proofPreview, setProofPreview] = useState<string | null>(null)
+
 
     // Promotion Specific State
     const [targetBelt, setTargetBelt] = useState<string>('')
@@ -123,15 +113,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
     }, [isOpen, activeTab, clubId, tournaments.length, seminars.length, promotions.length])
 
     // Handle Proof of Payment Preview
-    useEffect(() => {
-        if (!proofOfPayment) {
-            setProofPreview(null)
-            return
-        }
-        const reader = new FileReader()
-        reader.onloadend = () => setProofPreview(reader.result as string)
-        reader.readAsDataURL(proofOfPayment)
-    }, [proofOfPayment])
+
 
     // Derived state for available event types
     const selectedTournamentObj = tournaments.find(t => t.id === selectedTournament)
@@ -248,19 +230,12 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                     return
                 }
 
-                if (!proofOfPayment) {
-                    toast.error('Please upload proof of payment')
-                    setSubmitting(false)
-                    return
-                }
-
                 const formData = new FormData()
                 formData.append('seminarId', selectedSeminarId)
                 formData.append('playerId', selectedMember.id)
                 formData.append('playerName', selectedMember.name || 'Unknown')
                 formData.append('clubName', clubName)
                 formData.append('belt', belt)
-                formData.append('proofOfPayment', proofOfPayment)
 
                 const res = await registerForSeminar(formData)
                 if (res.error) toast.error(res.error)
@@ -525,84 +500,6 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                                     )}
                                 </div>
 
-                                <div className="space-y-4">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
-                                    <div className="grid grid-cols-1 gap-3">
-                                        {seminars.find(s => s.id === selectedSeminarId)?.paymentMethods.map(pm => (
-                                            <button
-                                                key={pm.id}
-                                                type="button"
-                                                onClick={() => setSelectedPaymentMethodId(pm.id)}
-                                                className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${selectedPaymentMethodId === pm.id
-                                                    ? 'bg-indigo-50 border-indigo-200 ring-1 ring-indigo-200'
-                                                    : 'bg-white border-gray-100 hover:border-gray-200'
-                                                    }`}
-                                            >
-                                                <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
-                                                    <CreditCard className="w-5 h-5" />
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm font-bold text-gray-900">{pm.name}</p>
-                                                    <p className="text-xs text-gray-500">{pm.accountName} • {pm.accountNumber}</p>
-                                                </div>
-                                                {selectedPaymentMethodId === pm.id && (
-                                                    <CheckCircle2 className="w-5 h-5 text-indigo-600 ml-auto" />
-                                                )}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {selectedPaymentMethodId && seminars.find(s => s.id === selectedSeminarId)?.paymentMethods.find(pm => pm.id === selectedPaymentMethodId)?.qrCodeUrl && (
-                                    <div className="space-y-3 animate-in fade-in zoom-in-95 duration-300">
-                                        <label className="block text-sm font-medium text-gray-700">Scan to Pay</label>
-                                        <div className="flex flex-col items-center justify-center p-4 bg-gray-50 border border-gray-100 rounded-2xl">
-                                            <div className="relative w-48 h-48 bg-white p-2 rounded-xl shadow-sm border border-gray-100">
-                                                <img
-                                                    src={seminars.find(s => s.id === selectedSeminarId)?.paymentMethods.find(pm => pm.id === selectedPaymentMethodId)?.qrCodeUrl || ''}
-                                                    alt="Payment QR Code"
-                                                    className="w-full h-full object-contain"
-                                                />
-                                            </div>
-                                            <p className="mt-3 text-xs text-center text-gray-500 max-w-[200px]">
-                                                Scan this QR code using your payment app to complete the registration fee payment.
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="space-y-4">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Upload Proof of Payment</label>
-                                    <div className="relative group">
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={(e) => setProofOfPayment(e.target.files?.[0] || null)}
-                                            className="hidden"
-                                            id="proof-upload"
-                                        />
-                                        <label
-                                            htmlFor="proof-upload"
-                                            className={`flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${proofPreview ? 'border-indigo-300 bg-indigo-50/30' : 'border-gray-200 bg-gray-50 group-hover:bg-gray-100 group-hover:border-gray-300'
-                                                }`}
-                                        >
-                                            {proofPreview ? (
-                                                <div className="relative w-full h-full p-2">
-                                                    <img src={proofPreview} alt="Proof" className="w-full h-full object-contain rounded-xl" />
-                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
-                                                        <span className="text-white text-xs font-bold">Change Image</span>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="flex flex-col items-center">
-                                                    <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                                                    <p className="text-sm font-medium text-gray-600">Click to upload receipt</p>
-                                                    <p className="text-xs text-gray-400 mt-1">PNG, JPG or PDF up to 10MB</p>
-                                                </div>
-                                            )}
-                                        </label>
-                                    </div>
-                                </div>
                             </div>
                         )}
 

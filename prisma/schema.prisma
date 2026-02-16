@@ -396,10 +396,7 @@ model SeminarRegistration {
   age         Int?    // Added
   
   status        String @default("PENDING") // PENDING, APPROVED, REJECTED
-  paymentStatus String @default("UNPAID") // UNPAID, PAID
-  
-  proofOfPaymentUrl String?
-  waiverSignedAt    DateTime?
+  qrCodeToken   String?  @unique // Generated on approval, used for QR code at event
 
   createdAt DateTime @default(now())
 

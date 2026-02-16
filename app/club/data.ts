@@ -237,7 +237,6 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
                 playerName: true,
                 playerId: true,
                 status: true,
-                paymentStatus: true,
                 belt: true,
                 seminar: {
                     select: {
@@ -427,7 +426,6 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
             id: reg.id,
             name: reg.playerName,
             status: reg.status,
-            paymentStatus: reg.paymentStatus,
             belt: reg.belt,
             imageUrl: reg.playerId ? playerImageMap.get(reg.playerId) : null,
             eventName: reg.seminar.name,

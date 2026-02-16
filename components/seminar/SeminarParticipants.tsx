@@ -2,30 +2,28 @@
 
 import { useState } from 'react'
 import { SeminarRegistration } from '@prisma/client'
-import { Trash2, Search, Loader2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ExternalLink, X } from 'lucide-react'
+import { Trash2, Search, Loader2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, QrCode, X } from 'lucide-react'
 import { updateSeminarRegistrationStatus, deleteSeminarRegistration, fetchSeminarRegistrations } from '@/app/organization/actions'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
+import { QRCodeSVG } from 'qrcode.react'
 
 import GlobalDropdown from '@/components/GlobalDropdown'
 
-// Basic type matching the schema
 interface SeminarParticipantsProps {
-    registrations: SeminarRegistration[] // kept for initial data if needed, or we can just ignore
-    seminarId: string // We need seminarId to fetch data
+    registrations: SeminarRegistration[]
+    seminarId: string
 }
 
 export default function SeminarParticipants({ seminarId }: SeminarParticipantsProps) {
     const router = useRouter()
     const [searchQuery, setSearchQuery] = useState('')
     const [page, setPage] = useState(1)
-
     const [deletingId, setDeletingId] = useState<string | null>(null)
-    const [viewingProofUrl, setViewingProofUrl] = useState<string | null>(null)
+    const [viewingQrReg, setViewingQrReg] = useState<any | null>(null)
     const limit = 10
 
-    // Fetch data using TanStack Query
     const { data, isLoading, isError, refetch } = useQuery({
         queryKey: ['seminar-registrations', seminarId, page, searchQuery],
         queryFn: async () => {
@@ -33,24 +31,20 @@ export default function SeminarParticipants({ seminarId }: SeminarParticipantsPr
             if (result.error) throw new Error(result.error)
             return result
         },
-        placeholderData: (previousData) => previousData, // Keep previous data while fetching new
+        placeholderData: (previousData) => previousData,
     })
 
     const registrations = data?.registrations || []
     const totalPages = data?.totalPages || 0
     const total = data?.total || 0
 
-    async function handleStatusUpdate(regId: string, field: 'status' | 'paymentStatus', value: string) {
+    async function handleStatusUpdate(regId: string, value: string) {
         toast.promise(
-            updateSeminarRegistrationStatus(
-                regId,
-                field === 'status' ? value : undefined,
-                field === 'paymentStatus' ? value : undefined
-            ),
+            updateSeminarRegistrationStatus(regId, value),
             {
                 loading: 'Updating status...',
                 success: () => {
-                    refetch() // Refetch data to ensure consistency
+                    refetch()
                     return 'Status updated'
                 },
                 error: 'Failed to update status'
@@ -77,22 +71,10 @@ export default function SeminarParticipants({ seminarId }: SeminarParticipantsPr
         }
     }
 
-    // Debounce search input? For now simple controlled input with query key dependency is fine 
-    // but might trigger too many requests. A simple debounce is better.
-    // However, for simplicity let's stick to direct state for now or add a small timeout.
-    // The user didn't explicitly ask for debounce but it's good practice. 
-    // I will stick to direct binding to keep it simple as query handles some caching.
-
-    // Status Options
     const statusOptions = [
         { label: 'Pending', value: 'PENDING', icon: <div className="w-2 h-2 rounded-full bg-amber-500" /> },
         { label: 'Approved', value: 'APPROVED', icon: <div className="w-2 h-2 rounded-full bg-green-500" /> },
         { label: 'Rejected', value: 'REJECTED', icon: <div className="w-2 h-2 rounded-full bg-red-500" /> },
-    ]
-
-    const paymentOptions = [
-        { label: 'Unpaid', value: 'UNPAID', icon: <div className="w-2 h-2 rounded-full bg-red-400" /> },
-        { label: 'Paid', value: 'PAID', icon: <div className="w-2 h-2 rounded-full bg-green-500" /> },
     ]
 
     return (
@@ -118,7 +100,7 @@ export default function SeminarParticipants({ seminarId }: SeminarParticipantsPr
                         value={searchQuery}
                         onChange={(e) => {
                             setSearchQuery(e.target.value)
-                            setPage(1) // Reset to page 1 on search
+                            setPage(1)
                         }}
                         className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                     />
@@ -134,7 +116,6 @@ export default function SeminarParticipants({ seminarId }: SeminarParticipantsPr
                                 <th className="px-6 py-4">Participant</th>
                                 <th className="px-6 py-4">Club</th>
                                 <th className="px-6 py-4">Registered On</th>
-                                <th className="px-6 py-4">Payment Status</th>
                                 <th className="px-6 py-4">Status</th>
                                 <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
@@ -142,7 +123,7 @@ export default function SeminarParticipants({ seminarId }: SeminarParticipantsPr
                         <tbody className="divide-y divide-gray-100">
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
                                         <div className="flex justify-center items-center gap-2">
                                             <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
                                             <span>Loading participants...</span>
@@ -151,7 +132,7 @@ export default function SeminarParticipants({ seminarId }: SeminarParticipantsPr
                                 </tr>
                             ) : registrations.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
                                         <p>No participants found.</p>
                                     </td>
                                 </tr>
@@ -185,31 +166,22 @@ export default function SeminarParticipants({ seminarId }: SeminarParticipantsPr
                                         </td>
                                         <td className="px-6 py-4">
                                             <GlobalDropdown
-                                                value={reg.paymentStatus}
-                                                options={paymentOptions}
-                                                onChange={(val) => handleStatusUpdate(reg.id, 'paymentStatus', val)}
-                                                width="w-36"
-                                                className="z-20"
-                                            />
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <GlobalDropdown
                                                 value={reg.status}
                                                 options={statusOptions}
-                                                onChange={(val) => handleStatusUpdate(reg.id, 'status', val)}
+                                                onChange={(val) => handleStatusUpdate(reg.id, val)}
                                                 width="w-36"
                                                 className="z-20"
                                             />
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex items-center justify-end gap-2">
-                                                {reg.proofOfPaymentUrl && (
+                                                {reg.status === 'APPROVED' && reg.qrCodeToken && (
                                                     <button
-                                                        onClick={() => setViewingProofUrl(reg.proofOfPaymentUrl)}
-                                                        title="View Proof of Payment"
+                                                        onClick={() => setViewingQrReg(reg)}
+                                                        title="View QR Code"
                                                         className="p-2 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                                                     >
-                                                        <ExternalLink className="w-4 h-4" />
+                                                        <QrCode className="w-4 h-4" />
                                                     </button>
                                                 )}
                                                 <button
@@ -267,35 +239,43 @@ export default function SeminarParticipants({ seminarId }: SeminarParticipantsPr
                 </div>
             </div>
 
-            {/* Proof of Payment Modal */}
-            {viewingProofUrl && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
-                        <div className="flex items-center justify-between p-4 border-b border-gray-100">
-                            <h3 className="font-semibold text-gray-900">Proof of Payment</h3>
+            {/* QR Code Modal */}
+            {viewingQrReg && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+                    onClick={() => setViewingQrReg(null)}
+                >
+                    <div
+                        className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50">
+                            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                                <QrCode className="text-indigo-600" size={18} />
+                                Participant QR Code
+                            </h3>
                             <button
-                                onClick={() => setViewingProofUrl(null)}
+                                onClick={() => setViewingQrReg(null)}
                                 className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                             >
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
-                        <div className="p-4 overflow-auto bg-gray-50 flex items-center justify-center flex-1">
-                            <img
-                                src={viewingProofUrl}
-                                alt="Proof of Payment"
-                                className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-sm"
+                        <div className="p-8 flex flex-col items-center gap-4">
+                            <QRCodeSVG
+                                value={viewingQrReg.qrCodeToken}
+                                size={200}
+                                level="H"
+                                includeMargin
+                                bgColor="#ffffff"
+                                fgColor="#1e1b4b"
                             />
-                        </div>
-                        <div className="p-4 border-t border-gray-100 bg-white flex justify-end">
-                            <a
-                                href={viewingProofUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm text-indigo-600 hover:text-indigo-700 font-medium hover:underline"
-                            >
-                                Open in new tab
-                            </a>
+                            <div className="text-center">
+                                <p className="font-bold text-gray-900">{viewingQrReg.playerName}</p>
+                                {viewingQrReg.clubName && (
+                                    <p className="text-sm text-gray-500">{viewingQrReg.clubName}</p>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -303,4 +283,3 @@ export default function SeminarParticipants({ seminarId }: SeminarParticipantsPr
         </div>
     )
 }
-

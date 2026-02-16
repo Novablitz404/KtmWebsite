@@ -21,9 +21,7 @@ const nextConfig: NextConfig = {
     ],
   },
   transpilePackages: ['@react-pdf/renderer'],
-  experimental: {
-    esmExternals: 'loose'
-  }
+
 };
 
 export default nextConfig;

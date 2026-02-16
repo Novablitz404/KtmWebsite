@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Seminar, SeminarRegistration, PaymentMethod } from '@prisma/client'
+import { Seminar, SeminarRegistration } from '@prisma/client'
 import { LayoutDashboard, Users, Settings, ArrowLeft, Menu, Calendar, MapPin, DollarSign } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
@@ -10,7 +10,6 @@ import SeminarSettings from './SeminarSettings'
 
 type ExtendedSeminar = Seminar & {
     registrations: SeminarRegistration[]
-    paymentMethods: PaymentMethod[]
 }
 
 interface SeminarTabsProps {
@@ -130,12 +129,12 @@ export default function SeminarTabs({ seminar, userRole }: SeminarTabsProps) {
                                 <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                                     <div className="flex items-start justify-between mb-6">
                                         <div>
-                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Revenue (Collected)</p>
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Revenue (Approved)</p>
                                             <h3 className="text-4xl font-black text-gray-900 leading-none">
-                                                ₱{((seminar.registrations.filter(r => r.paymentStatus === 'PAID').length) * (seminar.fee || 0)).toLocaleString()}
+                                                ₱{((seminar.registrations.filter(r => r.status === 'APPROVED').length) * (seminar.fee || 0)).toLocaleString()}
                                             </h3>
                                             <p className="text-xs text-gray-400 mt-2 font-medium">
-                                                Based on {seminar.registrations.filter(r => r.paymentStatus === 'PAID').length} paid registrations out of ₱{((seminar.registrations.length) * (seminar.fee || 0)).toLocaleString()} potential.
+                                                Based on {seminar.registrations.filter(r => r.status === 'APPROVED').length} approved registrations out of ₱{((seminar.registrations.length) * (seminar.fee || 0)).toLocaleString()} potential.
                                             </p>
                                         </div>
                                     </div>
@@ -143,27 +142,27 @@ export default function SeminarTabs({ seminar, userRole }: SeminarTabsProps) {
                                     {/* Financial Graph (Visual) */}
                                     <div className="space-y-4">
                                         <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
-                                            <span className="text-gray-400">Cash Flow Completion</span>
+                                            <span className="text-gray-400">Approval Rate</span>
                                             <span className="text-gray-900">
                                                 {seminar.registrations.length > 0
-                                                    ? Math.round((seminar.registrations.filter(r => r.paymentStatus === 'PAID').length / seminar.registrations.length) * 100)
+                                                    ? Math.round((seminar.registrations.filter(r => r.status === 'APPROVED').length / seminar.registrations.length) * 100)
                                                     : 0}%
                                             </span>
                                         </div>
                                         <div className="h-3 w-full bg-gray-50 rounded-full overflow-hidden flex">
                                             <div
                                                 className="h-full bg-gray-900 transition-all duration-1000 ease-out"
-                                                style={{ width: `${seminar.registrations.length > 0 ? (seminar.registrations.filter(r => r.paymentStatus === 'PAID').length / seminar.registrations.length) * 100 : 0}%` }}
+                                                style={{ width: `${seminar.registrations.length > 0 ? (seminar.registrations.filter(r => r.status === 'APPROVED').length / seminar.registrations.length) * 100 : 0}%` }}
                                             />
                                         </div>
                                         <div className="grid grid-cols-2 gap-8 pt-2">
                                             <div className="space-y-0.5">
                                                 <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Confirmed</p>
-                                                <p className="text-base font-bold text-gray-900">₱{((seminar.registrations.filter(r => r.paymentStatus === 'PAID').length) * (seminar.fee || 0)).toLocaleString()}</p>
+                                                <p className="text-base font-bold text-gray-900">₱{((seminar.registrations.filter(r => r.status === 'APPROVED').length) * (seminar.fee || 0)).toLocaleString()}</p>
                                             </div>
                                             <div className="space-y-0.5">
-                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Outstanding</p>
-                                                <p className="text-base font-bold text-gray-300">₱{((seminar.registrations.filter(r => r.paymentStatus !== 'PAID').length) * (seminar.fee || 0)).toLocaleString()}</p>
+                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Pending</p>
+                                                <p className="text-base font-bold text-gray-300">₱{((seminar.registrations.filter(r => r.status !== 'APPROVED').length) * (seminar.fee || 0)).toLocaleString()}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -177,7 +176,7 @@ export default function SeminarTabs({ seminar, userRole }: SeminarTabsProps) {
                                         {[
                                             { label: 'Approved', count: seminar.registrations.filter(r => r.status === 'APPROVED').length, color: 'bg-green-500' },
                                             { label: 'Pending', count: seminar.registrations.filter(r => r.status === 'PENDING').length, color: 'bg-amber-500' },
-                                            { label: 'Unpaid', count: seminar.registrations.filter(r => r.paymentStatus === 'UNPAID').length, color: 'bg-red-500' }
+                                            { label: 'Rejected', count: seminar.registrations.filter(r => r.status === 'REJECTED').length, color: 'bg-red-500' }
                                         ].map((stat, i) => {
                                             const percentage = seminar.registrations.length > 0 ? (stat.count / seminar.registrations.length) * 100 : 0;
                                             return (
