@@ -3,9 +3,9 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 async function main() {
-    console.log('Seeding General Guidelines (Kyorugi + Poomsae) ...')
+    console.log('Seeding General Guidelines (Kyorugi + Poomsae + Kyukpa) ...')
 
-    const templateName = 'General Guidelines - Kyorugi + Poomsae'
+    const templateName = 'General Guidelines - Kyorugi + Poomsae + Kyukpa'
 
     // Cleanup
     const existing = await prisma.guidelineTemplate.findUnique({
@@ -20,7 +20,7 @@ async function main() {
         data: {
             name: templateName,
             content: `### Tap Elite Unified Guidelines 2026
-Includes both Kyorugi and Poomsae regulations.
+Includes Kyorugi, Poomsae, and Kyukpa regulations.
 
 **Kyorugi Rules:**
 *   **Supertoddler/Toddler/Grade School:** Height-based (Under 112cm - Over 168cm)
@@ -28,7 +28,12 @@ Includes both Kyorugi and Poomsae regulations.
 
 **Poomsae Rules:**
 *   Colored Belt: Yellow (T2), Blue (T4), Red (T6), Brown (T8)
-*   Black Belt: Varies by Division (See below)`
+*   Black Belt: Varies by Division (See below)
+
+**Kyukpa (Breaking) Rules:**
+*   Format: Single Elimination
+*   Divisions: Grade School, Cadet, Junior, Senior
+*   Categories: Per Belt (Yellow, Blue, Red, Brown, Black) - Male/Female`
         }
     })
 
@@ -102,8 +107,6 @@ Includes both Kyorugi and Poomsae regulations.
     // 4. Poomsae Forms (Black Belt - varies by division)
     // Format: divisionName -> { elimination: string, finals: string }
     const blackBeltFormsByDivision: Record<string, { elimination: string; finals: string }> = {
-        'Supertoddler': { elimination: 'Taegeuk 6', finals: 'Taegeuk 7' },
-        'Toddler': { elimination: 'Taegeuk 6', finals: 'Taegeuk 7' },
         'Grade School': { elimination: 'Taegeuk 6', finals: 'Taegeuk 7' },
         'Cadet': { elimination: 'Taegeuk 7', finals: 'Taegeuk 8' },
         'Junior': { elimination: 'Taegeuk 7', finals: 'Koryo' },
@@ -151,6 +154,21 @@ Includes both Kyorugi and Poomsae regulations.
     }
 
 
+    // 5. Kyukpa Belts
+    const kyukpaBelts = ['Yellow', 'Blue', 'Red', 'Brown', 'Black']
+
+    // Helper to create Kyukpa categories for a division
+    async function createKyukpaCategories(divisionId: string, orderStart: number) {
+        let order = orderStart
+        for (const belt of kyukpaBelts) {
+            const baseName = `Kyukpa - ${belt} Belt`
+            await prisma.weightCategory.create({ data: { divisionId, name: baseName, gender: 'Male', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'KYUKPA', subtype: 'INDIVIDUAL', belt } })
+            await prisma.weightCategory.create({ data: { divisionId, name: baseName, gender: 'Female', minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'KYUKPA', subtype: 'INDIVIDUAL', belt } })
+        }
+        return order
+    }
+
+
     // --- CREATE DIVISIONS AND ASSIGN CATEGORIES ---
 
     let order = 1
@@ -187,6 +205,7 @@ Includes both Kyorugi and Poomsae regulations.
         await prisma.weightCategory.create({ data: { divisionId: divGS.id, name: h.name, gender: 'Female', minHeight: h.min, maxHeight: h.max, minWeight: 0, maxWeight: 0, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
     }
     order = await createPoomsaeCategories(divGS.id, 'Grade School', order)
+    order = await createKyukpaCategories(divGS.id, order)
 
 
     // D. Cadet (12-14)
@@ -196,6 +215,7 @@ Includes both Kyorugi and Poomsae regulations.
     for (const w of kyCadetM) await prisma.weightCategory.create({ data: { divisionId: divCadet.id, name: w.name, gender: 'Male', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
     for (const w of kyCadetF) await prisma.weightCategory.create({ data: { divisionId: divCadet.id, name: w.name, gender: 'Female', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
     order = await createPoomsaeCategories(divCadet.id, 'Cadet', order)
+    order = await createKyukpaCategories(divCadet.id, order)
 
 
     // E. Junior (15-17)
@@ -205,6 +225,7 @@ Includes both Kyorugi and Poomsae regulations.
     for (const w of kyJuniorM) await prisma.weightCategory.create({ data: { divisionId: divJunior.id, name: w.name, gender: 'Male', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
     for (const w of kyJuniorF) await prisma.weightCategory.create({ data: { divisionId: divJunior.id, name: w.name, gender: 'Female', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
     order = await createPoomsaeCategories(divJunior.id, 'Junior', order)
+    order = await createKyukpaCategories(divJunior.id, order)
 
 
     // F. Senior (18-30) / Under 30
@@ -214,9 +235,10 @@ Includes both Kyorugi and Poomsae regulations.
     for (const w of kySeniorM) await prisma.weightCategory.create({ data: { divisionId: divSenior.id, name: w.name, gender: 'Male', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
     for (const w of kySeniorF) await prisma.weightCategory.create({ data: { divisionId: divSenior.id, name: w.name, gender: 'Female', minWeight: w.min, maxWeight: w.max, displayOrder: order++, type: 'KYORUGI', subtype: 'INDIVIDUAL', belt: null } })
     order = await createPoomsaeCategories(divSenior.id, 'Senior (Under 30)', order)
+    order = await createKyukpaCategories(divSenior.id, order)
 
 
-    console.log('Unified Seeding completed!')
+    console.log('Unified Seeding completed! (Kyorugi + Poomsae + Kyukpa)')
 }
 
 main()

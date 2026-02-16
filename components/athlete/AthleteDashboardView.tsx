@@ -525,9 +525,9 @@ export default function AthleteDashboardView({
                                                         return (
                                                             <div key={`sidebar-${event.eventType}-${event.id}`} className="px-5 py-3 hover:bg-gray-50/50 transition-colors">
                                                                 <div className="flex items-start justify-between gap-2">
-                                                                    <div className="min-w-0 flex-1">
+                                                                    <div className="min-w-0 flex-1 max-w-[150px]">
                                                                         <p className="text-sm font-semibold text-gray-900 truncate">{event.name}</p>
-                                                                        <p className="text-xs text-gray-500 mt-0.5">
+                                                                        <p className="text-xs text-gray-500 mt-0.5 truncate">
                                                                             {new Date(event.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                                                                             {event.venue && ` · ${event.venue}`}
                                                                         </p>
