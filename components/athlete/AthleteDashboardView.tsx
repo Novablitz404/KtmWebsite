@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Trophy, Medal, Calendar, ChevronRight, Zap, Clock, Mail, Bell, X } from 'lucide-react'
+import { Trophy, Medal, Calendar, ChevronRight, Zap, Clock, Mail } from 'lucide-react'
 import Link from 'next/link'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { fetchAthleteDashboardData, unregisterFromTournament } from '@/app/actions'
@@ -39,7 +39,7 @@ export default function AthleteDashboardView({
     const initialView = (searchParams.get('tab') as any) || 'home'
     const [activeView, setActiveView] = useState<'home' | 'settings' | 'ranking'>(initialView)
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-    const [isAnnouncementsOpen, setIsAnnouncementsOpen] = useState(false)
+
     const queryClient = useQueryClient()
 
     const { data: dashboardData, isLoading } = useQuery({
@@ -90,11 +90,11 @@ export default function AthleteDashboardView({
 
     const beltStyle = BELT_COLORS[dbUser?.belt || ''] || BELT_COLORS['White']
 
-    const handleUnregister = async (tournamentId: string, eventName: string) => {
-        if (!confirm(`Are you sure you want to withdraw from ${eventName}? This action cannot be undone.`)) return
+    const handleUnregister = async (playerId: string, registrationName: string) => {
+        if (!confirm(`Are you sure you want to withdraw from ${registrationName}? This action cannot be undone.`)) return
 
         try {
-            const result = await unregisterFromTournament(tournamentId)
+            const result = await unregisterFromTournament(playerId)
             if (result.error) {
                 alert(result.error)
             } else {
@@ -130,24 +130,14 @@ export default function AthleteDashboardView({
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="18" y2="18" /></svg>
                     </button>
 
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={() => setIsAnnouncementsOpen(true)}
-                            className="p-2 text-gray-600 hover:bg-gray-50 rounded-full relative"
-                        >
-                            <Bell size={20} />
-                            {/* Notification Dot (Static for now) */}
-                            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
-                        </button>
-                        <div className="w-8 h-8 rounded-full bg-gray-100 overflow-hidden border border-gray-200">
-                            {imageUrl ? (
-                                <img src={imageUrl} alt="Profile" className="w-full h-full object-cover" />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-400">
-                                    {dbUser?.name?.charAt(0) || 'A'}
-                                </div>
-                            )}
-                        </div>
+                    <div className="w-8 h-8 rounded-full bg-gray-100 overflow-hidden border border-gray-200">
+                        {imageUrl ? (
+                            <img src={imageUrl} alt="Profile" className="w-full h-full object-cover" />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-400">
+                                {dbUser?.name?.charAt(0) || 'A'}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -317,102 +307,76 @@ export default function AthleteDashboardView({
                                     )}
                                 </div>
 
-                                {/* My Events (Club Schedule) */}
-                                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex-1 md:min-h-0 flex flex-col">
+                                {/* ============ SECTION 1: My Registrations ============ */}
+                                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col">
                                     <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                                        <h2 className="text-lg font-bold text-gray-900">My Events</h2>
+                                        <h2 className="text-lg font-bold text-gray-900">My Registrations</h2>
+                                        <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">
+                                            {registrations.length} {registrations.length === 1 ? 'entry' : 'entries'}
+                                        </span>
                                     </div>
 
-                                    {(data?.clubUpcomingEvents?.length || 0) === 0 ? (
-                                        <div className="p-12 text-center">
-                                            <div className="text-5xl mb-4">📅</div>
-                                            <h3 className="text-lg font-bold text-gray-900 mb-2">No club events yet</h3>
-                                            <p className="text-gray-500 text-sm mb-4">Your club hasn't joined any upcoming tournaments yet.</p>
+                                    {registrations.length === 0 ? (
+                                        <div className="p-10 text-center">
+                                            <div className="text-4xl mb-3">📋</div>
+                                            <h3 className="text-base font-bold text-gray-900 mb-1">No registrations yet</h3>
+                                            <p className="text-gray-500 text-sm">Register for an event from the list below.</p>
                                         </div>
                                     ) : (
                                         <div className="flex-1 overflow-auto">
                                             {/* Mobile View - Cards */}
                                             <div className="md:hidden p-4 space-y-3">
-                                                {data?.clubUpcomingEvents?.map((event: any) => {
-                                                    const isSeminar = event.type === 'SEMINAR'
-
-                                                    // Find registration object to get status
-                                                    const seminarReg = isSeminar
-                                                        ? (data as any)?.seminarRegistrations?.find((r: any) => r.seminarId === event.id)
-                                                        : null
-
-                                                    const tournamentReg = !isSeminar
-                                                        ? registrations.find((r: any) => r.category?.tournament?.id === event.id)
-                                                        : null
-
-                                                    const isRegistered = !!(seminarReg || tournamentReg)
-                                                    const status = isSeminar
-                                                        ? seminarReg?.status
-                                                        : tournamentReg?.registrationStatus
-
-                                                    const detailsLink = isSeminar ? `/seminars/${event.id}` : `/tournament/${event.id}`
+                                                {registrations.map((reg: any) => {
+                                                    const tournament = reg.category?.tournament
+                                                    const categoryType = reg.category?.type || 'KYORUGI'
+                                                    const typeBadge = categoryType === 'POOMSAE'
+                                                        ? { label: 'Poomsae', style: 'bg-blue-50 text-blue-700 border-blue-200' }
+                                                        : categoryType === 'KYUKPA'
+                                                            ? { label: 'Kyukpa', style: 'bg-purple-50 text-purple-700 border-purple-200' }
+                                                            : { label: 'Kyorugi', style: 'bg-red-50 text-red-700 border-red-200' }
+                                                    const statusBadge = reg.registrationStatus === 'APPROVED'
+                                                        ? { label: 'Approved', style: 'bg-green-50 text-green-700 border-green-200' }
+                                                        : reg.registrationStatus === 'REJECTED'
+                                                            ? { label: 'Rejected', style: 'bg-red-50 text-red-700 border-red-200' }
+                                                            : { label: 'Pending', style: 'bg-amber-50 text-amber-700 border-amber-200' }
 
                                                     return (
-                                                        <div key={`${event.type}-${event.id}`} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-                                                            {/* Row 1: Name & Status */}
+                                                        <div key={reg.id} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
                                                             <div className="flex justify-between items-start mb-2">
-                                                                <div className="flex flex-col">
-                                                                    <span className="font-bold text-gray-900 text-base pr-2">{event.name}</span>
-                                                                    {isSeminar && <span className="text-[10px] uppercase font-bold text-purple-600 bg-purple-50 self-start px-2 py-0.5 rounded-full mt-1">Seminar</span>}
+                                                                <div>
+                                                                    <span className="font-bold text-gray-900 text-base">{tournament?.name || 'Unknown'}</span>
+                                                                    <div className="flex items-center gap-2 mt-1">
+                                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${typeBadge.style}`}>
+                                                                            {typeBadge.label}
+                                                                        </span>
+                                                                        <span className="text-xs text-gray-500">{reg.category?.name}</span>
+                                                                    </div>
                                                                 </div>
-                                                                {isRegistered ? (
-                                                                    status === 'APPROVED' ? (
-                                                                        <span className="flex-shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
-                                                                            Approved
-                                                                        </span>
-                                                                    ) : (
-                                                                        <span className="flex-shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                                                                            {status || 'Pending'}
-                                                                        </span>
-                                                                    )
-                                                                ) : (
-                                                                    <span className="flex-shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                                                                        Not Joined
-                                                                    </span>
-                                                                )}
-                                                            </div>
-
-                                                            {/* Row 2: Location & Date */}
-                                                            <div className="text-sm text-gray-500 mb-4 flex flex-wrap gap-x-2">
-                                                                {event.venue && <span>{event.venue}</span>}
-                                                                {event.venue && <span>•</span>}
-                                                                <span>
-                                                                    {new Date(event.startDate).toLocaleDateString('en-US', {
-                                                                        month: 'short',
-                                                                        day: 'numeric',
-                                                                        year: 'numeric'
-                                                                    })}
+                                                                <span className={`flex-shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusBadge.style}`}>
+                                                                    {statusBadge.label}
                                                                 </span>
                                                             </div>
-
-                                                            {/* Row 3: Buttons */}
+                                                            <div className="text-sm text-gray-500 mb-3">
+                                                                {tournament?.startDate
+                                                                    ? new Date(tournament.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                                                                    : '-'
+                                                                }
+                                                            </div>
                                                             <div className="flex items-center gap-3">
-                                                                <Link
-                                                                    href={detailsLink}
-                                                                    className="flex-1 text-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                                                                >
-                                                                    Details
-                                                                </Link>
-                                                                {!isRegistered ? (
+                                                                {tournament?.id && (
                                                                     <Link
-                                                                        href={isSeminar ? `/seminars/${event.id}/register` : `/tournament/${event.id}/register`}
-                                                                        className="flex-1 text-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+                                                                        href={`/tournament/${tournament.id}`}
+                                                                        className="flex-1 text-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                                                                     >
-                                                                        Register
+                                                                        Details
                                                                     </Link>
-                                                                ) : (
-                                                                    <button
-                                                                        onClick={() => isSeminar ? window.location.href = detailsLink : handleUnregister(event.id, event.name)}
-                                                                        className="flex-1 text-center px-4 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
-                                                                    >
-                                                                        Withdraw
-                                                                    </button>
                                                                 )}
+                                                                <button
+                                                                    onClick={() => handleUnregister(reg.id, `${tournament?.name} - ${reg.category?.name}`)}
+                                                                    className="flex-1 text-center px-4 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                                                                >
+                                                                    Withdraw
+                                                                </button>
                                                             </div>
                                                         </div>
                                                     )
@@ -423,91 +387,74 @@ export default function AthleteDashboardView({
                                             <table className="hidden md:table min-w-full divide-y divide-gray-100">
                                                 <thead className="bg-gray-50">
                                                     <tr>
-                                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Event</th>
+                                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tournament</th>
+                                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
+                                                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
                                                         <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
                                                         <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                                                         <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="bg-white divide-y divide-gray-50">
-                                                    {data?.clubUpcomingEvents?.map((event: any) => {
-                                                        const isSeminar = event.type === 'SEMINAR'
-
-                                                        // Find registration object to get status
-                                                        const seminarReg = isSeminar
-                                                            ? (data as any)?.seminarRegistrations?.find((r: any) => r.seminarId === event.id)
-                                                            : null
-
-                                                        const tournamentReg = !isSeminar
-                                                            ? registrations.find((r: any) => r.category?.tournament?.id === event.id)
-                                                            : null
-
-                                                        const isRegistered = !!(seminarReg || tournamentReg)
-                                                        const status = isSeminar
-                                                            ? seminarReg?.status
-                                                            : tournamentReg?.registrationStatus
-
-                                                        const detailsLink = isSeminar ? `/seminars/${event.id}` : `/tournament/${event.id}`
+                                                    {registrations.map((reg: any) => {
+                                                        const tournament = reg.category?.tournament
+                                                        const categoryType = reg.category?.type || 'KYORUGI'
+                                                        const typeBadge = categoryType === 'POOMSAE'
+                                                            ? { label: 'Poomsae', style: 'bg-blue-50 text-blue-700 border-blue-200' }
+                                                            : categoryType === 'KYUKPA'
+                                                                ? { label: 'Kyukpa', style: 'bg-purple-50 text-purple-700 border-purple-200' }
+                                                                : { label: 'Kyorugi', style: 'bg-red-50 text-red-700 border-red-200' }
+                                                        const statusBadge = reg.registrationStatus === 'APPROVED'
+                                                            ? { label: 'Approved', style: 'bg-green-50 text-green-700 border-green-200' }
+                                                            : reg.registrationStatus === 'REJECTED'
+                                                                ? { label: 'Rejected', style: 'bg-red-50 text-red-700 border-red-200' }
+                                                                : { label: 'Pending', style: 'bg-amber-50 text-amber-700 border-amber-200' }
 
                                                         return (
-                                                            <tr key={`${event.type}-${event.id}`} className="hover:bg-gray-50/50 transition-colors">
+                                                            <tr key={reg.id} className="hover:bg-gray-50/50 transition-colors">
                                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                                     <div className="flex flex-col">
-                                                                        <div className="flex items-center gap-2">
-                                                                            <span className="text-sm font-bold text-gray-900">{event.name}</span>
-                                                                            {isSeminar && <span className="text-[10px] uppercase font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">Seminar</span>}
-                                                                        </div>
-                                                                        {event.venue && <span className="text-xs text-gray-500">{event.venue}</span>}
+                                                                        <span className="text-sm font-bold text-gray-900">{tournament?.name || 'Unknown'}</span>
+                                                                        {tournament?.venue && <span className="text-xs text-gray-500">{tournament.venue}</span>}
                                                                     </div>
                                                                 </td>
+                                                                <td className="px-6 py-4 whitespace-nowrap max-w-[120px]">
+                                                                    <span className="text-sm text-gray-700 truncate block">{reg.category?.name || '-'}</span>
+                                                                </td>
                                                                 <td className="px-6 py-4 whitespace-nowrap">
-                                                                    <span className="text-sm text-gray-600">
-                                                                        {new Date(event.startDate).toLocaleDateString('en-US', {
-                                                                            month: 'short',
-                                                                            day: 'numeric'
-                                                                        })}
+                                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${typeBadge.style}`}>
+                                                                        {typeBadge.label}
                                                                     </span>
                                                                 </td>
                                                                 <td className="px-6 py-4 whitespace-nowrap">
-                                                                    {isRegistered ? (
-                                                                        status === 'APPROVED' ? (
-                                                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
-                                                                                Approved
-                                                                            </span>
-                                                                        ) : (
-                                                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                                                                                {status || 'Pending'}
-                                                                            </span>
-                                                                        )
-                                                                    ) : (
-                                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                                                                            -
-                                                                        </span>
-                                                                    )}
+                                                                    <span className="text-sm text-gray-600">
+                                                                        {tournament?.startDate
+                                                                            ? new Date(tournament.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                                                                            : '-'
+                                                                        }
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusBadge.style}`}>
+                                                                        {statusBadge.label}
+                                                                    </span>
                                                                 </td>
                                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                                     <div className="flex items-center justify-end gap-2">
-                                                                        <Link
-                                                                            href={detailsLink}
-                                                                            className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                                                                        >
-                                                                            Details
-                                                                        </Link>
-                                                                        {!isRegistered ? (
+                                                                        {tournament?.id && (
                                                                             <Link
-                                                                                href={isSeminar ? `/seminars/${event.id}/register` : `/tournament/${event.id}/register`}
-                                                                                className="px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+                                                                                href={`/tournament/${tournament.id}`}
+                                                                                className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                                                                             >
-                                                                                Register
+                                                                                Details
                                                                             </Link>
-                                                                        ) : (
-                                                                            <button
-                                                                                onClick={() => isSeminar ? window.location.href = detailsLink : handleUnregister(event.id, event.name)}
-                                                                                className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
-                                                                            >
-                                                                                Withdraw
-                                                                            </button>
                                                                         )}
+                                                                        <button
+                                                                            onClick={() => handleUnregister(reg.id, `${tournament?.name} - ${reg.category?.name}`)}
+                                                                            className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                                                                        >
+                                                                            Withdraw
+                                                                        </button>
                                                                     </div>
                                                                 </td>
                                                             </tr>
@@ -518,6 +465,7 @@ export default function AthleteDashboardView({
                                         </div>
                                     )}
                                 </div>
+
                             </div>
 
                             {/* Right Column - Sidebar */}
@@ -525,23 +473,101 @@ export default function AthleteDashboardView({
 
 
 
-                                {/* Announcements */}
-                                <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <span className="text-xl">📢</span>
-                                        <h3 className="font-bold text-gray-900">Announcements</h3>
-                                    </div>
-                                    <div className="space-y-3">
-                                        <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
-                                            <p className="text-sm font-semibold text-indigo-900">Welcome to KTM!</p>
-                                            <p className="text-xs text-indigo-700 mt-1">We're generic to have you here. Complete your profile to get started.</p>
+                                {/* Available Events */}
+                                {(() => {
+                                    const tournamentEvents = (data?.clubUpcomingEvents || []).filter((e: any) => e.type === 'TOURNAMENT')
+                                    const seminarEvents = (data?.clubUpcomingEvents || []).filter((e: any) => e.type === 'SEMINAR')
+                                    const registeredCategoryIds = new Set(registrations.map((r: any) => r.categoryId))
+
+                                    const availableTournaments = tournamentEvents
+                                        .map((event: any) => {
+                                            const categories = event.categories || []
+                                            const allTypes = [...new Set(categories.map((c: any) => c.type))] as string[]
+                                            const registeredTypes = new Set(
+                                                categories
+                                                    .filter((c: any) => registeredCategoryIds.has(c.id))
+                                                    .map((c: any) => c.type)
+                                            )
+                                            const availableTypes = allTypes.filter(t => !registeredTypes.has(t))
+                                            return { ...event, availableTypes }
+                                        })
+                                        .filter((event: any) => event.availableTypes.length > 0)
+
+                                    const registeredSeminarIds = new Set(
+                                        (data as any)?.seminarRegistrations?.map((r: any) => r.seminarId) || []
+                                    )
+                                    const availableSeminars = seminarEvents.filter((e: any) => !registeredSeminarIds.has(e.id))
+
+                                    const allAvailable = [
+                                        ...availableTournaments.map((t: any) => ({ ...t, eventType: 'TOURNAMENT' })),
+                                        ...availableSeminars.map((s: any) => ({ ...s, eventType: 'SEMINAR' }))
+                                    ]
+
+                                    return (
+                                        <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                                            <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+                                                <span className="text-xl">🏆</span>
+                                                <h3 className="font-bold text-gray-900">Available Events</h3>
+                                            </div>
+
+                                            {allAvailable.length === 0 ? (
+                                                <div className="p-6 text-center">
+                                                    <div className="text-3xl mb-2">🎯</div>
+                                                    <p className="text-sm font-medium text-gray-900">All caught up!</p>
+                                                    <p className="text-xs text-gray-500 mt-1">No new events to register for.</p>
+                                                </div>
+                                            ) : (
+                                                <div className="divide-y divide-gray-50">
+                                                    {allAvailable.slice(0, 5).map((event: any) => {
+                                                        const isSeminar = event.eventType === 'SEMINAR'
+                                                        const registerLink = isSeminar ? `/seminars/${event.id}/register` : `/tournament/${event.id}/register`
+
+                                                        return (
+                                                            <div key={`sidebar-${event.eventType}-${event.id}`} className="px-5 py-3 hover:bg-gray-50/50 transition-colors">
+                                                                <div className="flex items-start justify-between gap-2">
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <p className="text-sm font-semibold text-gray-900 truncate">{event.name}</p>
+                                                                        <p className="text-xs text-gray-500 mt-0.5">
+                                                                            {new Date(event.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                                                            {event.venue && ` · ${event.venue}`}
+                                                                        </p>
+                                                                        {!isSeminar && event.availableTypes && (
+                                                                            <div className="flex items-center gap-1 mt-1.5">
+                                                                                {event.availableTypes.map((type: string) => {
+                                                                                    const badge = type === 'POOMSAE'
+                                                                                        ? { label: 'Poomsae', style: 'bg-blue-50 text-blue-600 border-blue-200' }
+                                                                                        : type === 'KYUKPA'
+                                                                                            ? { label: 'Kyukpa', style: 'bg-purple-50 text-purple-600 border-purple-200' }
+                                                                                            : { label: 'Kyorugi', style: 'bg-red-50 text-red-600 border-red-200' }
+                                                                                    return (
+                                                                                        <span key={type} className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase border ${badge.style}`}>
+                                                                                            {badge.label}
+                                                                                        </span>
+                                                                                    )
+                                                                                })}
+                                                                            </div>
+                                                                        )}
+                                                                        {isSeminar && (
+                                                                            <span className="inline-flex items-center mt-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase text-purple-600 bg-purple-50 border border-purple-200">
+                                                                                Seminar
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <Link
+                                                                        href={registerLink}
+                                                                        className="flex-shrink-0 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+                                                                    >
+                                                                        Register
+                                                                    </Link>
+                                                                </div>
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                                            <p className="text-sm font-medium text-gray-900">Upcoming Features</p>
-                                            <p className="text-xs text-gray-500 mt-1">Global Rankings and detailed statistics are coming soon.</p>
-                                        </div>
-                                    </div>
-                                </div>
+                                    )
+                                })()}
 
                                 {/* Top 5 Rankings Widget */}
                                 <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 flex-1 md:min-h-0 flex flex-col overflow-hidden">
@@ -614,41 +640,8 @@ export default function AthleteDashboardView({
                     </div>
                 )}
 
-                {/* Mobile Announcements Overlay */}
-                {isAnnouncementsOpen && (
-                    <div className="fixed inset-0 z-50 md:hidden flex items-end justify-center sm:items-center">
-                        {/* Backdrop */}
-                        <div
-                            className="absolute inset-0 bg-black/50 transition-opacity"
-                            onClick={() => setIsAnnouncementsOpen(false)}
-                        />
-                        {/* Modal Panel */}
-                        <div className="relative bg-white w-full max-w-md mx-auto rounded-t-2xl sm:rounded-2xl p-6 shadow-xl transform transition-transform animate-in slide-in-from-bottom duration-300">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-xl">📢</span>
-                                    <h3 className="text-lg font-bold text-gray-900">Announcements</h3>
-                                </div>
-                                <button
-                                    onClick={() => setIsAnnouncementsOpen(false)}
-                                    className="p-2 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200"
-                                >
-                                    <X size={20} />
-                                </button>
-                            </div>
-                            <div className="flex flex-col items-center justify-center text-center p-8 bg-gray-50 rounded-xl border border-gray-100 border-dashed">
-                                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-3 shadow-sm text-3xl">
-                                    📢
-                                </div>
-                                <h4 className="text-base font-bold text-gray-900">Coming Soon</h4>
-                                <p className="text-xs text-gray-500 mt-1 max-w-[200px]">
-                                    We'll notify you here about upcoming tournaments and features.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </main>
+
+            </main >
         </>
     )
 }
@@ -821,16 +814,20 @@ function AthleteDashboardSkeleton() {
                             </div>
                         </div>
 
-                        {/* Announcements */}
-                        <div className="bg-gradient-to-br from-indigo-50 to-white rounded-2xl border border-indigo-100 p-5">
+                        {/* Available Events */}
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
                             <div className="flex items-center gap-2 mb-3">
-                                <span className="text-xl">📢</span>
-                                <h3 className="font-bold text-gray-900">Announcements</h3>
+                                <span className="text-xl">🏆</span>
+                                <h3 className="font-bold text-gray-900">Available Events</h3>
                             </div>
                             <div className="space-y-3">
-                                <div className="p-3 bg-white rounded-xl border border-gray-100">
+                                <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
                                     <Skeleton className="h-4 w-32 mb-1" />
                                     <Skeleton className="h-3 w-48" />
+                                </div>
+                                <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                                    <Skeleton className="h-4 w-28 mb-1" />
+                                    <Skeleton className="h-3 w-40" />
                                 </div>
                             </div>
                         </div>

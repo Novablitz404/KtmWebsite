@@ -2173,7 +2173,14 @@ export async function fetchAthleteDashboardData(clerkId: string) {
                     name: true,
                     startDate: true,
                     venue: true,
-                    status: true
+                    status: true,
+                    categories: {
+                        select: {
+                            id: true,
+                            name: true,
+                            type: true
+                        }
+                    }
                 }
             }),
             prisma.seminar.findMany({
@@ -2485,7 +2492,7 @@ export async function toggleEventParticipation(
     }
 }
 
-export async function unregisterFromTournament(tournamentId: string) {
+export async function unregisterFromTournament(playerId: string) {
     const user = await currentUser()
     if (!user) {
         return { error: 'Unauthorized' }
@@ -2500,13 +2507,17 @@ export async function unregisterFromTournament(tournamentId: string) {
     }
 
     try {
-        await prisma.player.deleteMany({
-            where: {
-                userId: dbUser.id,
-                category: {
-                    tournamentId: tournamentId
-                }
-            }
+        // Verify the player record belongs to this user before deleting
+        const player = await prisma.player.findUnique({
+            where: { id: playerId }
+        })
+
+        if (!player || player.userId !== dbUser.id) {
+            return { error: 'Registration not found or unauthorized' }
+        }
+
+        await prisma.player.delete({
+            where: { id: playerId }
         })
 
         revalidatePath('/athlete')
