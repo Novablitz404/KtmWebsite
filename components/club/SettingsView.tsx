@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useClerk } from '@clerk/nextjs'
 import ProfileEditForm from '@/app/settings/ProfileEditForm'
-import PushNotificationToggle from '@/components/PushNotificationToggle'
 import { Settings, Bell, LogOut, Shield, ChevronRight, ChevronLeft, User, Edit2 } from 'lucide-react'
 
 interface SettingsViewProps {
@@ -98,21 +97,6 @@ export default function SettingsView({ dbUser, clerkImageUrl, club }: SettingsVi
                 {/* Settings Options */}
                 <div className="space-y-3">
 
-                    {/* Preferences */}
-                    <div>
-                        <h3 className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Preferences</h3>
-                        <div className="bg-white border-y border-gray-100">
-                            <div className="px-4 py-2.5 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-md">
-                                        <Bell size={16} />
-                                    </div>
-                                    <span className="text-sm font-medium text-gray-900">Push Notifications</span>
-                                </div>
-                                <PushNotificationToggle simple />
-                            </div>
-                        </div>
-                    </div>
 
                     {/* Account Actions */}
                     <div>

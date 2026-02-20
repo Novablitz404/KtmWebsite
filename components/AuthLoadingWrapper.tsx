@@ -3,55 +3,39 @@
 import { useEffect } from 'react'
 import { useUser } from '@clerk/nextjs'
 import { usePathname, useRouter } from 'next/navigation'
-import { useQuery } from '@tanstack/react-query'
 
 /**
  * This component wraps page content and handles:
- * 1. Role-based redirects from home page
- * 2. Mandatory profile completion (Image, Weight, Height)
+ * 1. Redirecting to onboarding if profile is incomplete (via Clerk metadata)
+ * 2. Role-based redirects from home page (via Clerk metadata)
+ * 
+ * NO API calls are made — everything reads from Clerk's session.
  */
 export default function AuthLoadingWrapper({ children }: { children: React.ReactNode }) {
     const { user, isLoaded } = useUser()
     const pathname = usePathname()
     const router = useRouter()
 
-    // Fetch DB user data to check for weight/height & role
-    const { data: dbUser, isLoading: isDbLoading } = useQuery({
-        queryKey: ['userProfile', user?.id],
-        queryFn: async () => {
-            const res = await fetch('/api/user/role')
-            if (!res.ok) throw new Error('Failed to fetch user')
-            return res.json()
-        },
-        enabled: !!user?.id
-    })
-
     useEffect(() => {
         if (!isLoaded) return // Wait for Clerk
         if (!user) return // Let middleware handle auth redirects
-        if (isDbLoading) return // Wait for DB Data checking
 
-        // 1. Check Profile Completeness
-        const hasImage = user.hasImage
-        const isAthlete = dbUser?.role === 'ATHLETE'
-        const hasMeasurements = dbUser?.weight && dbUser?.height
-
-        // For athletes, require measurements. For others, only image.
-        const isProfileComplete = hasImage && (isAthlete ? hasMeasurements : true)
+        const metadata = user.publicMetadata as any
+        const role = metadata?.role as string | undefined
+        const profileComplete = metadata?.profileComplete as boolean | undefined
 
         const isOnboarding = pathname?.startsWith('/onboarding')
 
-        if (!isProfileComplete) {
-            // Strict Redirect to Onboarding
+        // 1. If profile is not complete, redirect to onboarding
+        if (!profileComplete) {
             if (!isOnboarding) {
                 router.replace('/onboarding/complete-profile')
             }
             return
         }
 
-        // 2. Logic for when Profile IS Complete
-        if (isOnboarding && isProfileComplete) {
-            // If they happen to be on onboarding but are done, send them home/dashboard
+        // 2. If profile IS complete but they're on onboarding, send to dashboard
+        if (isOnboarding && profileComplete) {
             router.replace('/')
             return
         }
@@ -60,7 +44,7 @@ export default function AuthLoadingWrapper({ children }: { children: React.React
         if (pathname === '/') {
             let redirectTo = '/athlete'
 
-            switch (dbUser?.role) {
+            switch (role) {
                 case 'ADMIN':
                     redirectTo = '/admin'
                     break
@@ -82,14 +66,7 @@ export default function AuthLoadingWrapper({ children }: { children: React.React
             router.replace(redirectTo)
         }
 
-    }, [isLoaded, user, dbUser, isDbLoading, pathname, router])
-
-    // Ideally, we might show a loader here while checking
-    // but the original component rendered children immediately.
-    // To prevent "flash" of dashboard content before redirect, we could return null if checking.
-    // However, for better UX on slow connections, maybe we just redirect.
-    // Let's stick to existing behavior (render children) to minimize regression, 
-    // unless user sees a flash. Middleware protects the route mostly anyway.
+    }, [isLoaded, user, pathname, router])
 
     return <>{children}</>
 }

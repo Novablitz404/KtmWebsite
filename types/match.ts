@@ -5,7 +5,6 @@ export interface Match {
     player1: string;
     player2: string;
     winner: string | null;
-    status: 'Pending' | 'Ready' | 'Ongoing' | 'Finished' | 'Complete';
     nextMatchId: string | null;
     nextMatchSlot: 'player1' | 'player2' | null;
     court: string;

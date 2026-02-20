@@ -1,6 +1,5 @@
 import ProfileForm from './ProfileForm'
 import LogoutButton from '@/components/LogoutButton'
-import PushNotificationToggle from '@/components/PushNotificationToggle'
 
 // Belt color configuration
 const BELT_COLORS: Record<string, { bg: string; text: string; border: string }> = {

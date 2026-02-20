@@ -147,13 +147,11 @@ export default function PoomsaeBracketPDF({ tournamentName, categoryName, matche
                             {/* Table Rows */}
                             {groupMatches.map((match) => {
                                 const clubName = match.player?.club?.name || 'Independent'
-                                const isTeam = match.teamMembers && match.teamMembers.length > 1
-                                const displayName = isTeam
-                                    ? `${clubName} Team`
-                                    : match.player?.name || 'TBD'
+                                const isTeam = !!match.displayName
+                                const displayName = match.displayName || match.player?.name || 'TBD'
 
                                 const subName = isTeam
-                                    ? match.teamMembers?.map(m => m.name).join(', ')
+                                    ? match.memberNames || ''
                                     : clubName
 
                                 return (

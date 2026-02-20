@@ -115,6 +115,7 @@ model Category {
   court String? // Assigned Court Number
 
   skillLevel String? @default("Novice") // "Novice" or "Advance"
+  deferFinals Boolean @default(true) // When true, finals are pushed to the end of the match schedule
 
   // Auto-Detection Rules (Copied from Template)
   minAge    Int?
@@ -421,12 +422,12 @@ model Match {
 
   winner String?
 
-  status String @default("Pending")
-
   nextMatchId   Int?
   nextMatch     Match?  @relation("Bracket", fields: [nextMatchId], references: [id])
   prevMatches   Match[] @relation("Bracket")
   nextMatchSlot String?
+
+  matchId Int? // Display ID (1, 2, 3...) unique per tournament
 
   court String @default("Unassigned")
 
@@ -464,6 +465,11 @@ model PoomsaeMatch {
 
   playerId String?
   player   Player? @relation(fields: [playerId], references: [id])
+
+  // Team/Pair display fields (null for INDIVIDUAL — use player relation instead)
+  displayName String? // "Katma Team A", "Katma Pair A" — team/pair display name
+  memberIds   String? // "26828, 76251" — comma-separated member IDs
+  memberNames String? // "James Smith, Linda Brown" — comma-separated member names
 
   // Scores
   accuracy     Float @default(0)

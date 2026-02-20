@@ -261,7 +261,6 @@ async function main() {
                     round: 1,
                     player1: kyorugiPlayers[i * 2].name,
                     player2: kyorugiPlayers[i * 2 + 1].name,
-                    status: 'Pending',
                     court: '1',
                 }
             })

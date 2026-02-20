@@ -7,9 +7,6 @@ export async function PUT(request: Request) {
         const user = await authenticateApi()
         if (!user) return apiError('Unauthorized', 401)
 
-        // Ensure user is authorized to edit their profile (users can edit their own)
-        // Usually we restrict role changes, but basic profile info is fine.
-
         const formData = await request.formData()
 
         const name = formData.get('name') as string
@@ -32,7 +29,7 @@ export async function PUT(request: Request) {
             where: { id: user.id },
             data: {
                 name,
-                clubName: clubName || user.clubName, // Keep existing if not provided? Or allow empty? Assuming provided.
+                clubName: clubName || user.clubName,
                 belt: belt || user.belt,
                 gender: gender || user.gender,
                 weight: isNaN(weight) ? undefined : weight,
@@ -61,8 +58,21 @@ export async function PUT(request: Request) {
                 })
             } catch (error) {
                 console.error('Failed to update Clerk profile image via API:', error)
-                // Return success but with a warning in real world, but for now just log it.
-                // We'll proceed as if success since DB update worked
+            }
+        }
+
+        // Sync profileComplete to Clerk metadata
+        if (user.clerkId) {
+            try {
+                const client = await clerkClient()
+                await client.users.updateUser(user.clerkId, {
+                    publicMetadata: {
+                        role: user.role,
+                        profileComplete: true
+                    }
+                })
+            } catch (error) {
+                console.error('Failed to sync profileComplete to Clerk:', error)
             }
         }
 

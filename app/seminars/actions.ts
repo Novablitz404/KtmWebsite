@@ -145,3 +145,40 @@ export async function registerForSeminar(formData: FormData) {
         return { error: 'Failed to register for seminar' }
     }
 }
+
+export async function verifySeminarQRCode(token: string, seminarId: string) {
+    try {
+        const registration = await prisma.seminarRegistration.findUnique({
+            where: { qrCodeToken: token },
+            include: {
+                seminar: { select: { name: true } }
+            }
+        })
+
+        if (!registration) {
+            return { found: false, error: 'No registration found for this QR code.' }
+        }
+
+        if (registration.seminarId !== seminarId) {
+            return {
+                found: false,
+                error: `This QR code belongs to a different seminar: "${registration.seminar.name}".`
+            }
+        }
+
+        return {
+            found: true,
+            registration: {
+                id: registration.id,
+                playerName: registration.playerName,
+                clubName: registration.clubName,
+                belt: registration.belt,
+                status: registration.status,
+                createdAt: registration.createdAt,
+            }
+        }
+    } catch (error) {
+        console.error('QR verification error:', error)
+        return { found: false, error: 'Failed to verify QR code.' }
+    }
+}

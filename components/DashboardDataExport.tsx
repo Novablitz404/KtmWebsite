@@ -45,21 +45,36 @@ export default function DashboardDataExport({ tournamentId, tournamentName, clas
         setDownloading('matches')
         const data = await fetchTournamentData()
         if (data && data.matches) {
-            // Columns: Match_ID, Category, Round, Player_1, Player_1_ID, Player_2, Player_2_ID, Winner_To_Match_ID, Winner_To_Slot, Court
-            const headers = ['Match_ID', 'Category', 'Round', 'Player_1', 'Player_1_ID', 'Player_2', 'Player_2_ID', 'Winner_To_Match_ID', 'Winner_To_Slot', 'Court']
+            const headers = ['id', 'matchId', 'category', 'round', 'player1', 'player1Id', 'player1Club', 'player2', 'player2Id', 'player2Club', 'winner', 'nextMatchId', 'nextMatchSlot', 'court', 'r1_blue_score', 'r1_red_score', 'r2_blue_score', 'r2_red_score', 'r3_blue_score', 'r3_red_score', 'total_blue_score', 'total_red_score', 'blue_gam_jeom', 'red_gam_jeom', 'blue_rounds_won', 'red_rounds_won']
 
             const rows = data.matches.map((m: any) => {
                 return [
-                    m.Match_ID,
-                    `"${m.Category}"`, // Quote category just in case
-                    m.Round,
-                    `"${m.Player_1}"`, // Already formatted as Name (Club) by API
-                    m.Player_1_ID,
-                    `"${m.Player_2}"`, // Already formatted as Name (Club) by API
-                    m.Player_2_ID,
-                    m.Winner_To_Match_ID || '',
-                    m.Winner_To_Slot || '',
-                    m.Court || ''
+                    m.id,
+                    m.matchId || '',
+                    `"${m.category}"`,
+                    m.round,
+                    `"${m.player1}"`,
+                    m.player1Id,
+                    `"${m.player1Club || ''}"`,
+                    `"${m.player2}"`,
+                    m.player2Id,
+                    `"${m.player2Club || ''}"`,
+                    `"${m.winner || ''}"`,
+                    m.nextMatchId || '',
+                    m.nextMatchSlot || '',
+                    m.court || '',
+                    m.r1_blue_score ?? 0,
+                    m.r1_red_score ?? 0,
+                    m.r2_blue_score ?? 0,
+                    m.r2_red_score ?? 0,
+                    m.r3_blue_score ?? 0,
+                    m.r3_red_score ?? 0,
+                    m.total_blue_score ?? 0,
+                    m.total_red_score ?? 0,
+                    m.blue_gam_jeom ?? 0,
+                    m.red_gam_jeom ?? 0,
+                    m.blue_rounds_won ?? 0,
+                    m.red_rounds_won ?? 0
                 ].join(',')
             })
 
@@ -81,44 +96,47 @@ export default function DashboardDataExport({ tournamentId, tournamentName, clas
     const downloadPoomsaeMatchesCSV = async () => {
         setDownloading('poomsaeMatches')
         const data = await fetchTournamentData()
-        if (data && data.masterList) {
-            // Filter only Poomsae players
-            const poomsaePlayers = data.masterList.filter((p: any) => p.type === 'POOMSAE')
+        if (data && data.poomsaeMatches && data.poomsaeMatches.length > 0) {
+            const headers = ['id', 'matchId', 'nextMatchId', 'category', 'subtype', 'round', 'performanceNumber', 'playerId', 'player', 'displayName', 'memberIds', 'memberNames', 'assignedForms', 'targetRank', 'accuracy', 'presentation', 'totalScore', 'rank', 'status', 'court']
 
-            if (poomsaePlayers.length > 0) {
-                // Columns: Player_ID, First Name, Last Name, Date Of Birth, Gender, Belt Rank, Club, Court, Event Type, Team ID
-                // Note: User requested Player_ID be added. Placing at start for consistency.
-                const headers = ['Player_ID', 'First Name', 'Last Name', 'Date Of Birth', 'Gender', 'Belt Rank', 'Club', 'Court', 'Event Type', 'Team ID']
+            const rows = data.poomsaeMatches.map((m: any) => {
+                return [
+                    m.id,
+                    m.matchId ?? '',
+                    m.nextMatchId ?? '',
+                    `"${m.category}"`,
+                    m.subtype || 'INDIVIDUAL',
+                    m.round,
+                    m.performanceNumber ?? '',
+                    m.playerId || '',
+                    `"${m.player || ''}"`,
+                    `"${m.displayName || ''}"`,
+                    `"${m.memberIds || ''}"`,
+                    `"${m.memberNames || ''}"`,
+                    `"${m.assignedForms || ''}"`,
+                    m.targetRank ?? '',
+                    m.accuracy ?? '',
+                    m.presentation ?? '',
+                    m.totalScore ?? '',
+                    m.rank ?? '',
+                    m.status || '',
+                    m.court || ''
+                ].join(',')
+            })
 
-                const rows = poomsaePlayers.map((p: any) => {
-                    return [
-                        p.Player_ID,
-                        `"${p["First Name"]}"`,
-                        `"${p["Last Name"]}"`,
-                        p["Date Of Birth"] || '',
-                        p.Gender,
-                        p["Belt Rank"],
-                        `"${p.Club}"`,
-                        p.Court || '',
-                        p["Event Type"],
-                        p["Team ID"] || ''
-                    ].join(',')
-                })
+            const csvContent = [headers.join(','), ...rows].join('\n')
 
-                const csvContent = [headers.join(','), ...rows].join('\n')
-
-                const blob = new Blob([csvContent], { type: 'text/csv' })
-                const url = window.URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = `poomsae-matches-${tournamentName.replace(/\s+/g, '_')}.csv`
-                document.body.appendChild(a)
-                a.click()
-                document.body.removeChild(a)
-                window.URL.revokeObjectURL(url)
-            } else {
-                alert('No Poomsae data found.')
-            }
+            const blob = new Blob([csvContent], { type: 'text/csv' })
+            const url = window.URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `poomsae-matches-${tournamentName.replace(/\s+/g, '_')}.csv`
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            window.URL.revokeObjectURL(url)
+        } else {
+            alert('No Poomsae match data found.')
         }
         setDownloading(null)
     }

@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import { Seminar, SeminarRegistration } from '@prisma/client'
-import { LayoutDashboard, Users, Settings, ArrowLeft, Menu, Calendar, MapPin, DollarSign } from 'lucide-react'
+import { LayoutDashboard, Users, Settings, ArrowLeft, Menu, Calendar, MapPin, DollarSign, QrCode } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import SeminarParticipants from './SeminarParticipants'
 import SeminarSettings from './SeminarSettings'
+import SeminarScanner from './SeminarScanner'
 
 type ExtendedSeminar = Seminar & {
     registrations: SeminarRegistration[]
@@ -22,12 +23,13 @@ export default function SeminarTabs({ seminar, userRole }: SeminarTabsProps) {
     const router = useRouter()
     const pathname = usePathname()
 
-    const activeTab = (searchParams.get('tab') as 'overview' | 'participants' | 'settings') || 'overview'
+    const activeTab = (searchParams.get('tab') as 'overview' | 'participants' | 'check-in' | 'settings') || 'overview'
     const [isSidebarOpen, setSidebarOpen] = useState(false)
 
     const tabs = [
         { id: 'overview', label: 'Overview', icon: LayoutDashboard },
         { id: 'participants', label: 'Participants', icon: Users },
+        { id: 'check-in', label: 'Check-In', icon: QrCode },
         { id: 'settings', label: 'Settings', icon: Settings },
     ] as const
 
@@ -250,6 +252,10 @@ export default function SeminarTabs({ seminar, userRole }: SeminarTabsProps) {
 
                     {activeTab === 'participants' && (
                         <SeminarParticipants registrations={seminar.registrations} seminarId={seminar.id} />
+                    )}
+
+                    {activeTab === 'check-in' && (
+                        <SeminarScanner seminarId={seminar.id} />
                     )}
 
                     {activeTab === 'settings' && (

@@ -404,13 +404,29 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
 
     if (categories.length === 0) return { success: false, message: 'No categories found.' }
 
-    // 2. Fetch Tournament for match_count base
-    const tournament = await prisma.tournament.findUnique({
-        where: { id: tournamentId },
-        select: { match_count: true }
-    })
+    // 2. Determine Next Match ID
+    // We query the database for the max existing matchId after deletion to know where to start
+    // 2. Determine Next Match ID
+    // We query the database for the max existing matchId after deletion to know where to start
+    // UPDATED: Now independent per type (Kyorugi vs Poomsae)
+    const getNextMatchId = async (tId: string, type: 'KYORUGI' | 'POOMSAE' | 'KYUKPA') => {
+        if (type === 'POOMSAE') {
+            const maxPoomsae = await prisma.poomsaeMatch.findFirst({
+                where: { categoryRef: { tournamentId: tId } },
+                orderBy: { matchId: 'desc' },
+                select: { matchId: true }
+            });
+            return (maxPoomsae?.matchId || 0) + 1;
+        } else {
+            const maxMatch = await prisma.match.findFirst({
+                where: { categoryRef: { tournamentId: tId } },
+                orderBy: { matchId: 'desc' },
+                select: { matchId: true }
+            });
+            return (maxMatch?.matchId || 0) + 1;
+        }
+    }
 
-    let currentGlobalMatchId = (tournament?.match_count || 0) + 1
     const validCategories = categories.filter(c => c.players.length > 0)
 
     // 3. Delete Existing Matches (Bulk)
@@ -419,10 +435,13 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
         await prisma.poomsaeMatch.deleteMany({
             where: { categoryRefId: { in: validCategoryIds } }
         })
+
+        // REMOVED: Global sequence reset (unsafe for multi-tenant and unnecessary)
     } else {
         await prisma.match.deleteMany({
             where: { categoryRefId: { in: validCategoryIds } }
         })
+        // REMOVED: Global sequence reset (unsafe for multi-tenant)
     }
 
     // 4. In-Memory Generation & Parallel DB Writes
@@ -434,8 +453,16 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
         // We need to execute sequentially or manage the shared ID counter carefully
         // Since we are inside one action, we can just increment the local variable `currentGlobalMatchId`
 
+        // --- POOMSAE GENERATION ---
+
+        // Get dynamic start ID
+        let currentGlobalMatchId = await getNextMatchId(tournamentId, 'POOMSAE')
+
         for (const category of validCategories) {
-            const players = category.players
+            const players = await prisma.player.findMany({
+                where: { categoryId: category.id },
+                include: { club: true }
+            })
             const poomsaeSpecs = generatePoomsaeBracket(
                 players,
                 category.subtype || 'INDIVIDUAL',
@@ -456,16 +483,6 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
                 ? `${category.name} ${category.belt}`
                 : category.name;
 
-            // Using standard create loop here because createMany doesn't support relation IDs easily
-            // and we need to map `nextMatchId`
-            // Optimization: We could use createMany if we pre-calculated everything, 
-            // but `nextMatchId` for Poomsae is simple (just an int), so createMany IS Possible!
-            // BUT, PoomsaeMatch has `player` relation which createMany handles via playerId string.
-            // So we can use createMany for speed! 
-
-            // Actually, we'll stick to a parallel Promise.all loop per category for safety and simplicity first
-            // to avoid transaction limits if there are thousands of matches.
-
             const createPromises = poomsaeSpecs.map(spec => {
                 const sharedMatchId = groupMapping.get(spec.roundGroupIndex) || 0
                 const nextGroupSharedId = groupMapping.get(spec.roundGroupIndex + 1) || null
@@ -480,6 +497,9 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
                         targetRank: spec.targetRank,
                         performanceNumber: spec.performanceNumber,
                         playerId: spec.playerId || undefined,
+                        displayName: spec.displayName || undefined,
+                        memberIds: spec.memberIds || undefined,
+                        memberNames: spec.memberNames || undefined,
                         assignedForms: spec.assignedForms,
                         status: 'Pending',
                         court: category.court || "Unassigned"
@@ -491,84 +511,144 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
         }
 
     } else {
-        // --- KYORUGI & KYUKPA GENERATION ---
+        // --- KYORUGI & KYUKPA GENERATION (interleaved by round, finals last) ---
 
-        // Kyukpa also uses Single Elimination, so it shares this logic.
+        // --- KYORUGI & KYUKPA GENERATION (interleaved by round, finals last) ---
 
-        // Use a different strategy:
-        // Kyorugi matches rely on database auto-increment IDs for linking (previous generation logic)
-        // OR we can assign manual IDs if we change schema to standard Int.
-        // Currently `Match` uses `Int @id @default(autoincrement())`.
+        // Get dynamic start ID
+        let currentMatchNumber = await getNextMatchId(tournamentId, 'KYORUGI')
 
-        // The existing `generateBracketsForCategory` function relies on receiving the DB ID back to update links.
-        // We can reuse that function but call it in parallel for all categories?
-        // HOWEVER, that function manages its own deletion and revalidation.
-        // And it relies on auto-increment, so we can't batch-insert easily with known IDs.
+        // Skill level priority (lower = plays first)
+        const skillPriority: Record<string, number> = {
+            'novice': 1,
+            'intermediate': 2,
+            'advance': 3,
+            'advanced': 3,
+        };
 
-        // Strategy: Run them sequentially or in small chunks to avoid DB connection exhaustion.
-        // Since we already deleted all matches, we can just run the logic.
+        type SpecWithCategory = ReturnType<typeof generateSingleEliminationBracket>[number] & {
+            categoryId: string;
+            categoryName: string;
+            court: string;
+            catMinAge: number;
+            catMinWeight: number;
+            catMinHeight: number;
+            catSkillPriority: number;
+            deferFinals: boolean;
+        };
 
-        // Note: The existing logic logic does:
-        // 1. generateSingleEliminationBracket (memory)
-        // 2. create Matches (db) -> get IDs
-        // 3. update Matches (db) -> link nextMatchId
+        const allSpecs: SpecWithCategory[] = [];
 
-        // We'll re-implement optimized Kyorugi loop here to avoid the overhead of `generateBracketsForCategory`
-
+        // Step 1: Generate brackets for all categories and collect specs
         for (const category of validCategories) {
-            if (category.players.length < 2) continue; // Skip single players
+            if (category.players.length < 2) continue;
 
-            const bracketSpecs = generateSingleEliminationBracket(category.players)
-            const idMapping = new Map<number, number>();
+            const specs = generateSingleEliminationBracket(category.players);
+            const catMinAge = category.minAge ?? 999;
+            const catMinWeight = category.minWeight ?? 999;
+            const catMinHeight = category.minHeight ?? 999;
+            const catSkillPriority = skillPriority[(category.skillLevel || 'novice').toLowerCase()] || 1;
 
-            const sortedSpecs = [...bracketSpecs].sort((a, b) => {
+            specs.forEach(s => {
+                allSpecs.push({
+                    ...s,
+                    categoryId: category.id,
+                    categoryName: category.name,
+                    court: category.court || "Unassigned",
+                    catMinAge,
+                    catMinWeight,
+                    catMinHeight,
+                    catSkillPriority,
+                    deferFinals: category.deferFinals,
+                });
+            });
+        }
+
+        // Step 2: Sort globally
+        allSpecs.sort((a, b) => {
+            // Deferred finals go to the very end
+            const aDef = a.isFinal && a.deferFinals;
+            const bDef = b.isFinal && b.deferFinals;
+            if (aDef && !bDef) return 1;
+            if (!aDef && bDef) return -1;
+
+            // For non-deferred categories: group ALL their matches together by category
+            // For deferred categories (non-final matches): interleave by round globally
+            const aGroupByCategory = !a.deferFinals;
+            const bGroupByCategory = !b.deferFinals;
+
+            if (aGroupByCategory && bGroupByCategory) {
+                // Both non-deferred: group by division → weight → skill → round
+                if (a.catMinAge !== b.catMinAge) return a.catMinAge - b.catMinAge;
+                if (a.catMinWeight !== b.catMinWeight) return a.catMinWeight - b.catMinWeight;
+                if (a.catMinHeight !== b.catMinHeight) return a.catMinHeight - b.catMinHeight;
+                if (a.catSkillPriority !== b.catSkillPriority) return a.catSkillPriority - b.catSkillPriority;
+                // Within same category: sort by round (R1 → SF → Final)
                 if (a.round !== b.round) return a.round - b.round;
                 return a.id - b.id;
-            });
-
-            // Pass 1
-            for (const spec of sortedSpecs) {
-                const createdMatch = await prisma.match.create({
-                    data: {
-                        categoryRefId: category.id,
-                        category: category.name,
-                        round: spec.round,
-                        player1: spec.player1?.name || "TBD",
-                        player2: spec.player2?.name || "TBD",
-                        winner: null,
-                        status: 'Pending',
-                        nextMatchSlot: spec.nextMatchSlot,
-                        court: category.court || "Unassigned"
-                    }
-                });
-                idMapping.set(spec.id, createdMatch.id);
             }
 
-            // Pass 2 updates
-            const linkUpdates = []
-            for (const spec of bracketSpecs) {
-                if (spec.nextMatchId !== null) {
-                    const actualId = idMapping.get(spec.id);
-                    const actualNextId = idMapping.get(spec.nextMatchId);
-                    if (actualId && actualNextId) {
-                        linkUpdates.push(
-                            prisma.match.update({
-                                where: { id: actualId },
-                                data: { nextMatchId: actualNextId }
-                            })
-                        )
-                    }
+            if (!aGroupByCategory && !bGroupByCategory) {
+                // Both deferred (non-final matches): interleave by round globally
+                if (a.round !== b.round) return a.round - b.round;
+                // Tie-breakers within same round
+                if (a.catMinAge !== b.catMinAge) return a.catMinAge - b.catMinAge;
+                if (a.catMinWeight !== b.catMinWeight) return a.catMinWeight - b.catMinWeight;
+                if (a.catMinHeight !== b.catMinHeight) return a.catMinHeight - b.catMinHeight;
+                if (a.catSkillPriority !== b.catSkillPriority) return a.catSkillPriority - b.catSkillPriority;
+                return a.id - b.id;
+            }
+
+            // Non-deferred categories play first (they finish early), then deferred categories
+            return aGroupByCategory ? -1 : 1;
+        });
+
+        // Step 3: Insert matches (Pass 1)
+        // Build a per-category ID mapping: (categoryId:tempId) → dbId
+        const idLookup = new Map<string, number>();
+
+        for (const spec of allSpecs) {
+            const createdMatch = await prisma.match.create({
+                data: {
+                    categoryRefId: spec.categoryId,
+                    category: spec.categoryName,
+                    round: spec.round,
+                    matchId: currentMatchNumber++, // Assign sequential Display ID
+                    player1: spec.player1?.name || "TBD",
+                    player2: spec.player2?.name || "TBD",
+                    winner: null,
+                    nextMatchSlot: spec.nextMatchSlot,
+                    court: spec.court
+                }
+            });
+            idLookup.set(`${spec.categoryId}:${spec.id}`, createdMatch.id);
+        }
+
+        // Step 4: Link nextMatchId (Pass 2)
+        const linkUpdates = [];
+        for (const spec of allSpecs) {
+            if (spec.nextMatchId !== null) {
+                const actualId = idLookup.get(`${spec.categoryId}:${spec.id}`);
+                const actualNextId = idLookup.get(`${spec.categoryId}:${spec.nextMatchId}`);
+
+                if (actualId && actualNextId) {
+                    linkUpdates.push(
+                        prisma.match.update({
+                            where: { id: actualId },
+                            data: { nextMatchId: actualNextId }
+                        })
+                    );
                 }
             }
-            await Promise.all(linkUpdates)
         }
-    }
+        await Promise.all(linkUpdates);
 
-    // 5. Update Match Count
-    await prisma.tournament.update({
-        where: { id: tournamentId },
-        data: { match_count: currentGlobalMatchId }
-    })
+        // 5. Update Match Count
+        await prisma.tournament.update({
+            where: { id: tournamentId },
+            data: { match_count: currentMatchNumber - 1 } // Note: using current matchId is robust
+        })
+    }
 
     revalidatePath(`/tournament/${tournamentId}`)
     return { success: true, count: validCategories.length }
@@ -587,6 +667,7 @@ export async function generateBracketsForCategory(categoryId: string, court?: st
 
     const players = await prisma.player.findMany({
         where: { categoryId },
+        include: { club: true }
     })
 
     // Fetch category to check type
@@ -601,6 +682,8 @@ export async function generateBracketsForCategory(categoryId: string, court?: st
             where: { categoryRefId: categoryId }
         })
 
+        // REMOVED: Global sequence reset (unsafe for multi-tenant and unnecessary)
+
         const poomsaeSpecs = generatePoomsaeBracket(
             players,
             category.subtype || 'INDIVIDUAL',
@@ -610,13 +693,17 @@ export async function generateBracketsForCategory(categoryId: string, court?: st
         // Get count of distinct groups to assign global match IDs
         const distinctGroupIndices = Array.from(new Set(poomsaeSpecs.map(s => s.roundGroupIndex))).sort((a, b) => a - b)
 
-        // Fetch tournament to get/increment match_count
-        const tournament = await prisma.tournament.findUnique({
-            where: { id: category.tournamentId },
-            select: { match_count: true }
-        })
+        // Fetch dynamic next ID
+        const getNextPoomsaeId = async (tId: string) => {
+            const maxPoomsae = await prisma.poomsaeMatch.findFirst({
+                where: { categoryRef: { tournamentId: tId } },
+                orderBy: { matchId: 'desc' },
+                select: { matchId: true }
+            });
+            return (maxPoomsae?.matchId || 0) + 1;
+        }
 
-        const startMatchNum = (tournament?.match_count || 0) + 1
+        const startMatchNum = await getNextPoomsaeId(category.tournamentId)
 
         // Map roundGroupIndex to global shared matchId
         const groupMapping = new Map<number, number>()
@@ -646,6 +733,9 @@ export async function generateBracketsForCategory(categoryId: string, court?: st
                     targetRank: spec.targetRank,
                     performanceNumber: spec.performanceNumber,
                     playerId: spec.playerId || undefined,
+                    displayName: spec.displayName || undefined,
+                    memberIds: spec.memberIds || undefined,
+                    memberNames: spec.memberNames || undefined,
                     assignedForms: spec.assignedForms,
                     status: 'Pending',
                     court: category.court || "Unassigned"
@@ -670,6 +760,18 @@ export async function generateBracketsForCategory(categoryId: string, court?: st
         where: { categoryRefId: categoryId }
     })
 
+    // Fetch dynamic next ID
+    const getNextKyorugiId = async (tId: string) => {
+        const maxMatch = await prisma.match.findFirst({
+            where: { categoryRef: { tournamentId: tId } },
+            orderBy: { matchId: 'desc' },
+            select: { matchId: true }
+        });
+        return (maxMatch?.matchId || 0) + 1;
+    }
+
+    let currentMatchNumber = await getNextKyorugiId(category.tournamentId)
+
     const bracketSpecs = generateSingleEliminationBracket(players)
     // Two-pass approach due to auto-increment IDs:
     // Pass 1: Create all matches WITHOUT nextMatchId
@@ -690,10 +792,10 @@ export async function generateBracketsForCategory(categoryId: string, court?: st
                 categoryRefId: categoryId,
                 category: category?.name || "Unknown",
                 round: spec.round,
+                matchId: currentMatchNumber++, // Assign sequential Display ID
                 player1: spec.player1?.name || "TBD",
                 player2: spec.player2?.name || "TBD",
                 winner: null,
-                status: 'Pending',
                 nextMatchSlot: spec.nextMatchSlot,
                 court: category?.court || "Unassigned"
             }
@@ -716,6 +818,12 @@ export async function generateBracketsForCategory(categoryId: string, court?: st
             }
         }
     }
+
+    // Update tournament match_count
+    await prisma.tournament.update({
+        where: { id: category.tournamentId },
+        data: { match_count: currentMatchNumber - 1 }
+    })
 
     revalidatePath(`/tournament/${category.tournamentId}`)
 }
@@ -755,6 +863,27 @@ export async function bulkUpdateCourts(updates: { categoryId: string, court: str
     } catch (error) {
         console.error("Bulk court update failed:", error)
         return { success: false, message: "Failed to update courts" }
+    }
+}
+
+export async function bulkUpdateDeferFinals(categoryIds: string[], deferFinals: boolean, tournamentId: string) {
+    if (!categoryIds.length || !tournamentId) return { success: false }
+
+    try {
+        await prisma.$transaction(
+            categoryIds.map(id =>
+                prisma.category.update({
+                    where: { id },
+                    data: { deferFinals }
+                })
+            )
+        )
+
+        revalidatePath(`/tournament/${tournamentId}`)
+        return { success: true }
+    } catch (error) {
+        console.error("Bulk deferFinals update failed:", error)
+        return { success: false, message: "Failed to update defer finals" }
     }
 }
 
@@ -875,10 +1004,51 @@ export async function scheduleTournament(tournamentId: string, courtConfig: { na
         where: { categoryRefId: { in: categoryIds } }
     });
 
-    // Sort by round (Round 1 first = earliest matches get lowest auto-increment IDs)
+    // Reset auto-increment sequence so IDs start fresh
+    const maxMatchRecord = await prisma.match.findFirst({
+        orderBy: { id: 'desc' },
+        select: { id: true }
+    });
+    const resetId = maxMatchRecord ? maxMatchRecord.id + 1 : 1;
+    await prisma.$executeRawUnsafe(
+        `ALTER SEQUENCE "Match_id_seq" RESTART WITH ${resetId}`
+    );
+
+    // Sort: Non-deferred categories grouped by category (finish early), deferred finals at the end
+    // Look up the category's deferFinals setting
+    const catDeferMap = new Map<string, boolean>();
+    categories.forEach(c => catDeferMap.set(c.id, c.deferFinals));
+
     const matchesForInsertion = [...matchesWithTracking].sort((a, b) => {
-        if (a.round !== b.round) return a.round - b.round;
-        return a.id - b.id;
+        // Deferred finals go to the very end
+        const aDef = a.isFinal && (catDeferMap.get(a.categoryId) ?? true);
+        const bDef = b.isFinal && (catDeferMap.get(b.categoryId) ?? true);
+        if (aDef && !bDef) return 1;
+        if (!aDef && bDef) return -1;
+
+        const aGroupByCategory = !(catDeferMap.get(a.categoryId) ?? true);
+        const bGroupByCategory = !(catDeferMap.get(b.categoryId) ?? true);
+
+        if (aGroupByCategory && bGroupByCategory) {
+            // Both non-deferred: group by category (court priority), then round
+            const prioA = catPriority.get(a.categoryId);
+            const prioB = catPriority.get(b.categoryId);
+            if (prioA && prioB) {
+                if (prioA.court !== prioB.court) return prioA.court.localeCompare(prioB.court);
+                if (prioA.index !== prioB.index) return prioA.index - prioB.index;
+            }
+            if (a.round !== b.round) return a.round - b.round;
+            return a.id - b.id;
+        }
+
+        if (!aGroupByCategory && !bGroupByCategory) {
+            // Both deferred (non-final matches): interleave by round
+            if (a.round !== b.round) return a.round - b.round;
+            return a.id - b.id;
+        }
+
+        // Non-deferred categories play first
+        return aGroupByCategory ? -1 : 1;
     });
 
     // Map: our assigned globalId -> actual database auto-increment ID
@@ -896,7 +1066,6 @@ export async function scheduleTournament(tournamentId: string, courtConfig: { na
                 player1: spec.player1?.name || "TBD",
                 player2: spec.player2?.name || "TBD",
                 winner: null,
-                status: 'Pending',
                 nextMatchSlot: spec.nextMatchSlot,
                 court: courtAssignment
             }
@@ -930,64 +1099,32 @@ export async function completeOnboarding(formData: FormData) {
     const user = await currentUser()
     if (!user) throw new Error('Not authenticated')
 
-    console.log('Completing onboarding for:', {
-        role: formData.get('role'),
-        email: user.emailAddresses[0].emailAddress,
-        firstName: formData.get('firstName'),
-        lastName: formData.get('lastName'),
-        birthDate: formData.get('birthDate')
-    })
-
     const role = formData.get('role') as string
-    const firstNameRaw = formData.get('firstName') as string
-    const lastNameRaw = formData.get('lastName') as string
 
-    // Standardize Names to Title Case
-    const firstName = toTitleCase(firstNameRaw)
-    const lastName = toTitleCase(lastNameRaw)
-    const clubName = formData.get('clubName') as string
-    const birthDateStr = formData.get('birthDate') as string
-    const gender = formData.get('gender') as string
-    const belt = formData.get('belt') as string
-    const weight = parseFloat(formData.get('weight') as string)
-    const height = parseFloat(formData.get('height') as string)
+    if (!role) {
+        throw new Error('Role is required')
+    }
 
-    // Validation
-    const isAthlete = role === 'ATHLETE'
-    const isOrganizer = role === 'ORGANIZER'
     const isManager = role === 'MANAGER'
     const isCoOrganizer = role === 'CO_ORGANIZER'
 
-    // Basic requirements for everyone
-    if (!firstName || !lastName) {
-        throw new Error('Name information is required')
-    }
+    const userEmail = user.emailAddresses[0].emailAddress
+    const userName = user.fullName || user.firstName || userEmail.split('@')[0]
 
-    // Role-specific requirements
-    if (isAthlete) {
-        if (!birthDateStr || !gender || !belt || !clubName || isNaN(weight) || isNaN(height)) {
-            throw new Error('All profile fields, including weight and height, are required for athletes')
-        }
-    } else if (isOrganizer) {
-        if (!clubName || !birthDateStr) {
-            throw new Error('Organization name and established date are required')
-        }
-    }
-
-    const birthDate = birthDateStr ? new Date(birthDateStr) : null
+    console.log('Completing onboarding for:', { role, email: userEmail })
 
     // Check if user already exists (by clerkId OR email)
     const existingUser = await prisma.user.findFirst({
         where: {
             OR: [
                 { clerkId: user.id },
-                { email: user.emailAddresses[0].emailAddress }
+                { email: userEmail }
             ]
         }
     })
 
     if (existingUser) {
-        // User already onboarded - update clerkId if needed and redirect
+        // User already onboarded - update clerkId if needed
         if (existingUser.clerkId !== user.id) {
             await prisma.user.update({
                 where: { id: existingUser.id },
@@ -1011,86 +1148,31 @@ export async function completeOnboarding(formData: FormData) {
     };
 
     const newUserId = await generate5DigitId();
-    const userEmail = user.emailAddresses[0].emailAddress
 
     // ----------------------------------------------------
     // CHECK FOR INVITES & OVERRIDE ROLE IF APPLICABLE
     // ----------------------------------------------------
     let assignedRole = role
-    let assignedClubName = clubName
 
-    // 1. Organizer role - no invite needed, will be PENDING until admin approval
-    // (Organization created with PENDING status below)
-
-    // 2. Check for Club Assistant Invite
+    // Check for Club Assistant Invite
     const assistantInvite = await prisma.clubAssistantInvite.findUnique({ where: { email: userEmail } })
     if (assistantInvite) {
         assignedRole = 'ASSISTANT_CLUB_MASTER'
-        assignedClubName = assistantInvite.clubName
         await prisma.clubAssistantInvite.delete({ where: { email: userEmail } })
     }
 
-    // Create the User record
+    // Create the User record (role only — profile data collected in complete-profile)
     const dbUser = await prisma.user.create({
         data: {
             id: newUserId,
             clerkId: user.id,
             email: userEmail,
             role: assignedRole,
-            name: `${firstName} ${lastName}`,
-            clubName: assignedClubName,
-            birthDate: birthDate,
-            gender: gender || null,
-            belt: belt || null,
-            weight: isNaN(weight) ? null : weight,
-            height: isNaN(height) ? null : height
+            name: userName,
         }
     })
 
-    // If Club Master match, create the Club
-    if (assignedRole === 'CLUB_MASTER' && assignedClubName) {
-        let orgId = formData.get('organizationId') as string
-
-        // If checking for valid organization (mandatory for new clubs)
-        // If we are here, it means we are creating a new club (assignedClubName is present)
-        // However, if the user was invited, they might be joining an existing club?
-        // Wait, CURRENTLY completeOnboarding logic is:
-        // if user is CLUB_MASTER, we create a NEW CLUB with masterId = user.id
-        // This implies 1 Master = 1 Club (Owned).
-
-        // If it was an invite, we might want to skip organization check if the invite already handled it?
-        // But currently ClubMasterInvite doesn't seem to link to a Club, it invites a user TO BECOME a master.
-
-        // So validation:
-        if (!orgId) {
-            // Fallback: If no organizationId provided (maybe old flow?), we block or assign default?
-            // For strict mode:
-            throw new Error("Organization affiliation is required to create a club.")
-        }
-
-        await prisma.club.create({
-            data: {
-                name: assignedClubName,
-                masterId: dbUser.id,
-                organizationId: orgId,
-                status: 'PENDING'
-            }
-        })
-    }
-
-    // If Organizer, create the Organization with PENDING status
-    if (assignedRole === 'ORGANIZER' && assignedClubName) {
-        await prisma.organization.create({
-            data: {
-                name: assignedClubName, // Using clubName as Organization Name
-                establishedAt: (birthDate as Date) || undefined, // Using birthDate as Established Date
-                ownerId: dbUser.id,
-                status: 'PENDING' // Requires admin approval
-            }
-        })
-    }
-
-    // 4. Check for Tournament Manager Invites (Can exist alongside any role)
+    // Check for Tournament Manager Invites (Can exist alongside any role)
     const managerInvites = await prisma.tournamentManagerInvite.findMany({ where: { email: userEmail } })
     if (managerInvites.length > 0) {
         for (const invite of managerInvites) {
@@ -1098,12 +1180,11 @@ export async function completeOnboarding(formData: FormData) {
                 where: { id: invite.tournamentId },
                 data: { managers: { connect: { id: dbUser.id } } }
             })
-            // Delete the invite
             await prisma.tournamentManagerInvite.delete({ where: { id: invite.id } })
         }
     }
 
-    // 5. Check for Co-Organizer Invites (Can exist alongside any role)
+    // Check for Co-Organizer Invites (Can exist alongside any role)
     const coOrganizerInvites = await prisma.coOrganizerInvite.findMany({ where: { email: userEmail } })
     if (coOrganizerInvites.length > 0) {
         for (const invite of coOrganizerInvites) {
@@ -1111,25 +1192,24 @@ export async function completeOnboarding(formData: FormData) {
                 where: { id: invite.organizationId },
                 data: { coOrganizers: { connect: { id: dbUser.id } } }
             })
-            // Delete the invite
             await prisma.coOrganizerInvite.delete({ where: { id: invite.id } })
         }
     }
+
     // ----------------------------------------------------------------
-    // SYNC ROLE TO CLERK METADATA (For optimal redirection)
+    // SYNC ROLE + PROFILE STATUS TO CLERK METADATA
     // ----------------------------------------------------------------
-    // This allows middleware to redirect without DB lookup
+    const profileComplete = isManager || isCoOrganizer // Managers don't need onboarding
     try {
         const client = await clerkClient()
         await client.users.updateUser(user.id, {
             publicMetadata: {
-                role: assignedRole
+                role: assignedRole,
+                profileComplete
             }
         })
     } catch (error) {
         console.error('Failed to sync role to Clerk metadata:', error)
-        // Don't fail the whole request, as DB is already updated.
-        // The user will fall back to DB-based redirect.
     }
 }
 

@@ -69,7 +69,7 @@ export async function GET(
                 categories: {
                     include: {
                         matches: {
-                            orderBy: { round: 'asc' },
+                            orderBy: { id: 'asc' },
                             include: {
                                 nextMatch: true
                             }
@@ -108,6 +108,13 @@ export async function GET(
 
         tournament.categories.forEach(category => {
             const playerMap = new Map<string, { id: string, club: string }>() // Name -> { ID, Club }
+
+            // Populate playerMap from category players
+            category.players.forEach(p => {
+                const clubName = p.club?.name || p.user?.clubName || ''
+                const fullName = p.user?.name || p.name
+                playerMap.set(fullName, { id: p.id, club: clubName })
+            })
 
             // Master List Construction with Team ID Logic
             const clubPlayers = new Map<string, any[]>()
@@ -195,10 +202,8 @@ export async function GET(
 
                 const p1Id = p1Info?.id || ''
                 const p2Id = p2Info?.id || ''
-
-                // Format Name (Club) if club is available
-                const p1Display = (p1Info && p1Info.club) ? `${p1Name} (${p1Info.club})` : p1Name
-                const p2Display = (p2Info && p2Info.club) ? `${p2Name} (${p2Info.club})` : p2Name
+                const p1Club = p1Info?.club || ''
+                const p2Club = p2Info?.club || ''
 
                 let winnerToSlot = null
                 if (match.nextMatchSlot) {
@@ -207,46 +212,72 @@ export async function GET(
                 }
 
                 matchesList.push({
-                    "Match_ID": match.id,
-                    "Category": category.name,
-                    "Round": match.round,
-                    "Player_1": p1Display,
-                    "Player_1_ID": p1Id,
-                    "Player_2": p2Display,
-                    "Player_2_ID": p2Id,
-                    "Winner_To_Match_ID": match.nextMatchId,
-                    "Winner_To_Slot": winnerToSlot,
-                    "Court": match.court
+                    id: match.id,
+                    matchId: match.matchId,
+                    category: category.name,
+                    round: match.round,
+                    player1: p1Name,
+                    player1Id: p1Id,
+                    player1Club: p1Club,
+                    player2: p2Name,
+                    player2Id: p2Id,
+                    player2Club: p2Club,
+                    winner: match.winner || '',
+                    nextMatchId: match.nextMatchId,
+                    nextMatchSlot: winnerToSlot,
+                    court: match.court,
+                    r1_blue_score: match.r1_blue_score,
+                    r1_red_score: match.r1_red_score,
+                    r2_blue_score: match.r2_blue_score,
+                    r2_red_score: match.r2_red_score,
+                    r3_blue_score: match.r3_blue_score,
+                    r3_red_score: match.r3_red_score,
+                    total_blue_score: match.total_blue_score,
+                    total_red_score: match.total_red_score,
+                    blue_gam_jeom: match.blue_gam_jeom,
+                    red_gam_jeom: match.red_gam_jeom,
+                    blue_rounds_won: match.blue_rounds_won,
+                    red_rounds_won: match.red_rounds_won
                 })
             })
 
             // Process Poomsae Matches
+            // displayName and memberIds are stored directly on PoomsaeMatch for TEAM/PAIR
             category.poomsaeMatches.forEach(match => {
-                let playerDisplay = "TBD"
-                let playerId = ""
-
+                // Resolve player name for INDIVIDUAL (from relation)
+                let playerName = ""
                 if (match.player) {
-                    const p = match.player
-                    const clubName = p.club?.name || p.user?.clubName || ''
-                    playerDisplay = `${p.name} (${clubName})`
-                    playerId = p.id
+                    playerName = match.player.user?.name || match.player.name
                 }
 
                 poomsaeMatchesList.push({
-                    "Match_ID": match.id,
-                    "Category": category.name,
-                    "Round": match.round,
-                    "Player": playerDisplay,
-                    "Player_ID": playerId,
-                    "Accuracy": match.accuracy,
-                    "Presentation": match.presentation,
-                    "Total_Score": match.totalScore,
-                    "Rank": match.rank,
-                    "Status": match.status,
-                    "Court": match.court
+                    id: match.id,
+                    matchId: match.matchId,
+                    nextMatchId: match.nextMatchId,
+                    category: category.name,
+                    subtype: category.subtype || "INDIVIDUAL",
+                    round: match.round,
+                    performanceNumber: match.performanceNumber,
+                    playerId: match.playerId,
+                    player: playerName,
+                    displayName: match.displayName,
+                    memberIds: match.memberIds,
+                    memberNames: match.memberNames,
+                    assignedForms: match.assignedForms,
+                    targetRank: match.targetRank,
+                    accuracy: match.accuracy,
+                    presentation: match.presentation,
+                    totalScore: match.totalScore,
+                    rank: match.rank,
+                    status: match.status,
+                    court: match.court
                 })
             })
         })
+
+        // Sort by Match_ID so export is in sequential order (1, 2, 3...)
+        matchesList.sort((a: any, b: any) => a.id - b.id)
+        poomsaeMatchesList.sort((a: any, b: any) => a.matchId - b.matchId)
 
         return NextResponse.json({
             success: true,

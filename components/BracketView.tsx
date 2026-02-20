@@ -162,7 +162,7 @@ function BracketNode({
                                 </span>
                             )}
                             <span className={`text-[9px] font-bold px-1.5 rounded ${getStatusColor()}`}>
-                                #{match.id}
+                                #{match.matchId ?? match.id}
                             </span>
                         </div>
                     </div>

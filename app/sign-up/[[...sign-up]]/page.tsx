@@ -1,39 +1,17 @@
-import { prisma } from '@/lib/prisma'
 import CustomSignUpForm from '../../../components/auth/CustomSignUpForm'
 import Image from 'next/image'
 
 export default async function SignUpPage() {
-    // Fetch clubs for the dropdown (sorted alphabetically)
-    const clubs = await prisma.club.findMany({
-        orderBy: { name: 'asc' },
-        select: { id: true, name: true }
-    })
-
-    // Fetch organizations for the dropdown
-    const organizations = await prisma.organization.findMany({
-        select: { id: true, name: true },
-        orderBy: { name: 'asc' }
-    })
-
     return (
         <div className="min-h-screen grid grid-cols-1 md:grid-cols-2 bg-gray-50 md:bg-white overflow-hidden">
             {/* Left Column: Sign Up Form */}
             <div className="flex flex-col items-center justify-center p-4 md:p-12 lg:p-16 overflow-y-auto max-h-screen">
-                {/* Mobile/Tablet Logo (Only shown on small screens) */}
-                <div className="md:hidden w-full max-w-md mx-auto text-center mb-8">
-                    {/* The CustomSignUpForm handles its own branding on mobile/default when hideBranding is false/undefined */}
-                </div>
-
                 <div className="w-full max-w-md animate-in slide-in-from-left-5 duration-500 my-auto">
-                    {/* 
-                        On Desktop (md+): headerMode="desktop" so the form handles the dynamic large header
-                        On Mobile: headerMode="mobile" (default)
-                    */}
                     <div className="hidden md:block">
-                        <CustomSignUpForm clubs={clubs} organizations={organizations} headerMode="desktop" />
+                        <CustomSignUpForm headerMode="desktop" />
                     </div>
                     <div className="md:hidden">
-                        <CustomSignUpForm clubs={clubs} organizations={organizations} headerMode="mobile" />
+                        <CustomSignUpForm headerMode="mobile" />
                     </div>
                 </div>
             </div>
@@ -43,8 +21,6 @@ export default async function SignUpPage() {
                 {/* Background Image / Pattern */}
                 <div className="absolute inset-0 z-0 opacity-40">
                     <div className="absolute inset-0 bg-gradient-to-br from-red-900/50 to-gray-900/90 mix-blend-multiply" />
-                    {/* You can add a real background image here using Next.js Image */}
-                    {/* <Image src="/path/to/bg.jpg" alt="Background" fill className="object-cover" /> */}
                     <div className="w-full h-full bg-[url('https://images.unsplash.com/photo-1555597408-26bc8e548a46?q=80&w=2000&auto=format&fit=crop')] bg-cover bg-center" />
                 </div>
 
@@ -59,8 +35,6 @@ export default async function SignUpPage() {
                             priority
                         />
                     </div>
-
-
 
                     <p className="text-xl lg:text-2xl font-medium text-gray-200 leading-relaxed drop-shadow-md">
                         Tournament and Promotion Management System

@@ -6,6 +6,8 @@ const isPublicRoute = createRouteMatcher([
     '/sign-in(.*)',
     '/sign-up(.*)',
     '/api/webhooks(.*)',
+    '/api/tournament(.*)',
+    '/api/poomsae(.*)',
     '/tournaments(.*)',
     '/tournament/(.*)',
     '/about',
@@ -16,8 +18,6 @@ const isPublicRoute = createRouteMatcher([
     '/terms',
     '/terms',
     '/manifest.json',   // PWA Manifest
-    '/sw.js',           // PWA Service Worker
-    '/workbox-(.*)',    // Workbox assets
 ])
 
 // Security headers configuration
@@ -29,7 +29,7 @@ const securityHeaders = {
     // Control referrer information
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     // Restrict browser features
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), browsing-topics=()',
+    'Permissions-Policy': 'camera=(self), microphone=(self), geolocation=(), browsing-topics=()',
     // Force HTTPS (only in production)
     ...(process.env.NODE_ENV === 'production' && {
         'Strict-Transport-Security': 'max-age=31536000; includeSubDomains'

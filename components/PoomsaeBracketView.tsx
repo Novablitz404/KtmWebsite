@@ -133,19 +133,22 @@ export default function PoomsaeBracketView({ matches, tournamentName = "Tourname
                                                 </div>
 
                                                 <div className="min-w-[200px]">
-                                                    {!match.player ? (
+                                                    {match.displayName ? (
+                                                        // TEAM/PAIR: show team display name and member IDs
+                                                        <div className="space-y-1">
+                                                            <p className="font-bold text-gray-900 text-lg leading-tight">
+                                                                {match.displayName}
+                                                            </p>
+                                                            {match.memberNames && (
+                                                                <div className="text-[11px] text-gray-500 font-medium overflow-hidden text-ellipsis whitespace-nowrap max-w-[300px]">
+                                                                    {match.memberNames}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ) : !match.player ? (
                                                         <div className="flex flex-col">
                                                             <p className="font-bold text-gray-400 italic font-mono text-base uppercase tracking-tight">TBD Slot</p>
                                                             <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider mt-0.5">Waiting for Results</p>
-                                                        </div>
-                                                    ) : isTeamEvent ? (
-                                                        <div className="space-y-1">
-                                                            <p className="font-bold text-gray-900 text-lg leading-tight">
-                                                                {clubName} {teamId ? `(${teamId})` : ''}
-                                                            </p>
-                                                            <div className="text-[11px] text-gray-500 font-medium overflow-hidden text-ellipsis whitespace-nowrap max-w-[300px]">
-                                                                {match.teamMembers?.map(m => m.name).join(', ')}
-                                                            </div>
                                                         </div>
                                                     ) : (
                                                         <div className="space-y-0.5">

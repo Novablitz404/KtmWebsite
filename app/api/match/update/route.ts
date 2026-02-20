@@ -19,7 +19,6 @@ export async function POST(request: Request) {
             where: { id },
             data: {
                 winner: updates.winner,
-                status: updates.status,
                 r1_blue_score: updates.r1_blue_score,
                 r1_red_score: updates.r1_red_score,
                 r2_blue_score: updates.r2_blue_score,

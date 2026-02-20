@@ -1,5 +1,8 @@
 import { Player } from '@prisma/client'
 
+// Player with optional club relation (needed for team display names)
+export type PlayerWithClub = Player & { club?: { name: string } | null }
+
 export interface PoomsaeMatchSpec {
     roundGroupIndex: number // Grouping key for assigning shared matchId (1=Prelim, 2=Semi, 3=Final)
     round: number
@@ -7,6 +10,9 @@ export interface PoomsaeMatchSpec {
     targetRank?: number | null // The required rank to fill this slot (Advanced rounds only)
     playerId: string | null
     player: Player | null
+    displayName?: string | null  // "Katma Team A" for TEAM/PAIR, null for INDIVIDUAL
+    memberIds?: string | null    // "26828, 76251" for TEAM/PAIR, null for INDIVIDUAL
+    memberNames?: string | null  // "James Smith, Linda Brown" for TEAM/PAIR, null for INDIVIDUAL
     teamMembers?: Player[]
     assignedForms?: string | null
     status: 'Pending' | 'Completed'
@@ -17,18 +23,21 @@ export interface PoomsaeMatchSpec {
  * Handles Individual, Pair, and Team grouping with shared group identities.
  */
 export function generatePoomsaeBracket(
-    players: Player[],
+    players: PlayerWithClub[],
     categoryType: string = 'INDIVIDUAL',
     requiredForms: string | null = null
 ): PoomsaeMatchSpec[] {
     if (players.length === 0) return []
 
-    let performers: { representative: Player, members?: Player[] }[] = []
+    const isTeamOrPair = categoryType === 'TEAM' || categoryType === 'PAIR'
+    const typeLabel = categoryType === 'TEAM' ? 'Team' : 'Pair'
 
-    if (categoryType === 'INDIVIDUAL') {
+    let performers: { representative: PlayerWithClub, members?: PlayerWithClub[], displayName?: string, memberIds?: string, memberNames?: string }[] = []
+
+    if (!isTeamOrPair) {
         performers = players.map(p => ({ representative: p }))
     } else {
-        const groups = new Map<string, Player[]>()
+        const groups = new Map<string, PlayerWithClub[]>()
         players.forEach(p => {
             const clubId = p.clubId || 'unaffiliated'
             const teamId = p.teamId || 'ungrouped'
@@ -38,10 +47,34 @@ export function generatePoomsaeBracket(
         })
 
         groups.forEach((teamPlayers) => {
+            // VALIDATION LOGIC
+            // 1. Pair: Exactly 2 players, 1 Male + 1 Female
+            if (categoryType === 'PAIR') {
+                if (teamPlayers.length !== 2) return // Invalid count
+                const males = teamPlayers.filter(p => (p.gender || 'Male').startsWith('M')).length
+                const females = teamPlayers.filter(p => (p.gender || 'Male').startsWith('F')).length
+                if (males !== 1 || females !== 1) return // Invalid composition
+            }
+
+            // 2. Team: Exactly 3 players, All Same Gender
+            if (categoryType === 'TEAM') {
+                if (teamPlayers.length !== 3) return // Invalid count
+                const firstGender = (teamPlayers[0].gender || 'Male')[0]
+                const allSame = teamPlayers.every(p => (p.gender || 'Male')[0] === firstGender)
+                if (!allSame) return // Mixed gender not allowed for Team
+            }
+
             teamPlayers.sort((a, b) => a.name.localeCompare(b.name))
+            const rep = teamPlayers[0]
+            const clubName = rep.club?.name || 'Unknown Club'
+            const teamId = rep.teamId || 'A'
+
             performers.push({
-                representative: teamPlayers[0],
-                members: teamPlayers
+                representative: rep,
+                members: teamPlayers,
+                displayName: `${clubName} ${typeLabel} ${teamId}`,
+                memberIds: teamPlayers.map(p => p.id).join(', '),
+                memberNames: teamPlayers.map(p => p.name).join(', ')
             })
         })
     }
@@ -98,8 +131,18 @@ export function generatePoomsaeBracket(
                 [tempPerformers[i], tempPerformers[j]] = [tempPerformers[j], tempPerformers[i]];
             }
             tempPerformers.forEach((p, i) => {
-                specs[i].playerId = p.representative.id
-                specs[i].player = p.representative
+                if (isTeamOrPair) {
+                    // TEAM/PAIR: playerId = null, use displayName + memberIds
+                    specs[i].playerId = null
+                    specs[i].player = null
+                    specs[i].displayName = p.displayName || null
+                    specs[i].memberIds = p.memberIds || null
+                    specs[i].memberNames = p.memberNames || null
+                } else {
+                    // INDIVIDUAL: use playerId FK as before
+                    specs[i].playerId = p.representative.id
+                    specs[i].player = p.representative
+                }
                 specs[i].teamMembers = p.members
             })
 

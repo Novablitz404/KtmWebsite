@@ -56,7 +56,9 @@ export default function GlobalDropdown({
 }: GlobalDropdownProps) {
     const [isOpen, setIsOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
+    const [dropUp, setDropUp] = useState(false)
     const dropdownRef = useRef<HTMLDivElement>(null)
+    const triggerRef = useRef<HTMLDivElement>(null)
 
     // Normalize options
     const normalizedOptions: DropdownOption[] = options?.map(opt =>
@@ -86,6 +88,15 @@ export default function GlobalDropdown({
     useEffect(() => {
         if (!isOpen) {
             setSearchQuery('')
+            return
+        }
+
+        // Check if dropdown should open upward
+        if (triggerRef.current) {
+            const rect = triggerRef.current.getBoundingClientRect()
+            const spaceBelow = window.innerHeight - rect.bottom
+            const spaceNeeded = 280 // approximate max dropdown height
+            setDropUp(spaceBelow < spaceNeeded && rect.top > spaceNeeded)
         }
     }, [isOpen])
 
@@ -103,7 +114,7 @@ export default function GlobalDropdown({
             {name && <input type="hidden" name={name} value={value} />}
             {required && <input type="hidden" value={value} required={required} />}
 
-            <div onClick={() => setIsOpen(!isOpen)} className={fullWidth ? 'w-full' : ''}>
+            <div ref={triggerRef} onClick={() => setIsOpen(!isOpen)} className={fullWidth ? 'w-full' : ''}>
                 {trigger ? (
                     trigger
                 ) : (
@@ -138,8 +149,8 @@ export default function GlobalDropdown({
             {isOpen && (
                 <div
                     className={`
-                        absolute z-50 mt-1 ${fullWidth ? 'w-full' : width} rounded-xl shadow-lg bg-white border border-gray-100 focus:outline-none 
-                        transform opacity-100 scale-100 transition-all duration-200 origin-top overflow-hidden flex flex-col
+                        absolute z-50 ${dropUp ? 'bottom-full mb-1 origin-bottom' : 'top-full mt-1 origin-top'} ${fullWidth ? 'w-full' : width} rounded-xl shadow-lg bg-white border border-gray-100 focus:outline-none 
+                        transform opacity-100 scale-100 transition-all duration-200 overflow-hidden flex flex-col
                         ${align === 'right' ? 'right-0' : 'left-0'}
                     `}
                     role="menu"

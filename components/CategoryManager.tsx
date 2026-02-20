@@ -3,7 +3,7 @@
 import GlobalDropdown from '@/components/GlobalDropdown'
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { createCategory, updateCategory, bulkUpdateCourts } from '@/app/actions'
+import { createCategory, updateCategory, bulkUpdateCourts, bulkUpdateDeferFinals } from '@/app/actions'
 import { Plus, Edit2, X, Check, Save, Loader2, GripVertical, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -13,6 +13,7 @@ interface Category {
     type: string
     court: string | null
     skillLevel: string | null
+    deferFinals: boolean
 }
 
 interface CategoryManagerProps {
@@ -304,6 +305,39 @@ export default function CategoryManager({
                                 <div key={division} className="p-4">
                                     <div className="flex items-center gap-3 mb-3">
                                         <h4 className="font-bold text-gray-900 text-lg">{division}</h4>
+                                        {!isEditingCourts && (
+                                            <button
+                                                onClick={async (e) => {
+                                                    e.stopPropagation()
+                                                    const allDeferred = cats.every(c => c.deferFinals)
+                                                    const newValue = !allDeferred
+                                                    startTransition(async () => {
+                                                        const result = await bulkUpdateDeferFinals(allIds, newValue, tournamentId)
+                                                        if (result?.success) {
+                                                            toast.success(`${division}: Defer Finals ${newValue ? 'ON' : 'OFF'}`)
+                                                            router.refresh()
+                                                        } else {
+                                                            toast.error('Failed to update defer finals')
+                                                        }
+                                                    })
+                                                }}
+                                                disabled={isPending}
+                                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1 ${cats.every(c => c.deferFinals) ? 'bg-red-500' : 'bg-gray-300'
+                                                    } ${isPending ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                                title={cats.every(c => c.deferFinals) ? 'Defer Finals: ON (finals pushed to end)' : 'Defer Finals: OFF (finals run in sequence)'}
+                                            >
+                                                <span
+                                                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${cats.every(c => c.deferFinals) ? 'translate-x-4.5' : 'translate-x-0.5'
+                                                        }`}
+                                                />
+                                            </button>
+                                        )}
+                                        {!isEditingCourts && (
+                                            <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider ${cats.every(c => c.deferFinals) ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'
+                                                }`}>
+                                                {cats.every(c => c.deferFinals) ? 'Defer Finals' : 'Sequential'}
+                                            </span>
+                                        )}
                                         {isEditingCourts && (
                                             <button
                                                 onClick={() => handleSelectAll(allIds)}
@@ -349,8 +383,8 @@ export default function CategoryManager({
                                                     </div>
                                                     <div className="flex items-center gap-2 mt-2 h-7">
                                                         <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider ${cat.type === 'POOMSAE' ? 'bg-purple-200 text-purple-800' :
-                                                                cat.type === 'KYUKPA' ? 'bg-orange-200 text-orange-800' :
-                                                                    'bg-blue-100 text-blue-700'}`}>
+                                                            cat.type === 'KYUKPA' ? 'bg-orange-200 text-orange-800' :
+                                                                'bg-blue-100 text-blue-700'}`}>
                                                             {cat.type}
                                                         </span>
                                                         {cat.skillLevel && (

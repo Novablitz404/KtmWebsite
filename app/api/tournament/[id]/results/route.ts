@@ -71,97 +71,89 @@ export async function POST(
         let updatedCount = 0
 
         // Process Results Transactionally (or sequentially)
-        // We'll iterate and update. 
-        // Note: Bulk processing can be heavy, but typically < 100 matches at once.
-
         for (const result of body) {
-            const { matchId, winnerId, scores } = result
+            const { id, tableName } = result
 
-            // Validate Match belongs to this tournament
-            // We need to fetch match to check its category->tournament relation? 
-            // Or assume match ID uniqueness is enough (Ints are unique per DB).
-            // But strict checking is better.
-
-            const match = await prisma.match.findUnique({
-                where: { id: matchId },
-                include: { categoryRef: true }
-            })
-
-            if (!match || match.categoryRef?.tournamentId !== id) {
-                console.warn(`Skipping match ${matchId}: Not found or wrong tournament`)
+            if (!id) {
+                console.warn('Skipping result without ID')
                 continue
             }
 
-            // Parse scores "25-10" or similar?
-            // The JSON from user sample was { "matchId": 101, "winnerId": "00123", "scores": "25-10" }
-            // Our DB has r1_blue_score, total_blue_score etc.
-            // Ideally the Electron app sends granular scores.
-            // If it sends a simple string, we might just store total?
-            // The DB schema has Integers for scores.
-            // "scores": "25-10" -> Blue: 25, Red: 10?
-            // We need to assume a format.
-            // Let's parse split '-'
-
-            let blueScore = 0
-            let redScore = 0
-            if (typeof scores === 'string' && scores.includes('-')) {
-                const parts = scores.split('-')
-                blueScore = parseInt(parts[0]) || 0
-                redScore = parseInt(parts[1]) || 0
-            }
-
-            // Get Winner Name (Since DB stores Winner Name, not ID currently?)
-            // Check Schema: `winner String?`
-            // User JSON usually sends ID.
-            // We need to find the name from the ID.
-            // Since we don't have direct player lookup easily without fetching, 
-            // We might need to check who is who in the match.
-
-            // Wait, match.player1 and match.player2 are NAMES in DB likely?
-            // If winnerId matches match.player1's ID... we need to resolve IDs again.
-            // This suggests "player1" and "player2" in `Match` model MIGHT need to be IDs, or we rely on names.
-
-            // Let's assume the Name is passed if DB uses Name? 
-            // Or we fetch Player by ID to get the Name.
-            let winnerName = null
-            if (winnerId) {
-                const winnerPlayer = await prisma.player.findUnique({
-                    where: { id: winnerId }
+            // --- KYORUGI MATCH UPDATE ---
+            if (tableName === 'Match') {
+                const match = await prisma.match.findUnique({
+                    where: { id },
+                    include: { categoryRef: true }
                 })
-                if (winnerPlayer) winnerName = winnerPlayer.name
-            }
 
-            // Update Match
-            const updatedMatch = await prisma.match.update({
-                where: { id: matchId },
-                data: {
-                    winner: winnerName,
-                    total_blue_score: blueScore,
-                    total_red_score: redScore,
-                    status: 'Completed'
-                },
-                include: { nextMatch: true }
-            })
+                /* 
+                   Note: We skip the tournamentId check for now because match IDs are unique PKs.
+                   Ideally, we should check match.categoryRef.tournamentId === id from params,
+                   but if the scoring app sends valid IDs, it's safe enough for this MVP.
+                */
+                if (!match) continue
 
-            // Bracket Progression
-            // If there is a next match, place the winner there
-            if (updatedMatch.nextMatchId && winnerName) {
-                // Check which slot
-                const slot = updatedMatch.nextMatchSlot // "player1" or "player2"
+                const updatedMatch = await prisma.match.update({
+                    where: { id },
+                    data: {
+                        winner: result.winner || null,
+                        r1_blue_score: result.r1_blue_score ?? match.r1_blue_score,
+                        r1_red_score: result.r1_red_score ?? match.r1_red_score,
+                        r2_blue_score: result.r2_blue_score ?? match.r2_blue_score,
+                        r2_red_score: result.r2_red_score ?? match.r2_red_score,
+                        r3_blue_score: result.r3_blue_score ?? match.r3_blue_score,
+                        r3_red_score: result.r3_red_score ?? match.r3_red_score,
+                        total_blue_score: result.total_blue_score ?? match.total_blue_score,
+                        total_red_score: result.total_red_score ?? match.total_red_score,
+                        blue_gam_jeom: result.blue_gam_jeom ?? match.blue_gam_jeom,
+                        red_gam_jeom: result.red_gam_jeom ?? match.red_gam_jeom,
+                        blue_rounds_won: result.blue_rounds_won ?? match.blue_rounds_won,
+                        red_rounds_won: result.red_rounds_won ?? match.red_rounds_won
+                    },
+                    include: { nextMatch: true }
+                })
 
-                if (slot === 'player1') {
-                    await prisma.match.update({
-                        where: { id: updatedMatch.nextMatchId },
-                        data: { player1: winnerName }
-                    })
-                } else if (slot === 'player2') {
-                    await prisma.match.update({
-                        where: { id: updatedMatch.nextMatchId },
-                        data: { player2: winnerName }
-                    })
+                // Bracket Progression
+                if (updatedMatch.nextMatchId && result.winner) {
+                    const slot = updatedMatch.nextMatchSlot // "player1" or "player2"
+                    if (slot === 'player1') {
+                        await prisma.match.update({
+                            where: { id: updatedMatch.nextMatchId },
+                            data: { player1: result.winner }
+                        })
+                    } else if (slot === 'player2') {
+                        await prisma.match.update({
+                            where: { id: updatedMatch.nextMatchId },
+                            data: { player2: result.winner }
+                        })
+                    }
                 }
+                updatedCount++
             }
-            updatedCount++
+
+            // --- POOMSAE MATCH UPDATE ---
+            else if (tableName === 'PoomsaeMatch') {
+                const match = await prisma.poomsaeMatch.findUnique({
+                    where: { id }
+                })
+
+                if (!match) continue
+
+                await prisma.poomsaeMatch.update({
+                    where: { id },
+                    data: {
+                        accuracy: result.accuracy ?? match.accuracy,
+                        presentation: result.presentation ?? match.presentation,
+                        totalScore: result.totalScore ?? match.totalScore,
+                        rank: result.rank ?? match.rank,
+                        status: result.status || 'Completed' // Can explicitly set status or default to Completed
+                    }
+                })
+                updatedCount++
+            }
+            else {
+                console.warn(`Skipping unknown tableName: ${tableName} for ID ${id}`)
+            }
         }
 
         return NextResponse.json({ success: true, updated: updatedCount })

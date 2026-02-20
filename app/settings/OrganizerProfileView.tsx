@@ -2,7 +2,6 @@ import { prisma } from '@/lib/prisma'
 import ProfileForm from './ProfileForm'
 import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
-import PushNotificationToggle from '@/components/PushNotificationToggle'
 import OrganizationProfileEditForm from './OrganizationProfileEditForm'
 
 interface OrganizerProfileViewProps {
@@ -232,9 +231,8 @@ export default async function OrganizerProfileView({ dbUser, clerkImageUrl }: Or
                 </div>
             </div>
 
-            {/* Push Notifications & Logout - Mobile Only */}
+            {/* Logout - Mobile Only */}
             <div className="sm:hidden px-4 pb-6 space-y-3">
-                <PushNotificationToggle />
                 <LogoutButton />
             </div>
         </div>

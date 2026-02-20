@@ -5,32 +5,17 @@ import { useSignUp } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import { format } from 'date-fns'
-import { Eye, EyeOff, Loader2, ArrowLeft, ArrowRight, Check, Building2, User } from 'lucide-react'
-import GlobalDropdown from '@/components/GlobalDropdown'
-import GlobalCalendar from '@/components/GlobalCalendar'
+import { Eye, EyeOff, Loader2, ArrowLeft, ArrowRight } from 'lucide-react'
 import { completeOnboarding, checkEmailAvailability } from '@/app/actions'
 import { toast } from 'sonner'
 
-interface Club {
-    id: string
-    name: string
-}
-
-interface Organization {
-    id: string
-    name: string
-}
-
 interface CustomSignUpFormProps {
-    clubs: Club[]
-    organizations: Organization[]
     headerMode?: 'mobile' | 'desktop'
 }
 
-type Step = 'role-selection' | 'account' | 'profile' | 'verification'
+type Step = 'role-selection' | 'account' | 'verification'
 
-export default function CustomSignUpForm({ clubs, organizations, headerMode = 'mobile' }: CustomSignUpFormProps) {
+export default function CustomSignUpForm({ headerMode = 'mobile' }: CustomSignUpFormProps) {
     const { isLoaded, signUp, setActive } = useSignUp()
     const router = useRouter()
 
@@ -40,35 +25,13 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
     // Account Data
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
-    const [firstName, setFirstName] = useState('')
-    const [lastName, setLastName] = useState('')
     const [emailError, setEmailError] = useState<string | null>(null)
 
-    // Profile Data
+    // Role
     const [role, setRole] = useState<'ATHLETE' | 'CLUB_MASTER' | 'ORGANIZER' | 'MANAGER' | 'CO_ORGANIZER'>('ATHLETE')
     const isOrganization = role === 'ORGANIZER'
     const isManager = role === 'MANAGER'
     const isCoOrganizer = role === 'CO_ORGANIZER'
-    const isCreatingClub = role === 'CLUB_MASTER'
-
-    const [birthDate, setBirthDate] = useState('')
-    const [gender, setGender] = useState('Male')
-    const [belt, setBelt] = useState('White')
-    const [weight, setWeight] = useState('')
-    const [height, setHeight] = useState('')
-    const [clubName, setClubName] = useState('')
-    const [isClubDropdownOpen, setIsClubDropdownOpen] = useState(false)
-    const [clubSearch, setClubSearch] = useState('')
-
-    // Club Master Data (when creating new club)
-    const [organizationId, setOrganizationId] = useState('')
-    const [isOrgDropdownOpen, setIsOrgDropdownOpen] = useState(false)
-    const [orgSearch, setOrgSearch] = useState('')
-
-    // Filter organizations
-    const filteredOrgs = organizations.filter(org =>
-        org.name.toLowerCase().includes(orgSearch.toLowerCase())
-    )
 
     // Verification Data
     const [code, setCode] = useState('')
@@ -104,24 +67,10 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
         }
     }, [resendCountdown])
 
-    // Effect: Default Belt based on Role
-    useEffect(() => {
-        if (role === 'CLUB_MASTER') {
-            setBelt('Black')
-        } else {
-            setBelt('White')
-        }
-    }, [role])
-
     // UI State
     const [showPassword, setShowPassword] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
-
-    // Filter clubs based on search
-    const filteredClubs = clubs.filter(club =>
-        club.name.toLowerCase().includes(clubSearch.toLowerCase())
-    )
 
     if (!isLoaded) return null
 
@@ -139,9 +88,11 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
         }
     }
 
-    // Step 1: Account -> Profile (Validation only)
-    const handleAccountNext = async (e: React.FormEvent) => {
+    // Account -> Create Clerk Account -> Verification
+    const handleAccountSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (!isLoaded) return
+
         setError(null)
 
         if (!email || !password) {
@@ -158,53 +109,6 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
             return
         }
 
-        setStep('profile')
-    }
-
-    // Step 2: Profile -> Submit to Clerk (Create Account)
-    const handleProfileSubmit = async (e: React.FormEvent) => {
-        e.preventDefault()
-        if (!isLoaded) return
-
-        setError(null)
-
-        // Validation based on Mode
-        if (isOrganization) {
-            // Organization Validation
-            if (!clubName || !birthDate) {
-                setError("Organization Name and Established Date are required")
-                return
-            }
-        } else if (isManager || isCoOrganizer) {
-            // Manager/Co-Organizer Validation - minimal requirements
-            // No specific extra fields required, just name/email from step 1
-        } else {
-
-            // Individual Validation (Athlete/Club Master)
-            if (!firstName || !lastName) {
-                setError("First Name and Last Name are required")
-                return
-            }
-
-            if (isCreatingClub) {
-                // Club Master Validation
-                if (!clubName) {
-                    setError("Club Name is required")
-                    return
-                }
-                if (!organizationId) {
-                    setError("Please select an Affiliated Organization for your new club")
-                    return
-                }
-            } else {
-                // Athlete Validation
-                if (!birthDate || !gender || !belt || !clubName || !weight || !height) {
-                    setError("All profile fields (including weight & height) are required")
-                    return
-                }
-            }
-        }
-
         setLoading(true)
 
         try {
@@ -219,7 +123,7 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
 
             // 3. Move to Verify Step
             setStep('verification')
-            setLoading(false) // Safe to stop loading because we are just showing a new form
+            setLoading(false)
 
         } catch (err: any) {
             setLoading(false)
@@ -232,7 +136,7 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
         }
     }
 
-    // Step 3: Verify OTP -> Complete Onboarding
+    // Verify OTP -> Complete Onboarding -> Redirect
     const handleVerification = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!isLoaded) return
@@ -258,41 +162,23 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                 await setActive({ session: completeSignUp.createdSessionId })
             }
 
-            // 3. Create Database Record (Onboarding)
-            // Note: We are now logged in as the user
+            // 3. Create Database Record (Role only)
             const formData = new FormData()
-
-            // Role is determined by component state
-
             formData.append('role', role)
-            formData.append('firstName', firstName)
-            formData.append('lastName', lastName)
-            formData.append('clubName', clubName) // Reused as Organization Name if role=ORGANIZER
-            if (birthDate) {
-                formData.append('birthDate', birthDate) // Reused as Est. Date if role=ORGANIZER
-            }
-
-            if (!isOrganization) {
-                // Only append gender/belt if NOT a club master (Athletes only)
-                if (!isCreatingClub) {
-                    formData.append('gender', gender)
-                    formData.append('belt', belt)
-                    formData.append('weight', weight)
-                    formData.append('height', height)
-                }
-
-                if (isCreatingClub) {
-                    formData.append('organizationId', organizationId)
-                }
-            }
 
             await completeOnboarding(formData)
 
-            // 4. Redirect
-            router.push('/')
+            // 4. Redirect based on role
+            if (isManager || isCoOrganizer) {
+                // Managers/Co-Organizers don't need onboarding
+                router.push('/')
+            } else {
+                // Athletes, Club Masters, Organizers -> complete-profile
+                router.push('/onboarding/complete-profile')
+            }
 
         } catch (err: any) {
-            setLoading(false) // Only stop loading on error
+            setLoading(false)
             console.error('Verification error', err)
             if (err.errors && err.errors.length > 0) {
                 setError(err.errors[0].longMessage || err.errors[0].message)
@@ -301,23 +187,6 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
             }
         }
     }
-
-    const handleGoogleSignUp = async () => {
-        if (!isLoaded) return
-        try {
-            await signUp.authenticateWithRedirect({
-                strategy: 'oauth_google',
-                redirectUrl: '/sso-callback',
-                redirectUrlComplete: '/'
-            })
-        } catch (err) {
-            console.error('OAuth error', err)
-        }
-    }
-
-    // ----------------------------------------------------
-    // VERIFICATION HANDLERS
-    // ----------------------------------------------------
 
     const handleDigitChange = (index: number, value: string) => {
         if (!/^\d*$/.test(value)) return
@@ -434,7 +303,7 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
         )
     }
 
-    // STEP 1: ACCOUNT
+    // STEP 1: ACCOUNT (Email + Password)
     if (step === 'account') {
         return (
             <div className={`w-full max-w-md mx-auto flex flex-col justify-center ${headerMode === 'desktop' ? '' : 'min-h-[80vh] md:min-h-0 p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100'}`}>
@@ -451,7 +320,7 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                                 role === 'ORGANIZER' ? 'Organizer Sign Up' : 'Create Account'}
                     </h1>
                     <p className={`${headerMode === 'desktop' ? 'text-lg mt-3' : 'text-sm mt-2'} text-gray-500`}>
-                        {headerMode === 'desktop' ? "Join us to manage or participate in upcoming tournaments" : "Step 1 of 3: Account Details"}
+                        {headerMode === 'desktop' ? "Join us to manage or participate in upcoming tournaments" : "Step 1 of 2: Account Details"}
                     </p>
                 </div>
 
@@ -466,8 +335,7 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                     <ArrowLeft size={16} className="mr-1" /> Back
                 </button>
 
-                <form onSubmit={handleAccountNext} className="space-y-4">
-
+                <form onSubmit={handleAccountSubmit} className="space-y-4">
 
                     <div>
                         <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Email Address</label>
@@ -515,15 +383,20 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
                         </div>
                     )}
 
+                    <div id="clerk-captcha"></div>
+
                     <button
                         type="submit"
-                        className="w-full py-4 mt-2 bg-red-600 text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 hover:bg-red-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-lg"
+                        disabled={loading}
+                        className="w-full py-4 mt-2 bg-red-600 text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 hover:bg-red-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-lg disabled:opacity-70"
                     >
-                        Next <ArrowRight size={20} />
+                        {loading ? (
+                            <><Loader2 className="animate-spin" /> Creating Account...</>
+                        ) : (
+                            <>Next <ArrowRight size={20} /></>
+                        )}
                     </button>
                 </form>
-
-
 
                 <div className="my-6 flex items-center gap-4">
                     <div className="h-px bg-gray-100 flex-1" />
@@ -561,340 +434,14 @@ export default function CustomSignUpForm({ clubs, organizations, headerMode = 'm
         )
     }
 
-    // STEP 2: PROFILE
-    if (step === 'profile') {
-        return (
-            <div className={`w-full max-w-md mx-auto relative`}>
-
-                {/* Back Button - Fixed Top Left */}
-                <button
-                    onClick={() => {
-                        setStep('account')
-                        setError(null)
-                    }}
-                    className="fixed top-6 left-6 z-50 flex items-center text-gray-500 hover:text-gray-900 transition-colors"
-                >
-                    <ArrowLeft size={20} className="mr-1" /> Back
-                </button>
-
-                <div className={`flex flex-col justify-center ${headerMode === 'desktop' ? '' : 'min-h-[80vh] md:min-h-0 p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100'}`}>
-                    <div className={`text-center mb-2 ${headerMode === 'desktop' ? 'md:static mb-8' : ''}`}>
-                        <h1 className={`${headerMode === 'desktop' ? 'text-3xl lg:text-4xl' : 'text-2xl'} font-black text-gray-900 tracking-tight`}>
-                            Complete Account
-                        </h1>
-                        <p className={`${headerMode === 'desktop' ? 'text-lg mt-3' : 'text-sm mt-2'} text-gray-500`}>
-                            Step 2 of 3: Your Info
-                        </p>
-                    </div>
-
-                    <form onSubmit={handleProfileSubmit} className="space-y-4">
-
-                        {(!isManager && !isOrganization && !isCoOrganizer) && (
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">First Name <span className="text-red-500">*</span></label>
-                                    <input
-                                        type="text"
-                                        value={firstName}
-                                        onChange={(e) => setFirstName(e.target.value)}
-                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
-                                        placeholder="Juan"
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Last Name <span className="text-red-500">*</span></label>
-                                    <input
-                                        type="text"
-                                        value={lastName}
-                                        onChange={(e) => setLastName(e.target.value)}
-                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
-                                        placeholder="Dela Cruz"
-                                        required
-                                    />
-                                </div>
-                            </div>
-                        )}
-
-                        {/* DYNAMIC ROLE SWITCHER REMOVED FROM HERE */}
-
-                        {isManager && (
-                            <div className="bg-red-50 p-4 rounded-xl border border-red-100 mb-6 text-center">
-                                <h3 className="font-bold text-red-800 flex items-center justify-center gap-2">
-                                    <User className="w-5 h-5" />
-                                    Tournament Manager
-                                </h3>
-                                <p className="text-sm text-red-600 mt-1">
-                                    You are signing up as a Tournament Manager.
-                                </p>
-                            </div>
-                        )}
-
-                        {isCoOrganizer && (
-                            <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 mb-6 text-center">
-                                <h3 className="font-bold text-indigo-800 flex items-center justify-center gap-2">
-                                    <Building2 className="w-5 h-5" />
-                                    Co-Organizer
-                                </h3>
-                                <p className="text-sm text-indigo-600 mt-1">
-                                    You are signing up as a Co-Organizer.
-                                </p>
-                            </div>
-                        )}
-
-                        {isOrganization ? (
-                            <>
-                                {/* ORGANIZATION FIELDS */}
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Organization Name</label>
-                                    <input
-                                        type="text"
-                                        value={clubName} // Reuse clubName state
-                                        onChange={(e) => setClubName(e.target.value)}
-                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
-                                        placeholder="e.g. National Taekwondo Alliance"
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Date Established <span className="text-red-500">*</span></label>
-                                    <GlobalCalendar
-                                        value={birthDate}
-                                        onChange={(date) => setBirthDate(format(date, 'yyyy-MM-dd'))}
-                                        placeholder="Select date..."
-                                        className="w-full"
-                                        fullWidth
-                                    />
-                                </div>
-                            </>
-                        ) : isManager ? (
-                            // MANAGER FIELDS - MINIMAL
-                            <>
-                                <p className="text-gray-500 text-sm italic text-center">
-                                    No additional profile details required. Click below to create your account.
-                                </p>
-                            </>
-                        ) : (
-                            <>
-                                {/* INDIVIDUAL FIELDS */}
-                                {!isCreatingClub && (
-                                    <>
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Date of Birth <span className="text-red-500">*</span></label>
-                                            <GlobalCalendar
-                                                value={birthDate}
-                                                onChange={(date) => setBirthDate(format(date, 'yyyy-MM-dd'))}
-                                                placeholder="Select birth date..."
-                                                className="w-full"
-                                                fullWidth
-                                            />
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Weight (kg) <span className="text-red-500">*</span></label>
-                                                <input
-                                                    type="number"
-                                                    value={weight}
-                                                    onChange={(e) => setWeight(e.target.value)}
-                                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
-                                                    placeholder="55"
-                                                    required
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Height (cm) <span className="text-red-500">*</span></label>
-                                                <input
-                                                    type="number"
-                                                    value={height}
-                                                    onChange={(e) => setHeight(e.target.value)}
-                                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
-                                                    placeholder="165"
-                                                    required
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <GlobalDropdown
-                                                label="GENDER"
-                                                value={gender}
-                                                onChange={setGender}
-                                                options={['Male', 'Female']}
-                                                required
-                                            />
-                                            <GlobalDropdown
-                                                label="BELT"
-                                                value={belt}
-                                                onChange={setBelt}
-                                                options={['White', 'Low Yellow', 'High Yellow', 'Low Blue', 'High Blue', 'Low Red', 'High Red', 'Low Brown', 'High Brown', 'Black']}
-                                                required
-                                            />
-                                        </div>
-                                    </>
-                                )}
-
-                                {/* Club Logic: Search (Athlete) vs Create (Master) */}
-                                {role === 'CLUB_MASTER' ? (
-                                    <>
-                                        {/* CREATE CLUB MODE */}
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">New Club Name</label>
-                                            <input
-                                                type="text"
-                                                value={clubName}
-                                                onChange={(e) => setClubName(e.target.value)}
-                                                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
-                                                placeholder="Enter your club name..."
-                                                required
-                                            />
-                                        </div>
-
-                                        {/* Organization Selection (Mandatory for new clubs) */}
-                                        <div className="relative animate-in fade-in slide-in-from-top-2 duration-300">
-                                            <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Affiliated Organization <span className="text-red-500">*</span></label>
-                                            <div className="relative">
-                                                <input
-                                                    type="text"
-                                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium placeholder:text-gray-400"
-                                                    placeholder="Select Organization..."
-                                                    value={orgSearch}
-                                                    onChange={(e) => {
-                                                        setOrgSearch(e.target.value)
-                                                        setIsOrgDropdownOpen(true)
-                                                        setOrganizationId('') // Reset ID on type to force selection
-                                                    }}
-                                                    onFocus={() => setIsOrgDropdownOpen(true)}
-                                                />
-                                                {organizationId && (
-                                                    <div className="absolute right-4 top-3.5 text-indigo-600">
-                                                        <Check size={18} />
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {isOrgDropdownOpen && (
-                                                <>
-                                                    <div className="fixed inset-0 z-10" onClick={() => setIsOrgDropdownOpen(false)} />
-                                                    <div className="absolute z-20 mt-1 w-full bg-white shadow-xl max-h-60 rounded-xl py-2 overflow-auto border border-gray-100">
-                                                        {filteredOrgs.length > 0 ? (
-                                                            filteredOrgs.map((org) => (
-                                                                <div
-                                                                    key={org.id}
-                                                                    className="cursor-pointer px-4 py-3 hover:bg-indigo-50 text-gray-900"
-                                                                    onClick={() => {
-                                                                        setOrganizationId(org.id)
-                                                                        setOrgSearch(org.name)
-                                                                        setIsOrgDropdownOpen(false)
-                                                                    }}
-                                                                >
-                                                                    <span className="font-medium">{org.name}</span>
-                                                                </div>
-                                                            ))
-                                                        ) : (
-                                                            <div className="text-gray-400 px-4 py-2 text-sm">No organizations found.</div>
-                                                        )}
-                                                    </div>
-                                                </>
-                                            )}
-                                            <p className="text-[10px] text-indigo-500 mt-1 ml-1 font-medium">
-                                                * Your new club requires approval from this organization.
-                                            </p>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <>
-                                        {/* JOIN CLUB MODE (ATHLETE) */}
-                                        <div className="relative">
-                                            <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Club <span className="text-red-500">*</span></label>
-                                            <div className="relative">
-                                                <input
-                                                    type="text"
-                                                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
-                                                    placeholder="Search for your club..."
-                                                    value={clubSearch}
-                                                    onChange={(e) => {
-                                                        setClubSearch(e.target.value)
-                                                        setIsClubDropdownOpen(true)
-                                                        setClubName('') // Clear selection when typing
-                                                    }}
-                                                    onFocus={() => setIsClubDropdownOpen(true)}
-                                                />
-                                                {clubName && (
-                                                    <div className="absolute right-4 top-3.5 text-green-500">
-                                                        <Check size={18} />
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {isClubDropdownOpen && (
-                                                <>
-                                                    <div className="fixed inset-0 z-10" onClick={() => setIsClubDropdownOpen(false)} />
-                                                    <div className="absolute z-20 mt-1 w-full bg-white shadow-xl max-h-60 rounded-xl py-2 overflow-auto border border-gray-100">
-                                                        {filteredClubs.length > 0 ? (
-                                                            filteredClubs.map((club) => (
-                                                                <div
-                                                                    key={club.id}
-                                                                    className={`cursor-pointer px-4 py-3 hover:bg-gray-50 ${clubName === club.name ? 'bg-red-50 text-red-700' : 'text-gray-900'}`}
-                                                                    onClick={() => {
-                                                                        setClubName(club.name)
-                                                                        setClubSearch(club.name)
-                                                                        setIsClubDropdownOpen(false)
-                                                                    }}
-                                                                >
-                                                                    <span className="font-medium">{club.name}</span>
-                                                                </div>
-                                                            ))
-                                                        ) : (
-                                                            <div className="text-gray-400 px-4 py-2 text-sm">No clubs found. To create one, select 'Club Master' above.</div>
-                                                        )}
-                                                    </div>
-                                                </>
-                                            )}
-                                        </div>
-                                    </>
-                                )}
-                            </>
-                        )}
-
-                        {error && (
-                            <div className="p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2">
-                                <span className="text-lg">⚠️</span>
-                                <span className="text-xs text-red-600 font-bold">{error}</span>
-                            </div>
-                        )}
-
-                        <div id="clerk-captcha"></div>
-
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className={`w-full py-4 mt-4 text-white font-bold rounded-2xl shadow-lg active:scale-[0.98] transition-all disabled:opacity-70 flex items-center justify-center gap-2 text-lg bg-red-600 shadow-red-600/20 hover:bg-red-700`}
-                        >
-                            {loading ? (
-                                <><Loader2 className="animate-spin" /> Creating Account...</>
-                            ) : (
-                                isOrganization ? 'Sign Up as Organization' : isCreatingClub ? 'Sign Up as Club Master' : 'Sign Up'
-                            )}
-                        </button>
-
-
-                    </form>
-                </div>
-            </div>
-        )
-    }
-
-
-
-    // STEP 3: VERIFICATION
+    // STEP 2: VERIFICATION
     if (step === 'verification') {
         const codeDigits = code.split('').concat(Array(6 - code.length).fill(''))
 
         return (
             <div className={`w-full max-w-md mx-auto flex flex-col justify-center ${headerMode === 'desktop' ? '' : 'min-h-[80vh] md:min-h-0 p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100'}`}>
                 <button
-                    onClick={() => { setStep('profile'); setCode(''); }}
+                    onClick={() => { setStep('account'); setCode(''); }}
                     className="flex items-center text-gray-500 hover:text-gray-900 transition-colors mb-4 self-start"
                 >
                     <ArrowLeft size={20} className="mr-1" /> Back

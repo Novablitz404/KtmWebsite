@@ -2,7 +2,6 @@ import { prisma } from '@/lib/prisma'
 import ProfileForm from './ProfileForm'
 import OrganizationSettingsButton from '@/app/components/OrganizationSettingsButton'
 import LogoutButton from '@/components/LogoutButton'
-import PushNotificationToggle from '@/components/PushNotificationToggle'
 import OrganizationTransferOwnership from '@/components/organization/OrganizationTransferOwnership'
 
 interface OrganizationSettingsViewProps {
@@ -166,9 +165,8 @@ export default async function OrganizationSettingsView({ dbUser, organization, c
                 <OrganizationTransferOwnership organizationId={organization.id} />
             )}
 
-            {/* Push Notifications & Logout - Mobile Only */}
+            {/* Logout - Mobile Only */}
             <div className="sm:hidden px-4 pb-6 space-y-3">
-                <PushNotificationToggle />
                 <LogoutButton />
             </div>
         </div>
