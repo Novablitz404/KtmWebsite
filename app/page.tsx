@@ -108,8 +108,13 @@ export default async function Home() {
   const currentDate = new Date()
   currentDate.setHours(0, 0, 0, 0)
 
-  // Fetch upcoming events via server action (for TanStack Query hydration)
-  const allEvents = await fetchLandingPageEvents()
+  // Fetch landing page data in parallel
+  const [allEvents, athleteCount, tournamentCount, clubCount] = await Promise.all([
+    fetchLandingPageEvents(),
+    prisma.user.count(),
+    prisma.tournament.count(),
+    prisma.club.count(),
+  ])
 
 
   // Prepare serializable user data for client component
@@ -121,6 +126,10 @@ export default async function Home() {
   } : null
 
   return (
-    <LandingPage upcomingTournaments={allEvents} user={userData} />
+    <LandingPage
+      upcomingTournaments={allEvents}
+      user={userData}
+      stats={{ athletes: athleteCount, tournaments: tournamentCount, clubs: clubCount }}
+    />
   )
 }

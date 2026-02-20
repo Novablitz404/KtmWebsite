@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 interface LandingPageProps {
     upcomingTournaments: any[]
     user: any
+    stats: { athletes: number; tournaments: number; clubs: number }
 }
 
 // Animated counter hook
@@ -41,11 +42,11 @@ function useCounter(target: number, duration: number = 2000) {
     return { count, ref }
 }
 
-export default function LandingPage({ upcomingTournaments, user }: LandingPageProps) {
-    // Stats counters
-    const athletes = useCounter(500, 2000)
-    const tournaments = useCounter(50, 1800)
-    const clubs = useCounter(20, 1600)
+export default function LandingPage({ upcomingTournaments, user, stats }: LandingPageProps) {
+    // Stats counters — use real data from database
+    const athletes = useCounter(stats.athletes, 2000)
+    const tournaments = useCounter(stats.tournaments, 1800)
+    const clubs = useCounter(stats.clubs, 1600)
 
     return (
         <div className="min-h-screen bg-white" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -158,21 +159,23 @@ export default function LandingPage({ upcomingTournaments, user }: LandingPagePr
 
                     <div className="flex animate-scroll">
                         {[...Array(2)].map((_, setIndex) => (
-                            <div key={setIndex} className="flex shrink-0 items-center gap-12 sm:gap-20 px-6 sm:px-10">
+                            <div key={setIndex} className="flex shrink-0 items-center gap-16 sm:gap-24 px-8 sm:px-12">
                                 {[
-                                    { name: 'Tomatok', subtitle: 'Messaging' },
-                                    { name: 'World Taekwondo', subtitle: 'Federation' },
-                                    { name: 'Kukkiwon', subtitle: 'Headquarters' },
-                                    { name: 'Philippine TKD', subtitle: 'Association' },
-                                    { name: 'Mooto', subtitle: 'Equipment' },
-                                    { name: 'Daedo', subtitle: 'Technology' },
+                                    { src: '/partners/world-taekwondo.png', alt: 'World Taekwondo' },
+                                    { src: '/partners/kukkiwon.png', alt: 'Kukkiwon' },
+                                    { src: '/partners/wotf-phi.png', alt: 'WOTF Philippines' },
+                                    { src: '/partners/wotf-world.png', alt: 'WOTF World' },
+                                    { src: '/Partners/pomelo-ticket.png', alt: 'Pomelo Ticket' },
                                 ].map((partner, i) => (
                                     <div
                                         key={`${setIndex}-${i}`}
-                                        className="flex flex-col items-center shrink-0 px-4 sm:px-6 py-3 opacity-40 hover:opacity-100 transition-opacity duration-300 cursor-default"
+                                        className="shrink-0 opacity-50 hover:opacity-100 transition-opacity duration-300 cursor-default"
                                     >
-                                        <span className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight whitespace-nowrap">{partner.name}</span>
-                                        <span className="text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-widest">{partner.subtitle}</span>
+                                        <img
+                                            src={partner.src}
+                                            alt={partner.alt}
+                                            className="h-10 sm:h-14 w-auto object-contain"
+                                        />
                                     </div>
                                 ))}
                             </div>
@@ -192,10 +195,10 @@ export default function LandingPage({ upcomingTournaments, user }: LandingPagePr
                         animation-play-state: paused;
                     }
                 `}</style>
-            </section>
+            </section >
 
             {/* ===================== UPCOMING EVENTS ===================== */}
-            <section className="bg-gray-50 py-16 sm:py-24">
+            < section className="bg-gray-50 py-16 sm:py-24" >
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     {/* Section Header */}
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-10 sm:mb-14 gap-4">
@@ -356,10 +359,10 @@ export default function LandingPage({ upcomingTournaments, user }: LandingPagePr
                         </div>
                     )}
                 </div>
-            </section>
+            </section >
 
             {/* ===================== FEATURES SECTION ===================== */}
-            <section className="bg-white py-16 sm:py-24">
+            < section className="bg-white py-16 sm:py-24" >
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="text-center mb-14 sm:mb-20">
                         <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-50 border border-red-100 rounded-full text-red-600 text-xs font-bold uppercase tracking-wider mb-4">
@@ -407,10 +410,10 @@ export default function LandingPage({ upcomingTournaments, user }: LandingPagePr
                         </div>
                     </div>
                 </div>
-            </section>
+            </section >
 
             {/* ===================== MOBILE APP SECTION ===================== */}
-            <section className="bg-gray-50 py-16 sm:py-24 overflow-hidden">
+            < section className="bg-gray-50 py-16 sm:py-24 overflow-hidden" >
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     {/* Section Header */}
                     <div className="text-center mb-14 sm:mb-20">
@@ -569,65 +572,67 @@ export default function LandingPage({ upcomingTournaments, user }: LandingPagePr
                                 ))}
                             </div>
 
-                            {/* Download buttons */}
+                            {/* Coming Soon buttons */}
                             <div className="flex flex-wrap gap-3 mt-8">
-                                <a href="#" className="inline-flex items-center gap-3 px-6 py-3.5 bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition-all duration-200 shadow-sm hover:shadow-md hover:-translate-y-0.5">
-                                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                                <div className="inline-flex items-center gap-3 px-6 py-3.5 bg-gray-100/80 text-gray-400 rounded-xl border border-gray-200 cursor-not-allowed">
+                                    <svg className="w-6 h-6 grayscale opacity-80" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
                                     </svg>
                                     <div className="text-left">
-                                        <div className="text-[10px] text-gray-400 leading-none">Download on the</div>
-                                        <div className="text-sm font-semibold leading-tight">App Store</div>
+                                        <div className="text-[10px] uppercase font-bold tracking-wider text-gray-400 mb-0.5">App Store</div>
+                                        <div className="text-sm font-semibold leading-none text-gray-500">Coming Soon</div>
                                     </div>
-                                </a>
-                                <a href="#" className="inline-flex items-center gap-3 px-6 py-3.5 bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition-all duration-200 shadow-sm hover:shadow-md hover:-translate-y-0.5">
-                                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                                </div>
+                                <div className="inline-flex items-center gap-3 px-6 py-3.5 bg-gray-100/80 text-gray-400 rounded-xl border border-gray-200 cursor-not-allowed">
+                                    <svg className="w-6 h-6 grayscale opacity-80" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 01-.61-.92V2.734a1 1 0 01.609-.92zm10.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zm3.199-3.199l2.302 2.302-2.302 2.302-2.302-2.302 2.302-2.302zM5.864 2.658L16.8 8.99l-2.302 2.302-8.634-8.634z" />
                                     </svg>
                                     <div className="text-left">
-                                        <div className="text-[10px] text-gray-400 leading-none">Get it on</div>
-                                        <div className="text-sm font-semibold leading-tight">Google Play</div>
+                                        <div className="text-[10px] uppercase font-bold tracking-wider text-gray-400 mb-0.5">Google Play</div>
+                                        <div className="text-sm font-semibold leading-none text-gray-500">Coming Soon</div>
                                     </div>
-                                </a>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </section>
+            </section >
 
             {/* ===================== CTA BANNER ===================== */}
-            {!user && (
-                <section className="relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-r from-red-600 via-red-700 to-red-800" />
-                    {/* Decorative pattern */}
-                    <div className="absolute inset-0 opacity-10" style={{
-                        backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)',
-                        backgroundSize: '32px 32px'
-                    }} />
-                    <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 text-center">
-                        <h2 className="text-3xl sm:text-4xl font-black text-white mb-4">
-                            Ready to Compete?
-                        </h2>
-                        <p className="text-red-100 text-base sm:text-lg max-w-xl mx-auto mb-8">
-                            Join the KTM platform and get access to tournaments, rankings, and a community of Taekwondo athletes.
-                        </p>
-                        <div className="flex flex-col sm:flex-row justify-center gap-4">
-                            <Link
-                                href="/sign-up"
-                                className="px-8 py-4 bg-white text-red-700 font-bold rounded-xl hover:bg-red-50 transition-all duration-200 shadow-lg hover:shadow-xl hover:-translate-y-0.5"
-                            >
-                                Create Account
-                            </Link>
-                            <Link
-                                href="/about"
-                                className="px-8 py-4 border-2 border-white/30 text-white font-semibold rounded-xl hover:bg-white/10 hover:border-white/50 transition-all duration-200"
-                            >
-                                Learn More
-                            </Link>
+            {
+                !user && (
+                    <section className="relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-r from-red-600 via-red-700 to-red-800" />
+                        {/* Decorative pattern */}
+                        <div className="absolute inset-0 opacity-10" style={{
+                            backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)',
+                            backgroundSize: '32px 32px'
+                        }} />
+                        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 text-center">
+                            <h2 className="text-3xl sm:text-4xl font-black text-white mb-4">
+                                Ready to Compete?
+                            </h2>
+                            <p className="text-red-100 text-base sm:text-lg max-w-xl mx-auto mb-8">
+                                Join the KTM platform and get access to tournaments, rankings, and a community of Taekwondo athletes.
+                            </p>
+                            <div className="flex flex-col sm:flex-row justify-center gap-4">
+                                <Link
+                                    href="/sign-up"
+                                    className="px-8 py-4 bg-white text-red-700 font-bold rounded-xl hover:bg-red-50 transition-all duration-200 shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+                                >
+                                    Create Account
+                                </Link>
+                                <Link
+                                    href="/about"
+                                    className="px-8 py-4 border-2 border-white/30 text-white font-semibold rounded-xl hover:bg-white/10 hover:border-white/50 transition-all duration-200"
+                                >
+                                    Learn More
+                                </Link>
+                            </div>
                         </div>
-                    </div>
-                </section>
-            )}
+                    </section>
+                )
+            }
 
             {/* ===================== FOOTER ===================== */}
             <footer className="bg-gray-900 text-white">
@@ -675,6 +680,6 @@ export default function LandingPage({ upcomingTournaments, user }: LandingPagePr
                     </div>
                 </div>
             </footer>
-        </div>
+        </div >
     )
 }
