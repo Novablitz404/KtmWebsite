@@ -146,7 +146,7 @@ export default function LandingPage({ upcomingTournaments, user, stats }: Landin
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
                     <div className="text-center">
                         <div className="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 border border-gray-200 rounded-full text-gray-500 text-xs font-bold uppercase tracking-wider">
-                            Trusted Partners
+                            Powering the Taekwondo Community
                         </div>
                     </div>
                 </div>
@@ -157,14 +157,14 @@ export default function LandingPage({ upcomingTournaments, user, stats }: Landin
                     <div className="absolute left-0 top-0 bottom-0 w-24 sm:w-40 bg-gradient-to-r from-white to-transparent z-10" />
                     <div className="absolute right-0 top-0 bottom-0 w-24 sm:w-40 bg-gradient-to-l from-white to-transparent z-10" />
 
-                    <div className="flex animate-scroll">
-                        {[...Array(2)].map((_, setIndex) => (
+                    <div className="flex animate-scroll w-max">
+                        {[...Array(3)].map((_, setIndex) => (
                             <div key={setIndex} className="flex shrink-0 items-center gap-16 sm:gap-24 px-8 sm:px-12">
                                 {[
-                                    { src: '/partners/world-taekwondo.png', alt: 'World Taekwondo' },
-                                    { src: '/partners/kukkiwon.png', alt: 'Kukkiwon' },
-                                    { src: '/partners/wotf-phi.png', alt: 'WOTF Philippines' },
-                                    { src: '/partners/wotf-world.png', alt: 'WOTF World' },
+                                    { src: '/Partners/world-taekwondo.png', alt: 'World Taekwondo' },
+                                    { src: '/Partners/kukkiwon.png', alt: 'Kukkiwon' },
+                                    { src: '/Partners/wotf-phi.png', alt: 'WOTF Philippines' },
+                                    { src: '/Partners/wotf-world.png', alt: 'WOTF World' },
                                     { src: '/Partners/pomelo-ticket.png', alt: 'Pomelo Ticket' },
                                 ].map((partner, i) => (
                                     <div
@@ -186,16 +186,16 @@ export default function LandingPage({ upcomingTournaments, user, stats }: Landin
                 <style jsx>{`
                     @keyframes scroll {
                         0% { transform: translateX(0); }
-                        100% { transform: translateX(-50%); }
+                        100% { transform: translateX(-33.3333%); }
                     }
                     .animate-scroll {
-                        animation: scroll 25s linear infinite;
+                        animation: scroll 20s linear infinite;
                     }
                     .animate-scroll:hover {
                         animation-play-state: paused;
                     }
                 `}</style>
-            </section >
+            </section>
 
             {/* ===================== UPCOMING EVENTS ===================== */}
             < section className="bg-gray-50 py-16 sm:py-24" >
