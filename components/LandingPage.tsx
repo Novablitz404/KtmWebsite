@@ -118,6 +118,10 @@ export default function LandingPage({ upcomingTournaments, user, stats }: Landin
             {/* ===================== STATS STRIP ===================== */}
             <section className="relative bg-white border-b border-gray-100">
                 <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+                    <div className="text-center mb-10 sm:mb-14">
+                        <h2 className="text-2xl sm:text-3xl font-black text-gray-900">Trusted by the Community</h2>
+                        <p className="text-gray-500 mt-2 text-sm sm:text-base max-w-2xl mx-auto">Join the growing network of athletes and clubs using KTM</p>
+                    </div>
                     <div className="grid grid-cols-3 gap-4 sm:gap-8">
                         <div ref={athletes.ref} className="text-center">
                             <div className="text-3xl sm:text-5xl font-black text-red-600 tabular-nums">
@@ -145,6 +149,7 @@ export default function LandingPage({ upcomingTournaments, user, stats }: Landin
             <section className="bg-white py-12 sm:py-16 overflow-hidden">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
                     <div className="text-center">
+                        <h2 className="text-2xl sm:text-3xl font-black text-gray-900 mb-4">Our Partners</h2>
                         <div className="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 border border-gray-200 rounded-full text-gray-500 text-xs font-bold uppercase tracking-wider">
                             Powering the Taekwondo Community
                         </div>
@@ -203,10 +208,6 @@ export default function LandingPage({ upcomingTournaments, user, stats }: Landin
                     {/* Section Header */}
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-10 sm:mb-14 gap-4">
                         <div>
-                            <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-50 border border-red-100 rounded-full text-red-600 text-xs font-bold uppercase tracking-wider mb-4">
-                                <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
-                                Live Events
-                            </div>
                             <h2 className="text-3xl sm:text-4xl font-black text-gray-900">Upcoming Events</h2>
                             <p className="text-gray-500 mt-2 text-base sm:text-lg">Register now for the latest tournaments and events</p>
                         </div>
@@ -365,9 +366,6 @@ export default function LandingPage({ upcomingTournaments, user, stats }: Landin
             < section className="bg-white py-16 sm:py-24" >
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="text-center mb-14 sm:mb-20">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-50 border border-red-100 rounded-full text-red-600 text-xs font-bold uppercase tracking-wider mb-4">
-                            Platform Features
-                        </div>
                         <h2 className="text-3xl sm:text-4xl font-black text-gray-900">Professional Tournament Tools</h2>
                         <p className="text-gray-500 mt-3 text-base sm:text-lg max-w-2xl mx-auto">Everything you need to organize, manage, and compete in world-class Taekwondo events</p>
                     </div>
@@ -417,12 +415,6 @@ export default function LandingPage({ upcomingTournaments, user, stats }: Landin
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     {/* Section Header */}
                     <div className="text-center mb-14 sm:mb-20">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-50 border border-red-100 rounded-full text-red-600 text-xs font-bold uppercase tracking-wider mb-4">
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                            </svg>
-                            Mobile App
-                        </div>
                         <h2 className="text-3xl sm:text-4xl font-black text-gray-900">Take KTM Anywhere</h2>
                         <p className="text-gray-500 mt-3 text-base sm:text-lg max-w-2xl mx-auto">Manage registrations, track events, and stay updated — all from your phone</p>
                     </div>

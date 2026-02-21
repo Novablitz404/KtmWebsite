@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
+import { motion } from 'framer-motion'
 
 export default function Header() {
     const { user, isLoaded } = useUser()
@@ -47,8 +48,11 @@ export default function Header() {
 
     return (
         <>
-            <header
-                className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled
+            <motion.header
+                initial={{ y: -20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.5, ease: 'easeOut' }}
+                className={`fixed top-0 left-0 right-0 z-50 transition-[background-color,border-color,box-shadow] duration-300 ${scrolled
                     ? 'bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-sm'
                     : isHomePage
                         ? 'bg-transparent'
@@ -124,7 +128,7 @@ export default function Header() {
                         </div>
                     </div>
                 </div>
-            </header>
+            </motion.header>
             {/* Spacer for non-home pages to prevent fixed header from clipping content */}
             {!isHomePage && <div className="h-16 sm:h-20" />}
         </>
