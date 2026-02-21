@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Calendar, MapPin, Search, Filter, Info, ChevronRight, Users, DollarSign, Lock } from 'lucide-react'
+import { Calendar, MapPin, Search, Filter, Info, ChevronRight, Users, Lock } from 'lucide-react'
 import { Seminar } from '@prisma/client'
 
 // Define a type that matches what we're passing (Seminar + registrations relation)
@@ -178,17 +178,7 @@ export default function PublicSeminarView({ seminar, currentUserId, isRestricted
                             </div>
                         </div>
 
-                        {seminar.fee && (
-                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex items-center gap-4">
-                                <div className="p-3 bg-emerald-50 rounded-lg text-emerald-600">
-                                    <DollarSign className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <span className="text-sm text-gray-500 font-medium uppercase tracking-wider block">Registration Fee</span>
-                                    <span className="text-2xl font-bold text-gray-900">₱{seminar.fee.toFixed(2)}</span>
-                                </div>
-                            </div>
-                        )}
+
 
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex items-center gap-4">
                             <div className="p-3 bg-purple-50 rounded-lg text-purple-600">
