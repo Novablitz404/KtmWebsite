@@ -47,6 +47,7 @@ export async function POST(request: Request) {
             const gender = formData.get('gender') as string
             const clubName = formData.get('clubName') as string
             const birthDateStr = formData.get('birthDate') as string
+            const athleteNumber = (formData.get('athleteNumber') as string) || undefined
 
             if (!belt || !gender || !clubName || !birthDateStr || isNaN(weight) || isNaN(height)) {
                 return apiError('All athlete profile fields are required', 400)
@@ -63,13 +64,15 @@ export async function POST(request: Request) {
                     belt,
                     gender,
                     clubName,
-                    birthDate
+                    birthDate,
+                    athleteNumber
                 }
             })
 
         } else if (role === 'CLUB_MASTER') {
             const clubName = formData.get('clubName') as string
             const organizationId = formData.get('organizationId') as string
+            const athleteNumber = (formData.get('athleteNumber') as string) || undefined
             const clubLogoFile = formData.get('clubLogo') as File | null
 
             if (!clubName || !organizationId) {
@@ -79,7 +82,7 @@ export async function POST(request: Request) {
             // Update owner profile
             await prisma.user.update({
                 where: { id: dbUser.id },
-                data: { name }
+                data: { name, athleteNumber }
             })
 
             // Upload club logo if provided (store as base64 or upload to a service)

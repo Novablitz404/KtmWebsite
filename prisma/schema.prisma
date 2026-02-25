@@ -150,7 +150,8 @@ model User {
   weight    Float?
   height    Float? // Height in cm for Toddler/Grade School divisions
   clubName  String?
-  isVerified Boolean @default(false) // Athlete License Status
+  isVerified    Boolean @default(false) // Athlete License Status
+  athleteNumber String? // Kukkiwon No. (Black Belt) or Athlete Card No. (other belts)
 
   // Relations
   players      Player[]

@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import { toast } from 'sonner'
-import { Camera, ArrowRight, ArrowLeft, CheckCircle, Loader2, Ruler, Weight, Users, Building2, Award, Calendar, ImageIcon } from 'lucide-react'
+import { Camera, ArrowRight, ArrowLeft, CheckCircle, Loader2, Ruler, Weight, Users, Building2, Award, Calendar, ImageIcon, Hash } from 'lucide-react'
 import Image from 'next/image'
 import GlobalDropdown from '@/components/GlobalDropdown'
 import GlobalCalendar from '@/components/GlobalCalendar'
@@ -77,6 +77,7 @@ export default function CompleteProfilePage() {
     const [height, setHeight] = useState('')
     const [belt, setBelt] = useState('White')
     const [clubName, setClubName] = useState('')
+    const [athleteNumber, setAthleteNumber] = useState('')
     const [clubSearch, setClubSearch] = useState('')
     const [clubs, setClubs] = useState<{ id: string; name: string }[]>([])
 
@@ -114,6 +115,7 @@ export default function CompleteProfilePage() {
                 if (profile.height) setHeight(String(profile.height))
                 if (profile.belt) setBelt(profile.belt)
                 if (profile.clubName) setClubName(profile.clubName)
+                if (profile.athleteNumber) setAthleteNumber(profile.athleteNumber)
             })
         }
     }, [isLoaded, user])
@@ -237,9 +239,11 @@ export default function CompleteProfilePage() {
                 submitData.append('birthDate', birthDate)
                 submitData.append('gender', gender)
                 submitData.append('clubName', clubName)
+                if (athleteNumber.trim()) submitData.append('athleteNumber', athleteNumber.trim())
             } else if (role === 'CLUB_MASTER') {
                 submitData.append('clubName', newClubName)
                 submitData.append('organizationId', organizationId)
+                if (athleteNumber.trim()) submitData.append('athleteNumber', athleteNumber.trim())
                 if (clubLogoFile) submitData.append('clubLogo', clubLogoFile)
             } else if (role === 'ORGANIZER') {
                 submitData.append('orgName', orgName)
@@ -411,6 +415,20 @@ export default function CompleteProfilePage() {
                                         onChange={(e) => setName(e.target.value)}
                                         placeholder="Enter your full name"
                                         required
+                                        className={inputClass}
+                                    />
+                                </div>
+
+                                {/* Athlete Number (Optional) */}
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                                        <Hash className="w-4 h-4 text-red-600" /> Kukkiwon / Athlete No.
+                                        <span className="text-xs text-gray-400 font-normal">(Optional)</span>
+                                    </label>
+                                    <input
+                                        value={athleteNumber}
+                                        onChange={(e) => setAthleteNumber(e.target.value)}
+                                        placeholder="e.g. 12345678"
                                         className={inputClass}
                                     />
                                 </div>
@@ -846,6 +864,21 @@ export default function CompleteProfilePage() {
                                         onChange={(val: string) => setBelt(val)}
                                         fullWidth
                                         searchable
+                                    />
+                                </div>
+
+                                {/* Kukkiwon / Athlete Card Number (dynamic label based on belt) */}
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                                        <Hash className="w-4 h-4 text-red-600" />
+                                        {belt === 'Black' ? 'Kukkiwon No.' : 'Athlete Card No.'}
+                                        <span className="text-xs text-gray-400 font-normal">(Optional)</span>
+                                    </label>
+                                    <input
+                                        value={athleteNumber}
+                                        onChange={(e) => setAthleteNumber(e.target.value)}
+                                        placeholder={belt === 'Black' ? 'e.g. 12345678' : 'e.g. ATH-001234'}
+                                        className={inputClass}
                                     />
                                 </div>
 

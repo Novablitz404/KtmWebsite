@@ -3093,6 +3093,7 @@ export async function getExistingProfile(email: string) {
             height: true,
             clubName: true,
             imageUrl: true,
+            athleteNumber: true,
         }
     })
 
@@ -3107,6 +3108,7 @@ export async function getExistingProfile(email: string) {
         height: user.height || null,
         clubName: user.clubName || null,
         imageUrl: user.imageUrl || null,
+        athleteNumber: user.athleteNumber || null,
     }
 }
 // --- SEMINAR REGISTRATION ACTION ---
