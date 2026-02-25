@@ -5,7 +5,7 @@ import { Upload, X, Home, Settings, ClipboardList, Users, Bell, Trophy, Medal, C
 import Link from 'next/link'
 import { approveRegistrations, unapproveRegistration, deleteRegistration, updatePlayerDetails, bulkUnapproveRegistrations, bulkDeleteRegistrations, fetchClubDashboardData, removeMemberFromClub, updateClubMember, getClubSmartProposals } from '@/app/actions'
 import { uploadMemberAvatar } from '@/app/club/actions'
-import { updateRegistrationStatus } from '@/app/promotions/actions'
+import { updateRegistrationStatus, deletePromotionRegistration } from '@/app/promotions/actions'
 import { approveSeminarRegistration, unapproveSeminarRegistration, deleteSeminarRegistration, updateSeminarRegistrationStatus, updateSeminarParticipantDetails } from '@/app/seminars/actions'
 
 import GlobalDropdown from '@/components/GlobalDropdown'
@@ -578,6 +578,24 @@ export default function ClubDashboard({
             }
         } catch {
             toast.error('Failed to update status')
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    const handlePromotionDelete = async (registrationId: string) => {
+        if (!confirm('Are you sure you want to delete this promotion registration?')) return
+        setSubmitting(true)
+        try {
+            const res = await deletePromotionRegistration(registrationId)
+            if (res.error) {
+                toast.error(res.error)
+            } else {
+                toast.success('Registration deleted')
+                queryClient.invalidateQueries({ queryKey: ['club-home', clubId] })
+            }
+        } catch {
+            toast.error('Failed to delete registration')
         } finally {
             setSubmitting(false)
         }
@@ -1320,6 +1338,15 @@ export default function ClubDashboard({
                                                                                                         Unapprove
                                                                                                     </button>
                                                                                                 )}
+                                                                                                <button
+                                                                                                    onClick={() => {
+                                                                                                        handlePromotionDelete(promo.id)
+                                                                                                        setActionMenuOpen(null)
+                                                                                                    }}
+                                                                                                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                                                                                >
+                                                                                                    Delete
+                                                                                                </button>
                                                                                             </div>
                                                                                         </div>
                                                                                     )}

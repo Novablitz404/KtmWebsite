@@ -23,7 +23,10 @@ export async function updateRegistrationStatus(registrationId: string, status: s
 
     await prisma.promotionTestRegistration.update({
         where: { id: registrationId },
-        data: { status }
+        data: {
+            status,
+            ...(status === 'APPROVED' && { paymentStatus: 'PAID' })
+        }
     })
 
     // Auto-advance belt when PASSED
@@ -134,6 +137,28 @@ export async function toggleJump(registrationId: string) {
 
     revalidatePath(`/promotions/${registration.promotionTestId}`)
     return { success: true, isJump: updated.isJump }
+}
+
+export async function deletePromotionRegistration(registrationId: string) {
+    const user = await currentUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const registration = await prisma.promotionTestRegistration.findUnique({
+        where: { id: registrationId },
+        include: { promotionTest: true }
+    })
+
+    if (!registration) return { error: 'Registration not found' }
+
+    const authorized = await canManagePromotion(user.id, registration.promotionTest.organizationId)
+    if (!authorized) return { error: 'Unauthorized' }
+
+    await prisma.promotionTestRegistration.delete({
+        where: { id: registrationId }
+    })
+
+    revalidatePath(`/promotions/${registration.promotionTestId}`)
+    return { success: true }
 }
 
 export async function getPromotionTests() {

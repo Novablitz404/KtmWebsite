@@ -256,11 +256,24 @@ export default function PromotionTabs({ promotionTest, userRole }: PromotionTabs
 
                     {activeTab === 'participants' && (
                         <div className="animate-in fade-in duration-300 space-y-6">
-                            <div>
-                                <h1 className="text-3xl font-black text-gray-900 tracking-tight">Participants</h1>
-                                <p className="text-gray-500 font-medium pt-1">Manage registrations and approve applicants.</p>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div>
+                                    <h1 className="text-3xl font-black text-gray-900 tracking-tight">Participants</h1>
+                                    <p className="text-gray-500 font-medium pt-1">View registrations and participant status.</p>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        const url = `${window.location.origin}/promotions/${promotionTest.id}/examiner`
+                                        navigator.clipboard.writeText(url)
+                                        alert('Examiner link copied to clipboard!')
+                                    }}
+                                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                                    Copy Examiner Link
+                                </button>
                             </div>
-                            <ParticipantsTable registrations={promotionTest.registrations as any} readonly={false} />
+                            <ParticipantsTable registrations={promotionTest.registrations as any} />
                         </div>
                     )}
 
