@@ -337,6 +337,7 @@ model PromotionTestRegistration {
 
   status        String @default("PENDING") // PENDING, APPROVED, PASSED, FAILED
   paymentStatus String @default("UNPAID") // UNPAID, PAID
+  isJump        Boolean @default(false) // Skip a rank (e.g., White -> Orange instead of White -> Yellow)
 
   createdAt DateTime @default(now())
 

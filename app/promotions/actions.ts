@@ -3,36 +3,39 @@
 import { prisma } from '@/lib/prisma'
 import { currentUser } from '@clerk/nextjs/server'
 import { revalidatePath } from 'next/cache'
+import { getNextBelt, canManagePromotion } from '@/lib/belt'
 
 export async function updateRegistrationStatus(registrationId: string, status: string) {
     const user = await currentUser()
     if (!user) return { error: 'Unauthorized' }
 
-    // Verify ownership via promotion test -> organization -> user
     const registration = await prisma.promotionTestRegistration.findUnique({
         where: { id: registrationId },
         include: {
-            promotionTest: {
-                include: { organization: true }
-            }
+            promotionTest: true
         }
     })
 
     if (!registration) return { error: 'Registration not found' }
 
-    const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
-        include: { organization: true }
-    })
-
-    if (!dbUser?.organization || dbUser.organization.id !== registration.promotionTest.organizationId) {
-        return { error: 'Unauthorized' }
-    }
+    const authorized = await canManagePromotion(user.id, registration.promotionTest.organizationId)
+    if (!authorized) return { error: 'Unauthorized' }
 
     await prisma.promotionTestRegistration.update({
         where: { id: registrationId },
         data: { status }
     })
+
+    // Auto-advance belt when PASSED
+    if (status === 'PASSED' && registration.playerId) {
+        const nextBelt = getNextBelt(registration.currentBelt, registration.isJump)
+        if (nextBelt) {
+            await prisma.user.update({
+                where: { id: registration.playerId },
+                data: { belt: nextBelt }
+            })
+        }
+    }
 
     revalidatePath(`/promotions/${registration.promotionTestId}`)
     return { success: true }
@@ -45,22 +48,14 @@ export async function updateRegistrationPaymentStatus(registrationId: string, pa
     const registration = await prisma.promotionTestRegistration.findUnique({
         where: { id: registrationId },
         include: {
-            promotionTest: {
-                include: { organization: true }
-            }
+            promotionTest: true
         }
     })
 
     if (!registration) return { error: 'Registration not found' }
 
-    const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
-        include: { organization: true }
-    })
-
-    if (!dbUser?.organization || dbUser.organization.id !== registration.promotionTest.organizationId) {
-        return { error: 'Unauthorized' }
-    }
+    const authorized = await canManagePromotion(user.id, registration.promotionTest.organizationId)
+    if (!authorized) return { error: 'Unauthorized' }
 
     await prisma.promotionTestRegistration.update({
         where: { id: registrationId },
@@ -75,7 +70,6 @@ export async function bulkUpdateRegistrations(registrationIds: string[], status:
     const user = await currentUser()
     if (!user) return { error: 'Unauthorized' }
 
-    // Simplified verification: check first one
     if (registrationIds.length === 0) return { success: true }
 
     const firstReg = await prisma.promotionTestRegistration.findUnique({
@@ -85,22 +79,61 @@ export async function bulkUpdateRegistrations(registrationIds: string[], status:
 
     if (!firstReg) return { error: 'Registration not found' }
 
-    const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
-        include: { organization: true }
-    })
-
-    if (!dbUser?.organization || dbUser.organization.id !== firstReg.promotionTest.organizationId) {
-        return { error: 'Unauthorized' }
-    }
+    const authorized = await canManagePromotion(user.id, firstReg.promotionTest.organizationId)
+    if (!authorized) return { error: 'Unauthorized' }
 
     await prisma.promotionTestRegistration.updateMany({
         where: { id: { in: registrationIds } },
         data: { status }
     })
 
+    // Auto-advance belts when bulk-marking as PASSED
+    if (status === 'PASSED') {
+        const registrations = await prisma.promotionTestRegistration.findMany({
+            where: { id: { in: registrationIds }, playerId: { not: null } },
+            select: { playerId: true, currentBelt: true, isJump: true }
+        })
+
+        for (const reg of registrations) {
+            if (reg.playerId) {
+                const nextBelt = getNextBelt(reg.currentBelt, reg.isJump)
+                if (nextBelt) {
+                    await prisma.user.update({
+                        where: { id: reg.playerId },
+                        data: { belt: nextBelt }
+                    })
+                }
+            }
+        }
+    }
+
     revalidatePath(`/promotions/${firstReg.promotionTestId}`)
     return { success: true }
+}
+
+export async function toggleJump(registrationId: string) {
+    const user = await currentUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const registration = await prisma.promotionTestRegistration.findUnique({
+        where: { id: registrationId },
+        include: {
+            promotionTest: true
+        }
+    })
+
+    if (!registration) return { error: 'Registration not found' }
+
+    const authorized = await canManagePromotion(user.id, registration.promotionTest.organizationId)
+    if (!authorized) return { error: 'Unauthorized' }
+
+    const updated = await prisma.promotionTestRegistration.update({
+        where: { id: registrationId },
+        data: { isJump: !registration.isJump }
+    })
+
+    revalidatePath(`/promotions/${registration.promotionTestId}`)
+    return { success: true, isJump: updated.isJump }
 }
 
 export async function getPromotionTests() {

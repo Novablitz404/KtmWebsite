@@ -21,6 +21,7 @@ interface Member {
     email: string
     belt: string | null
     weight: number | null
+    height: number | null
     gender: string | null
     birthDate: Date | null
 }
@@ -55,6 +56,8 @@ interface PromotionTest {
     testDate: Date
 }
 
+const BELT_OPTIONS = ['White', 'Yellow', 'Orange', 'Green', 'Purple', 'Blue', 'Maroon', 'Red', 'Brown', 'Black']
+
 export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, defaultType = 'TOURNAMENT' }: AddAthleteModalProps) {
     // Member Search State
     const [searchQuery, setSearchQuery] = useState('')
@@ -81,9 +84,12 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
     // Auto-Detection State
     const [tentativeCategory, setTentativeCategory] = useState<Category | null>(null)
     const [isDetecting, setIsDetecting] = useState(false)
+    const [isManualMode, setIsManualMode] = useState(false)
+    const [manualCategoryId, setManualCategoryId] = useState<string>('')
 
     // Form State (Details)
     const [weight, setWeight] = useState<string>('')
+    const [height, setHeight] = useState<string>('')
     const [belt, setBelt] = useState<string>('')
     const [eventType, setEventType] = useState<'KYORUGI' | 'POOMSAE' | 'KYUKPA'>('KYORUGI')
     const [poomsaeType, setPoomsaeType] = useState<string>('INDIVIDUAL')
@@ -125,6 +131,16 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
         ].filter(type => selectedTournamentObj.categories.some(c => c.type === type.value))
         : []
 
+    // Categories filtered by selected event type (for manual selection)
+    const filteredCategories = selectedTournamentObj
+        ? selectedTournamentObj.categories.filter(c => c.type === eventType)
+        : []
+
+    // The effective category: manual override takes priority
+    const effectiveCategory = isManualMode
+        ? filteredCategories.find(c => c.id === manualCategoryId) || null
+        : tentativeCategory
+
     // Auto-Detect Category Logic
     useEffect(() => {
         const detectCategory = async () => {
@@ -140,6 +156,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                     birthDate: selectedMember.birthDate || new Date(), // Fallback if missing, but should be there
                     gender: selectedMember.gender || 'Male',
                     weight: parseFloat(weight) || 0,
+                    height: parseFloat(height) || 0,
                     belt: belt,
                     poomsaeType: eventType === 'POOMSAE' ? poomsaeType : undefined,
                     type: eventType
@@ -155,7 +172,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
 
         const timer = setTimeout(detectCategory, 500)
         return () => clearTimeout(timer)
-    }, [selectedTournament, selectedMember, weight, belt, poomsaeType])
+    }, [selectedTournament, selectedMember, weight, height, belt, poomsaeType])
 
     // Member Search Debounce
     useEffect(() => {
@@ -184,6 +201,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
         setSearchQuery('')
         setSearchResults([])
         setWeight(member.weight?.toString() || '')
+        setHeight(member.height?.toString() || '')
         setBelt(member.belt || '')
         setEventType('KYORUGI')
         setPoomsaeType('INDIVIDUAL')
@@ -200,14 +218,14 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
         setSubmitting(true)
         try {
             if (activeTab === 'TOURNAMENT') {
-                if (!selectedTournament || !tentativeCategory) {
-                    toast.error('Please select a tournament and ensure a category is detected')
+                if (!selectedTournament || !effectiveCategory) {
+                    toast.error('Please select a tournament and ensure a category is selected')
                     setSubmitting(false)
                     return
                 }
 
                 const res = await registerForTournament({
-                    categoryId: tentativeCategory.id,
+                    categoryId: effectiveCategory.id,
                     userId: selectedMember.id,
                     name: selectedMember.name || 'Unknown',
                     gender: selectedMember.gender || 'MALE',
@@ -256,7 +274,10 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                     playerName: selectedMember.name || 'Unknown',
                     clubName: clubName,
                     currentBelt: belt,
-                    targetBelt: targetBelt,
+                    targetBelt: (() => {
+                        const idx = BELT_OPTIONS.findIndex(b => b.toLowerCase() === belt.toLowerCase())
+                        return idx !== -1 && idx < BELT_OPTIONS.length - 1 ? BELT_OPTIONS[idx + 1] : undefined
+                    })(),
                     age: selectedMember.birthDate ? new Date().getFullYear() - new Date(selectedMember.birthDate).getFullYear() : undefined
                 })
 
@@ -401,26 +422,49 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Weight (kg)</label>
-                                        <input
-                                            type="number"
-                                            step="0.1"
-                                            value={weight}
-                                            onChange={(e) => setWeight(e.target.value)}
-                                            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
-                                            required={eventType === 'KYORUGI'}
-                                            disabled={eventType === 'POOMSAE' || eventType === 'KYUKPA'}
-                                        />
-                                    </div>
+                                    {/* Dynamic: Height for ages 0-11, Weight for ages 12+ */}
+                                    {(() => {
+                                        const memberAge = selectedMember?.birthDate
+                                            ? Math.floor((Date.now() - new Date(selectedMember.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+                                            : null
+                                        const usesHeight = memberAge !== null && memberAge <= 11
+
+                                        return usesHeight ? (
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Height (cm)</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.1"
+                                                    value={height}
+                                                    onChange={(e) => setHeight(e.target.value)}
+                                                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
+                                                    required={eventType === 'KYORUGI'}
+                                                    disabled={eventType === 'POOMSAE' || eventType === 'KYUKPA'}
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Weight (kg)</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.1"
+                                                    value={weight}
+                                                    onChange={(e) => setWeight(e.target.value)}
+                                                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
+                                                    required={eventType === 'KYORUGI'}
+                                                    disabled={eventType === 'POOMSAE' || eventType === 'KYUKPA'}
+                                                />
+                                            </div>
+                                        )
+                                    })()}
                                     <div className="space-y-2">
                                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Current Belt</label>
-                                        <input
-                                            type="text"
+                                        <GlobalDropdown
                                             value={belt}
-                                            onChange={(e) => setBelt(e.target.value)}
-                                            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
-                                            required
+                                            onChange={setBelt}
+                                            options={BELT_OPTIONS.map(b => ({ label: b, value: b }))}
+                                            label="Select..."
+                                            fullWidth
                                         />
                                     </div>
                                 </div>
@@ -454,28 +498,62 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                                 )}
 
                                 <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Detailed Category</label>
-                                    {isDetecting ? (
-                                        <div className="flex items-center gap-2 text-gray-500 text-sm">
-                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                            <span>Detecting category...</span>
-                                        </div>
-                                    ) : tentativeCategory ? (
-                                        <div className="flex items-start gap-3">
-                                            <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5" />
-                                            <div>
-                                                <p className="font-bold text-gray-900 text-sm">{tentativeCategory.name}</p>
-                                                <p className="text-xs text-green-600 mt-0.5">Auto-detected based on profile</p>
-                                            </div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Category</label>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setIsManualMode(!isManualMode)
+                                                setManualCategoryId('')
+                                            }}
+                                            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+                                        >
+                                            {isManualMode ? '← Auto-Detect' : 'Choose Manually'}
+                                        </button>
+                                    </div>
+
+                                    {isManualMode ? (
+                                        /* Manual Category Selection */
+                                        <div className="space-y-2">
+                                            <GlobalDropdown
+                                                value={manualCategoryId}
+                                                onChange={setManualCategoryId}
+                                                options={filteredCategories.map(c => ({ value: c.id, label: c.name }))}
+                                                label="Select category..."
+                                                fullWidth
+                                                searchable
+                                            />
+                                            {manualCategoryId && (
+                                                <div className="flex items-center gap-2 text-xs text-indigo-600 mt-1">
+                                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                                    <span>Manually selected</span>
+                                                </div>
+                                            )}
                                         </div>
                                     ) : (
-                                        <div className="flex items-start gap-3">
-                                            <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5" />
-                                            <div>
-                                                <p className="font-medium text-gray-700 text-sm">No Category Found</p>
-                                                <p className="text-xs text-gray-500 mt-0.5">Please check weight, age, and requirements.</p>
+                                        /* Auto-Detected Category */
+                                        isDetecting ? (
+                                            <div className="flex items-center gap-2 text-gray-500 text-sm">
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                <span>Detecting category...</span>
                                             </div>
-                                        </div>
+                                        ) : tentativeCategory ? (
+                                            <div className="flex items-start gap-3">
+                                                <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5" />
+                                                <div>
+                                                    <p className="font-bold text-gray-900 text-sm">{tentativeCategory.name}</p>
+                                                    <p className="text-xs text-green-600 mt-0.5">Auto-detected based on profile</p>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-start gap-3">
+                                                <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5" />
+                                                <div>
+                                                    <p className="font-medium text-gray-700 text-sm">No Category Found</p>
+                                                    <p className="text-xs text-gray-500 mt-0.5">Try choosing manually or check weight, age, and requirements.</p>
+                                                </div>
+                                            </div>
+                                        )
                                     )}
                                 </div>
                             </>
@@ -519,22 +597,25 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Current Belt</label>
-                                        <input
-                                            type="text"
+                                        <GlobalDropdown
                                             value={belt}
-                                            onChange={(e) => setBelt(e.target.value)}
-                                            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
+                                            onChange={setBelt}
+                                            options={BELT_OPTIONS.map(b => ({ label: b, value: b }))}
+                                            label="Select..."
+                                            fullWidth
                                         />
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Target Belt</label>
-                                        <input
-                                            type="text"
-                                            value={targetBelt}
-                                            onChange={(e) => setTargetBelt(e.target.value)}
-                                            placeholder="Next Rank"
-                                            className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
-                                        />
+                                        {(() => {
+                                            const idx = BELT_OPTIONS.findIndex(b => b.toLowerCase() === belt.toLowerCase())
+                                            const nextBelt = idx !== -1 && idx < BELT_OPTIONS.length - 1 ? BELT_OPTIONS[idx + 1] : null
+                                            return (
+                                                <div className={`w-full px-3 py-2.5 rounded-xl text-sm font-medium ${nextBelt ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-gray-100 border border-gray-200 text-gray-400'}`}>
+                                                    {nextBelt || (belt ? 'Already at highest rank' : 'Select current belt first')}
+                                                </div>
+                                            )
+                                        })()}
                                     </div>
                                 </div>
                             </div>
@@ -543,7 +624,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                         {/* Submit */}
                         <button
                             type="submit"
-                            disabled={submitting || !selectedMember || (activeTab === 'TOURNAMENT' && !tentativeCategory)}
+                            disabled={submitting || !selectedMember || (activeTab === 'TOURNAMENT' && !effectiveCategory)}
                             className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-sm shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                         >
                             {submitting ? (

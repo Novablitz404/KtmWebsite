@@ -57,6 +57,7 @@ export default function GlobalDropdown({
     const [isOpen, setIsOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
     const [dropUp, setDropUp] = useState(false)
+    const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({})
     const dropdownRef = useRef<HTMLDivElement>(null)
     const triggerRef = useRef<HTMLDivElement>(null)
 
@@ -85,18 +86,39 @@ export default function GlobalDropdown({
         }
     }, [])
 
+    // Calculate fixed position when dropdown opens or window resizes/scrolls
+    const updatePosition = () => {
+        if (!triggerRef.current) return
+        const rect = triggerRef.current.getBoundingClientRect()
+        const spaceBelow = window.innerHeight - rect.bottom
+        const spaceNeeded = 200 // max-h-40 (160px) + search bar + padding
+        const shouldDropUp = spaceBelow < spaceNeeded && rect.top > spaceNeeded
+
+        setDropUp(shouldDropUp)
+        setMenuStyle({
+            position: 'fixed',
+            left: rect.left,
+            width: rect.width,
+            ...(shouldDropUp
+                ? { bottom: window.innerHeight - rect.top + 4 }
+                : { top: rect.bottom + 4 }),
+        })
+    }
+
     useEffect(() => {
         if (!isOpen) {
             setSearchQuery('')
             return
         }
 
-        // Check if dropdown should open upward
-        if (triggerRef.current) {
-            const rect = triggerRef.current.getBoundingClientRect()
-            const spaceBelow = window.innerHeight - rect.bottom
-            const spaceNeeded = 280 // approximate max dropdown height
-            setDropUp(spaceBelow < spaceNeeded && rect.top > spaceNeeded)
+        updatePosition()
+
+        // Reposition on scroll (any ancestor) and resize
+        window.addEventListener('scroll', updatePosition, true)
+        window.addEventListener('resize', updatePosition)
+        return () => {
+            window.removeEventListener('scroll', updatePosition, true)
+            window.removeEventListener('resize', updatePosition)
         }
     }, [isOpen])
 
@@ -108,13 +130,21 @@ export default function GlobalDropdown({
         item.label.toLowerCase().includes(searchQuery.toLowerCase())
     )
 
+    const handleToggle = () => {
+        if (!isOpen) {
+            // Calculate position BEFORE rendering the dropdown
+            updatePosition()
+        }
+        setIsOpen(!isOpen)
+    }
+
     return (
         <div className={`relative inline-block text-left ${fullWidth ? 'w-full' : ''} ${className}`} ref={dropdownRef}>
             {/* Hidden Input for Forms */}
             {name && <input type="hidden" name={name} value={value} />}
             {required && <input type="hidden" value={value} required={required} />}
 
-            <div ref={triggerRef} onClick={() => setIsOpen(!isOpen)} className={fullWidth ? 'w-full' : ''}>
+            <div ref={triggerRef} onClick={handleToggle} className={fullWidth ? 'w-full' : ''}>
                 {trigger ? (
                     trigger
                 ) : (
@@ -148,10 +178,10 @@ export default function GlobalDropdown({
             {/* Dropdown Menu */}
             {isOpen && (
                 <div
+                    style={menuStyle}
                     className={`
-                        absolute z-50 ${dropUp ? 'bottom-full mb-1 origin-bottom' : 'top-full mt-1 origin-top'} ${fullWidth ? 'w-full' : width} rounded-xl shadow-lg bg-white border border-gray-100 focus:outline-none 
+                        z-50 rounded-xl shadow-lg bg-white border border-gray-100 focus:outline-none 
                         transform opacity-100 scale-100 transition-all duration-200 overflow-hidden flex flex-col
-                        ${align === 'right' ? 'right-0' : 'left-0'}
                     `}
                     role="menu"
                     aria-orientation="vertical"
@@ -170,7 +200,7 @@ export default function GlobalDropdown({
                             />
                         </div>
                     )}
-                    <div className="py-1 max-h-60 overflow-y-auto" role="none">
+                    <div className="py-1 max-h-40 overflow-y-auto" role="none">
                         {/* Render Items (Actions) */}
                         {filteredItems?.map((item, index) => (
                             <button

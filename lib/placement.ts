@@ -60,12 +60,11 @@ export async function findCategoryForPlayer(
 
         // 4. Kyorugi Specifics
         if (targetType === 'KYORUGI') {
-            // Weight
-            if (cat.minWeight !== null && player.weight < cat.minWeight) return false
-            if (cat.maxWeight !== null && player.weight >= cat.maxWeight) return false // maxWeight is exclusive usually? 
-            // In Prisma schema comments: "maxWeight Float // Maximum weight (exclusive...)"
+            // Weight (truthy check: skip when 0/null, used for height-based divisions)
+            if (cat.minWeight && player.weight < cat.minWeight) return false
+            if (cat.maxWeight && player.weight >= cat.maxWeight) return false
 
-            // Height
+            // Height (truthy check: skip when 0/null, used for weight-based divisions)
             if (cat.minHeight && (player.height || 0) < cat.minHeight) return false
             if (cat.maxHeight && (player.height || 0) > cat.maxHeight) return false
         }

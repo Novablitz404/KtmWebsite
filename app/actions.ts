@@ -2027,6 +2027,7 @@ export async function searchClubMembers(clubName: string, query: string) {
             belt: true,
             gender: true,
             weight: true,
+            height: true,
             birthDate: true,
             clerkId: true // for avatar
         },
