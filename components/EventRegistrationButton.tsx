@@ -12,6 +12,7 @@ interface EventRegistrationButtonProps {
     status?: string
     paymentStatus?: string
     disabled?: boolean
+    onBeforeRegister?: () => boolean
 }
 
 export default function EventRegistrationButton({
@@ -20,11 +21,13 @@ export default function EventRegistrationButton({
     isRegistered,
     status,
     paymentStatus,
-    disabled = false
+    disabled = false,
+    onBeforeRegister
 }: EventRegistrationButtonProps) {
     const [isPending, startTransition] = useTransition()
 
     const handleRegister = () => {
+        if (onBeforeRegister && !onBeforeRegister()) return
         startTransition(async () => {
             try {
                 let result
@@ -78,7 +81,7 @@ export default function EventRegistrationButton({
             className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm hover:shadow-md"
         >
             {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-            {isPending ? 'Registering...' : 'One-Click Register'}
+            {isPending ? 'Registering...' : 'Register'}
         </button>
     )
 }

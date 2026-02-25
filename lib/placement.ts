@@ -84,22 +84,10 @@ export async function findCategoryForPlayer(
                 const normalizedPlayerBelt = player.belt.toLowerCase()
 
                 // If the category name explicitly mentions a belt color, enforce it
-                const knownBelts = ['white', 'yellow', 'green', 'blue', 'red', 'brown', 'black', 'poom', 'dan']
+                const knownBelts = ['white', 'yellow', 'orange', 'green', 'purple', 'blue', 'maroon', 'red', 'brown', 'black', 'poom', 'dan']
                 const mentionedBelts = knownBelts.filter(b => normalizedCatName.includes(b))
 
                 if (mentionedBelts.length > 0) {
-                    // Category mentions belts. Does it mention the player's belt?
-                    // "High Yellow" should match "Yellow"? Or strict?
-                    // User said: "Senior ... Yellow Belt" vs "Brown Belt".
-                    // If Cat is "Yellow Belt", mentionedBelts=['yellow']. Player is "Brown".
-                    // "Brown" is NOT in "Yellow Belt". Return false.
-
-                    // Simple check: Is the player's belt keyword in the category name?
-                    // "Yellow" in "Yellow Belt" -> yes.
-                    // "Brown" in "Yellow Belt" -> no.
-
-                    // BUT: "Blue" matches "Dark Blue"? "Blue" matches "Blue"?
-                    // Player "Blue" should match "Blue Belt".
 
                     if (!normalizedCatName.includes(normalizedPlayerBelt)) return false
                 }
@@ -120,7 +108,7 @@ export async function findCategoryForPlayer(
 
                 // If category implies a specific belt (e.g. "White Belt"), check for it
                 // Allow "White" to match "White Belt" etc.
-                const beltKeywords = ['white', 'yellow', 'green', 'blue', 'red', 'brown', 'black', 'poom', 'dan']
+                const beltKeywords = ['white', 'yellow', 'orange', 'green', 'purple', 'blue', 'maroon', 'red', 'brown', 'black', 'poom', 'dan']
                 const mentionedBelts = beltKeywords.filter(b => normalizedCatName.includes(b))
 
                 if (mentionedBelts.length > 0) {

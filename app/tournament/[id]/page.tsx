@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
 import TournamentTabs from '@/components/TournamentTabs'
 
-import { currentUser, clerkClient } from '@clerk/nextjs/server'
+import { currentUser } from '@clerk/nextjs/server'
 import PublicTournamentView from '@/components/PublicTournamentView'
 
 
@@ -141,7 +141,7 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
                 select: { id: true, name: true, logoUrl: true }
             },
             user: {
-                select: { clerkId: true }
+                select: { clerkId: true, imageUrl: true }
             }
         },
         orderBy: {
@@ -187,34 +187,11 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
 
     const canManage = isOrganizer || isManager || isAdmin
 
-    // If public view, fetch user images from Clerk
-    let enrichedPlayers = players
-    if (!canManage) {
-        try {
-            const clerkIds = players.map((p: any) => p.user?.clerkId).filter(Boolean) as string[]
-            // Deduplicate
-            const uniqueids = Array.from(new Set(clerkIds))
-
-            // Clerk API limit is 100 usually. For now assuming < 100 or partial.
-            // If > 100, we might need batching.
-            if (uniqueids.length > 0) {
-                const client = await clerkClient() // Await the client Promise
-                const clerkUsers = await client.users.getUserList({ userId: uniqueids, limit: 100 })
-
-                const imageMap = new Map<string, string>()
-                clerkUsers.data.forEach(u => {
-                    imageMap.set(u.id, u.imageUrl)
-                })
-
-                enrichedPlayers = players.map((p: any) => ({
-                    ...p,
-                    imageUrl: p.user?.clerkId ? imageMap.get(p.user.clerkId) : undefined
-                }))
-            }
-        } catch (e) {
-            console.error('Failed to fetch clerk images', e)
-        }
-    }
+    // Enrich players with imageUrl from DB (no Clerk API call needed)
+    const enrichedPlayers = players.map((p: any) => ({
+        ...p,
+        imageUrl: p.user?.imageUrl || undefined
+    }))
 
     return (
         <main className="min-h-screen bg-gray-50">

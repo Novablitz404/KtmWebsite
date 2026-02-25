@@ -2,7 +2,6 @@
 
 import { Calendar, MapPin, DollarSign, Users, Settings } from 'lucide-react'
 import Link from 'next/link'
-import PromotionStatusActions from '@/app/promotions/PromotionStatusActions'
 
 const statusConfig: Record<string, { bg: string, text: string }> = {
     UPCOMING: { bg: 'bg-blue-50', text: 'text-blue-700' },
@@ -60,9 +59,6 @@ export default function PromotionsList({ promotionTests }: PromotionsListProps) 
                             <tr key={test.id} className="hover:bg-gray-50/50 transition-colors">
                                 <td className="px-6 py-4">
                                     <span className="font-semibold text-gray-900">{test.name}</span>
-                                    {test.description && (
-                                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{test.description}</p>
-                                    )}
                                 </td>
                                 <td className="px-6 py-4 text-gray-600 text-sm">
                                     <div className="flex items-center gap-1.5">
@@ -106,16 +102,13 @@ export default function PromotionsList({ promotionTests }: PromotionsListProps) 
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 text-right">
-                                    <div className="flex items-center justify-end gap-2">
-                                        <PromotionStatusActions promotionTestId={test.id} currentStatus={test.status} />
-                                        <Link
-                                            href={`/promotions/${test.id}`}
-                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm group"
-                                        >
-                                            <Settings className="w-4 h-4 text-gray-400 group-hover:text-indigo-500 transition-colors" />
-                                            Manage
-                                        </Link>
-                                    </div>
+                                    <Link
+                                        href={`/promotions/${test.id}`}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm group"
+                                    >
+                                        <Settings className="w-4 h-4 text-gray-400 group-hover:text-indigo-500 transition-colors" />
+                                        Manage
+                                    </Link>
                                 </td>
                             </tr>
                         )

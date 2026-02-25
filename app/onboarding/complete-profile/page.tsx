@@ -1,5 +1,6 @@
 'use client'
 
+import { completeOnboarding, checkEmailAvailability, getExistingProfile } from '@/app/actions'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
@@ -14,8 +15,8 @@ import { motion } from 'framer-motion'
 type OnboardingStep = 'profile' | 'details'
 
 const BELT_OPTIONS = [
-    'White', 'Low Yellow', 'High Yellow', 'Low Blue', 'High Blue',
-    'Low Red', 'High Red', 'Low Brown', 'High Brown', 'Black'
+    'White', 'Yellow', 'Orange', 'Green', 'Purple',
+    'Blue', 'Maroon', 'Red', 'Brown', 'Black'
 ]
 
 const GENDER_OPTIONS = ['Male', 'Female']
@@ -95,11 +96,26 @@ export default function CompleteProfilePage() {
     const [establishedDate, setEstablishedDate] = useState('')
     const orgLogoInputRef = useRef<HTMLInputElement>(null)
 
-    // Pre-fill existing data
+    // Pre-fill existing data from Clerk + DB
     useEffect(() => {
         if (!isLoaded || !user) return
         setName(user.fullName || user.firstName || '')
         if (user.imageUrl) setImgPreview(user.imageUrl)
+
+        // Fetch existing DB profile (e.g. pre-registered by clubmaster)
+        const email = user.emailAddresses?.[0]?.emailAddress
+        if (email) {
+            getExistingProfile(email).then((profile) => {
+                if (!profile) return
+                if (profile.name) setName(profile.name)
+                if (profile.birthDate) setBirthDate(format(new Date(profile.birthDate), 'yyyy-MM-dd'))
+                if (profile.gender) setGender(profile.gender)
+                if (profile.weight) setWeight(String(profile.weight))
+                if (profile.height) setHeight(String(profile.height))
+                if (profile.belt) setBelt(profile.belt)
+                if (profile.clubName) setClubName(profile.clubName)
+            })
+        }
     }, [isLoaded, user])
 
     // Fetch clubs for athlete dropdown
@@ -839,7 +855,14 @@ export default function CompleteProfilePage() {
                                         <Users className="w-4 h-4 text-red-600" /> Affiliated Club
                                     </label>
                                     <GlobalDropdown
-                                        options={clubs.map(c => ({ value: c.name, label: c.name }))}
+                                        options={(() => {
+                                            const clubOptions = clubs.map(c => ({ value: c.name, label: c.name }))
+                                            // Ensure pre-filled club is always available as an option
+                                            if (clubName && !clubOptions.some(o => o.value === clubName)) {
+                                                clubOptions.unshift({ value: clubName, label: clubName })
+                                            }
+                                            return clubOptions
+                                        })()}
                                         value={clubName}
                                         onChange={(val: string) => setClubName(val)}
                                         fullWidth

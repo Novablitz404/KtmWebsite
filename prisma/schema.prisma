@@ -2,7 +2,8 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["views"]
 }
 
 datasource db {
@@ -618,4 +619,21 @@ model SmartProposalVote {
   timestamp DateTime @default(now())
 
   @@unique([proposalId, clubId])
+}
+
+// ============================================
+// GLOBAL RANKING VIEW
+// ============================================
+view GlobalAthleteRanking {
+  id          String @id
+  userId      String
+  playerName  String
+  clubName    String?
+  division    String?
+  gender      String?
+  type        String
+  totalPoints Float
+  globalRank  Int
+
+  @@map("GlobalAthleteRanking")
 }

@@ -102,56 +102,6 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
                     </div>
 
                     <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[85vh] overflow-y-auto">
-                        {/* Banner Image Upload */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Promotion Banner Image
-                            </label>
-                            <div className="relative group">
-                                <div className={`
-                                    w-full h-48 rounded-xl border-2 border-dashed border-gray-300 
-                                    flex flex-col items-center justify-center 
-                                    bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer overflow-hidden
-                                    ${imagePreview ? 'border-amber-500' : ''}
-                                `}>
-                                    {imagePreview ? (
-                                        <>
-                                            <img src={imagePreview} alt="Banner Preview" className="w-full h-full object-cover" />
-                                            <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                    e.preventDefault()
-                                                    removeImage()
-                                                }}
-                                                className="absolute top-2 right-2 p-1 bg-white/80 rounded-full hover:bg-white text-gray-600 hover:text-red-500 transition-colors shadow-sm"
-                                            >
-                                                <X className="w-5 h-5" />
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <label htmlFor="banner" className="w-full h-full flex flex-col items-center justify-center cursor-pointer p-4">
-                                            <ImageIcon className="w-10 h-10 text-gray-400 mb-2 group-hover:text-amber-500 transition-colors" />
-                                            <p className="text-sm font-medium text-gray-600">Click to upload banner image</p>
-                                            <p className="text-xs text-gray-500 mt-1">Recommended: 1200x400</p>
-                                            <p className="text-xs text-gray-400">PNG, JPG, GIF (Max 10MB)</p>
-                                        </label>
-                                    )}
-                                </div>
-                                <input
-                                    type="file"
-                                    id="banner"
-                                    accept="image/*"
-                                    onChange={handleBackdropChange}
-                                    className="hidden"
-                                />
-                            </div>
-                            {croppedImageBlob && (
-                                <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
-                                    <Check className="w-3 h-3" /> Image cropped and ready
-                                </p>
-                            )}
-                        </div>
-
                         {/* Name */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -178,8 +128,8 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
                         </div>
 
 
-                        {/* Grid for Date/Deadline/Visibility */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Grid for Date/Deadline */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <GlobalCalendar
                                     label="Test Date"
@@ -210,23 +160,8 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
                                 />
                                 <input type="hidden" name="registrationDeadline" />
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Visibility</label>
-                                <div className="flex bg-gray-100 p-1 rounded-xl">
-                                    <label className="flex-1 cursor-pointer">
-                                        <input type="radio" name="visibility" value="PRIVATE" className="sr-only peer" defaultChecked />
-                                        <span className="flex items-center justify-center py-1.5 text-sm font-medium rounded-lg text-gray-500 peer-checked:bg-white peer-checked:text-gray-900 peer-checked:shadow-sm transition-all">
-                                            Private
-                                        </span>
-                                    </label>
-                                    <label className="flex-1 cursor-pointer">
-                                        <input type="radio" name="visibility" value="PUBLIC" className="sr-only peer" />
-                                        <span className="flex items-center justify-center py-1.5 text-sm font-medium rounded-lg text-gray-500 peer-checked:bg-white peer-checked:text-gray-900 peer-checked:shadow-sm transition-all">
-                                            Public
-                                        </span>
-                                    </label>
-                                </div>
-                            </div>
+                            {/* Promotions are always internal/private */}
+                            <input type="hidden" name="visibility" value="PRIVATE" />
                         </div>
 
                         {/* Venue & Fee */}
@@ -271,22 +206,24 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
             </div>
 
             {/* Image Cropper */}
-            {showCropper && tempImage && (
-                <ImageCropperModal
-                    imageUrl={tempImage!}
-                    aspectRatio={3 / 1}
-                    onCropComplete={(croppedBlob) => {
-                        setCroppedImageBlob(croppedBlob)
-                        setImagePreview(URL.createObjectURL(croppedBlob))
-                        setShowCropper(false)
-                        setTempImage(null)
-                    }}
-                    onClose={() => {
-                        setShowCropper(false)
-                        setTempImage(null)
-                    }}
-                />
-            )}
-        </div>
+            {
+                showCropper && tempImage && (
+                    <ImageCropperModal
+                        imageUrl={tempImage!}
+                        aspectRatio={3 / 1}
+                        onCropComplete={(croppedBlob) => {
+                            setCroppedImageBlob(croppedBlob)
+                            setImagePreview(URL.createObjectURL(croppedBlob))
+                            setShowCropper(false)
+                            setTempImage(null)
+                        }}
+                        onClose={() => {
+                            setShowCropper(false)
+                            setTempImage(null)
+                        }}
+                    />
+                )
+            }
+        </div >
     )
 }

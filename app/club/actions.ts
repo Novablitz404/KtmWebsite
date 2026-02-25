@@ -24,7 +24,7 @@ function generateTempPassword(): string {
 }
 
 interface CreateClubMemberInput {
-    email: string
+    email?: string
     name: string
     gender?: string
     belt?: string
@@ -51,19 +51,19 @@ export async function createClubMember(input: CreateClubMemberInput) {
 
     const clubName = clubMaster.club.name
 
-    // Check if email already exists
-    const existingUser = await prisma.user.findUnique({
-        where: { email: input.email }
-    })
+    // Check if email already exists (only when email is provided)
+    if (input.email) {
+        const existingUser = await prisma.user.findUnique({
+            where: { email: input.email }
+        })
 
-    if (existingUser) {
-        return { error: 'A user with this email already exists' }
+        if (existingUser) {
+            return { error: 'A user with this email already exists' }
+        }
     }
 
     try {
         // Generate unique ID for our database
-        // NOTE: We do NOT create a Clerk user here. The user will claim this account 
-        // when they sign up with the matching email.
         let newId = generateUserId()
         let idExists = await prisma.user.findUnique({ where: { id: newId } })
         while (idExists) {
@@ -71,12 +71,15 @@ export async function createClubMember(input: CreateClubMemberInput) {
             idExists = await prisma.user.findUnique({ where: { id: newId } })
         }
 
+        // Use provided email or generate a placeholder
+        const memberEmail = input.email || `noemail-${newId}@member.ktm`
+
         // Create database user (Ghost Account)
         const newMember = await prisma.user.create({
             data: {
                 id: newId,
                 clerkId: null, // No Clerk ID yet
-                email: input.email,
+                email: memberEmail,
                 name: input.name,
                 role: 'ATHLETE',
                 clubName: clubName,
@@ -165,7 +168,7 @@ export async function demoteToAthlete(memberId: string) {
     }
 
     if (targetMember.role !== 'ASSISTANT_CLUB_MASTER') {
-         return { error: 'User is not an Assistant Club Master' }
+        return { error: 'User is not an Assistant Club Master' }
     }
 
     try {
@@ -179,4 +182,218 @@ export async function demoteToAthlete(memberId: string) {
         console.error('Error demoting member:', error)
         return { error: 'Failed to demote member' }
     }
+}
+
+export async function getAthleteDetails(memberId: string) {
+    const user = await currentUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    // Verify requester is a club master
+    const requester = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        select: { role: true, clubName: true }
+    })
+
+    if (!requester || requester.role !== 'CLUB_MASTER') {
+        return { error: 'Only Club Masters can view athlete details' }
+    }
+
+    // Fetch the member
+    const member = await prisma.user.findUnique({
+        where: { id: memberId },
+        select: {
+            id: true,
+            name: true,
+            email: true,
+            gender: true,
+            belt: true,
+            weight: true,
+            height: true,
+            birthDate: true,
+            clubName: true,
+            isVerified: true,
+            imageUrl: true,
+        }
+    })
+
+    if (!member || member.clubName !== requester.clubName) {
+        return { error: 'Member not found or not in your club' }
+    }
+
+    // Fetch tournament entries (Players linked to this user)
+    const players = await prisma.player.findMany({
+        where: { userId: memberId },
+        select: {
+            id: true,
+            name: true,
+            medal: true,
+            registrationStatus: true,
+            belt: true,
+            weight: true,
+            division: true,
+            poomsaeType: true,
+            category: {
+                select: {
+                    name: true,
+                    type: true,
+                    tournament: {
+                        select: {
+                            name: true,
+                            startDate: true,
+                        }
+                    }
+                }
+            },
+            createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' }
+    })
+
+    // Fetch promotion test registrations
+    const promotions = await prisma.promotionTestRegistration.findMany({
+        where: { playerId: memberId },
+        select: {
+            id: true,
+            playerName: true,
+            currentBelt: true,
+            targetBelt: true,
+            status: true,
+            paymentStatus: true,
+            createdAt: true,
+            promotionTest: {
+                select: {
+                    name: true,
+                    testDate: true,
+                    venue: true,
+                }
+            }
+        },
+        orderBy: { createdAt: 'desc' }
+    })
+
+    // Fetch seminar registrations
+    const seminars = await prisma.seminarRegistration.findMany({
+        where: { playerId: memberId },
+        select: {
+            id: true,
+            playerName: true,
+            belt: true,
+            status: true,
+            createdAt: true,
+            seminar: {
+                select: {
+                    name: true,
+                    startDate: true,
+                    venue: true,
+                }
+            }
+        },
+        orderBy: { createdAt: 'desc' }
+    })
+
+    return {
+        member,
+        tournaments: players.map(p => ({
+            id: p.id,
+            tournamentName: p.category?.tournament?.name || 'Unknown',
+            tournamentDate: p.category?.tournament?.startDate,
+            categoryName: p.category?.name || 'Unknown',
+            categoryType: p.category?.type || 'Unknown',
+            medal: p.medal,
+            status: p.registrationStatus,
+            belt: p.belt,
+            weight: p.weight,
+            division: p.division,
+            poomsaeType: p.poomsaeType,
+            date: p.createdAt,
+        })),
+        promotions: promotions.map(p => ({
+            id: p.id,
+            testName: p.promotionTest?.name || 'Unknown',
+            testDate: p.promotionTest?.testDate,
+            venue: p.promotionTest?.venue,
+            currentBelt: p.currentBelt,
+            targetBelt: p.targetBelt,
+            status: p.status,
+            paymentStatus: p.paymentStatus,
+            date: p.createdAt,
+        })),
+        seminars: seminars.map(s => ({
+            id: s.id,
+            seminarName: s.seminar?.name || 'Unknown',
+            seminarDate: s.seminar?.startDate,
+            venue: s.seminar?.venue,
+            belt: s.belt,
+            status: s.status,
+            date: s.createdAt,
+        })),
+    }
+}
+
+// Supabase client for avatar uploads
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+export async function uploadMemberAvatar(formData: FormData) {
+    const user = await currentUser()
+    if (!user) throw new Error('Unauthorized')
+
+    const file = formData.get('avatar') as File | null
+    const memberId = formData.get('memberId') as string | null
+
+    if (!file || file.size === 0) throw new Error('No file provided')
+    if (!memberId) throw new Error('No member ID provided')
+
+    // Validate club master permission
+    const clubMaster = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        select: { role: true, clubName: true }
+    })
+    if (!clubMaster || clubMaster.role !== 'CLUB_MASTER') {
+        throw new Error('Only Club Masters can upload member avatars')
+    }
+
+    // Validate member belongs to this club
+    const member = await prisma.user.findUnique({
+        where: { id: memberId },
+        select: { clubName: true }
+    })
+    if (!member || member.clubName !== clubMaster.clubName) {
+        throw new Error('Member not found in your club')
+    }
+
+    // Upload to Supabase Storage
+    const bytes = await file.arrayBuffer()
+    const buffer = Buffer.from(bytes)
+    const filePath = `${memberId}`
+
+    const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, buffer, {
+            contentType: file.type,
+            upsert: true
+        })
+
+    if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`)
+
+    const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath)
+
+    const urlWithCacheBust = `${publicUrl}?t=${Date.now()}`
+
+    // Update DB
+    await prisma.user.update({
+        where: { id: memberId },
+        data: { imageUrl: urlWithCacheBust }
+    })
+
+    revalidatePath('/club')
+    revalidatePath('/members')
+
+    return { url: urlWithCacheBust }
 }

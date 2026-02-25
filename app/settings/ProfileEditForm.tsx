@@ -170,7 +170,7 @@ export default function ProfileEditForm({ user, initialImageUrl, onCancel, redir
                                 name="belt"
                                 value={belt}
                                 onChange={setBelt}
-                                options={['White', 'Low Yellow', 'High Yellow', 'Low Blue', 'High Blue', 'Low Red', 'High Red', 'Low Brown', 'High Brown', 'Black']}
+                                options={['White', 'Yellow', 'Orange', 'Green', 'Purple', 'Blue', 'Maroon', 'Red', 'Brown', 'Black']}
                             />
                         )}
                     </div>

@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { format } from 'date-fns'
-import { X, UserPlus, Loader2, Check } from 'lucide-react'
+import { X, UserPlus, Loader2, Check, Camera } from 'lucide-react'
 import { toast } from 'sonner'
-import { createClubMember } from '@/app/club/actions'
+import { createClubMember, uploadMemberAvatar } from '@/app/club/actions'
 import { useQueryClient } from '@tanstack/react-query'
 import GlobalDropdown from '@/components/GlobalDropdown'
 import GlobalCalendar from '@/components/GlobalCalendar'
@@ -16,14 +16,14 @@ interface CreateMemberModalProps {
 
 const BELT_OPTIONS = [
     'White',
-    'Low Yellow',
-    'High Yellow',
-    'Low Blue',
-    'High Blue',
-    'Low Red',
-    'High Red',
-    'Low Brown',
-    'High Brown',
+    'Yellow',
+    'Orange',
+    'Green',
+    'Purple',
+    'Blue',
+    'Maroon',
+    'Red',
+    'Brown',
     'Black',
 ]
 
@@ -31,7 +31,7 @@ const GENDER_OPTIONS = ['Male', 'Female']
 
 export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModalProps) {
     const [submitting, setSubmitting] = useState(false)
-    const [successData, setSuccessData] = useState<{ email: string } | null>(null)
+    const [successData, setSuccessData] = useState<{ email?: string } | null>(null)
     const queryClient = useQueryClient()
 
     // Form state
@@ -42,6 +42,9 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
     const [weight, setWeight] = useState('')
     const [height, setHeight] = useState('')
     const [birthDate, setBirthDate] = useState('')
+    const [avatarFile, setAvatarFile] = useState<File | null>(null)
+    const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+    const avatarInputRef = useRef<HTMLInputElement>(null)
 
     const resetForm = () => {
         setEmail('')
@@ -51,7 +54,24 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
         setWeight('')
         setHeight('')
         setBirthDate('')
+        setAvatarFile(null)
+        setAvatarPreview(null)
         setSuccessData(null)
+    }
+
+    const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error('Image must be under 5MB')
+            return
+        }
+        if (!file.type.startsWith('image/')) {
+            toast.error('File must be an image')
+            return
+        }
+        setAvatarFile(file)
+        setAvatarPreview(URL.createObjectURL(file))
     }
 
     const handleClose = () => {
@@ -61,15 +81,15 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!email || !name) {
-            toast.error('Email and Name are required')
+        if (!name) {
+            toast.error('Name is required')
             return
         }
 
         setSubmitting(true)
         try {
             const result = await createClubMember({
-                email,
+                email: email || undefined,
                 name,
                 gender: gender || undefined,
                 belt: belt || undefined,
@@ -80,9 +100,20 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
 
             if ('error' in result) {
                 toast.error(result.error)
-            } else if (result.success) {
-                // Ghost account created - member will claim on sign-up
-                setSuccessData({ email })
+            } else if (result.success && result.member) {
+                // Upload avatar if provided
+                if (avatarFile) {
+                    try {
+                        const formData = new FormData()
+                        formData.append('avatar', avatarFile)
+                        formData.append('memberId', result.member.id)
+                        await uploadMemberAvatar(formData)
+                    } catch (err) {
+                        console.error('Avatar upload failed:', err)
+                        // Don't fail the whole operation
+                    }
+                }
+                setSuccessData({ email: email || undefined })
                 toast.success('Member added successfully!')
                 queryClient.invalidateQueries({ queryKey: ['club-members'] })
                 queryClient.invalidateQueries({ queryKey: ['club-dashboard'] })
@@ -129,11 +160,19 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
                                 <p className="text-sm text-gray-500 mt-1">Their profile is now in your club roster</p>
                             </div>
 
-                            <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-                                <p className="text-sm text-blue-800">
-                                    <strong>{name || successData.email}</strong> can now sign up at the website using the email <strong>{successData.email}</strong> and their account will be automatically linked to your club.
-                                </p>
-                            </div>
+                            {successData.email ? (
+                                <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                                    <p className="text-sm text-blue-800">
+                                        <strong>{name || successData.email}</strong> can now sign up at the website using the email <strong>{successData.email}</strong> and their account will be automatically linked to your club.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                                    <p className="text-sm text-gray-700">
+                                        <strong>{name}</strong> has been added to your roster. You can register them for events directly. If they later create an account, you can update their email to link the profiles.
+                                    </p>
+                                </div>
+                            )}
 
                             <button
                                 onClick={handleClose}
@@ -145,10 +184,44 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
                     ) : (
                         // Form State
                         <form onSubmit={handleSubmit} className="space-y-4">
+                            {/* Profile Picture */}
+                            <div className="flex justify-center">
+                                <div className="relative group">
+                                    <button
+                                        type="button"
+                                        onClick={() => avatarInputRef.current?.click()}
+                                        className="w-20 h-20 rounded-full border-2 border-dashed border-gray-300 hover:border-red-400 flex items-center justify-center transition-all overflow-hidden bg-gray-50 hover:bg-red-50 group"
+                                    >
+                                        {avatarPreview ? (
+                                            <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <Camera className="w-6 h-6 text-gray-400 group-hover:text-red-500 transition-colors" />
+                                        )}
+                                    </button>
+                                    {avatarPreview && (
+                                        <button
+                                            type="button"
+                                            onClick={() => { setAvatarFile(null); setAvatarPreview(null) }}
+                                            className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+                                        >
+                                            ×
+                                        </button>
+                                    )}
+                                    <input
+                                        ref={avatarInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleAvatarChange}
+                                        className="hidden"
+                                    />
+                                </div>
+                            </div>
+                            <p className="text-[11px] text-center text-gray-400 -mt-2">Tap to add photo</p>
+
                             {/* Email */}
                             <div className="space-y-1.5">
                                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                                    Email <span className="text-red-500">*</span>
+                                    Email <span className="text-gray-400 font-normal">(optional)</span>
                                 </label>
                                 <input
                                     type="email"
@@ -156,7 +229,6 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
                                     onChange={(e) => setEmail(e.target.value)}
                                     placeholder="athlete@example.com"
                                     className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm"
-                                    required
                                 />
                             </div>
 

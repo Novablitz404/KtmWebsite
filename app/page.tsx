@@ -70,14 +70,6 @@ export default async function Home() {
 
     // For existing users, redirect to their role-specific dashboard
     if (existingUser) {
-      // Sync profile image if changed
-      if (user.imageUrl && existingUser.imageUrl !== user.imageUrl) {
-        await prisma.user.update({
-          where: { id: existingUser.id },
-          data: { imageUrl: user.imageUrl }
-        })
-      }
-
       if (existingUser.role === 'ORGANIZER') {
         // Check organization status before redirecting
         const organization = await prisma.organization.findUnique({

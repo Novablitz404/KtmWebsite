@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { Search, Filter, MoreHorizontal, Mail, ChevronLeft, ChevronRight, Pencil, Trash2, Shield, ShieldOff, Loader2 } from 'lucide-react'
+import { Search, Filter, MoreHorizontal, Mail, ChevronLeft, ChevronRight, Pencil, Trash2, Shield, ShieldOff, Loader2, Eye } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchClubMembers } from '@/app/actions'
 import { promoteToAssistant, demoteToAthlete } from '@/app/club/actions'
 import { toast } from 'sonner'
+import AthleteDetailsModal from '@/components/club/AthleteDetailsModal'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -60,6 +61,7 @@ export default function MembersGrid({
     const pathname = usePathname()
     const searchParams = useSearchParams()
     const [actionLoading, setActionLoading] = useState<string | null>(null)
+    const [viewingMember, setViewingMember] = useState<{ id: string; name: string; avatar?: string | null } | null>(null)
 
     // Initialize state from URL param if available, fallback to props
     const pageParam = Number(searchParams.get('page'))
@@ -247,20 +249,51 @@ export default function MembersGrid({
                                         </div>
                                     </div>
 
-                                    {/* Role Action (Mobile) */}
-                                    {isClubMaster && (
+                                    {/* Actions (Mobile) */}
+                                    <div className="flex items-center gap-1">
                                         <button
-                                            onClick={() => isAssistant ? handleDemote(member.id) : handlePromote(member.id)}
-                                            disabled={actionLoading === member.id}
-                                            className={`p-2 rounded-lg transition-colors ${isAssistant
-                                                ? 'text-gray-400 hover:text-orange-600 hover:bg-orange-50'
-                                                : 'text-gray-400 hover:text-indigo-600 hover:bg-indigo-50'
-                                                }`}
-                                            title={isAssistant ? "Demote to Athlete" : "Promote to Assistant"}
+                                            onClick={() => setViewingMember({ id: member.id, name: member.name || 'Unnamed', avatar })}
+                                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                            title="View Details"
                                         >
-                                            {actionLoading === member.id ? <Loader2 className="animate-spin" size={18} /> : isAssistant ? <ShieldOff size={18} /> : <Shield size={18} />}
+                                            <Eye size={18} />
                                         </button>
-                                    )}
+                                        {isClubMaster && (
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                                                        <MoreHorizontal size={18} />
+                                                    </button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                    <DropdownMenuSeparator />
+                                                    {isAssistant ? (
+                                                        <DropdownMenuItem onClick={() => handleDemote(member.id)} disabled={!!actionLoading} className="text-orange-600">
+                                                            <ShieldOff className="mr-2 h-4 w-4" /> Demote to Athlete
+                                                        </DropdownMenuItem>
+                                                    ) : (
+                                                        <DropdownMenuItem onClick={() => handlePromote(member.id)} disabled={!!actionLoading} className="text-indigo-600">
+                                                            <Shield className="mr-2 h-4 w-4" /> Promote to Assistant
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                    {onEdit && (
+                                                        <DropdownMenuItem onClick={() => onEdit(member)}>
+                                                            <Pencil className="mr-2 h-4 w-4" /> Edit Details
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                    {onDelete && (
+                                                        <>
+                                                            <DropdownMenuSeparator />
+                                                            <DropdownMenuItem onClick={() => onDelete(member.id)} className="text-red-600">
+                                                                <Trash2 className="mr-2 h-4 w-4" /> Remove Member
+                                                            </DropdownMenuItem>
+                                                        </>
+                                                    )}
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {/* Belt Badge */}
@@ -302,27 +335,7 @@ export default function MembersGrid({
                                     </div>
                                 </div>
 
-                                {/* Actions */}
-                                <div className="flex items-center gap-2">
-                                    {onEdit && (
-                                        <button
-                                            onClick={() => onEdit(member)}
-                                            className="flex-1 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 border border-gray-200"
-                                        >
-                                            <Pencil size={14} />
-                                            Edit Details
-                                        </button>
-                                    )}
-                                    {onDelete && (
-                                        <button
-                                            onClick={() => onDelete(member.id)}
-                                            className="flex-shrink-0 p-2 bg-white text-red-600 border border-gray-200 hover:bg-red-50 hover:border-red-200 rounded-lg transition-colors"
-                                            title="Remove Member"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
-                                    )}
-                                </div>
+
                             </div>
                         )
                     }))}
@@ -463,18 +476,25 @@ export default function MembersGrid({
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                <div className="flex justify-end gap-2">
+                                                <div className="flex justify-end gap-1">
+                                                    <button
+                                                        onClick={() => setViewingMember({ id: member.id, name: member.name || 'Unnamed', avatar })}
+                                                        className="text-gray-400 hover:text-blue-600 p-1.5 rounded-lg hover:bg-blue-50 transition-colors"
+                                                        title="View Details"
+                                                    >
+                                                        <Eye size={18} />
+                                                    </button>
                                                     {isClubMaster && (
                                                         <DropdownMenu>
                                                             <DropdownMenuTrigger asChild>
                                                                 <button
-                                                                    className="text-gray-400 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
+                                                                    className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
                                                                 >
                                                                     <MoreHorizontal size={18} />
                                                                 </button>
                                                             </DropdownMenuTrigger>
                                                             <DropdownMenuContent align="end">
-                                                                <DropdownMenuLabel>Manage Roles</DropdownMenuLabel>
+                                                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                                                 <DropdownMenuSeparator />
                                                                 {isAssistant ? (
                                                                     <DropdownMenuItem onClick={() => handleDemote(member.id)} disabled={!!actionLoading} className="text-orange-600">
@@ -485,27 +505,21 @@ export default function MembersGrid({
                                                                         <Shield className="mr-2 h-4 w-4" /> Promote to Assistant
                                                                     </DropdownMenuItem>
                                                                 )}
+                                                                {onEdit && (
+                                                                    <DropdownMenuItem onClick={() => onEdit(member)}>
+                                                                        <Pencil className="mr-2 h-4 w-4" /> Edit Details
+                                                                    </DropdownMenuItem>
+                                                                )}
+                                                                {onDelete && (
+                                                                    <>
+                                                                        <DropdownMenuSeparator />
+                                                                        <DropdownMenuItem onClick={() => onDelete(member.id)} className="text-red-600">
+                                                                            <Trash2 className="mr-2 h-4 w-4" /> Remove Member
+                                                                        </DropdownMenuItem>
+                                                                    </>
+                                                                )}
                                                             </DropdownMenuContent>
                                                         </DropdownMenu>
-                                                    )}
-
-                                                    {onEdit && (
-                                                        <button
-                                                            onClick={() => onEdit(member)}
-                                                            className="text-gray-400 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
-                                                            title="Edit Member"
-                                                        >
-                                                            <Pencil size={18} />
-                                                        </button>
-                                                    )}
-                                                    {onDelete && (
-                                                        <button
-                                                            onClick={() => onDelete(member.id)}
-                                                            className="text-gray-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
-                                                            title="Remove Member"
-                                                        >
-                                                            <Trash2 size={18} />
-                                                        </button>
                                                     )}
                                                 </div>
                                             </td>
@@ -552,6 +566,18 @@ export default function MembersGrid({
                     </button>
                 </div>
             </div>
+
+            {
+                viewingMember && (
+                    <AthleteDetailsModal
+                        isOpen={!!viewingMember}
+                        onClose={() => setViewingMember(null)}
+                        memberId={viewingMember.id}
+                        memberName={viewingMember.name}
+                        memberAvatar={viewingMember.avatar}
+                    />
+                )
+            }
 
         </div >
     )

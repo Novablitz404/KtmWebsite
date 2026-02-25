@@ -1,8 +1,6 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { calculateKPoints } from '@/src/lib/ranking'
-import { clerkClient } from '@clerk/nextjs/server'
 
 export interface RankingEntry {
     userId: string
@@ -24,135 +22,55 @@ export async function fetchRankings(
         weightCategory?: string
     } = {}
 ) {
-    // 1. Fetch all Players who have medals in completed tournaments
-    // This is a heavy query, but necessary for dynamic calculation without a cache table.
-    // Optimizations: Filter by date (last 4 years only for decay).
+    let rankings: Array<{
+        id: string
+        userId: string
+        playerName: string
+        clubName: string | null
+        division: string | null
+        gender: string | null
+        type: string
+        totalPoints: number
+        globalRank: number
+    }> = []
 
-    const cutoffDate = new Date();
-    cutoffDate.setFullYear(cutoffDate.getFullYear() - 4);
-
-    const playersWithMedals = await prisma.player.findMany({
-        where: {
-            medal: { not: null }, // Only those with results
-            userId: { not: null }, // Only linked users can have K-Points (need verification status)
-
-            AND: [
-                // 1. Mandatory Exclusions
-                { division: { notIn: ['Supertoddler', 'Toddler'] } },
-
-                // 2. Dynamic Division Filter
-                ...(filters.division ? [{ division: { contains: filters.division, mode: 'insensitive' as const } }] : [])
-            ],
-
-            category: {
-                tournament: {
-                    status: { in: ['COMPLETED', 'ONGOING'] },
-                    startDate: { gte: cutoffDate }
-                },
-
-                // Category-level filters (Dynamic)
+    try {
+        // Query the Materialized View directly
+        rankings = await prisma.globalAthleteRanking.findMany({
+            where: {
                 ...(filters.type ? { type: filters.type } : {}),
-
-                // Weight Category Filter
-                ...(filters.weightCategory ? { name: { contains: filters.weightCategory, mode: 'insensitive' } } : {}),
+                ...(filters.division ? { division: { contains: filters.division, mode: 'insensitive' as const } } : {}),
+                ...(filters.gender ? { gender: filters.gender } : {})
             },
+            orderBy: { globalRank: 'asc' },
+            take: 100 // Top 100 limit
+        })
+    } catch (e) {
+        console.error("GlobalAthleteRanking view not found or error querying:", e)
+        return [] // Return empty if migration hasn't been run
+    }
 
-            // Player-level filters
-            ...(filters.gender ? { gender: filters.gender } : {}),
-            ...(filters.belt ? { belt: filters.belt } : {}),
-
-            // Skill Level Logic:
-            // - If Poomsae: Ignore skill level (Concept doesn't apply)
-            // - If Kyorugi (default): Show ONLY Advance players (Exclude Novice)
-            ...(filters.type === 'POOMSAE'
-                ? {}
-                : { skillLevel: 'Advance' } // Explicitly require 'Advance' for Kyorugi
-            ),
-        },
-        include: {
-            user: {
-                select: { id: true, name: true, clubName: true, isVerified: true, clerkId: true }
-            },
-            category: {
-                include: {
-                    tournament: {
-                        select: { tier: true, startDate: true }
-                    }
-                }
-            }
-        }
+    // Fetch profile images from DB (no more Clerk API calls)
+    const topRankings = rankings.slice(0, 50);
+    const userIds = topRankings.map(r => r.userId)
+    const users = await prisma.user.findMany({
+        where: { id: { in: userIds } },
+        select: { id: true, imageUrl: true }
     })
 
-    // 2. Aggregate Points per User
-    const userPointsMap = new Map<string, RankingEntry & { clerkId?: string }>();
+    const imageMap = new Map<string, string | null>()
+    users.forEach(u => imageMap.set(u.id, u.imageUrl))
 
-    for (const p of playersWithMedals) {
-        if (!p.user || !p.category) continue;
-
-        // Use our ranking engine logic
-        const points = calculateKPoints(
-            { medal: p.medal },
-            {
-                tier: p.category.tournament.tier,
-                startDate: p.category.tournament.startDate
-            },
-            { isVerified: p.user.isVerified }
-        );
-
-        if (points > 0) {
-            const existing = userPointsMap.get(p.user.id);
-            if (existing) {
-                existing.totalPoints += points;
-            } else {
-                userPointsMap.set(p.user.id, {
-                    userId: p.user.id,
-                    name: p.user.name || 'Unknown Athlete',
-                    clubName: p.user.clubName,
-                    totalPoints: points,
-                    rank: 0,
-                    verified: p.user.isVerified,
-                    clerkId: p.user.clerkId ?? undefined // data for fetching image
-                });
-            }
+    // Format to match expected RankingEntry interface
+    return rankings.map((r, index) => {
+        return {
+            userId: r.userId,
+            name: r.playerName,
+            clubName: r.clubName,
+            totalPoints: r.totalPoints,
+            rank: index + 1,
+            verified: true,
+            profileImage: imageMap.get(r.userId) || undefined
         }
-    }
-
-    // 3. Sort and Assign Rank
-    const sortedRankings = Array.from(userPointsMap.values())
-        .sort((a, b) => b.totalPoints - a.totalPoints);
-
-    // 4. Fetch Profile Images from Clerk (Batch)
-    // Only fetch for top 50 to avoid limits or massive fetches
-    const topRankings = sortedRankings.slice(0, 50);
-    const clerkIdsToFetch = topRankings.map(r => r.clerkId).filter(Boolean) as string[];
-
-    // Deduplicate
-    const uniqueClerkIds = Array.from(new Set(clerkIdsToFetch));
-    const imageMap = new Map<string, string>();
-
-    if (uniqueClerkIds.length > 0) {
-        try {
-            const client = await clerkClient()
-            const clerkUsers = await client.users.getUserList({ userId: uniqueClerkIds, limit: 100 });
-            clerkUsers.data.forEach(u => {
-                imageMap.set(u.id, u.imageUrl);
-            });
-        } catch (error) {
-            console.error('Failed to fetch Clerk images for rankings:', error);
-        }
-    }
-
-    // Assign rank and image
-    sortedRankings.forEach((entry, index) => {
-        entry.rank = index + 1;
-        entry.totalPoints = parseFloat(entry.totalPoints.toFixed(2));
-        if (entry.clerkId && imageMap.has(entry.clerkId)) {
-            entry.profileImage = imageMap.get(entry.clerkId);
-        }
-        // Remove internal clerkId before returning if strict (but RankingEntry interface needs update if we want to be clean, or just cast)
-        // We added clerkId to the map value type manually above.
-    });
-
-    // Return Clean Entries
-    return sortedRankings.map(({ clerkId, ...rest }) => rest);
+    })
 }

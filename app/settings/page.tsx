@@ -30,6 +30,7 @@ export default async function ProfilePage() {
             height: true,
             birthDate: true,
             role: true,
+            imageUrl: true,
             players: {
                 select: {
                     id: true,
@@ -104,9 +105,9 @@ export default async function ProfilePage() {
                         <div className="bg-purple-700 h-32"></div>
                         <div className="px-8 pb-8">
                             <div className="relative -mt-16 mb-6">
-                                {clerkUser.imageUrl ? (
+                                {dbUser.imageUrl ? (
                                     <img
-                                        src={clerkUser.imageUrl}
+                                        src={dbUser.imageUrl}
                                         alt={dbUser.name || 'Admin'}
                                         className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
                                     />
@@ -151,7 +152,7 @@ export default async function ProfilePage() {
                 <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2">
                     <ClubMasterProfileView
                         dbUser={dbUser}
-                        clerkImageUrl={clerkUser.imageUrl}
+                        clerkImageUrl={dbUser.imageUrl ?? undefined}
                     />
                 </div>
             </main>
@@ -165,7 +166,7 @@ export default async function ProfilePage() {
                 <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2">
                     <OrganizerProfileView
                         dbUser={dbUser}
-                        clerkImageUrl={clerkUser.imageUrl}
+                        clerkImageUrl={dbUser.imageUrl ?? undefined}
                     />
                 </div>
             </main>
@@ -179,7 +180,7 @@ export default async function ProfilePage() {
                 <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2">
                     <AthleteProfileView
                         dbUser={dbUser}
-                        clerkImageUrl={clerkUser.imageUrl}
+                        clerkImageUrl={dbUser.imageUrl ?? undefined}
                         clubLogoUrl={clubLogoUrl}
                         stats={{
                             registrations: dbUser.players.length,

@@ -1,5 +1,4 @@
 import { prisma } from '@/lib/prisma'
-import { clerkClient } from '@clerk/nextjs/server'
 
 export interface MembersPageData {
     paginatedMembers: any[]
@@ -42,24 +41,13 @@ export async function getMembersData(
         })
     ])
 
-    // Fetch avatars from Clerk (Only for current page)
-    const clerkIds = paginatedMembers.map(u => u.clerkId).filter(Boolean)
-    let avatars: Record<string, string> = {}
-
-    if (clerkIds.length > 0) {
-        try {
-            const uniqueIds = Array.from(new Set(clerkIds)) as string[]
-            const users = await (await clerkClient()).users.getUserList({
-                userId: uniqueIds,
-                limit: 100
-            })
-            users.data.forEach(user => {
-                avatars[user.id] = user.imageUrl
-            })
-        } catch (error) {
-            console.error('Failed to fetch Clerk users:', error)
+    // Build avatars map from DB imageUrl
+    const avatars: Record<string, string> = {}
+    paginatedMembers.forEach(member => {
+        if (member.clerkId && member.imageUrl) {
+            avatars[member.clerkId] = member.imageUrl
         }
-    }
+    })
 
     return {
         paginatedMembers,

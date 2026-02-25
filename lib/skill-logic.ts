@@ -4,8 +4,10 @@ export function deriveSkillLevel(beltInput: string | null): string {
 
     const belt = beltInput.toLowerCase();
 
-    // Advance: Red, Brown, Black, Poom
+    // Advance: Blue, Maroon, Red, Brown, Black, Poom, Dan
     if (
+        belt.includes('blue') ||
+        belt.includes('maroon') ||
         belt.includes('red') ||
         belt.includes('brown') ||
         belt.includes('black') ||
@@ -15,11 +17,12 @@ export function deriveSkillLevel(beltInput: string | null): string {
         return 'Advance';
     }
 
-    // Intermediate: Yellow, Green, Blue
+    // Intermediate: Yellow, Orange, Green, Purple
     if (
         belt.includes('yellow') ||
+        belt.includes('orange') ||
         belt.includes('green') ||
-        belt.includes('blue')
+        belt.includes('purple')
     ) {
         return 'Intermediate';
     }
@@ -40,9 +43,12 @@ export function extractBeltFromCategoryName(categoryName: string): string | null
 
     if (lowerName.includes('black') || lowerName.includes('poom') || lowerName.includes('dan')) return 'Black';
     if (lowerName.includes('brown')) return 'Brown';
+    if (lowerName.includes('maroon')) return 'Maroon';
     if (lowerName.includes('red')) return 'Red';
     if (lowerName.includes('blue')) return 'Blue';
+    if (lowerName.includes('purple')) return 'Purple';
     if (lowerName.includes('green')) return 'Green';
+    if (lowerName.includes('orange')) return 'Orange';
     if (lowerName.includes('yellow')) return 'Yellow';
     if (lowerName.includes('white')) return 'White';
 

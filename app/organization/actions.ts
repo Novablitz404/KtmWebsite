@@ -257,46 +257,8 @@ export async function createPromotionTest(formData: FormData) {
     const venue = formData.get('venue') as string
     const feeStr = formData.get('fee') as string
     const visibility = (formData.get('visibility') as string) || 'PRIVATE'
-    const bannerFile = formData.get('banner') as File | null
 
     if (!name || !testDate) return { error: 'Name and test date are required' }
-
-    // Handle Banner Image upload
-    let bannerUrl: string | null = null
-    if (bannerFile && bannerFile.size > 0) {
-        try {
-            const supabase = createClient(
-                process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                process.env.SUPABASE_SERVICE_ROLE_KEY!
-            )
-
-            const bytes = await bannerFile.arrayBuffer()
-            const buffer = Buffer.from(bytes)
-
-            // Generate unique filename
-            const timestamp = Date.now()
-            const safeName = bannerFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')
-            const filename = `promo-banner-${timestamp}-${safeName}`
-
-            const { error: uploadError } = await supabase.storage
-                .from('uploads')
-                .upload(filename, buffer, {
-                    contentType: bannerFile.type,
-                    upsert: false
-                })
-
-            if (uploadError) throw uploadError
-
-            const { data: { publicUrl } } = supabase.storage
-                .from('uploads')
-                .getPublicUrl(filename)
-
-            bannerUrl = publicUrl
-        } catch (error) {
-            console.error('Banner image upload error:', error)
-            return { error: 'Failed to upload Banner Image' }
-        }
-    }
 
     const promotionTest = await prisma.promotionTest.create({
         data: {
@@ -308,12 +270,59 @@ export async function createPromotionTest(formData: FormData) {
             venue: venue || null,
             fee: feeStr ? parseFloat(feeStr) : null,
             status: 'UPCOMING',
-            visibility,
-            bannerUrl
+            visibility
         }
     })
 
     return { success: true, promotionTest }
+}
+
+export async function updatePromotionTest(formData: FormData) {
+    const user = await currentUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return { error: 'No organization found' }
+
+    const promotionTestId = formData.get('promotionTestId') as string
+    if (!promotionTestId) return { error: 'Promotion Test ID is required' }
+
+    const promotionTest = await prisma.promotionTest.findUnique({
+        where: { id: promotionTestId }
+    })
+
+    if (!promotionTest || promotionTest.organizationId !== dbUser.organization.id) {
+        return { error: 'Promotion test not found or unauthorized' }
+    }
+
+    const name = formData.get('name') as string
+    const description = formData.get('description') as string
+    const testDate = formData.get('testDate') as string
+    const registrationDeadline = formData.get('registrationDeadline') as string
+    const venue = formData.get('venue') as string
+    const feeStr = formData.get('fee') as string
+
+    if (!name || !testDate) return { error: 'Name and test date are required' }
+
+    await prisma.promotionTest.update({
+        where: { id: promotionTestId },
+        data: {
+            name,
+            description: description || null,
+            testDate: new Date(testDate),
+            registrationDeadline: registrationDeadline ? new Date(registrationDeadline) : null,
+            venue: venue || null,
+            fee: feeStr ? parseFloat(feeStr) : null,
+        }
+    })
+
+    revalidatePath('/organization')
+    revalidatePath(`/promotions/${promotionTestId}`)
+    return { success: true }
 }
 
 export async function updatePromotionTestStatus(promotionTestId: string, status: string) {

@@ -194,10 +194,10 @@ export default function ProfileForm({ user, initialImageUrl, customTrigger }: Pr
                                         onChange={setBelt}
                                         options={[
                                             'White',
-                                            'Low Yellow', 'High Yellow',
-                                            'Low Blue', 'High Blue',
-                                            'Low Red', 'High Red',
-                                            'Low Brown', 'High Brown',
+                                            'Yellow', 'Orange',
+                                            'Green', 'Purple',
+                                            'Blue', 'Maroon',
+                                            'Red', 'Brown',
                                             'Black'
                                         ]}
                                     />

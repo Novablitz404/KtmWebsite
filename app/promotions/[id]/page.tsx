@@ -3,9 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Calendar, MapPin, DollarSign, Users } from 'lucide-react'
-import ParticipantsTable from './ParticipantsTable'
-import PromotionStatusActions from '../PromotionStatusActions'
-import EventRegistrationButton from '@/components/EventRegistrationButton'
+import PromotionTabs from '@/components/promotion/PromotionTabs'
+import WaiverRegistration from '@/components/promotion/WaiverRegistration'
 
 interface PageProps {
     params: Promise<{ id: string }>
@@ -48,26 +47,53 @@ export default async function ManagePromotionPage({ params }: PageProps) {
         )
     }
 
-    // Verify ownership or public access
+    // Verify ownership or admin access
     const isAdmin = dbUser?.role === 'ADMIN'
     const isOwner = dbUser?.organization?.id === promotionTest.organizationId
 
-    // Check affiliation (Club matches Organization)
-    const isAffiliatedClub = dbUser?.club?.organizationId === promotionTest.organizationId
+    // Check org family affiliation (parent-child org hierarchy)
+    let isAffiliated = false
 
-    // Check Organization Affiliation (if user is an Org Owner or Member of an affiliated Org)
-    // For now, simpler check: is their Club part of the Org?
-    const isAffiliated = isAffiliatedClub
+    // For athletes: club relation only exists for club masters.
+    // Athletes connect via clubName, so look up the club by name.
+    const userClub = dbUser?.club || (dbUser?.clubName
+        ? await prisma.club.findFirst({
+            where: { name: { equals: dbUser.clubName, mode: 'insensitive' } },
+            select: { id: true, organizationId: true }
+        })
+        : null)
+
+    if (userClub?.organizationId) {
+        const clubOrgId = userClub.organizationId
+
+        // Direct match
+        if (clubOrgId === promotionTest.organizationId) {
+            isAffiliated = true
+        } else {
+            const clubOrg = await prisma.organization.findUnique({
+                where: { id: clubOrgId },
+                select: { id: true, parentOrganizationId: true }
+            })
+            const promotionOrg = await prisma.organization.findUnique({
+                where: { id: promotionTest.organizationId },
+                select: { id: true, parentOrganizationId: true }
+            })
+
+            if (clubOrg && promotionOrg) {
+                const clubRoot = clubOrg.parentOrganizationId || clubOrg.id
+                const promoRoot = promotionOrg.parentOrganizationId || promotionOrg.id
+
+                if (clubRoot === promoRoot) {
+                    isAffiliated = true
+                }
+            }
+        }
+    }
 
     const canManage = isOwner || isAdmin
-    const isPublic = promotionTest.visibility === 'PUBLIC'
 
-    // Access Rule:
-    // 1. Can Manage (Owner/Admin) -> ALWAYS ALLOW
-    // 2. Public -> ALWAYS ALLOW
-    // 3. Private -> ALLOW ONLY IF AFFILIATED
-
-    const canView = canManage || isPublic || isAffiliated
+    // Access Rule: promotions are internal-only
+    const canView = canManage || isAffiliated
 
     if (!canView) {
         if (!user) {
@@ -100,124 +126,111 @@ export default async function ManagePromotionPage({ params }: PageProps) {
         )
     }
 
-    const statusConfig: Record<string, { bg: string, text: string }> = {
-        UPCOMING: { bg: 'bg-blue-50', text: 'text-blue-700' },
-        OPEN: { bg: 'bg-green-50', text: 'text-green-700' },
-        CLOSED: { bg: 'bg-gray-100', text: 'text-gray-700' },
-        COMPLETED: { bg: 'bg-indigo-50', text: 'text-indigo-700' },
-        CANCELLED: { bg: 'bg-red-50', text: 'text-red-700' }
+    // If manager, return the Tabbed Interface (same layout as seminar management)
+    if (canManage) {
+        return <PromotionTabs promotionTest={promotionTest as any} userRole={dbUser?.role} />
     }
-    const statusStyle = statusConfig[promotionTest.status]
+
+    // Athlete / Clubmaster View — Professional registration page
+    const userRegistration = promotionTest.registrations.find(r => r.playerId === dbUser?.id)
+    const registrationCount = promotionTest.registrations.length
+    const deadlinePassed = promotionTest.registrationDeadline && new Date() > new Date(promotionTest.registrationDeadline)
+    const isOpen = promotionTest.status === 'OPEN' || promotionTest.status === 'UPCOMING'
 
     return (
-        <main className="min-h-screen bg-gray-50">
-            <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+            <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6">
 
-                {/* Header */}
-                <div className="flex flex-col gap-6">
-                    <div>
-                        <Link
-                            href={canManage ? "/promotions" : "/"}
-                            className="inline-flex items-center text-sm text-gray-500 hover:text-gray-900 mb-4 transition-colors"
-                        >
-                            <ArrowLeft className="w-4 h-4 mr-1" />
-                            {canManage ? "Back to Promotions" : "Back to Home"}
-                        </Link>
-                        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                            <div>
-                                <div className="flex items-center gap-3 mb-2">
-                                    <h1 className="text-3xl font-bold text-gray-900">{promotionTest.name}</h1>
-                                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusStyle.bg} ${statusStyle.text}`}>
-                                        {promotionTest.status}
-                                    </span>
-                                    {isPublic && (
-                                        <span className="px-3 py-1 rounded-full text-sm font-medium bg-purple-50 text-purple-700">
-                                            Public Event
-                                        </span>
-                                    )}
-                                </div>
+                <Link
+                    href="/athlete"
+                    className="inline-flex items-center text-sm text-gray-500 hover:text-gray-900 transition-colors group"
+                >
+                    <ArrowLeft className="w-4 h-4 mr-1 group-hover:-translate-x-1 transition-transform" />
+                    Back to Dashboard
+                </Link>
 
-                                <div className="flex flex-wrap items-center gap-4 text-gray-600 mt-2">
-                                    <div className="flex items-center gap-1.5">
-                                        <Calendar className="w-4 h-4 text-gray-400" />
-                                        <span>
-                                            {new Date(promotionTest.testDate).toLocaleDateString(undefined, {
-                                                year: 'numeric',
-                                                month: 'long',
-                                                day: 'numeric'
-                                            })}
-                                        </span>
-                                    </div>
-                                    {promotionTest.venue && (
-                                        <div className="flex items-center gap-1.5">
-                                            <MapPin className="w-4 h-4 text-gray-400" />
-                                            <span>{promotionTest.venue}</span>
-                                        </div>
-                                    )}
-                                    {promotionTest.fee && (
-                                        <div className="flex items-center gap-1.5">
-                                            <DollarSign className="w-4 h-4 text-gray-400" />
-                                            <span>₱{promotionTest.fee.toFixed(2)}</span>
-                                        </div>
-                                    )}
-                                </div>
-                                {promotionTest.description && (
-                                    <p className="mt-4 text-gray-600 max-w-2xl">{promotionTest.description}</p>
-                                )}
+                {/* Hero Header */}
+                <div className="relative rounded-2xl overflow-hidden shadow-lg">
+                    <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-red-900 p-8 md:p-10">
+                        <div className="relative z-10">
+                            <div className="flex items-center gap-2 mb-4">
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${isOpen
+                                    ? 'bg-green-500/20 text-green-300 border border-green-500/30'
+                                    : 'bg-gray-500/20 text-gray-300 border border-gray-500/30'
+                                    }`}>
+                                    {promotionTest.status === 'UPCOMING' ? '📋 Upcoming' :
+                                        promotionTest.status === 'OPEN' ? '✅ Open for Registration' :
+                                            promotionTest.status === 'CLOSED' ? '🔒 Registration Closed' :
+                                                promotionTest.status === 'COMPLETED' ? '🏆 Completed' : promotionTest.status}
+                                </span>
                             </div>
-
-                            <div className="flex flex-col items-end gap-3">
-                                {canManage ? (
-                                    <PromotionStatusActions promotionTestId={promotionTest.id} currentStatus={promotionTest.status} />
-                                ) : (
-                                    <EventRegistrationButton
-                                        eventId={promotionTest.id}
-                                        eventType="promotion"
-                                        isRegistered={!!promotionTest.registrations.find(r => r.playerId === dbUser?.id)}
-                                        status={promotionTest.registrations.find(r => r.playerId === dbUser?.id)?.status}
-                                        paymentStatus={promotionTest.registrations.find(r => r.playerId === dbUser?.id)?.paymentStatus}
-                                        disabled={promotionTest.status !== 'OPEN' && promotionTest.status !== 'UPCOMING'}
-                                    />
-                                )}
-                            </div>
+                            <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight mb-2">
+                                {promotionTest.name}
+                            </h1>
+                            <p className="text-gray-300 text-sm">Belt Promotion Examination</p>
                         </div>
+                        {/* Decorative elements */}
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
+                        <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full blur-2xl translate-y-1/3 -translate-x-1/4" />
                     </div>
                 </div>
 
-                {/* Promotion Banner */}
-                {promotionTest.bannerUrl && (
-                    <div className="relative w-full aspect-[3/1] rounded-2xl overflow-hidden shadow-lg bg-gray-100">
-                        <img
-                            src={promotionTest.bannerUrl}
-                            alt={promotionTest.name}
-                            className="w-full h-full object-cover"
+                {/* Info Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                        <div className="flex items-center gap-2 text-gray-400 mb-1">
+                            <Calendar className="w-4 h-4" />
+                            <span className="text-[11px] font-semibold uppercase tracking-wider">Date</span>
+                        </div>
+                        <p className="text-sm font-bold text-gray-900">
+                            {new Date(promotionTest.testDate).toLocaleDateString(undefined, {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric'
+                            })}
+                        </p>
+                    </div>
+
+                    <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                        <div className="flex items-center gap-2 text-gray-400 mb-1">
+                            <MapPin className="w-4 h-4" />
+                            <span className="text-[11px] font-semibold uppercase tracking-wider">Venue</span>
+                        </div>
+                        <p className="text-sm font-bold text-gray-900">{promotionTest.venue || 'TBA'}</p>
+                    </div>
+
+                    <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                        <div className="flex items-center gap-2 text-gray-400 mb-1">
+                            <DollarSign className="w-4 h-4" />
+                            <span className="text-[11px] font-semibold uppercase tracking-wider">Payment</span>
+                        </div>
+                        <p className="text-sm font-bold text-gray-900">Pay to Clubmaster</p>
+                    </div>
+
+                    <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+                        <div className="flex items-center gap-2 text-gray-400 mb-1">
+                            <Users className="w-4 h-4" />
+                            <span className="text-[11px] font-semibold uppercase tracking-wider">Registered</span>
+                        </div>
+                        <p className="text-sm font-bold text-gray-900">{registrationCount} athletes</p>
+                    </div>
+                </div>
+
+
+                {/* Registration Card — deadline + how-to + waiver combined */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="p-6">
+                        <WaiverRegistration
+                            eventId={promotionTest.id}
+                            isRegistered={!!userRegistration}
+                            status={userRegistration?.status}
+                            paymentStatus={userRegistration?.paymentStatus}
+                            disabled={!isOpen || !!deadlinePassed}
+                            isOpen={isOpen}
+                            registrationDeadline={promotionTest.registrationDeadline ? new Date(promotionTest.registrationDeadline).toISOString() : undefined}
+                            deadlinePassed={!!deadlinePassed}
                         />
-                        {/* Optional: Add gradient overlay if you want text over it, but currently design separates text. 
-                             Adding subtle gradient for polish anyway or just keeping it clean image.
-                             Let's keep it clean image as the title is outside.
-                         */}
                     </div>
-                )}
-
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-indigo-50 rounded-lg text-indigo-600">
-                                <Users className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <p className="text-sm font-medium text-gray-500">Total Participants</p>
-                                <p className="text-2xl font-bold text-gray-900">{promotionTest.registrations.length}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Participants Section */}
-                <div className="space-y-4">
-                    <h2 className="text-xl font-bold text-gray-900">Participants</h2>
-                    <ParticipantsTable registrations={promotionTest.registrations} readonly={!canManage} />
                 </div>
 
             </div>

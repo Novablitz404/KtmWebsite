@@ -2049,30 +2049,11 @@ export async function fetchClubMembers(clubName: string, page: number, pageSize:
             where: { clubName: clubName, role: { in: ['ATHLETE', 'ASSISTANT_CLUB_MASTER'] } }
         })
     ])
-
-    // Enrich with Clerk Avatars
-    let membersWithAvatars = members.map(m => ({ ...m, imageUrl: null as string | null }))
-
-    try {
-        const clerkIds = members.map(m => m.clerkId).filter((id): id is string => !!id)
-        if (clerkIds.length > 0) {
-            const client = await clerkClient()
-            const clerkUsers = await client.users.getUserList({
-                userId: clerkIds,
-                limit: clerkIds.length
-            })
-
-            const avatarMap = new Map()
-            clerkUsers.data.forEach((u: any) => avatarMap.set(u.id, u.imageUrl))
-
-            membersWithAvatars = members.map(m => ({
-                ...m,
-                imageUrl: (avatarMap.get(m.clerkId) as string) || null
-            }))
-        }
-    } catch (e) {
-        console.error("Failed to fetch clerk avatars", e)
-    }
+    // Members already have imageUrl from DB (migrated to Supabase Storage)
+    const membersWithAvatars = members.map(m => ({
+        ...m,
+        imageUrl: m.imageUrl || null
+    }))
 
     const totalPages = Math.ceil(totalCount / pageSize)
 
@@ -2092,22 +2073,14 @@ export async function fetchLandingPageEvents() {
     const currentDate = new Date()
     currentDate.setHours(0, 0, 0, 0)
 
-    // Parallel fetch
-    const [upcomingTournaments, upcomingPromotions, upcomingSeminars] = await Promise.all([
+    // Parallel fetch (Promotions are internal-only, not shown on landing page)
+    const [upcomingTournaments, upcomingSeminars] = await Promise.all([
         prisma.tournament.findMany({
             where: {
                 startDate: { gte: currentDate },
                 status: { not: 'CANCELLED' }
             },
             orderBy: { startDate: 'asc' },
-            take: 6
-        }),
-        prisma.promotionTest.findMany({
-            where: {
-                testDate: { gte: currentDate },
-                visibility: 'PUBLIC'
-            },
-            orderBy: { testDate: 'asc' },
             take: 6
         }),
         prisma.seminar.findMany({
@@ -2133,20 +2106,6 @@ export async function fetchLandingPageEvents() {
         link: `/tournament/${t.id}`
     }))
 
-    // Normalize promotions
-    const normalizedPromotions = upcomingPromotions.map(p => ({
-        id: p.id,
-        type: 'PROMOTION',
-        name: p.name,
-        date: p.testDate,
-        venue: p.venue,
-        imageUrl: p.bannerUrl,
-        status: p.status,
-        regStart: null,
-        regEnd: p.registrationDeadline,
-        link: `/events/promotion/${p.id}` // Placeholder link logic from page.tsx discussion
-    }))
-
     // Normalize seminars
     const normalizedSeminars = upcomingSeminars.map(s => ({
         id: s.id,
@@ -2163,7 +2122,7 @@ export async function fetchLandingPageEvents() {
     }))
 
     // Combine and sort
-    return [...normalizedTournaments, ...normalizedPromotions, ...normalizedSeminars]
+    return [...normalizedTournaments, ...normalizedSeminars]
         .sort((a, b) => a.date.getTime() - b.date.getTime())
         .slice(0, 6)
 }
@@ -2251,13 +2210,38 @@ export async function fetchAthleteDashboardData(clerkId: string) {
         }
     })
 
+    // Fetch promotion test registrations
+    const promotionRegistrations = await prisma.promotionTestRegistration.findMany({
+        where: {
+            playerId: { in: [dbUser.id, ...userPlayerIds] }
+        },
+        select: {
+            id: true,
+            promotionTestId: true,
+            status: true,
+            playerName: true,
+            currentBelt: true,
+            targetBelt: true,
+            paymentStatus: true,
+            createdAt: true,
+            promotionTest: {
+                select: {
+                    id: true,
+                    name: true,
+                    testDate: true,
+                    venue: true
+                }
+            }
+        }
+    })
+
     // Fetch generic upcoming events for the club (My Events)
     let clubUpcomingEvents: any[] = []
     if (clubId) {
         const today = new Date()
         today.setHours(0, 0, 0, 0)
 
-        const [tournaments, seminars] = await Promise.all([
+        const [tournaments, seminars, promotionTests] = await Promise.all([
             prisma.tournament.findMany({
                 where: {
                     participatingClubs: { some: { clubId } },
@@ -2296,12 +2280,29 @@ export async function fetchAthleteDashboardData(clerkId: string) {
                     venue: true,
                     status: true
                 }
+            }),
+            prisma.promotionTest.findMany({
+                where: {
+                    participatingClubs: { some: { clubId } },
+                    testDate: { gte: today },
+                    status: { not: 'CANCELLED' }
+                },
+                orderBy: { testDate: 'asc' },
+                take: 20,
+                select: {
+                    id: true,
+                    name: true,
+                    testDate: true,
+                    venue: true,
+                    status: true
+                }
             })
         ])
 
         const combinedEvents = [
             ...tournaments.map(t => ({ ...t, type: 'TOURNAMENT' })),
-            ...seminars.map(s => ({ ...s, type: 'SEMINAR' }))
+            ...seminars.map(s => ({ ...s, type: 'SEMINAR' })),
+            ...promotionTests.map(p => ({ ...p, startDate: p.testDate, type: 'PROMOTION_TEST' }))
         ]
 
         clubUpcomingEvents = combinedEvents
@@ -2309,12 +2310,34 @@ export async function fetchAthleteDashboardData(clerkId: string) {
             .slice(0, 20)
     }
 
+    // Fetch Global Ranking Points
+    let globalRanking = null
+    try {
+        const rankingRecords = await prisma.globalAthleteRanking.findMany({
+            where: { userId: dbUser.id }
+        })
+
+        // Sum up total points across disciplines (Kyorugi/Poomsae) for the dashboard summary
+        if (rankingRecords.length > 0) {
+            globalRanking = {
+                totalPoints: rankingRecords.reduce((acc: number, r: any) => acc + r.totalPoints, 0),
+                bestRank: Math.min(...rankingRecords.map((r: any) => r.globalRank)),
+                disciplines: rankingRecords.map((r: any) => ({ type: r.type, rank: r.globalRank, points: r.totalPoints }))
+            }
+        }
+    } catch (e) {
+        // Materialized view might not exist yet
+        console.error("Failed to fetch global ranking for dashboard", e)
+    }
+
     return {
         user: dbUser,
         clubLogo,
         registrations,
         seminarRegistrations,
-        clubUpcomingEvents
+        promotionRegistrations,
+        clubUpcomingEvents,
+        globalRanking
     }
 }
 
@@ -2646,7 +2669,7 @@ export async function removeMemberFromClub(memberId: string) {
     }
 }
 
-export async function updateClubMember(memberId: string, data: { name?: string, weight?: number, belt?: string, gender?: string }) {
+export async function updateClubMember(memberId: string, data: { name?: string, weight?: number, belt?: string, gender?: string, email?: string }) {
     const user = await currentUser()
     if (!user) return { error: 'Unauthorized' }
 
@@ -3045,9 +3068,47 @@ export async function checkEmailAvailability(email: string) {
         where: { email }
     })
 
-    return { available: !user }
+    // If no user exists, email is available
+    if (!user) return { available: true }
+
+    // If user exists but has no clerkId, they were pre-registered by a clubmaster
+    // Allow them to sign up — completeOnboarding will link the Clerk account
+    if (!user.clerkId) return { available: true }
+
+    // User exists with a Clerk account — email is taken
+    return { available: false }
 }
 
+export async function getExistingProfile(email: string) {
+    if (!email) return null
+
+    const user = await prisma.user.findUnique({
+        where: { email },
+        select: {
+            name: true,
+            birthDate: true,
+            belt: true,
+            gender: true,
+            weight: true,
+            height: true,
+            clubName: true,
+            imageUrl: true,
+        }
+    })
+
+    if (!user) return null
+
+    return {
+        name: user.name || null,
+        birthDate: user.birthDate ? user.birthDate.toISOString() : null,
+        belt: user.belt || null,
+        gender: user.gender || null,
+        weight: user.weight || null,
+        height: user.height || null,
+        clubName: user.clubName || null,
+        imageUrl: user.imageUrl || null,
+    }
+}
 // --- SEMINAR REGISTRATION ACTION ---
 
 export async function registerForSeminar(formData: FormData) {

@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, use } from 'react'
-import { Upload, X, Home, Settings, ClipboardList, Users, Bell, Trophy, Medal, Clock, Search, Calendar, Zap, ChevronRight, Loader2 } from 'lucide-react'
+import { Upload, X, Home, Settings, ClipboardList, Users, Bell, Trophy, Medal, Clock, Search, Calendar, Zap, ChevronRight, Loader2, Camera } from 'lucide-react'
 import Link from 'next/link'
 import { approveRegistrations, unapproveRegistration, deleteRegistration, updatePlayerDetails, bulkUnapproveRegistrations, bulkDeleteRegistrations, fetchClubDashboardData, removeMemberFromClub, updateClubMember, getClubSmartProposals } from '@/app/actions'
+import { uploadMemberAvatar } from '@/app/club/actions'
 import { updateRegistrationStatus } from '@/app/promotions/actions'
 import { approveSeminarRegistration, unapproveSeminarRegistration, deleteSeminarRegistration, updateSeminarRegistrationStatus, updateSeminarParticipantDetails } from '@/app/seminars/actions'
 
@@ -57,6 +58,7 @@ interface Member {
     weight: number | null
     belt: string | null
     birthDate: Date | null
+    imageUrl?: string | null
 }
 
 interface TournamentStats {
@@ -250,6 +252,8 @@ export default function ClubDashboard({
     // Edit Modal State
     const [editingPlayer, setEditingPlayer] = useState<Player | null>(null)
     const [editingMember, setEditingMember] = useState<Member | null>(null)
+    const [editAvatarFile, setEditAvatarFile] = useState<File | null>(null)
+    const [editAvatarPreview, setEditAvatarPreview] = useState<string | null>(null)
     const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false)
     // Action Center Data
     const { data: proposals, refetch: refetchProposals } = useQuery({
@@ -538,8 +542,21 @@ export default function ClubDashboard({
             if (res.error) {
                 toast.error(res.error)
             } else {
+                // Upload avatar if a new file was selected
+                if (editAvatarFile) {
+                    try {
+                        const formData = new FormData()
+                        formData.append('avatar', editAvatarFile)
+                        formData.append('memberId', editingMember.id)
+                        await uploadMemberAvatar(formData)
+                    } catch (err) {
+                        console.error('Avatar upload failed:', err)
+                    }
+                }
                 toast.success('Member updated')
                 setEditingMember(null)
+                setEditAvatarFile(null)
+                setEditAvatarPreview(null)
                 queryClient.invalidateQueries({ queryKey: ['club-members', clubName || ''] })
             }
         } catch {
@@ -1684,6 +1701,7 @@ export default function ClubDashboard({
                                             const formData = new FormData(e.currentTarget)
                                             handleMemberSave({
                                                 name: formData.get('name'),
+                                                email: formData.get('email') || undefined,
                                                 belt: formData.get('belt'),
                                                 weight: Number(formData.get('weight')) || null,
                                                 gender: formData.get('gender')
@@ -1691,7 +1709,47 @@ export default function ClubDashboard({
                                         }}
                                         className="p-6 space-y-6"
                                     >
-                                        {/* Name Field - Full Width */}
+                                        {/* Profile Picture */}
+                                        <div className="flex justify-center">
+                                            <div className="relative group">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const inp = document.getElementById('edit-avatar-input') as HTMLInputElement
+                                                        inp?.click()
+                                                    }}
+                                                    className="w-24 h-24 rounded-full border-2 border-gray-200 hover:border-red-400 flex items-center justify-center transition-all overflow-hidden bg-gray-50 relative"
+                                                >
+                                                    {(editAvatarPreview || editingMember.imageUrl) ? (
+                                                        <img src={editAvatarPreview || editingMember.imageUrl || ''} alt="Avatar" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <div className="w-full h-full bg-red-100 flex items-center justify-center text-red-600 text-2xl font-bold">
+                                                            {editingMember.name?.charAt(0)?.toUpperCase() || '?'}
+                                                        </div>
+                                                    )}
+                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                        <Camera className="w-6 h-6 text-white" />
+                                                    </div>
+                                                </button>
+                                                <input
+                                                    id="edit-avatar-input"
+                                                    type="file"
+                                                    accept="image/*"
+                                                    className="hidden"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0]
+                                                        if (!file) return
+                                                        if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5MB'); return }
+                                                        if (!file.type.startsWith('image/')) { toast.error('Must be an image'); return }
+                                                        setEditAvatarFile(file)
+                                                        setEditAvatarPreview(URL.createObjectURL(file))
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <p className="text-[11px] text-center text-gray-400 -mt-4">Click to change photo</p>
+
+                                        {/* Name Field */}
                                         <div>
                                             <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name</label>
                                             <input
@@ -1700,6 +1758,18 @@ export default function ClubDashboard({
                                                 defaultValue={editingMember.name || ''}
                                                 className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all"
                                                 placeholder="Enter member's full name"
+                                            />
+                                        </div>
+
+                                        {/* Email Field */}
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
+                                            <input
+                                                type="email"
+                                                name="email"
+                                                defaultValue={editingMember.email?.includes('@member.ktm') ? '' : editingMember.email || ''}
+                                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all"
+                                                placeholder="athlete@example.com"
                                             />
                                         </div>
 
@@ -1726,10 +1796,10 @@ export default function ClubDashboard({
                                                     onChange={(val) => setEditingMember({ ...editingMember, belt: val })}
                                                     options={[
                                                         'White',
-                                                        'Low Yellow', 'High Yellow',
-                                                        'Low Blue', 'High Blue',
-                                                        'Low Red', 'High Red',
-                                                        'Low Brown', 'High Brown',
+                                                        'Yellow', 'Orange',
+                                                        'Green', 'Purple',
+                                                        'Blue', 'Maroon',
+                                                        'Red', 'Brown',
                                                         'Black'
                                                     ]}
                                                     className="w-full"
@@ -1837,10 +1907,10 @@ export default function ClubDashboard({
                                                 }}
                                                 options={[
                                                     'White',
-                                                    'Low Yellow', 'High Yellow',
-                                                    'Low Blue', 'High Blue',
-                                                    'Low Red', 'High Red',
-                                                    'Low Brown', 'High Brown',
+                                                    'Yellow', 'Orange',
+                                                    'Green', 'Purple',
+                                                    'Blue', 'Maroon',
+                                                    'Red', 'Brown',
                                                     'Black'
                                                 ]}
                                                 className="w-full"

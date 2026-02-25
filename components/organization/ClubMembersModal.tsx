@@ -221,10 +221,10 @@ export default function ClubMembersModal({ clubId, clubName, isOpen, onClose }: 
                                 onChange={(val) => setEditingMember({ ...editingMember, belt: val })}
                                 options={[
                                     'White',
-                                    'Low Yellow', 'High Yellow',
-                                    'Low Blue', 'High Blue',
-                                    'Low Red', 'High Red',
-                                    'Low Brown', 'High Brown',
+                                    'Yellow', 'Orange',
+                                    'Green', 'Purple',
+                                    'Blue', 'Maroon',
+                                    'Red', 'Brown',
                                     'Black'
                                 ]}
                                 name="belt"
