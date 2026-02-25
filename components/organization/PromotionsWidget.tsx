@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { Star, Plus, X, Calendar, MapPin, DollarSign, Trash2, Users, ListFilter } from 'lucide-react'
 import { createPromotionTest, deletePromotionTest, updatePromotionTestStatus } from '@/app/organization/actions'
@@ -28,6 +29,7 @@ const statusConfig: Record<string, { bg: string, text: string }> = {
 }
 
 export default function PromotionsWidget({ promotionTests: initial }: { promotionTests: PromotionTest[] }) {
+    const queryClient = useQueryClient()
     const [promotionTests, setPromotionTests] = useState(initial)
     const [showModal, setShowModal] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -63,6 +65,7 @@ export default function PromotionsWidget({ promotionTests: initial }: { promotio
         } else {
             toast.success('Promotion test deleted')
             setPromotionTests(prev => prev.filter(p => p.id !== id))
+            queryClient.invalidateQueries({ queryKey: ['organization-dashboard'] })
         }
     }
 

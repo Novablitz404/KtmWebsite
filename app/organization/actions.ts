@@ -255,7 +255,6 @@ export async function createPromotionTest(formData: FormData) {
     const testDate = formData.get('testDate') as string
     const registrationDeadline = formData.get('registrationDeadline') as string
     const venue = formData.get('venue') as string
-    const feeStr = formData.get('fee') as string
     const visibility = (formData.get('visibility') as string) || 'PRIVATE'
 
     if (!name || !testDate) return { error: 'Name and test date are required' }
@@ -268,7 +267,6 @@ export async function createPromotionTest(formData: FormData) {
             testDate: new Date(testDate),
             registrationDeadline: registrationDeadline ? new Date(registrationDeadline) : null,
             venue: venue || null,
-            fee: feeStr ? parseFloat(feeStr) : null,
             status: 'UPCOMING',
             visibility
         }
@@ -304,7 +302,6 @@ export async function updatePromotionTest(formData: FormData) {
     const testDate = formData.get('testDate') as string
     const registrationDeadline = formData.get('registrationDeadline') as string
     const venue = formData.get('venue') as string
-    const feeStr = formData.get('fee') as string
 
     if (!name || !testDate) return { error: 'Name and test date are required' }
 
@@ -316,7 +313,6 @@ export async function updatePromotionTest(formData: FormData) {
             testDate: new Date(testDate),
             registrationDeadline: registrationDeadline ? new Date(registrationDeadline) : null,
             venue: venue || null,
-            fee: feeStr ? parseFloat(feeStr) : null,
         }
     })
 
@@ -894,6 +890,16 @@ export async function updateOrganizationSettings(formData: FormData) {
         if (chairman !== null) updateData.chairman = chairman
         if (viceChairman !== null) updateData.viceChairman = viceChairman
         if (website !== null) updateData.website = website
+
+        // Handle default belt fees
+        const whiteToPurpleFeeStr = formData.get('whiteToPurpleFee') as string
+        const blueToBrownFeeStr = formData.get('blueToBrownFee') as string
+        if (whiteToPurpleFeeStr || blueToBrownFeeStr) {
+            updateData.defaultBeltFees = {
+                whiteToPurple: whiteToPurpleFeeStr ? parseFloat(whiteToPurpleFeeStr) : null,
+                blueToBrown: blueToBrownFeeStr ? parseFloat(blueToBrownFeeStr) : null
+            }
+        }
 
         // Handle File Upload
         if (logoFile && logoFile.size > 0) {

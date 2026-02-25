@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { X, Calendar, MapPin, DollarSign, Image as ImageIcon, Check } from 'lucide-react'
 import { createPromotionTest } from '@/app/organization/actions'
@@ -14,6 +15,7 @@ interface CreatePromotionModalProps {
 }
 
 export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotionModalProps) {
+    const router = useRouter()
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [imagePreview, setImagePreview] = useState<string | null>(null)
 
@@ -77,6 +79,9 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
             setCroppedImageBlob(null)
             setTestDate(undefined)
             setRegistrationDeadline(undefined)
+            if (result.promotionTest?.id) {
+                router.push(`/promotions/${result.promotionTest.id}`)
+            }
         }
         setIsSubmitting(false)
     }
@@ -164,7 +169,7 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
                             <input type="hidden" name="visibility" value="PRIVATE" />
                         </div>
 
-                        {/* Venue & Fee */}
+                        {/* Venue & Fee Info */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -177,18 +182,11 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
                                     placeholder="Location"
                                 />
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Fee (₱)
-                                </label>
-                                <input
-                                    name="fee"
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all"
-                                    placeholder="0.00"
-                                />
+                            <div className="flex flex-col justify-end pb-1">
+                                <div className="bg-blue-50 text-blue-800 text-xs px-3 py-2.5 rounded-lg border border-blue-100 flex gap-2 items-start">
+                                    <DollarSign className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                                    <p>Testing fees will be automatically calculated based on the student's belt using your Organization's default pricing.</p>
+                                </div>
                             </div>
                         </div>
 

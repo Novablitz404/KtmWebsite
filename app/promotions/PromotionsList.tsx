@@ -1,6 +1,6 @@
 'use client'
 
-import { Calendar, MapPin, DollarSign, Users, Settings } from 'lucide-react'
+import { Calendar, MapPin, Users, Settings } from 'lucide-react'
 import Link from 'next/link'
 
 const statusConfig: Record<string, { bg: string, text: string }> = {
@@ -36,7 +36,6 @@ export default function PromotionsList({ promotionTests }: PromotionsListProps) 
                     <th className="px-6 py-4">Test Name</th>
                     <th className="px-6 py-4">Date</th>
                     <th className="px-6 py-4">Venue</th>
-                    <th className="px-6 py-4">Fee</th>
                     <th className="px-6 py-4">Registrations</th>
                     <th className="px-6 py-4">Status</th>
                     <th className="px-6 py-4 text-right">Actions</th>
@@ -45,7 +44,7 @@ export default function PromotionsList({ promotionTests }: PromotionsListProps) 
             <tbody className="divide-y divide-gray-100">
                 {promotionTests.length === 0 ? (
                     <tr>
-                        <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                        <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
                             <div className="flex flex-col items-center justify-center">
                                 <p className="text-gray-500 font-medium">No promotion tests scheduled yet.</p>
                                 <p className="text-sm text-gray-400 mt-1">Click "Create" to add a new promotion test.</p>
@@ -78,16 +77,6 @@ export default function PromotionsList({ promotionTests }: PromotionsListProps) 
                                         </div>
                                     ) : (
                                         <span className="text-gray-400">-</span>
-                                    )}
-                                </td>
-                                <td className="px-6 py-4 text-gray-600 text-sm">
-                                    {test.fee ? (
-                                        <div className="flex items-center gap-1">
-                                            <DollarSign className="w-4 h-4 text-gray-400" />
-                                            ₱{test.fee.toFixed(0)}
-                                        </div>
-                                    ) : (
-                                        <span className="text-green-600 font-medium">Free</span>
                                     )}
                                 </td>
                                 <td className="px-6 py-4">

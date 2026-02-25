@@ -43,7 +43,7 @@ export default async function AthleteDashboardPage({
     }
 
     if (dbUser.role !== 'ATHLETE') {
-        redirect('/settings')
+        redirect('/')
     }
 
     // Check if profile is complete

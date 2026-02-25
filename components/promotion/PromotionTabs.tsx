@@ -15,9 +15,26 @@ type ExtendedPromotionTest = PromotionTest & {
 interface PromotionTabsProps {
     promotionTest: ExtendedPromotionTest
     userRole?: string
+    defaultBeltFees?: any
 }
 
-export default function PromotionTabs({ promotionTest, userRole }: PromotionTabsProps) {
+// Belt tiers: White(0) Yellow(1) Orange(2) Green(3) Purple(4) Blue(5) Maroon(6) Red(7) Brown(8) Black(9)
+const WHITE_TO_PURPLE_BELTS = ['yellow', 'orange', 'green', 'purple']
+const BLUE_TO_BROWN_BELTS = ['blue', 'maroon', 'red', 'brown', 'black']
+
+function getRegistrationFee(targetBelt: string | null | undefined, defaultBeltFees: any): number {
+    if (!targetBelt || !defaultBeltFees) return 0
+    const belt = targetBelt.toLowerCase()
+    if (WHITE_TO_PURPLE_BELTS.includes(belt)) return Number(defaultBeltFees.whiteToPurple) || 0
+    if (BLUE_TO_BROWN_BELTS.includes(belt)) return Number(defaultBeltFees.blueToBrown) || 0
+    return 0
+}
+
+function calculateTotalFees(registrations: any[], defaultBeltFees: any): number {
+    return registrations.reduce((sum, r) => sum + getRegistrationFee(r.targetBelt, defaultBeltFees), 0)
+}
+
+export default function PromotionTabs({ promotionTest, userRole, defaultBeltFees }: PromotionTabsProps) {
     const searchParams = useSearchParams()
     const router = useRouter()
     const pathname = usePathname()
@@ -136,10 +153,16 @@ export default function PromotionTabs({ promotionTest, userRole }: PromotionTabs
                                         <div>
                                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Revenue (Approved)</p>
                                             <h3 className="text-4xl font-black text-gray-900 leading-none">
-                                                ₱{((approvedCount) * (Number(promotionTest.fee) || 0)).toLocaleString()}
+                                                ₱{calculateTotalFees(
+                                                    promotionTest.registrations.filter(r => r.status === 'APPROVED'),
+                                                    defaultBeltFees
+                                                ).toLocaleString()}
                                             </h3>
                                             <p className="text-xs text-gray-400 mt-2 font-medium">
-                                                Based on {approvedCount} approved registrations out of ₱{((totalCount) * (Number(promotionTest.fee) || 0)).toLocaleString()} potential.
+                                                Based on {approvedCount} approved registrations out of ₱{calculateTotalFees(
+                                                    promotionTest.registrations,
+                                                    defaultBeltFees
+                                                ).toLocaleString()} potential.
                                             </p>
                                         </div>
                                     </div>
@@ -163,11 +186,17 @@ export default function PromotionTabs({ promotionTest, userRole }: PromotionTabs
                                         <div className="grid grid-cols-2 gap-8 pt-2">
                                             <div className="space-y-0.5">
                                                 <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Confirmed</p>
-                                                <p className="text-base font-bold text-gray-900">₱{((approvedCount) * (Number(promotionTest.fee) || 0)).toLocaleString()}</p>
+                                                <p className="text-base font-bold text-gray-900">₱{calculateTotalFees(
+                                                    promotionTest.registrations.filter(r => r.status === 'APPROVED'),
+                                                    defaultBeltFees
+                                                ).toLocaleString()}</p>
                                             </div>
                                             <div className="space-y-0.5">
                                                 <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Pending</p>
-                                                <p className="text-base font-bold text-gray-300">₱{((pendingCount) * (Number(promotionTest.fee) || 0)).toLocaleString()}</p>
+                                                <p className="text-base font-bold text-gray-300">₱{calculateTotalFees(
+                                                    promotionTest.registrations.filter(r => r.status === 'PENDING'),
+                                                    defaultBeltFees
+                                                ).toLocaleString()}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -225,8 +254,16 @@ export default function PromotionTabs({ promotionTest, userRole }: PromotionTabs
                                             <p className="text-sm font-bold text-gray-900 truncate" title={promotionTest.venue || 'TBA'}>{promotionTest.venue || 'TBA'}</p>
                                         </div>
                                         <div className="space-y-1">
-                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Registration Fee</p>
-                                            <p className="text-sm font-bold text-gray-900">₱{Number(promotionTest.fee)?.toLocaleString() || '0'}</p>
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">White → Purple Fee</p>
+                                            <p className="text-sm font-bold text-gray-900">
+                                                {defaultBeltFees?.whiteToPurple ? `₱${Number(defaultBeltFees.whiteToPurple).toLocaleString()}` : 'Not set'}
+                                            </p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Blue → Brown Fee</p>
+                                            <p className="text-sm font-bold text-gray-900">
+                                                {defaultBeltFees?.blueToBrown ? `₱${Number(defaultBeltFees.blueToBrown).toLocaleString()}` : 'Not set'}
+                                            </p>
                                         </div>
                                         <div className="space-y-1">
                                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Registrants</p>

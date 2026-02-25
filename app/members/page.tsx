@@ -26,7 +26,7 @@ export default async function MembersPage(props: { searchParams: Promise<{ page?
 
     // Only Club Masters can access this page
     if (dbUser.role !== 'CLUB_MASTER' && dbUser.role !== 'ASSISTANT_CLUB_MASTER') {
-        redirect('/settings')
+        redirect('/')
     }
 
     if (!dbUser.clubName) {

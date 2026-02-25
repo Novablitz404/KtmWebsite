@@ -36,7 +36,8 @@ export default async function OrganizationPage() {
                     contactEmail: true,
                     website: true,
                     chairman: true,
-                    viceChairman: true
+                    viceChairman: true,
+                    defaultBeltFees: true
                 }
             }
         }

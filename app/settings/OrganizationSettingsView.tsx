@@ -1,8 +1,8 @@
-import { prisma } from '@/lib/prisma'
 import ProfileForm from './ProfileForm'
 import OrganizationSettingsButton from '@/app/components/OrganizationSettingsButton'
 import LogoutButton from '@/components/LogoutButton'
 import OrganizationTransferOwnership from '@/components/organization/OrganizationTransferOwnership'
+import SettingsSubTabs from './SettingsSubTabs'
 
 interface OrganizationSettingsViewProps {
     dbUser: {
@@ -27,148 +27,213 @@ interface OrganizationSettingsViewProps {
         website: string | null
         chairman: string | null
         viceChairman: string | null
+        defaultBeltFees?: any
     }
     clerkImageUrl: string | undefined
 }
 
 export default async function OrganizationSettingsView({ dbUser, organization, clerkImageUrl }: OrganizationSettingsViewProps) {
 
-    return (
-        <div className="space-y-4 sm:space-y-6">
-            {/* Profile Header Card - Mobile Optimized */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="p-6 flex flex-col sm:flex-row items-center sm:items-start gap-6">
-                    {/* Avatar */}
+    const profileContent = (
+        <div className="space-y-6">
+            {/* Profile Card */}
+            <div className="bg-white sm:rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+                    <h2 className="text-lg font-semibold text-gray-900">Personal Information</h2>
+                    <ProfileForm user={dbUser} initialImageUrl={clerkImageUrl} />
+                </div>
+                <div className="p-6 sm:p-8">
+                    <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+                        {/* Avatar */}
+                        <div className="flex-shrink-0">
+                            {clerkImageUrl ? (
+                                <img
+                                    src={clerkImageUrl}
+                                    alt={dbUser.name || 'Admin'}
+                                    className="w-24 h-24 sm:w-28 sm:h-28 rounded-full border-2 border-gray-100 shadow-sm object-cover bg-gray-100"
+                                />
+                            ) : (
+                                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-3xl sm:text-4xl border-2 border-gray-100 shadow-sm text-gray-400 font-bold">
+                                    {dbUser.name ? dbUser.name.charAt(0).toUpperCase() : 'A'}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 text-center sm:text-left">
+                            <h3 className="text-xl sm:text-2xl font-bold text-gray-900">{dbUser.name || 'Organization Admin'}</h3>
+                            <p className="text-gray-500 text-sm mt-1">{dbUser.email}</p>
+
+                            <div className="mt-4">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                                    Organization Administrator
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Profile Details Grid */}
+                    <div className="mt-8 pt-6 border-t border-gray-100">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-5 gap-x-6">
+                            <div>
+                                <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">Full Name</p>
+                                <p className="text-sm font-medium text-gray-900">{dbUser.name || '-'}</p>
+                            </div>
+                            <div>
+                                <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">Email</p>
+                                <p className="text-sm font-medium text-gray-900 truncate">{dbUser.email}</p>
+                            </div>
+                            <div>
+                                <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">Role</p>
+                                <p className="text-sm font-medium text-gray-900">{dbUser.role === 'ORGANIZER' ? 'Owner' : dbUser.role === 'MANAGER' ? 'Manager' : dbUser.role}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Logout - Mobile Only */}
+            <div className="sm:hidden px-4 pb-6">
+                <LogoutButton />
+            </div>
+        </div>
+    )
+
+    const organizationContent = (
+        <div className="space-y-6">
+            {/* Organization Header Card */}
+            <div className="bg-white sm:rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="p-6 sm:p-8 flex flex-col sm:flex-row items-center gap-5">
+                    {/* Org Logo */}
                     <div className="flex-shrink-0">
-                        {clerkImageUrl ? (
+                        {organization?.logoUrl ? (
                             <img
-                                src={clerkImageUrl}
-                                alt={dbUser.name || 'Organization Admin'}
-                                className="w-24 h-24 rounded-full border-4 border-white shadow-sm object-cover bg-gray-100"
+                                src={organization.logoUrl}
+                                alt={organization.name}
+                                className="w-24 h-24 rounded-xl border border-gray-200 shadow-sm object-contain bg-white p-1.5"
                             />
                         ) : (
-                            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-4xl border-4 border-white shadow-sm">
-                                🏢
+                            <div className="w-24 h-24 rounded-xl bg-gray-100 flex items-center justify-center text-2xl font-bold text-gray-400 border border-gray-200">
+                                {organization.name.charAt(0)}
                             </div>
                         )}
                     </div>
 
-                    {/* Name & Role */}
-                    <div className="flex-1 text-center sm:text-left pt-2">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-center sm:justify-start">
-                            <h1 className="text-2xl font-bold text-gray-900">{dbUser.name || 'Organization Admin'}</h1>
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-100 text-indigo-700">
-                                🏢 Organization Admin
-                            </span>
-                        </div>
-                        <p className="text-gray-500 mt-1">{dbUser.email}</p>
-
-                        <div className="mt-4 flex flex-wrap gap-4 justify-center sm:justify-start">
-                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                                {organization?.logoUrl ? (
-                                    <img src={organization.logoUrl} alt="Organization" className="w-5 h-5 object-contain" />
-                                ) : (
-                                    <span>🏢</span>
-                                )}
-                                <span>{organization.name}</span>
-                            </div>
-                        </div>
+                    {/* Name & Website */}
+                    <div className="flex-1 text-center sm:text-left">
+                        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">{organization.name}</h2>
+                        {organization.website && (
+                            <a href={organization.website} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-500 text-sm font-medium mt-1 inline-block">
+                                {organization.website.replace(/^https?:\/\//, '')}
+                            </a>
+                        )}
                     </div>
 
-                    {/* Edit Profile Button */}
-                    <div className="mt-4 sm:mt-0">
-                        <ProfileForm user={dbUser} initialImageUrl={clerkImageUrl} />
+                    {/* Edit Button */}
+                    <div className="flex-shrink-0 self-start">
+                        {organization && (
+                            <OrganizationSettingsButton
+                                organizationId={organization.id}
+                                orgName={organization.name}
+                                orgLogo={organization.logoUrl}
+                                address={organization.address}
+                                phone={organization.contactPhone}
+                                email={organization.contactEmail}
+                                website={organization.website}
+                                chairman={organization.chairman}
+                                viceChairman={organization.viceChairman}
+                                defaultBeltFees={organization.defaultBeltFees}
+                                buttonText="Edit"
+                            />
+                        )}
                     </div>
                 </div>
             </div>
 
-            {/* Organization Details - Desktop and Mobile */}
-            <div className="bg-white sm:rounded-xl shadow-sm border-y sm:border border-gray-200">
-                <div className="px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-100 flex justify-between items-center">
-                    <h2 className="font-semibold text-gray-900">
-                        Organization Details
-                    </h2>
-                    {organization && (
-                        <OrganizationSettingsButton
-                            organizationId={organization.id}
-                            orgName={organization.name}
-                            orgLogo={organization.logoUrl}
-                            address={organization.address}
-                            phone={organization.contactPhone}
-                            email={organization.contactEmail}
-                            website={organization.website}
-                            chairman={organization.chairman}
-                            viceChairman={organization.viceChairman}
-                            buttonText="Edit Organization"
-                        />
-                    )}
+            {/* Organization Details */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Leadership */}
+                <div className="bg-white sm:rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-gray-100">
+                        <h3 className="text-sm font-semibold text-gray-900">Leadership</h3>
+                    </div>
+                    <div className="p-6 space-y-4">
+                        <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-500">Chairman</span>
+                            <span className="text-sm font-semibold text-gray-900">{organization.chairman || '-'}</span>
+                        </div>
+                        <div className="border-t border-gray-100" />
+                        <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-500">Vice Chairman</span>
+                            <span className="text-sm font-semibold text-gray-900">{organization.viceChairman || '-'}</span>
+                        </div>
+                    </div>
                 </div>
-                <div className="p-4 sm:p-8">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
-                        <div className="space-y-4">
-                            <div>
-                                <span className="block text-xs sm:text-sm text-gray-500 mb-1">Organization Name</span>
-                                <span className="font-medium text-gray-900 text-sm sm:text-base">{organization.name}</span>
-                            </div>
-                            <div>
-                                <span className="block text-xs sm:text-sm text-gray-500 mb-1">Website</span>
-                                {organization.website ? (
-                                    <a href={organization.website} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-700 font-medium text-sm sm:text-base truncate block">
-                                        {organization.website}
-                                    </a>
-                                ) : (
-                                    <span className="text-gray-400 text-sm">-</span>
-                                )}
-                            </div>
-                        </div>
 
-                        <div className="space-y-4">
-                            <div>
-                                <span className="block text-xs sm:text-sm text-gray-500 mb-1">Contact Email</span>
-                                <span className="font-medium text-gray-900 text-sm sm:text-base truncate block">{organization.contactEmail || '-'}</span>
-                            </div>
-                            <div>
-                                <span className="block text-xs sm:text-sm text-gray-500 mb-1">Contact Phone</span>
-                                <span className="font-medium text-gray-900 text-sm sm:text-base">{organization.contactPhone || '-'}</span>
-                            </div>
+                {/* Contact Info */}
+                <div className="bg-white sm:rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-gray-100">
+                        <h3 className="text-sm font-semibold text-gray-900">Contact Information</h3>
+                    </div>
+                    <div className="p-6 space-y-4">
+                        <div>
+                            <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">Email</p>
+                            <p className="text-sm font-medium text-gray-900">{organization.contactEmail || '-'}</p>
                         </div>
-
-                        <div className="space-y-4">
-                            <div>
-                                <span className="block text-xs sm:text-sm text-gray-500 mb-1">Chairman</span>
-                                <span className="font-medium text-gray-900 text-sm sm:text-base">{organization.chairman || '-'}</span>
-                            </div>
-                            <div>
-                                <span className="block text-xs sm:text-sm text-gray-500 mb-1">Vice Chairman</span>
-                                <span className="font-medium text-gray-900 text-sm sm:text-base">{organization.viceChairman || '-'}</span>
-                            </div>
+                        <div>
+                            <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">Phone</p>
+                            <p className="text-sm font-medium text-gray-900">{organization.contactPhone || '-'}</p>
                         </div>
-
-                        <div className="col-span-2 sm:col-span-3 pt-2 border-t border-gray-50 mt-2">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                <div>
-                                    <span className="block text-xs sm:text-sm text-gray-500 mb-1">Address</span>
-                                    <span className="font-medium text-gray-900 text-sm sm:text-base">{organization.address || '-'}</span>
-                                </div>
-                                <div>
-                                    <span className="block text-xs sm:text-sm text-gray-500 mb-1">Admin</span>
-                                    <span className="font-medium text-gray-900 text-sm sm:text-base">{dbUser.name || '-'}</span>
-                                </div>
-                            </div>
+                        <div>
+                            <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">Address</p>
+                            <p className="text-sm font-medium text-gray-900">{organization.address || '-'}</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Transfer Ownership Section */}
+            {/* Promotion Test Fees */}
+            <div className="bg-white sm:rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100">
+                    <h3 className="text-sm font-semibold text-gray-900">Promotion Test Default Fees</h3>
+                </div>
+                <div className="grid grid-cols-2 divide-x divide-gray-100">
+                    <div className="p-6 text-center">
+                        <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-2">White to Purple</p>
+                        <p className="text-2xl font-bold text-gray-900">
+                            {organization.defaultBeltFees?.whiteToPurple
+                                ? `₱${organization.defaultBeltFees.whiteToPurple.toLocaleString()}`
+                                : <span className="text-gray-300 text-base font-medium">Not set</span>
+                            }
+                        </p>
+                    </div>
+                    <div className="p-6 text-center">
+                        <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-2">Blue to Brown</p>
+                        <p className="text-2xl font-bold text-gray-900">
+                            {organization.defaultBeltFees?.blueToBrown
+                                ? `₱${organization.defaultBeltFees.blueToBrown.toLocaleString()}`
+                                : <span className="text-gray-300 text-base font-medium">Not set</span>
+                            }
+                        </p>
+                    </div>
+                </div>
+                <div className="bg-gray-50 px-4 py-2.5 border-t border-gray-100">
+                    <p className="text-xs text-gray-500 text-center">Applied automatically to new promotion tests</p>
+                </div>
+            </div>
+
+            {/* Transfer Ownership */}
             {organization && (
                 <OrganizationTransferOwnership organizationId={organization.id} />
             )}
-
-            {/* Logout - Mobile Only */}
-            <div className="sm:hidden px-4 pb-6 space-y-3">
-                <LogoutButton />
-            </div>
         </div>
+    )
+
+    return (
+        <SettingsSubTabs
+            profileContent={profileContent}
+            organizationContent={organizationContent}
+        />
     )
 }

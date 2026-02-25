@@ -50,7 +50,23 @@ export default function ExaminerView({ promotionTest }: { promotionTest: Promoti
     const [groupByBelt, setGroupByBelt] = useState(true)
 
     const registrations = promotionTest.registrations
-    const fee = promotionTest.fee || 0
+    // defaultBeltFees structure: { whiteToPurple: 600, blueToBrown: 700 }
+    const defaultFees = (promotionTest.organization as any).defaultBeltFees || {}
+
+    // Grouping belts for fee calculation based on common PH standards requested
+    const whiteToPurpleBelts = ['White', 'Yellow', 'Orange', 'Green', 'Purple']
+    const blueToBrownBelts = ['Blue', 'Maroon', 'Red', 'Brown']
+
+    const getFeeForBelt = (belt: string) => {
+        const lowerBelt = belt.toLowerCase()
+        if (whiteToPurpleBelts.some(b => b.toLowerCase() === lowerBelt)) {
+            return defaultFees.whiteToPurple || 0
+        }
+        if (blueToBrownBelts.some(b => b.toLowerCase() === lowerBelt)) {
+            return defaultFees.blueToBrown || 0
+        }
+        return 0 // Black belt or undefined
+    }
 
     // Filter by search
     const filtered = registrations.filter(reg =>
@@ -70,13 +86,15 @@ export default function ExaminerView({ promotionTest }: { promotionTest: Promoti
     // Group by club for collection tab
     const clubGroups = registrations.reduce((acc, reg) => {
         const club = reg.clubName || 'Unaffiliated'
-        if (!acc[club]) acc[club] = { count: 0, athletes: [] as string[] }
+        if (!acc[club]) acc[club] = { count: 0, athletes: [] as string[], totalDue: 0 }
         acc[club].count++
         acc[club].athletes.push(reg.playerName)
+        acc[club].totalDue += getFeeForBelt(reg.currentBelt)
         return acc
-    }, {} as Record<string, { count: number; athletes: string[] }>)
+    }, {} as Record<string, { count: number; athletes: string[], totalDue: number }>)
 
-    const totalCollection = registrations.length * fee
+    // Calculate total collection dynamically based on each student's belt
+    const totalCollection = registrations.reduce((sum, reg) => sum + getFeeForBelt(reg.currentBelt), 0)
 
     const handleStatusUpdate = async (id: string, status: string) => {
         setLoadingId(id)
@@ -313,7 +331,7 @@ export default function ExaminerView({ promotionTest }: { promotionTest: Promoti
                                     <p className="text-3xl font-extrabold text-gray-900 mt-1">₱{totalCollection.toLocaleString()}</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-xs text-gray-500">{registrations.length} athletes × ₱{fee.toLocaleString()}</p>
+                                    <p className="text-xs text-gray-500">{registrations.length} athletes (Variable Belt Fees)</p>
                                     <p className="text-xs text-gray-400 mt-0.5">{Object.keys(clubGroups).length} clubs</p>
                                 </div>
                             </div>
@@ -333,7 +351,7 @@ export default function ExaminerView({ promotionTest }: { promotionTest: Promoti
                                                 <p className="text-xs text-gray-500 mt-0.5">{data.count} athlete{data.count !== 1 ? 's' : ''}</p>
                                             </div>
                                             <div className="text-right flex-shrink-0">
-                                                <p className="font-bold text-gray-900 text-sm">₱{(data.count * fee).toLocaleString()}</p>
+                                                <p className="font-bold text-gray-900 text-sm">₱{data.totalDue.toLocaleString()}</p>
                                             </div>
                                         </div>
                                     ))}

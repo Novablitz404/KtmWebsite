@@ -24,6 +24,9 @@ export async function updateOrganizationProfile(organizationId: string, formData
     const contactPhone = formData.get('contactPhone') as string
     const logoFile = formData.get('logo') as File | null
 
+    const whiteToPurpleFeeStr = formData.get('whiteToPurpleFee') as string
+    const blueToBrownFeeStr = formData.get('blueToBrownFee') as string
+
     if (!name) throw new Error('Organization Name is required')
 
     let logoUrl: string | undefined = undefined
@@ -60,6 +63,14 @@ export async function updateOrganizationProfile(organizationId: string, formData
         }
     }
 
+    let defaultBeltFees: any = undefined
+    if (whiteToPurpleFeeStr || blueToBrownFeeStr) {
+        defaultBeltFees = {
+            whiteToPurple: whiteToPurpleFeeStr ? parseFloat(whiteToPurpleFeeStr) : null,
+            blueToBrown: blueToBrownFeeStr ? parseFloat(blueToBrownFeeStr) : null
+        }
+    }
+
     await prisma.organization.update({
         where: { id: organizationId },
         data: {
@@ -70,11 +81,12 @@ export async function updateOrganizationProfile(organizationId: string, formData
             website,
             contactEmail,
             contactPhone,
-            ...(logoUrl && { logoUrl }) // Only update if new logo uploaded
+            ...(logoUrl && { logoUrl }), // Only update if new logo uploaded
+            ...(defaultBeltFees && { defaultBeltFees })
         }
     })
 
-    revalidatePath('/settings')
+    revalidatePath('/organization')
 }
 
 export async function uploadProfilePicture(formData: FormData) {
@@ -122,7 +134,7 @@ export async function uploadProfilePicture(formData: FormData) {
         data: { imageUrl: urlWithCacheBust }
     })
 
-    revalidatePath('/settings')
+    revalidatePath('/organization')
     revalidatePath('/club')
     revalidatePath('/athlete')
     revalidatePath('/admin')

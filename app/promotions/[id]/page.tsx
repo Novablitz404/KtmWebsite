@@ -30,6 +30,9 @@ export default async function ManagePromotionPage({ params }: PageProps) {
         include: {
             registrations: {
                 orderBy: { createdAt: 'desc' }
+            },
+            organization: {
+                select: { defaultBeltFees: true }
             }
         }
     })
@@ -128,7 +131,7 @@ export default async function ManagePromotionPage({ params }: PageProps) {
 
     // If manager, return the Tabbed Interface (same layout as seminar management)
     if (canManage) {
-        return <PromotionTabs promotionTest={promotionTest as any} userRole={dbUser?.role} />
+        return <PromotionTabs promotionTest={promotionTest as any} userRole={dbUser?.role} defaultBeltFees={(promotionTest as any).organization?.defaultBeltFees} />
     }
 
     // Athlete / Clubmaster View — Professional registration page

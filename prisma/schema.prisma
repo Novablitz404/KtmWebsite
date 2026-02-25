@@ -269,6 +269,8 @@ model Organization {
   promotionTests PromotionTest[]
   seminars       Seminar[]
 
+  defaultBeltFees Json? // e.g. {"whiteToPurple": 600, "blueToBrown": 700}
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

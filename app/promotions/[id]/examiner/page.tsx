@@ -12,7 +12,7 @@ export default async function ExaminerPage({ params }: PageProps) {
     const promotionTest = await prisma.promotionTest.findUnique({
         where: { id },
         include: {
-            organization: { select: { name: true, logoUrl: true } },
+            organization: { select: { name: true, logoUrl: true, defaultBeltFees: true } },
             registrations: {
                 where: { status: { in: ['APPROVED', 'PASSED', 'FAILED'] } },
                 orderBy: { createdAt: 'asc' }

@@ -51,8 +51,7 @@ export default function GlobalCalendar({
     // View state for calendar navigation
     const [currentMonth, setCurrentMonth] = useState(selectedDate || new Date())
     const [view, setView] = useState<'day' | 'month' | 'year'>('day')
-    const [position, setPosition] = useState<'bottom' | 'top'>('bottom')
-    const [hPosition, setHPosition] = useState<'left' | 'right'>('left')
+    const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
 
     // Handle click outside to close
     useEffect(() => {
@@ -65,33 +64,45 @@ export default function GlobalCalendar({
         return () => document.removeEventListener('mousedown', handleClickOutside)
     }, [])
 
-    // Update position on open
-    useEffect(() => {
-        if (isOpen && containerRef.current) {
-            const rect = containerRef.current.getBoundingClientRect()
-            const viewportWidth = window.innerWidth
-            const viewportHeight = window.innerHeight
+    // Calculate position synchronously before opening
+    const calculatePosition = () => {
+        if (!containerRef.current) return
+        const rect = containerRef.current.getBoundingClientRect()
+        const viewportWidth = window.innerWidth
+        const viewportHeight = window.innerHeight
 
-            const calendarWidth = 280 // matches w-[280px] in className
-            const calendarHeight = 300 // approximate max height
+        const calendarWidth = 280
+        const calendarHeight = 300
 
-            // Vertical collision
-            const spaceBelow = viewportHeight - rect.bottom
-            if (spaceBelow < calendarHeight && rect.top > calendarHeight) {
-                setPosition('top')
-            } else {
-                setPosition('bottom')
-            }
-
-            // Horizontal collision
-            const spaceRight = viewportWidth - rect.left
-            if (spaceRight < calendarWidth && rect.right > calendarWidth) {
-                setHPosition('right')
-            } else {
-                setHPosition('left')
-            }
+        const style: React.CSSProperties = {
+            position: 'fixed',
+            zIndex: 9999,
+            width: calendarWidth,
         }
-    }, [isOpen])
+
+        const spaceBelow = viewportHeight - rect.bottom
+        if (spaceBelow < calendarHeight && rect.top > calendarHeight) {
+            style.bottom = viewportHeight - rect.top + 4
+        } else {
+            style.top = rect.bottom + 4
+        }
+
+        const spaceRight = viewportWidth - rect.left
+        if (spaceRight < calendarWidth) {
+            style.right = viewportWidth - rect.right
+        } else {
+            style.left = rect.left
+        }
+
+        setDropdownStyle(style)
+    }
+
+    const toggleCalendar = () => {
+        if (!isOpen) {
+            calculatePosition()
+        }
+        setIsOpen(!isOpen)
+    }
 
     // Update view when value changes externally
     useEffect(() => {
@@ -137,7 +148,7 @@ export default function GlobalCalendar({
             {/* Trigger Button */}
             <button
                 type="button"
-                onClick={() => setIsOpen(!isOpen)}
+                onClick={toggleCalendar}
                 className={`
                     relative w-full bg-white border rounded-xl shadow-sm px-3 py-2 text-left text-sm cursor-default transition-all flex items-center justify-between
                     ${error ? 'border-red-300 ring-4 ring-red-500/10' : 'border-gray-200 hover:border-gray-300 focus:ring-2 focus:ring-gray-200'}
@@ -165,12 +176,10 @@ export default function GlobalCalendar({
 
             {/* Dropdown Calendar */}
             {isOpen && (
-                <div className={`
-                    absolute z-50 p-3 w-[280px] bg-white rounded-xl shadow-xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200
-                    ${position === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'}
-                    ${hPosition === 'right' ? 'right-0 origin-right' : 'left-0 origin-left'}
-                    ${position === 'top' ? (hPosition === 'right' ? 'origin-bottom-right' : 'origin-bottom-left') : (hPosition === 'right' ? 'origin-top-right' : 'origin-top-left')}
-                `}>
+                <div
+                    className="p-3 bg-white rounded-xl shadow-xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200"
+                    style={dropdownStyle}
+                >
                     {/* Header */}
                     <div className="flex items-center justify-between mb-2">
                         <button
