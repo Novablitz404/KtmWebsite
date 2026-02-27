@@ -10,7 +10,19 @@ import { Tournament, Player as PrismaPlayer } from '@prisma/client'
 // Extended Player type with enriched fields
 type Player = PrismaPlayer & {
     club: { name: string; logoUrl: string | null } | null
+    category?: { id: string; name: string; type: string; tournamentId: string; court: string | null } | null
     imageUrl?: string
+}
+
+// Deduplicated athlete for display
+type UniqueAthlete = {
+    name: string
+    belt: string | null
+    club: { name: string; logoUrl: string | null } | null
+    imageUrl?: string
+    eventTypes: string[] // ['KYORUGI', 'POOMSAE']
+    userId: string | null
+    id: string // first player record id for key
 }
 
 interface PublicTournamentViewProps {
@@ -36,11 +48,39 @@ export default function PublicTournamentView(props: PublicTournamentViewProps) {
 
     const teams = Array.from(clubMap.keys()).sort()
 
+    // Deduplicate athletes: group by userId or name+clubId
+    const athleteMap = new Map<string, UniqueAthlete>()
+    players.forEach(p => {
+        const key = p.userId || `${p.name.toLowerCase().trim()}::${p.clubId || 'none'}`
+        const existing = athleteMap.get(key)
+        const eventType = p.category?.type || 'KYORUGI'
+        if (existing) {
+            if (!existing.eventTypes.includes(eventType)) {
+                existing.eventTypes.push(eventType)
+            }
+            // Prefer the record with an image
+            if (p.imageUrl && !existing.imageUrl) {
+                existing.imageUrl = p.imageUrl
+            }
+        } else {
+            athleteMap.set(key, {
+                name: p.name,
+                belt: p.belt,
+                club: p.club,
+                imageUrl: (p as any).imageUrl || undefined,
+                eventTypes: [eventType],
+                userId: p.userId,
+                id: p.id,
+            })
+        }
+    })
+    const uniqueAthletes = Array.from(athleteMap.values())
+
     // Pagination for Athletes
     const [currentPage, setCurrentPage] = useState(1)
     const itemsPerPage = 50
-    const totalPages = Math.ceil(players.length / itemsPerPage)
-    const displayedPlayers = players.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+    const totalPages = Math.ceil(uniqueAthletes.length / itemsPerPage)
+    const displayedAthletes = uniqueAthletes.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
     // Tab State
     const [activeTab, setActiveTab] = useState<'overview' | 'guidelines'>('overview')
@@ -168,7 +208,7 @@ export default function PublicTournamentView(props: PublicTournamentViewProps) {
                             <span className="text-sm text-gray-500 font-medium uppercase tracking-wider">Participating Teams</span>
                         </div>
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center">
-                            <span className="text-4xl font-bold text-red-600 block mb-1">{players.length}</span>
+                            <span className="text-4xl font-bold text-red-600 block mb-1">{uniqueAthletes.length}</span>
                             <span className="text-sm text-gray-500 font-medium uppercase tracking-wider">Registered Athletes</span>
                         </div>
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center flex flex-col justify-center">
@@ -237,31 +277,45 @@ export default function PublicTournamentView(props: PublicTournamentViewProps) {
                             )}
                         </div>
 
-                        {players.length === 0 ? (
+                        {uniqueAthletes.length === 0 ? (
                             <div className="text-gray-500 italic">No athletes registered yet.</div>
                         ) : (
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                                {displayedPlayers.map((player) => {
-                                    const initials = player.name
+                                {displayedAthletes.map((athlete) => {
+                                    const initials = athlete.name
                                         .split(' ')
-                                        .map(n => n[0])
+                                        .map((n: string) => n[0])
                                         .slice(0, 2)
                                         .join('')
                                         .toUpperCase();
 
                                     return (
-                                        <div key={player.id} className="group bg-white rounded-xl p-3 shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 flex flex-col items-center text-center relative overflow-hidden">
+                                        <div key={athlete.id} className="group bg-white rounded-xl p-3 shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 flex flex-col items-center text-center relative overflow-hidden">
 
                                             {/* Top Background Decoration */}
                                             <div className="absolute top-0 left-0 w-full h-12 bg-gradient-to-b from-gray-50 to-white z-0" />
 
+                                            {/* Event Type Badges - Top Right */}
+                                            <div className="absolute top-2 right-2 z-20 flex gap-1">
+                                                {athlete.eventTypes.includes('KYORUGI') && (
+                                                    <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wide bg-blue-600 text-white shadow-sm">
+                                                        Kyorugi
+                                                    </span>
+                                                )}
+                                                {athlete.eventTypes.includes('POOMSAE') && (
+                                                    <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wide bg-purple-600 text-white shadow-sm">
+                                                        Poomsae
+                                                    </span>
+                                                )}
+                                            </div>
+
                                             {/* Avatar */}
                                             <div className="relative z-10 mb-2">
                                                 <div className="p-0.5 bg-white rounded-full shadow-sm">
-                                                    {player.imageUrl ? (
+                                                    {athlete.imageUrl ? (
                                                         <img
-                                                            src={player.imageUrl}
-                                                            alt={player.name}
+                                                            src={athlete.imageUrl}
+                                                            alt={athlete.name}
                                                             className="w-14 h-14 rounded-full object-cover bg-gray-100"
                                                         />
                                                     ) : (
@@ -271,16 +325,16 @@ export default function PublicTournamentView(props: PublicTournamentViewProps) {
                                                     )}
                                                 </div>
                                                 {/* Belt Indicator (if exists) */}
-                                                {player.belt && (
+                                                {athlete.belt && (
                                                     <div className="absolute -bottom-1.5 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
-                                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border shadow-sm ${player.belt === 'Black' ? 'bg-black text-white border-gray-800' :
-                                                            player.belt === 'Red' ? 'bg-red-600 text-white border-red-700' :
-                                                                player.belt === 'Brown' ? 'bg-amber-800 text-white border-amber-900' :
-                                                                    player.belt === 'Blue' ? 'bg-blue-600 text-white border-blue-700' :
-                                                                        player.belt === 'Yellow' ? 'bg-yellow-400 text-yellow-900 border-yellow-500' :
+                                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border shadow-sm ${athlete.belt === 'Black' ? 'bg-black text-white border-gray-800' :
+                                                            athlete.belt === 'Red' ? 'bg-red-600 text-white border-red-700' :
+                                                                athlete.belt === 'Brown' ? 'bg-amber-800 text-white border-amber-900' :
+                                                                    athlete.belt === 'Blue' ? 'bg-blue-600 text-white border-blue-700' :
+                                                                        athlete.belt === 'Yellow' ? 'bg-yellow-400 text-yellow-900 border-yellow-500' :
                                                                             'bg-white text-gray-700 border-gray-200'
                                                             }`}>
-                                                            {player.belt}
+                                                            {athlete.belt}
                                                         </span>
                                                     </div>
                                                 )}
@@ -288,19 +342,19 @@ export default function PublicTournamentView(props: PublicTournamentViewProps) {
 
                                             {/* Info */}
                                             <div className="relative z-10 w-full mt-1">
-                                                <h3 className="font-bold text-gray-900 text-sm truncate px-1" title={player.name}>
-                                                    {player.name}
+                                                <h3 className="font-bold text-gray-900 text-sm truncate px-1" title={athlete.name}>
+                                                    {athlete.name}
                                                 </h3>
                                                 <div className="flex items-center justify-center gap-1.5 mt-0.5 px-2">
-                                                    {player.club?.logoUrl && (
+                                                    {athlete.club?.logoUrl && (
                                                         <img
-                                                            src={player.club.logoUrl}
+                                                            src={athlete.club.logoUrl}
                                                             alt="Club"
                                                             className="w-4 h-4 object-contain rounded-sm"
                                                         />
                                                     )}
                                                     <p className="text-xs text-gray-500 truncate max-w-[120px]">
-                                                        {player.club?.name || 'Independent'}
+                                                        {athlete.club?.name || 'Independent'}
                                                     </p>
                                                 </div>
                                             </div>

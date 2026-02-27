@@ -66,9 +66,9 @@ export default function CustomSignInForm({ hideBranding = false }: CustomSignInF
             })
 
             if (result.status === 'complete') {
-                // Add artificial delay for smoother UX (especially on fast networks)
-                await new Promise(resolve => setTimeout(resolve, 2000))
                 await setActive({ session: result.createdSessionId })
+                // Wait for session to propagate to the server before redirecting
+                await new Promise(resolve => setTimeout(resolve, 1000))
                 // Redirect to root, where app/page.tsx will handle role-based redirection
                 // Force full reload to clear client router cache and ensure correct role-based redirect
                 window.location.replace('/')
@@ -156,6 +156,8 @@ export default function CustomSignInForm({ hideBranding = false }: CustomSignInF
 
             if (result.status === 'complete') {
                 await setActive({ session: result.createdSessionId })
+                // Wait for session to propagate to the server before redirecting
+                await new Promise(resolve => setTimeout(resolve, 1000))
                 // Force full reload to clear client router cache and ensure correct role-based redirect
                 window.location.replace('/')
             } else if (result.status === 'needs_second_factor') {
@@ -193,6 +195,8 @@ export default function CustomSignInForm({ hideBranding = false }: CustomSignInF
 
             if (result.status === 'complete') {
                 await setActive({ session: result.createdSessionId })
+                // Wait for session to propagate to the server before redirecting
+                await new Promise(resolve => setTimeout(resolve, 1000))
                 // Force full reload to clear client router cache and ensure correct role-based redirect
                 window.location.replace('/')
             } else {

@@ -2,8 +2,16 @@ import CustomSignInForm from '@/components/auth/CustomSignInForm'
 import Image from 'next/image'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
+import { currentUser } from '@clerk/nextjs/server'
+import { redirect } from 'next/navigation'
 
-export default function SignInPage() {
+export default async function SignInPage() {
+    // If user is already authenticated, redirect them away from sign-in
+    const user = await currentUser()
+    if (user) {
+        redirect('/')
+    }
+
     return (
         <div className="min-h-screen grid grid-cols-1 md:grid-cols-2 bg-gray-50 md:bg-white overflow-hidden relative">
             {/* Back Button */}
