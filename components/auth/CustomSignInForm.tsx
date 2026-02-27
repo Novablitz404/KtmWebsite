@@ -71,7 +71,7 @@ export default function CustomSignInForm({ hideBranding = false }: CustomSignInF
                 await setActive({ session: result.createdSessionId })
                 // Redirect to root, where app/page.tsx will handle role-based redirection
                 // Force full reload to clear client router cache and ensure correct role-based redirect
-                window.location.href = '/'
+                window.location.replace('/')
             } else if (result.status === 'needs_first_factor') {
                 // User needs to verify via email code - prepare and send the code
                 const emailFactor = result.supportedFirstFactors?.find(
@@ -157,7 +157,7 @@ export default function CustomSignInForm({ hideBranding = false }: CustomSignInF
             if (result.status === 'complete') {
                 await setActive({ session: result.createdSessionId })
                 // Force full reload to clear client router cache and ensure correct role-based redirect
-                window.location.href = '/'
+                window.location.replace('/')
             } else if (result.status === 'needs_second_factor') {
                 // After first factor, 2FA is also required
                 setCode('')
@@ -194,7 +194,7 @@ export default function CustomSignInForm({ hideBranding = false }: CustomSignInF
             if (result.status === 'complete') {
                 await setActive({ session: result.createdSessionId })
                 // Force full reload to clear client router cache and ensure correct role-based redirect
-                window.location.href = '/'
+                window.location.replace('/')
             } else {
                 console.error('2FA incomplete', result)
                 setError('2FA verification failed. Please try again.')

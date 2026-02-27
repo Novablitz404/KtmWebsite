@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import { toast } from 'sonner'
-import { Camera, ArrowRight, ArrowLeft, CheckCircle, Loader2, Ruler, Weight, Users, Building2, Award, Calendar, ImageIcon, Hash } from 'lucide-react'
+import { Camera, ArrowRight, ArrowLeft, CheckCircle, Loader2, Ruler, Weight, Users, Building2, Award, Calendar, ImageIcon, Hash, MapPin, Phone } from 'lucide-react'
 import Image from 'next/image'
 import GlobalDropdown from '@/components/GlobalDropdown'
 import GlobalCalendar from '@/components/GlobalCalendar'
@@ -16,7 +16,7 @@ type OnboardingStep = 'profile' | 'details'
 
 const BELT_OPTIONS = [
     'White', 'Yellow', 'Orange', 'Green', 'Purple',
-    'Blue', 'Maroon', 'Red', 'Brown', 'Black'
+    'Blue', 'Red', 'Maroon', 'Brown', 'Black'
 ]
 
 const GENDER_OPTIONS = ['Male', 'Female']
@@ -88,6 +88,8 @@ export default function CompleteProfilePage() {
     const [organizationId, setOrganizationId] = useState('')
     const [orgSearch, setOrgSearch] = useState('')
     const [organizations, setOrganizations] = useState<{ id: string; name: string }[]>([])
+    const [clubAddress, setClubAddress] = useState('')
+    const [clubPhone, setClubPhone] = useState('')
     const clubLogoInputRef = useRef<HTMLInputElement>(null)
 
     // Organizer-specific
@@ -214,6 +216,18 @@ export default function CompleteProfilePage() {
                 setError('Please fill in club name and select an organization')
                 return
             }
+            if (!clubLogoFile) {
+                setError('Please upload a club logo')
+                return
+            }
+            if (!clubAddress.trim()) {
+                setError('Please enter the club address')
+                return
+            }
+            if (!clubPhone.trim()) {
+                setError('Please enter a contact phone number')
+                return
+            }
         } else if (role === 'ORGANIZER') {
             if (!orgName || !establishedDate) {
                 setError('Please fill in organization name and established date')
@@ -243,6 +257,8 @@ export default function CompleteProfilePage() {
             } else if (role === 'CLUB_MASTER') {
                 submitData.append('clubName', newClubName)
                 submitData.append('organizationId', organizationId)
+                submitData.append('clubAddress', clubAddress)
+                submitData.append('clubPhone', clubPhone)
                 if (athleteNumber.trim()) submitData.append('athleteNumber', athleteNumber.trim())
                 if (clubLogoFile) submitData.append('clubLogo', clubLogoFile)
             } else if (role === 'ORGANIZER') {
@@ -560,6 +576,34 @@ export default function CompleteProfilePage() {
                                                 )}
                                             </div>
                                         </div>
+                                    </div>
+                                </div>
+
+                                {/* Address & Phone */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                                            <MapPin className="w-4 h-4 text-red-600" /> Club Address
+                                        </label>
+                                        <input
+                                            value={clubAddress}
+                                            onChange={(e) => setClubAddress(e.target.value)}
+                                            placeholder="e.g. 123 Main St, Manila"
+                                            required
+                                            className={inputClass}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                                            <Phone className="w-4 h-4 text-red-600" /> Phone Number
+                                        </label>
+                                        <input
+                                            value={clubPhone}
+                                            onChange={(e) => setClubPhone(e.target.value)}
+                                            placeholder="e.g. 09171234567"
+                                            required
+                                            className={inputClass}
+                                        />
                                     </div>
                                 </div>
 

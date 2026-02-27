@@ -1130,7 +1130,7 @@ export default function ClubDashboard({
                                                             <p className="text-gray-500 text-sm">Athletes will appear here once registered</p>
                                                         </div>
                                                     ) : (
-                                                        <div className="space-y-3 md:space-y-0 md:divide-y md:divide-gray-200 bg-transparent md:bg-white px-4 md:px-0 pb-24 md:pb-0">
+                                                        <div className="space-y-3 md:space-y-0 md:divide-y md:divide-gray-200 bg-transparent md:bg-white px-4 md:px-0 pt-3 md:pt-0 pb-24 md:pb-0">
                                                             {registrationType === 'TOURNAMENT' ? (
                                                                 // Tournament List
                                                                 currentRegistrations.map((player, index) => {

@@ -111,15 +111,15 @@ export default function ClubScheduleWidget({ tournaments, isLoading }: ClubSched
             {/* Header */}
             <div className="flex items-center justify-between mb-6 flex-shrink-0">
                 <h2 className="text-xl font-bold text-gray-900">Schedule</h2>
-                <div className="flex items-center gap-2">
-                    <div className="w-36">
+                <div className="flex items-center gap-20">
+                    <div className="w-40">
                         <GlobalDropdown
                             value={addDays(currentWeekStart, 3).getMonth().toString()}
                             onChange={handleMonthChange}
                             options={monthOptions}
                         />
                     </div>
-                    <div className="w-24">
+                    <div className="w-28">
                         <GlobalDropdown
                             value={addDays(currentWeekStart, 3).getFullYear().toString()}
                             onChange={handleYearChange}

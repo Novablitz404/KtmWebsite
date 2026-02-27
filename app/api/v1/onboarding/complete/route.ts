@@ -3,6 +3,44 @@ import { prisma } from '@/lib/prisma'
 import { clerkClient } from '@clerk/nextjs/server'
 
 /**
+ * Converts a string to Title Case while preserving:
+ * - Roman numerals (I, II, III, IV, V, VI, VII, VIII, IX, X, XI, XII)
+ * - Common abbreviations/suffixes after hyphens (R-XI, NCR, etc.)
+ * - Short connector words stay lowercase (of, the, and, in, at, for, de, del)
+ *
+ * Examples:
+ *   "HWARANG TAEKWONDO CLUB R-XI" → "Hwarang Taekwondo Club R-XI"
+ *   "manila taekwondo center"     → "Manila Taekwondo Center"
+ */
+const ROMAN_NUMERALS = new Set(['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV'])
+const LOWERCASE_WORDS = new Set(['of', 'the', 'and', 'in', 'at', 'for', 'de', 'del'])
+
+function toTitleCase(str: string): string {
+    return str
+        .split(' ')
+        .map((word, index) => {
+            // Handle hyphenated words like R-XI
+            if (word.includes('-')) {
+                return word.split('-').map(part => {
+                    const upper = part.toUpperCase()
+                    if (ROMAN_NUMERALS.has(upper)) return upper
+                    if (part.length <= 1) return upper
+                    return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
+                }).join('-')
+            }
+
+            const upper = word.toUpperCase()
+            // Preserve roman numerals
+            if (ROMAN_NUMERALS.has(upper)) return upper
+            // Keep connector words lowercase (except first word)
+            if (index > 0 && LOWERCASE_WORDS.has(word.toLowerCase())) return word.toLowerCase()
+            // Standard title case
+            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+        })
+        .join(' ')
+}
+
+/**
  * POST /api/v1/onboarding/complete
  * 
  * Handles role-specific profile completion during onboarding:
@@ -19,7 +57,7 @@ export async function POST(request: Request) {
 
         const formData = await request.formData()
         const role = formData.get('role') as string
-        const name = formData.get('name') as string
+        const name = toTitleCase((formData.get('name') as string) || '')
         const imageFile = formData.get('image') as File | null
 
         if (!name) {
@@ -45,7 +83,7 @@ export async function POST(request: Request) {
             const height = parseFloat(formData.get('height') as string)
             const belt = formData.get('belt') as string
             const gender = formData.get('gender') as string
-            const clubName = formData.get('clubName') as string
+            const clubName = toTitleCase(formData.get('clubName') as string)
             const birthDateStr = formData.get('birthDate') as string
             const athleteNumber = (formData.get('athleteNumber') as string) || undefined
 
@@ -70,10 +108,12 @@ export async function POST(request: Request) {
             })
 
         } else if (role === 'CLUB_MASTER') {
-            const clubName = formData.get('clubName') as string
+            const clubName = toTitleCase(formData.get('clubName') as string)
             const organizationId = formData.get('organizationId') as string
             const athleteNumber = (formData.get('athleteNumber') as string) || undefined
             const clubLogoFile = formData.get('clubLogo') as File | null
+            const clubAddress = (formData.get('clubAddress') as string) || undefined
+            const clubPhone = (formData.get('clubPhone') as string) || undefined
 
             if (!clubName || !organizationId) {
                 return apiError('Club name and organization affiliation are required', 400)
@@ -101,12 +141,14 @@ export async function POST(request: Request) {
                     masterId: dbUser.id,
                     organizationId,
                     logoUrl: clubLogoUrl,
+                    address: clubAddress,
+                    phone: clubPhone,
                     status: 'PENDING'
                 }
             })
 
         } else if (role === 'ORGANIZER') {
-            const orgName = formData.get('orgName') as string
+            const orgName = toTitleCase(formData.get('orgName') as string)
             const establishedDateStr = formData.get('establishedDate') as string
             const orgLogoFile = formData.get('orgLogo') as File | null
 

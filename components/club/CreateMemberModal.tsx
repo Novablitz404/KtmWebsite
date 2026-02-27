@@ -2,12 +2,13 @@
 
 import { useState, useRef } from 'react'
 import { format } from 'date-fns'
-import { X, UserPlus, Loader2, Check, Camera } from 'lucide-react'
+import { X, UserPlus, Loader2, Check, Camera, Hash } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClubMember, uploadMemberAvatar } from '@/app/club/actions'
 import { useQueryClient } from '@tanstack/react-query'
 import GlobalDropdown from '@/components/GlobalDropdown'
 import GlobalCalendar from '@/components/GlobalCalendar'
+import { useScrollLock } from '@/hooks/useScrollLock'
 
 interface CreateMemberModalProps {
     isOpen: boolean
@@ -21,8 +22,8 @@ const BELT_OPTIONS = [
     'Green',
     'Purple',
     'Blue',
-    'Maroon',
     'Red',
+    'Maroon',
     'Brown',
     'Black',
 ]
@@ -30,6 +31,8 @@ const BELT_OPTIONS = [
 const GENDER_OPTIONS = ['Male', 'Female']
 
 export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModalProps) {
+    useScrollLock(isOpen)
+
     const [submitting, setSubmitting] = useState(false)
     const [successData, setSuccessData] = useState<{ email?: string } | null>(null)
     const queryClient = useQueryClient()
@@ -42,6 +45,7 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
     const [weight, setWeight] = useState('')
     const [height, setHeight] = useState('')
     const [birthDate, setBirthDate] = useState('')
+    const [athleteNumber, setAthleteNumber] = useState('')
     const [avatarFile, setAvatarFile] = useState<File | null>(null)
     const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
     const avatarInputRef = useRef<HTMLInputElement>(null)
@@ -54,6 +58,7 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
         setWeight('')
         setHeight('')
         setBirthDate('')
+        setAthleteNumber('')
         setAvatarFile(null)
         setAvatarPreview(null)
         setSuccessData(null)
@@ -96,6 +101,7 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
                 weight: weight ? parseFloat(weight) : undefined,
                 height: height ? parseFloat(height) : undefined,
                 birthDate: birthDate ? new Date(birthDate) : undefined,
+                athleteNumber: athleteNumber || undefined,
             })
 
             if ('error' in result) {
@@ -130,7 +136,7 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-red-50 to-white">
                     <div className="flex items-center gap-3">
@@ -182,9 +188,9 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
                             </button>
                         </div>
                     ) : (
-                        // Form State
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            {/* Profile Picture */}
+                        // Form State — Two Column Layout
+                        <form onSubmit={handleSubmit} className="space-y-5">
+                            {/* Profile Picture — Centered */}
                             <div className="flex justify-center">
                                 <div className="relative group">
                                     <button
@@ -216,39 +222,40 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
                                     />
                                 </div>
                             </div>
-                            <p className="text-[11px] text-center text-gray-400 -mt-2">Tap to add photo</p>
+                            <p className="text-[11px] text-center text-gray-400 -mt-3">Tap to add photo</p>
 
-                            {/* Email */}
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                                    Email <span className="text-gray-400 font-normal">(optional)</span>
-                                </label>
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="athlete@example.com"
-                                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm"
-                                />
-                            </div>
+                            {/* Two Column Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Full Name */}
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                        Full Name <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
+                                        placeholder="Juan Dela Cruz"
+                                        className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm"
+                                        required
+                                    />
+                                </div>
 
-                            {/* Name */}
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                                    Full Name <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    placeholder="Juan Dela Cruz"
-                                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm"
-                                    required
-                                />
-                            </div>
+                                {/* Email */}
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                        Email <span className="text-gray-400 font-normal">(optional)</span>
+                                    </label>
+                                    <input
+                                        type="email"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        placeholder="athlete@example.com"
+                                        className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm"
+                                    />
+                                </div>
 
-                            {/* Gender & Belt Row - Standardized Dropdowns */}
-                            <div className="grid grid-cols-2 gap-3">
+                                {/* Gender */}
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
                                         Gender
@@ -262,6 +269,8 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
                                         className="w-full"
                                     />
                                 </div>
+
+                                {/* Belt */}
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
                                         Belt
@@ -275,10 +284,8 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
                                         className="w-full"
                                     />
                                 </div>
-                            </div>
 
-                            {/* Weight & Height Row */}
-                            <div className="grid grid-cols-2 gap-3">
+                                {/* Weight */}
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Weight (kg)</label>
                                     <input
@@ -290,6 +297,8 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
                                         className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm"
                                     />
                                 </div>
+
+                                {/* Height */}
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Height (cm)</label>
                                     <input
@@ -301,21 +310,35 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
                                         className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm"
                                     />
                                 </div>
+
+                                {/* Birth Date */}
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Birth Date</label>
+                                    <GlobalCalendar
+                                        value={birthDate}
+                                        onChange={(date: Date) => setBirthDate(format(date, 'yyyy-MM-dd'))}
+                                        placeholder="Select birth date..."
+                                        className="w-full"
+                                        fullWidth
+                                    />
+                                </div>
+
+                                {/* Athlete Number */}
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                                        <Hash className="w-3.5 h-3.5" /> Athlete No. <span className="text-gray-400 font-normal">(optional)</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={athleteNumber}
+                                        onChange={(e) => setAthleteNumber(e.target.value)}
+                                        placeholder="e.g. 12345678"
+                                        className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm"
+                                    />
+                                </div>
                             </div>
 
-                            {/* Birth Date */}
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Birth Date</label>
-                                <GlobalCalendar
-                                    value={birthDate}
-                                    onChange={(date: Date) => setBirthDate(format(date, 'yyyy-MM-dd'))}
-                                    placeholder="Select birth date..."
-                                    className="w-full"
-                                    fullWidth
-                                />
-                            </div>
-
-                            {/* Submit */}
+                            {/* Submit — Full Width */}
                             <button
                                 type="submit"
                                 disabled={submitting}

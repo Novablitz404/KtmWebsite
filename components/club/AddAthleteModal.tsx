@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { useScrollLock } from '@/hooks/useScrollLock'
 import { X, Search, Loader2, AlertCircle, CheckCircle2, Upload, CreditCard } from 'lucide-react'
 import { toast } from 'sonner'
 import GlobalDropdown from '@/components/GlobalDropdown'
@@ -56,9 +57,11 @@ interface PromotionTest {
     testDate: Date
 }
 
-const BELT_OPTIONS = ['White', 'Yellow', 'Orange', 'Green', 'Purple', 'Blue', 'Maroon', 'Red', 'Brown', 'Black']
+const BELT_OPTIONS = ['White', 'Yellow', 'Orange', 'Green', 'Purple', 'Blue', 'Red', 'Maroon', 'Brown', 'Black']
 
 export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, defaultType = 'TOURNAMENT' }: AddAthleteModalProps) {
+    useScrollLock(isOpen)
+
     // Member Search State
     const [searchQuery, setSearchQuery] = useState('')
     const [searchResults, setSearchResults] = useState<Member[]>([])

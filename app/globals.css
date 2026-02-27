@@ -24,12 +24,6 @@
   }
 }
 
-html,
-body {
-  overscroll-behavior-y: none;
-  /* Disables pull-to-refresh on Android */
-}
-
 body {
   background: var(--background);
   color: var(--foreground);

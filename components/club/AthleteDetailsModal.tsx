@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { X, Trophy, Award, BookOpen, Loader2, Calendar, MapPin, User, Weight, Ruler, Shield } from 'lucide-react'
 import { getAthleteDetails } from '@/app/club/actions'
+import { useScrollLock } from '@/hooks/useScrollLock'
 
 interface AthleteDetailsModalProps {
     isOpen: boolean
@@ -38,6 +39,8 @@ const promotionStatusConfig: Record<string, { bg: string; text: string; border: 
 }
 
 export default function AthleteDetailsModal({ isOpen, onClose, memberId, memberName, memberAvatar }: AthleteDetailsModalProps) {
+    useScrollLock(isOpen)
+
     const [data, setData] = useState<AthleteData | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)

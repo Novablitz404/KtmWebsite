@@ -126,32 +126,17 @@ export default function PromotionSettings({ promotionTest }: PromotionSettingsPr
                             </div>
                         </div>
 
-                        {/* Venue & Fee */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
-                                    Venue
-                                </label>
-                                <input
-                                    name="venue"
-                                    type="text"
-                                    defaultValue={promotionTest.venue || ''}
-                                    className="w-full px-5 py-3 rounded-xl border border-gray-100 focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none transition-all font-medium text-gray-900"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
-                                    Fee (₱)
-                                </label>
-                                <input
-                                    name="fee"
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    defaultValue={Number(promotionTest.fee) || ''}
-                                    className="w-full px-5 py-3 rounded-xl border border-gray-100 focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none transition-all font-medium text-gray-900"
-                                />
-                            </div>
+                        {/* Venue */}
+                        <div>
+                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
+                                Venue
+                            </label>
+                            <input
+                                name="venue"
+                                type="text"
+                                defaultValue={promotionTest.venue || ''}
+                                className="w-full px-5 py-3 rounded-xl border border-gray-100 focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none transition-all font-medium text-gray-900"
+                            />
                         </div>
                     </div>
                 </div>

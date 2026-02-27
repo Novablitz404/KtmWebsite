@@ -31,6 +31,7 @@ interface CreateClubMemberInput {
     weight?: number
     height?: number
     birthDate?: Date
+    athleteNumber?: string
 }
 
 export async function createClubMember(input: CreateClubMemberInput) {
@@ -88,6 +89,7 @@ export async function createClubMember(input: CreateClubMemberInput) {
                 weight: input.weight || null,
                 height: input.height || null,
                 birthDate: input.birthDate || null,
+                athleteNumber: input.athleteNumber || null,
             }
         })
 

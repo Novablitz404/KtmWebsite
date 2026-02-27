@@ -1,24 +1,11 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { sendBulkNotifications, PushPayload, PushSubscriptionData } from '@/lib/web-push'
-import { PushSubscription } from '@prisma/client'
 
 /**
- * Convert Prisma subscription to web-push format
+ * Send notification to a specific user (saved to database only)
  */
-function toPushSubscriptionData(sub: PushSubscription): PushSubscriptionData {
-    return {
-        endpoint: sub.endpoint,
-        keys: { p256dh: sub.p256dh, auth: sub.auth }
-    }
-}
-
-/**
- * Send notification to a specific user and save to database
- */
-export async function notifyUser(userId: string, payload: PushPayload) {
-    // 1. Save notification to database
+export async function notifyUser(userId: string, payload: { title: string; body: string; url?: string; tag?: string }) {
     await prisma.notification.create({
         data: {
             userId,
@@ -28,33 +15,12 @@ export async function notifyUser(userId: string, payload: PushPayload) {
             read: false
         }
     })
-
-    // 2. Send push notification
-    const subscriptions = await prisma.pushSubscription.findMany({
-        where: { userId }
-    })
-
-    if (subscriptions.length === 0) return
-
-    const subs = subscriptions.map(toPushSubscriptionData)
-    const failedEndpoints = await sendBulkNotifications(subs, payload)
-
-    // Clean up expired subscriptions
-    if (failedEndpoints.length > 0) {
-        await prisma.pushSubscription.deleteMany({
-            where: {
-                userId,
-                endpoint: { in: failedEndpoints }
-            }
-        })
-    }
 }
 
 /**
- * Send notification to all members of a club and save to database
+ * Send notification to all members of a club (saved to database only)
  */
-export async function notifyClub(clubId: string, payload: PushPayload) {
-    // Get all users in this club (master + students with linked users)
+export async function notifyClub(clubId: string, payload: { title: string; body: string; url?: string }) {
     const club = await prisma.club.findUnique({
         where: { id: clubId },
         select: { masterId: true }
@@ -74,7 +40,6 @@ export async function notifyClub(clubId: string, payload: PushPayload) {
 
     if (userIds.length === 0) return
 
-    // 1. Bulk create notifications in database
     await prisma.notification.createMany({
         data: userIds.map(userId => ({
             userId,
@@ -84,29 +49,12 @@ export async function notifyClub(clubId: string, payload: PushPayload) {
             read: false
         }))
     })
-
-    // 2. Send push notifications
-    const allSubs = await prisma.pushSubscription.findMany({
-        where: { userId: { in: userIds } }
-    })
-
-    if (allSubs.length === 0) return
-
-    const subs = allSubs.map(toPushSubscriptionData)
-    const failedEndpoints = await sendBulkNotifications(subs, payload)
-
-    // Clean up expired subscriptions
-    if (failedEndpoints.length > 0) {
-        await prisma.pushSubscription.deleteMany({
-            where: { endpoint: { in: failedEndpoints } }
-        })
-    }
 }
 
 /**
- * Send notification to all participants of a tournament and save to database
+ * Send notification to all participants of a tournament (saved to database only)
  */
-export async function notifyTournamentParticipants(tournamentId: string, payload: PushPayload) {
+export async function notifyTournamentParticipants(tournamentId: string, payload: { title: string; body: string; url?: string }) {
     const players = await prisma.player.findMany({
         where: {
             category: { tournamentId },
@@ -119,7 +67,6 @@ export async function notifyTournamentParticipants(tournamentId: string, payload
 
     if (userIds.length === 0) return
 
-    // 1. Bulk create notifications in database
     await prisma.notification.createMany({
         data: userIds.map(userId => ({
             userId,
@@ -129,23 +76,6 @@ export async function notifyTournamentParticipants(tournamentId: string, payload
             read: false
         }))
     })
-
-    // 2. Send push notifications
-    const allSubs = await prisma.pushSubscription.findMany({
-        where: { userId: { in: userIds } }
-    })
-
-    if (allSubs.length === 0) return
-
-    const subs = allSubs.map(toPushSubscriptionData)
-    const failedEndpoints = await sendBulkNotifications(subs, payload)
-
-    // Clean up expired subscriptions
-    if (failedEndpoints.length > 0) {
-        await prisma.pushSubscription.deleteMany({
-            where: { endpoint: { in: failedEndpoints } }
-        })
-    }
 }
 
 /**

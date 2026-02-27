@@ -27,7 +27,7 @@ interface PromotionTest {
     registrations: Registration[]
 }
 
-const BELT_ORDER = ['White', 'Yellow', 'Orange', 'Green', 'Purple', 'Blue', 'Maroon', 'Red', 'Brown', 'Black']
+const BELT_ORDER = ['White', 'Yellow', 'Orange', 'Green', 'Purple', 'Blue', 'Red', 'Maroon', 'Brown', 'Black']
 
 const beltColors: Record<string, string> = {
     White: 'bg-gray-100 text-gray-800 border-gray-300',
@@ -55,7 +55,7 @@ export default function ExaminerView({ promotionTest }: { promotionTest: Promoti
 
     // Grouping belts for fee calculation based on common PH standards requested
     const whiteToPurpleBelts = ['White', 'Yellow', 'Orange', 'Green', 'Purple']
-    const blueToBrownBelts = ['Blue', 'Maroon', 'Red', 'Brown']
+    const blueToBrownBelts = ['Blue', 'Red', 'Maroon', 'Brown']
 
     const getFeeForBelt = (belt: string) => {
         const lowerBelt = belt.toLowerCase()

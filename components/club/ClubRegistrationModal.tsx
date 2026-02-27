@@ -6,6 +6,7 @@ import { getUpcomingTournaments, searchClubMembers, registerForTournamentAuto } 
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
+import { useScrollLock } from '@/hooks/useScrollLock'
 
 interface ClubRegistrationModalProps {
     isOpen: boolean
@@ -15,6 +16,8 @@ interface ClubRegistrationModalProps {
 }
 
 export default function ClubRegistrationModal({ isOpen, onClose, clubId, clubName }: ClubRegistrationModalProps) {
+    useScrollLock(isOpen)
+
     const router = useRouter()
     const queryClient = useQueryClient()
     const [step, setStep] = useState<1 | 2 | 3>(1)
