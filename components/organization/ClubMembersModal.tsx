@@ -215,29 +215,35 @@ export default function ClubMembersModal({ clubId, clubName, isOpen, onClose }: 
                                 />
                             </div>
 
-                            <GlobalDropdown
-                                label="Belt Rank"
-                                value={editingMember.belt || 'White'}
-                                onChange={(val) => setEditingMember({ ...editingMember, belt: val })}
-                                options={[
-                                    'White',
-                                    'Yellow', 'Orange',
-                                    'Green', 'Purple',
-                                    'Blue', 'Maroon',
-                                    'Red', 'Brown',
-                                    'Black'
-                                ]}
-                                name="belt"
-                            />
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Belt Rank</label>
+                                <GlobalDropdown
+                                    value={editingMember.belt || 'White'}
+                                    onChange={(val) => setEditingMember({ ...editingMember, belt: val })}
+                                    options={[
+                                        'White',
+                                        'Yellow', 'Orange',
+                                        'Green', 'Purple',
+                                        'Blue', 'Maroon',
+                                        'Red', 'Brown',
+                                        'Black'
+                                    ]}
+                                    name="belt"
+                                    fullWidth
+                                />
+                            </div>
 
                             <div className="grid grid-cols-2 gap-4">
-                                <GlobalDropdown
-                                    label="Gender"
-                                    value={editingMember.gender || 'Male'}
-                                    onChange={(val) => setEditingMember({ ...editingMember, gender: val })}
-                                    options={['Male', 'Female']}
-                                    name="gender"
-                                />
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                                    <GlobalDropdown
+                                        value={editingMember.gender || 'Male'}
+                                        onChange={(val) => setEditingMember({ ...editingMember, gender: val })}
+                                        options={['Male', 'Female']}
+                                        name="gender"
+                                        fullWidth
+                                    />
+                                </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Weight (kg)</label>
                                     <input

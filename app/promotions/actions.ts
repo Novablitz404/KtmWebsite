@@ -187,12 +187,15 @@ export async function getPromotionTests() {
 
 export async function getUpcomingPromotions(clubId: string) {
     try {
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+
         const tests = await prisma.promotionTest.findMany({
             where: {
                 participatingClubs: {
                     some: { clubId }
                 },
-                testDate: { gte: new Date() },
+                testDate: { gte: today },
                 status: 'UPCOMING'
             },
             orderBy: { testDate: 'asc' }

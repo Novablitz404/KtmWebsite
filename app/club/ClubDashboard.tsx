@@ -1804,8 +1804,8 @@ export default function ClubDashboard({
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             {/* Gender */}
                                             <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">Gender</label>
                                                 <GlobalDropdown
-                                                    label="Gender"
                                                     value={editingMember.gender || 'Male'}
                                                     onChange={(val) => setEditingMember({ ...editingMember, gender: val })}
                                                     options={['Male', 'Female']}
@@ -1817,8 +1817,8 @@ export default function ClubDashboard({
 
                                             {/* Belt Rank */}
                                             <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">Belt Rank</label>
                                                 <GlobalDropdown
-                                                    label="Belt Rank"
                                                     value={editingMember.belt || 'White'}
                                                     onChange={(val) => setEditingMember({ ...editingMember, belt: val })}
                                                     options={[

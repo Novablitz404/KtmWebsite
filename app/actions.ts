@@ -1960,10 +1960,13 @@ export async function updateClubSettings(formData: FormData) {
 }
 
 export async function getUpcomingTournaments() {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
     const tournaments = await prisma.tournament.findMany({
         where: {
             startDate: {
-                gte: new Date()
+                gte: today
             }
         },
         select: {

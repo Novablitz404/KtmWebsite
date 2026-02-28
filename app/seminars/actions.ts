@@ -98,12 +98,15 @@ export async function updateSeminarParticipantDetails(id: string, data: { name: 
 
 export async function getUpcomingSeminars(clubId: string) {
     try {
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+
         const seminars = await prisma.seminar.findMany({
             where: {
                 participatingClubs: {
                     some: { clubId }
                 },
-                startDate: { gte: new Date() },
+                startDate: { gte: today },
                 status: 'UPCOMING'
             },
             orderBy: { startDate: 'asc' }
