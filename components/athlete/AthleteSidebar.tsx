@@ -9,12 +9,13 @@ import {
     Settings,
     LogOut,
     ClipboardList,
-    Trophy
+    Trophy,
+    Medal
 } from 'lucide-react'
 
 interface AthleteSidebarProps {
-    activeView: 'home' | 'events' | 'settings' | 'ranking'
-    onNavigate: (view: 'home' | 'events' | 'settings' | 'ranking') => void
+    activeView: 'home' | 'events' | 'achievements' | 'settings' | 'ranking'
+    onNavigate: (view: 'home' | 'events' | 'achievements' | 'settings' | 'ranking') => void
     userName?: string | null
     userImageUrl?: string | null
     isOpen: boolean
@@ -24,6 +25,7 @@ interface AthleteSidebarProps {
 const navItems = [
     { id: 'home', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'events', label: 'Events', icon: Calendar },
+    { id: 'achievements', label: 'Achievements', icon: Medal },
     { id: 'ranking', label: 'Ranking', icon: Trophy },
 ] as const
 

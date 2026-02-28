@@ -2181,8 +2181,7 @@ export async function fetchAthleteDashboardData(clerkId: string) {
                 }
             }
         },
-        orderBy: { id: 'desc' },
-        take: 10
+        orderBy: { id: 'desc' }
     })
 
     // Fetch seminar registrations

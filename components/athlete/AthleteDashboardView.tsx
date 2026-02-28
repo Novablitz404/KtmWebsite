@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Trophy, Medal, Calendar, ChevronRight, Zap, Clock, Mail, QrCode, X } from 'lucide-react'
+import { Trophy, Medal, Calendar, ChevronRight, Zap, Clock, Mail, QrCode, X, ClipboardList } from 'lucide-react'
 import Link from 'next/link'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { fetchAthleteDashboardData, unregisterFromTournament } from '@/app/actions'
@@ -38,9 +38,11 @@ export default function AthleteDashboardView({
     // ALL HOOKS MUST BE AT THE TOP - before any early returns
     const searchParams = useSearchParams()
     const initialView = (searchParams.get('tab') as any) || 'home'
-    const [activeView, setActiveView] = useState<'home' | 'events' | 'settings' | 'ranking'>(initialView)
+    const [activeView, setActiveView] = useState<'home' | 'events' | 'achievements' | 'settings' | 'ranking'>(initialView)
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
     const [registrationTab, setRegistrationTab] = useState<'tournament' | 'seminar' | 'promotion'>('tournament')
+    const [achievementsPage, setAchievementsPage] = useState(1)
+    const ACHIEVEMENTS_PER_PAGE = 10
 
     const queryClient = useQueryClient()
 
@@ -146,11 +148,216 @@ export default function AthleteDashboardView({
                     </div>
                 </div>
 
-                {/* Top Bar (Desktop Only) */}
-                <AthleteTopBar
-                    userName={dbUser?.name || 'Athlete'}
-                    userImageUrl={imageUrl || undefined}
-                />
+                {/* Calculate Achievements */}
+                {(() => {
+                    const tournamentAchievements = registrations.filter((r: any) =>
+                        r.category?.tournament?.startDate && new Date(r.category.tournament.startDate) <= now
+                    ).map((r: any) => ({
+                        id: r.id,
+                        name: r.category.tournament.name,
+                        date: new Date(r.category.tournament.startDate),
+                        medal: r.medal,
+                        type: 'Tournament'
+                    }))
+
+                    const seminarAchievements = seminarRegs.filter((r: any) => r.status === 'COMPLETED').map((r: any) => ({
+                        id: r.id,
+                        name: r.seminar.name,
+                        date: new Date(r.seminar.startDate),
+                        medal: null,
+                        type: 'Seminar'
+                    }))
+
+                    const promotionAchievements = promotionRegs.filter((r: any) => r.status === 'PASSED').map((r: any) => ({
+                        id: r.id,
+                        name: r.promotionTest.name,
+                        date: new Date(r.promotionTest.testDate),
+                        medal: r.targetBelt, // Hack, storing what they achieved here
+                        type: 'Promotion Test'
+                    }))
+
+                    const allAchievements = [...tournamentAchievements, ...seminarAchievements, ...promotionAchievements]
+                        .sort((a, b) => b.date.getTime() - a.date.getTime())
+
+                    // Pagination logic
+                    const totalPages = Math.ceil(allAchievements.length / ACHIEVEMENTS_PER_PAGE)
+                    const paginatedAchievements = allAchievements.slice(
+                        (achievementsPage - 1) * ACHIEVEMENTS_PER_PAGE,
+                        achievementsPage * ACHIEVEMENTS_PER_PAGE
+                    )
+
+                    return (
+                        <>
+                            {/* Top Bar (Desktop Only) */}
+                            <AthleteTopBar
+                                userName={dbUser?.name || 'Athlete'}
+                                userImageUrl={imageUrl || undefined}
+                            />
+                            {/* Conditional Content based on activeView */}
+                            {activeView === 'achievements' && (
+                                <div className="flex-1 flex flex-col min-h-0 px-4 sm:px-6 lg:px-8 py-6 w-full max-w-[1600px] mx-auto md:overflow-y-auto">
+                                    <div className="flex flex-col gap-6 flex-1">
+                                        <div>
+                                            <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">Achievements</h1>
+                                            <p className="text-gray-500 mt-1">Your timeline of completed events, test passes, and medals.</p>
+                                        </div>
+
+                                        {isLoading || !data ? (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                {[1, 2, 3, 4].map(i => (
+                                                    <div key={i} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3">
+                                                        <Skeleton className="w-10 h-10 rounded-xl" />
+                                                        <div className="space-y-2">
+                                                            <Skeleton className="h-5 w-3/4" />
+                                                            <Skeleton className="h-4 w-1/2" />
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : allAchievements.length > 0 ? (
+                                            <>
+                                                {/* Mobile View: Card Style */}
+                                                <div className="block md:hidden space-y-4">
+                                                    {paginatedAchievements.map((achievement: any) => {
+                                                        let icon = <Trophy className="w-5 h-5 text-indigo-500" />
+                                                        let bg = "bg-indigo-50 text-indigo-700"
+                                                        let medalBadge = null
+                                                        if (achievement.type === 'Tournament') {
+                                                            if (achievement.medal === 'Gold') medalBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-yellow-100 text-yellow-800 border border-yellow-200 shadow-sm">🥇 Gold</span>
+                                                            else if (achievement.medal === 'Silver') medalBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-gray-100 text-gray-800 border border-gray-200 shadow-sm">🥈 Silver</span>
+                                                            else if (achievement.medal === 'Bronze') medalBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200 shadow-sm">🥉 Bronze</span>
+                                                            else medalBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-50 text-gray-500 border border-gray-100">Participant</span>
+                                                        } else if (achievement.type === 'Promotion Test') {
+                                                            icon = <Zap className="w-5 h-5 text-emerald-500" />
+                                                            bg = "bg-emerald-50 text-emerald-700"
+                                                            medalBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Passed: {achievement.medal}</span>
+                                                        } else if (achievement.type === 'Seminar') {
+                                                            icon = <ClipboardList className="w-5 h-5 text-blue-500" />
+                                                            bg = "bg-blue-50 text-blue-700"
+                                                            medalBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">Completed</span>
+                                                        }
+
+                                                        return (
+                                                            <div key={`${achievement.type}-${achievement.id}`} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-start gap-4">
+                                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${bg} shadow-inner`}>
+                                                                    {icon}
+                                                                </div>
+                                                                <div className="flex-1 min-w-0 w-full">
+                                                                    <h3 className="font-bold text-gray-900 leading-tight mb-1">{achievement.name}</h3>
+                                                                    <div className="flex flex-col gap-2">
+                                                                        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                                                                            <Calendar className="w-3.5 h-3.5" />
+                                                                            {achievement.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                                        </div>
+                                                                        <div className="flex items-center justify-between w-full mt-1">
+                                                                            <span className="text-[10px] uppercase font-bold tracking-widest text-gray-400">{achievement.type}</span>
+                                                                            {medalBadge}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+
+                                                {/* Desktop View: Table Style */}
+                                                <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-left border-collapse">
+                                                            <thead>
+                                                                <tr className="bg-gray-50/50 border-b border-gray-100">
+                                                                    <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider">Event Name</th>
+                                                                    <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider">Type</th>
+                                                                    <th className="py-4 px-6 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Achievement</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-gray-100">
+                                                                {paginatedAchievements.map((achievement: any) => {
+                                                                    let medalBadge = null
+                                                                    if (achievement.type === 'Tournament') {
+                                                                        if (achievement.medal === 'Gold') medalBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-yellow-100 text-yellow-800 border border-yellow-200 shadow-sm">🥇 Gold</span>
+                                                                        else if (achievement.medal === 'Silver') medalBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-gray-100 text-gray-800 border border-gray-200 shadow-sm">🥈 Silver</span>
+                                                                        else if (achievement.medal === 'Bronze') medalBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200 shadow-sm">🥉 Bronze</span>
+                                                                        else medalBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-50 text-gray-500 border border-gray-100">Participant</span>
+                                                                    } else if (achievement.type === 'Promotion Test') {
+                                                                        medalBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">Passed: {achievement.medal}</span>
+                                                                    } else if (achievement.type === 'Seminar') {
+                                                                        medalBadge = <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">Completed</span>
+                                                                    }
+
+                                                                    let typeColor = "bg-gray-100 text-gray-700"
+                                                                    if (achievement.type === 'Tournament') typeColor = "bg-indigo-50 text-indigo-700"
+                                                                    else if (achievement.type === 'Promotion Test') typeColor = "bg-emerald-50 text-emerald-700"
+                                                                    else if (achievement.type === 'Seminar') typeColor = "bg-blue-50 text-blue-700"
+
+                                                                    return (
+                                                                        <tr key={`${achievement.type}-${achievement.id}`} className="hover:bg-gray-50/50 transition-colors">
+                                                                            <td className="py-4 px-6 whitespace-nowrap">
+                                                                                <div className="font-bold text-gray-900">{achievement.name}</div>
+                                                                                <div className="text-sm text-gray-500 mt-0.5">{achievement.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                                                                            </td>
+                                                                            <td className="py-4 px-6 whitespace-nowrap">
+                                                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${typeColor}`}>
+                                                                                    {achievement.type}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td className="py-4 px-6 whitespace-nowrap text-right">
+                                                                                {medalBadge}
+                                                                            </td>
+                                                                        </tr>
+                                                                    )
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+
+                                                {/* Pagination Controls */}
+                                                {totalPages > 1 && (
+                                                    <div className="flex items-center justify-between pt-4 mt-auto">
+                                                        <span className="text-sm text-gray-500">
+                                                            Showing <span className="font-medium">{(achievementsPage - 1) * ACHIEVEMENTS_PER_PAGE + 1}</span> to <span className="font-medium">{Math.min(achievementsPage * ACHIEVEMENTS_PER_PAGE, allAchievements.length)}</span> of <span className="font-medium">{allAchievements.length}</span> results
+                                                        </span>
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                onClick={() => setAchievementsPage(p => Math.max(1, p - 1))}
+                                                                disabled={achievementsPage === 1}
+                                                                className="p-2 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                            >
+                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+                                                            </button>
+                                                            <span className="text-sm font-medium text-gray-700 px-2">
+                                                                Page {achievementsPage} of {totalPages}
+                                                            </span>
+                                                            <button
+                                                                onClick={() => setAchievementsPage(p => Math.min(totalPages, p + 1))}
+                                                                disabled={achievementsPage === totalPages}
+                                                                className="p-2 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                            >
+                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-gray-200 px-6">
+                                                <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner ring-1 ring-gray-100">
+                                                    <Trophy className="w-10 h-10 text-gray-300" />
+                                                </div>
+                                                <h3 className="text-xl font-bold text-gray-900 mb-2">No achievements yet</h3>
+                                                <p className="text-gray-500 max-w-sm mx-auto">
+                                                    Register for tournaments, complete seminars, and pass promotion tests to build your achievements timeline here.
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )
+                })()}
+
                 {/* Conditional Content based on activeView */}
                 {activeView === 'home' && (
                     <div className="flex-1 flex flex-col min-h-0 px-4 sm:px-6 lg:px-8 py-6 w-full max-w-[1600px] mx-auto md:overflow-y-auto">

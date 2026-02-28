@@ -3,6 +3,9 @@
 import { prisma } from '@/lib/prisma'
 import { getNextBelt } from '@/lib/belt'
 import { revalidatePath } from 'next/cache'
+import { sendEmail } from '@/lib/email-service'
+import PromotionPassedEmail from '@/emails/PromotionPassedEmail'
+import React from 'react'
 
 // Examiner actions — no auth required, secured by UUID knowledge
 
@@ -22,14 +25,40 @@ export async function examinerUpdateStatus(registrationId: string, status: strin
         data: { status }
     })
 
-    // Auto-advance belt when PASSED
+    // Auto-advance belt & Send Email when PASSED
     if (status === 'PASSED' && registration.playerId) {
         const nextBelt = getNextBelt(registration.currentBelt, registration.isJump)
-        if (nextBelt) {
+
+        const user = await prisma.user.findUnique({
+            where: { id: registration.playerId },
+            select: { id: true, name: true, email: true, belt: true, clubName: true }
+        })
+
+        if (nextBelt && user) {
             await prisma.user.update({
-                where: { id: registration.playerId },
+                where: { id: user.id },
                 data: { belt: nextBelt }
             })
+
+            // Send Email Notification
+            if (user.email) {
+                const promotionTest = await prisma.promotionTest.findUnique({
+                    where: { id: registration.promotionTestId },
+                    select: { name: true }
+                })
+
+                await sendEmail({
+                    to: user.email,
+                    subject: 'Congratulations on your new belt! 🥋',
+                    reactData: React.createElement(PromotionPassedEmail, {
+                        athleteName: user.name || 'Athlete',
+                        beltName: nextBelt,
+                        clubName: user.clubName || 'Your Club',
+                        promotionTestName: promotionTest?.name || 'Promotion Test',
+                        dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://ktmsports.com'}/athlete?tab=achievements`
+                    })
+                })
+            }
         }
     }
 
