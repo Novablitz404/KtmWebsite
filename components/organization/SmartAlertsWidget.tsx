@@ -20,6 +20,11 @@ export default function SmartAlertsWidget() {
     const totalAlerts = orgAlerts?.reduce((acc: number, group: any) => acc + group.alerts.length, 0) || 0
     const hasAlerts = totalAlerts > 0
 
+    const allFlattenedAlerts = orgAlerts?.flatMap((group: any) =>
+        group.alerts.map((alert: any) => ({ ...alert, tournamentId: group.tournamentId }))
+    ) || []
+    const displayedAlerts = allFlattenedAlerts.slice(0, 2)
+
     return (
         <>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex-shrink-0 min-h-[400px] flex flex-col">
@@ -38,30 +43,26 @@ export default function SmartAlertsWidget() {
                     </div>
                 ) : (
                     <div className="flex-1 overflow-y-auto space-y-2">
-                        {orgAlerts?.map((group: any) => (
-                            <div key={group.tournamentId}>
-                                {group.alerts.map((alert: any) => (
-                                    <div
-                                        key={`${group.tournamentId}-${alert.categoryId}-${alert.type}`}
-                                        className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors border border-transparent hover:border-gray-200"
-                                        onClick={() => setIsModalOpen(true)}
-                                    >
-                                        <div className="flex items-start gap-3">
-                                            <div className={`mt-0.5 p-1.5 rounded-full ${alert.type === 'UNCONTESTED' ? 'bg-yellow-100 text-yellow-600' :
-                                                alert.type === 'SPLIT_SUGGESTION' ? 'bg-blue-100 text-blue-600' :
-                                                    'bg-purple-100 text-purple-600'
-                                                }`}>
-                                                {alert.type === 'UNCONTESTED' && <ShieldAlert size={14} />}
-                                                {alert.type === 'SPLIT_SUGGESTION' && <Split size={14} />}
-                                                {alert.type === 'MERGE_SUGGESTION' && <Merge size={14} />}
-                                            </div>
-                                            <div>
-                                                <h4 className="text-sm font-semibold text-gray-900 line-clamp-1">{alert.categoryName}</h4>
-                                                <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">{alert.message}</p>
-                                            </div>
-                                        </div>
+                        {displayedAlerts.map((alert: any, idx: number) => (
+                            <div
+                                key={`${alert.tournamentId}-${alert.categoryId}-${alert.type}-${idx}`}
+                                className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors border border-transparent hover:border-gray-200"
+                                onClick={() => setIsModalOpen(true)}
+                            >
+                                <div className="flex items-start gap-3">
+                                    <div className={`mt-0.5 p-1.5 rounded-full flex-shrink-0 ${alert.type === 'UNCONTESTED' ? 'bg-yellow-100 text-yellow-600' :
+                                        alert.type === 'SPLIT_SUGGESTION' ? 'bg-blue-100 text-blue-600' :
+                                            'bg-purple-100 text-purple-600'
+                                        }`}>
+                                        {alert.type === 'UNCONTESTED' && <ShieldAlert size={14} />}
+                                        {alert.type === 'SPLIT_SUGGESTION' && <Split size={14} />}
+                                        {alert.type === 'MERGE_SUGGESTION' && <Merge size={14} />}
                                     </div>
-                                ))}
+                                    <div>
+                                        <h4 className="text-sm font-semibold text-gray-900 line-clamp-1">{alert.categoryName}</h4>
+                                        <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">{alert.message}</p>
+                                    </div>
+                                </div>
                             </div>
                         ))}
                     </div>

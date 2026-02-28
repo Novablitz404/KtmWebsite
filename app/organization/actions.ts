@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { currentUser } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
+import { getNextBelt } from '@/lib/belt'
 import crypto from 'crypto'
 
 export async function getOrganizationDashboardData() {
@@ -1581,7 +1582,7 @@ export async function registerForPromotionTest(promotionTestId: string) {
             playerName: dbUser.name || 'Unknown',
             clubName: dbUser.clubName || dbUser.club?.name,
             currentBelt: dbUser.belt || 'White',
-            targetBelt: null, // Optional now
+            targetBelt: getNextBelt(dbUser.belt || 'White'), // Calculated automatically
             age: age,
             status: 'PENDING',
             paymentStatus: 'UNPAID'
