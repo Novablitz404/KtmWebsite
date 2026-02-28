@@ -894,11 +894,14 @@ export async function updateOrganizationSettings(formData: FormData) {
 
         // Handle default belt fees
         const whiteToPurpleFeeStr = formData.get('whiteToPurpleFee') as string
-        const blueToBrownFeeStr = formData.get('blueToBrownFee') as string
-        if (whiteToPurpleFeeStr || blueToBrownFeeStr) {
+        const blueToMaroonFeeStr = formData.get('blueToMaroonFee') as string
+        const brownFeeStr = formData.get('brownFee') as string
+
+        if (whiteToPurpleFeeStr || blueToMaroonFeeStr || brownFeeStr) {
             updateData.defaultBeltFees = {
                 whiteToPurple: whiteToPurpleFeeStr ? parseFloat(whiteToPurpleFeeStr) : null,
-                blueToBrown: blueToBrownFeeStr ? parseFloat(blueToBrownFeeStr) : null
+                blueToMaroon: blueToMaroonFeeStr ? parseFloat(blueToMaroonFeeStr) : null,
+                brown: brownFeeStr ? parseFloat(brownFeeStr) : null
             }
         }
 

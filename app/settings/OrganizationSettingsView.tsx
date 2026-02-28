@@ -198,7 +198,7 @@ export default async function OrganizationSettingsView({ dbUser, organization, c
                 <div className="px-6 py-4 border-b border-gray-100">
                     <h3 className="text-sm font-semibold text-gray-900">Promotion Test Default Fees</h3>
                 </div>
-                <div className="grid grid-cols-2 divide-x divide-gray-100">
+                <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
                     <div className="p-6 text-center">
                         <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-2">White to Purple</p>
                         <p className="text-2xl font-bold text-gray-900">
@@ -209,10 +209,19 @@ export default async function OrganizationSettingsView({ dbUser, organization, c
                         </p>
                     </div>
                     <div className="p-6 text-center">
-                        <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-2">Blue to Brown</p>
+                        <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-2">Blue to Maroon</p>
                         <p className="text-2xl font-bold text-gray-900">
-                            {organization.defaultBeltFees?.blueToBrown
-                                ? `₱${organization.defaultBeltFees.blueToBrown.toLocaleString()}`
+                            {organization.defaultBeltFees?.blueToMaroon
+                                ? `₱${organization.defaultBeltFees.blueToMaroon.toLocaleString()}`
+                                : <span className="text-gray-300 text-base font-medium">Not set</span>
+                            }
+                        </p>
+                    </div>
+                    <div className="p-6 text-center">
+                        <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-2">Brown</p>
+                        <p className="text-2xl font-bold text-gray-900">
+                            {organization.defaultBeltFees?.brown
+                                ? `₱${organization.defaultBeltFees.brown.toLocaleString()}`
                                 : <span className="text-gray-300 text-base font-medium">Not set</span>
                             }
                         </p>

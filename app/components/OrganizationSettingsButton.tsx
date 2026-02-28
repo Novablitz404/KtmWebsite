@@ -260,12 +260,24 @@ export default function OrganizationSettingsButton({
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs text-gray-500 mb-1.5">Blue to Brown (₱)</label>
+                                        <label className="block text-xs text-gray-500 mb-1.5">Blue to Maroon (₱)</label>
                                         <input
                                             type="number"
-                                            name="blueToBrownFee"
-                                            defaultValue={defaultBeltFees?.blueToBrown || ''}
+                                            name="blueToMaroonFee"
+                                            defaultValue={defaultBeltFees?.blueToMaroon || ''}
                                             placeholder="e.g. 700"
+                                            min="0"
+                                            step="0.01"
+                                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-gray-50/50 focus:bg-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-gray-500 mb-1.5">Brown (₱)</label>
+                                        <input
+                                            type="number"
+                                            name="brownFee"
+                                            defaultValue={defaultBeltFees?.brown || ''}
+                                            placeholder="e.g. 800"
                                             min="0"
                                             step="0.01"
                                             className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-gray-50/50 focus:bg-white"

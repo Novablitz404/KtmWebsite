@@ -20,13 +20,15 @@ interface PromotionTabsProps {
 
 // Belt tiers: Grouping belts for fee calculation
 const WHITE_TO_PURPLE_BELTS = ['white', 'yellow', 'orange', 'green', 'purple']
-const BLUE_TO_BROWN_BELTS = ['blue', 'maroon', 'red', 'brown']
+const BLUE_TO_MAROON_BELTS = ['blue', 'maroon', 'red']
+const BROWN_BELT = 'brown'
 
 function getRegistrationFee(currentBelt: string | null | undefined, defaultBeltFees: any): number {
     if (!currentBelt || !defaultBeltFees) return 0
     const belt = currentBelt.toLowerCase()
     if (WHITE_TO_PURPLE_BELTS.includes(belt)) return Number(defaultBeltFees.whiteToPurple) || 0
-    if (BLUE_TO_BROWN_BELTS.includes(belt)) return Number(defaultBeltFees.blueToBrown) || 0
+    if (BLUE_TO_MAROON_BELTS.includes(belt)) return Number(defaultBeltFees.blueToMaroon) || 0
+    if (belt === BROWN_BELT) return Number(defaultBeltFees.brown) || 0
     return 0
 }
 
@@ -260,9 +262,15 @@ export default function PromotionTabs({ promotionTest, userRole, defaultBeltFees
                                             </p>
                                         </div>
                                         <div className="space-y-1">
-                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Blue → Brown Fee</p>
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Blue → Maroon Fee</p>
                                             <p className="text-sm font-bold text-gray-900">
-                                                {defaultBeltFees?.blueToBrown ? `₱${Number(defaultBeltFees.blueToBrown).toLocaleString()}` : 'Not set'}
+                                                {defaultBeltFees?.blueToMaroon ? `₱${Number(defaultBeltFees.blueToMaroon).toLocaleString()}` : 'Not set'}
+                                            </p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Brown Fee</p>
+                                            <p className="text-sm font-bold text-gray-900">
+                                                {defaultBeltFees?.brown ? `₱${Number(defaultBeltFees.brown).toLocaleString()}` : 'Not set'}
                                             </p>
                                         </div>
                                         <div className="space-y-1">

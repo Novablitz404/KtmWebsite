@@ -50,20 +50,24 @@ export default function ExaminerView({ promotionTest }: { promotionTest: Promoti
     const [groupByBelt, setGroupByBelt] = useState(true)
 
     const registrations = promotionTest.registrations
-    // defaultBeltFees structure: { whiteToPurple: 600, blueToBrown: 700 }
+    // defaultBeltFees structure: { whiteToPurple: 600, blueToMaroon: 700, brown: 800 }
     const defaultFees = (promotionTest.organization as any).defaultBeltFees || {}
 
     // Grouping belts for fee calculation based on common PH standards requested
     const whiteToPurpleBelts = ['White', 'Yellow', 'Orange', 'Green', 'Purple']
-    const blueToBrownBelts = ['Blue', 'Red', 'Maroon', 'Brown']
+    const blueToMaroonBelts = ['Blue', 'Red', 'Maroon']
+    const brownBelt = 'Brown'
 
     const getFeeForBelt = (belt: string) => {
         const lowerBelt = belt.toLowerCase()
         if (whiteToPurpleBelts.some(b => b.toLowerCase() === lowerBelt)) {
             return defaultFees.whiteToPurple || 0
         }
-        if (blueToBrownBelts.some(b => b.toLowerCase() === lowerBelt)) {
-            return defaultFees.blueToBrown || 0
+        if (blueToMaroonBelts.some(b => b.toLowerCase() === lowerBelt)) {
+            return defaultFees.blueToMaroon || 0
+        }
+        if (brownBelt.toLowerCase() === lowerBelt) {
+            return defaultFees.brown || 0
         }
         return 0 // Black belt or undefined
     }

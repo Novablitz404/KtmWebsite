@@ -25,7 +25,8 @@ export async function updateOrganizationProfile(organizationId: string, formData
     const logoFile = formData.get('logo') as File | null
 
     const whiteToPurpleFeeStr = formData.get('whiteToPurpleFee') as string
-    const blueToBrownFeeStr = formData.get('blueToBrownFee') as string
+    const blueToMaroonFeeStr = formData.get('blueToMaroonFee') as string
+    const brownFeeStr = formData.get('brownFee') as string
 
     if (!name) throw new Error('Organization Name is required')
 
@@ -64,10 +65,11 @@ export async function updateOrganizationProfile(organizationId: string, formData
     }
 
     let defaultBeltFees: any = undefined
-    if (whiteToPurpleFeeStr || blueToBrownFeeStr) {
+    if (whiteToPurpleFeeStr || blueToMaroonFeeStr || brownFeeStr) {
         defaultBeltFees = {
             whiteToPurple: whiteToPurpleFeeStr ? parseFloat(whiteToPurpleFeeStr) : null,
-            blueToBrown: blueToBrownFeeStr ? parseFloat(blueToBrownFeeStr) : null
+            blueToMaroon: blueToMaroonFeeStr ? parseFloat(blueToMaroonFeeStr) : null,
+            brown: brownFeeStr ? parseFloat(brownFeeStr) : null
         }
     }
 
