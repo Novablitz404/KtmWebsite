@@ -410,10 +410,10 @@ export default function CompleteProfilePage() {
     if (role === 'CLUB_MASTER' && step === 'profile') {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-                <div className="w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px]">
+                <div className="w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px] mb-8 mt-8 md:my-0">
                     {renderSidebar()}
 
-                    <div className="md:w-7/12 p-10 flex flex-col justify-center">
+                    <div className="md:w-7/12 p-6 md:p-10 flex flex-col justify-start md:justify-center">
                         <motion.div
                             key="cm-step-1"
                             initial={{ opacity: 0, x: 20 }}
@@ -478,10 +478,10 @@ export default function CompleteProfilePage() {
     if (role === 'CLUB_MASTER' && step === 'details') {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-                <div className="w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px]">
+                <div className="w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px] mb-8 mt-8 md:my-0">
                     {renderSidebar()}
 
-                    <div className="md:w-7/12 p-10 flex flex-col justify-center">
+                    <div className="md:w-7/12 p-6 md:p-10 flex flex-col justify-start md:justify-center overflow-y-auto max-h-[85vh] md:max-h-none">
                         <motion.div
                             key="cm-step-2"
                             initial={{ opacity: 0, x: 20 }}
@@ -643,10 +643,10 @@ export default function CompleteProfilePage() {
     if (role === 'ORGANIZER' && step === 'profile') {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-                <div className="w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px]">
+                <div className="w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px] mb-8 mt-8 md:my-0">
                     {renderSidebar()}
 
-                    <div className="md:w-7/12 p-10 flex flex-col justify-center">
+                    <div className="md:w-7/12 p-6 md:p-10 flex flex-col justify-start md:justify-center">
                         <motion.div
                             key="org-step-1"
                             initial={{ opacity: 0, x: 20 }}
@@ -697,10 +697,10 @@ export default function CompleteProfilePage() {
     if (role === 'ORGANIZER' && step === 'details') {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-                <div className="w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px]">
+                <div className="w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px] mb-8 mt-8 md:my-0">
                     {renderSidebar()}
 
-                    <div className="md:w-7/12 p-10 flex flex-col justify-center">
+                    <div className="md:w-7/12 p-6 md:p-10 flex flex-col justify-start md:justify-center overflow-y-auto max-h-[85vh] md:max-h-none">
                         <motion.div
                             key="org-step-2"
                             initial={{ opacity: 0, x: 20 }}
@@ -814,11 +814,11 @@ export default function CompleteProfilePage() {
     // ATHLETE — Single Page
     // ======================================
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-            <div className="w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px]">
+        <div className="min-h-screen flex items-start md:items-center justify-center bg-gray-50 p-4 overflow-y-auto">
+            <div className="w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px] my-8 md:my-0">
                 {renderSidebar()}
 
-                <div className="md:w-7/12 p-10 flex flex-col justify-center overflow-y-auto max-h-[90vh]">
+                <div className="md:w-7/12 p-6 md:p-10 flex flex-col justify-start md:justify-center overflow-y-auto max-h-[85vh] md:max-h-[90vh]">
                     <motion.div
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}

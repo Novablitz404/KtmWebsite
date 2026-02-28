@@ -1,6 +1,7 @@
 import { authenticateApi, apiError, apiResponse } from '@/lib/auth-api'
 import { prisma } from '@/lib/prisma'
 import { clerkClient } from '@clerk/nextjs/server'
+import { uploadAvatar, uploadLogo } from '@/lib/supabase-storage'
 
 /**
  * Converts a string to Title Case while preserving:
@@ -64,16 +65,13 @@ export async function POST(request: Request) {
             return apiError('Name is required', 400)
         }
 
-        // ─── UPLOAD PROFILE IMAGE TO CLERK ───
-        if (imageFile && imageFile.size > 0 && dbUser.clerkId) {
-            try {
-                const client = await clerkClient()
-                await client.users.updateUserProfileImage(dbUser.clerkId, {
-                    file: imageFile
-                })
-            } catch (error) {
-                console.error('Failed to upload profile image:', error)
-                // Non-blocking — continue with profile save
+        // ─── UPLOAD PROFILE IMAGE TO SUPABASE ───
+        let profileImageUrl: string | undefined = undefined
+        if (imageFile && imageFile.size > 0) {
+            const url = await uploadAvatar(dbUser.id, imageFile)
+            if (url) {
+                // Add explicit cache bust query string to match club logic and force client refresh
+                profileImageUrl = `${url}?t=${Date.now()}`
             }
         }
 
@@ -103,7 +101,8 @@ export async function POST(request: Request) {
                     gender,
                     clubName,
                     birthDate,
-                    athleteNumber
+                    athleteNumber,
+                    ...(profileImageUrl && { imageUrl: profileImageUrl })
                 }
             })
 
@@ -122,30 +121,39 @@ export async function POST(request: Request) {
             // Update owner profile
             await prisma.user.update({
                 where: { id: dbUser.id },
-                data: { name, athleteNumber }
+                data: {
+                    name,
+                    athleteNumber,
+                    ...(profileImageUrl && { imageUrl: profileImageUrl })
+                }
             })
 
-            // Upload club logo if provided (store as base64 or upload to a service)
+            // Upload club logo if provided 
             let clubLogoUrl: string | undefined = undefined
-            if (clubLogoFile && clubLogoFile.size > 0) {
-                // For now, we upload the logo to Clerk as a metadata note or save as blob
-                // In production, you'd upload to S3/Cloudinary
-                // For MVP, we'll store the logo URL once we handle file uploads
-                // TODO: Implement proper file storage
-            }
-
-            // Create the Club record
-            await prisma.club.create({
+            // We use the dbUser.id as a prefix/unique ID for the club logo, since the club doesn't have an ID yet 
+            // Wait, we can generate a random string, or just create the club first then upload.
+            // Let's create the club first, then upload the logo, then update the club.
+            const club = await prisma.club.create({
                 data: {
                     name: clubName,
                     masterId: dbUser.id,
                     organizationId,
-                    logoUrl: clubLogoUrl,
                     address: clubAddress,
                     phone: clubPhone,
                     status: 'PENDING'
                 }
             })
+
+            if (clubLogoFile && clubLogoFile.size > 0) {
+                const url = await uploadLogo(`club-${club.id}`, clubLogoFile)
+                if (url) {
+                    clubLogoUrl = `${url}?t=${Date.now()}`
+                    await prisma.club.update({
+                        where: { id: club.id },
+                        data: { logoUrl: clubLogoUrl }
+                    })
+                }
+            }
 
         } else if (role === 'ORGANIZER') {
             const orgName = toTitleCase(formData.get('orgName') as string)
@@ -161,31 +169,43 @@ export async function POST(request: Request) {
             // Update owner profile
             await prisma.user.update({
                 where: { id: dbUser.id },
-                data: { name }
+                data: {
+                    name,
+                    ...(profileImageUrl && { imageUrl: profileImageUrl })
+                }
+            })
+
+            // Create the Organization record, then upload logo
+            const org = await prisma.organization.create({
+                data: {
+                    name: orgName,
+                    ownerId: dbUser.id,
+                    establishedAt,
+                    status: 'PENDING'
+                }
             })
 
             // Upload org logo if provided
             let orgLogoUrl: string | undefined = undefined
             if (orgLogoFile && orgLogoFile.size > 0) {
-                // TODO: Implement proper file storage
-            }
-
-            // Create the Organization record
-            await prisma.organization.create({
-                data: {
-                    name: orgName,
-                    ownerId: dbUser.id,
-                    establishedAt,
-                    logoUrl: orgLogoUrl,
-                    status: 'PENDING'
+                const url = await uploadLogo(`org-${org.id}`, orgLogoFile)
+                if (url) {
+                    orgLogoUrl = `${url}?t=${Date.now()}`
+                    await prisma.organization.update({
+                        where: { id: org.id },
+                        data: { logoUrl: orgLogoUrl }
+                    })
                 }
-            })
+            }
 
         } else {
             // Unknown role — just save name
             await prisma.user.update({
                 where: { id: dbUser.id },
-                data: { name }
+                data: {
+                    name,
+                    ...(profileImageUrl && { imageUrl: profileImageUrl })
+                }
             })
         }
 

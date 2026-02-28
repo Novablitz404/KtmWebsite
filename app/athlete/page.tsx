@@ -35,6 +35,7 @@ export default async function AthleteDashboardPage({
             weight: true,
             height: true,
             birthDate: true,
+            imageUrl: true,
         }
     })
 
@@ -57,7 +58,7 @@ export default async function AthleteDashboardPage({
             {!isProfileComplete && <CompleteProfileModal />}
             <AthleteDashboardView
                 clerkId={clerkUser.id}
-                imageUrl={clerkUser.imageUrl}
+                imageUrl={dbUser.imageUrl}
                 initialData={initialDashboardData}
             />
         </main>

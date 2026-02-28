@@ -63,7 +63,7 @@ export async function uploadAvatarFromUrl(userId: string, imageUrl: string): Pro
 /**
  * Get the public URL for a user's avatar.
  */
-export function getAvatarUrl(userId: string): string {
+export async function getAvatarUrl(userId: string): Promise<string> {
     const { data: { publicUrl } } = supabase.storage
         .from(BUCKET)
         .getPublicUrl(userId)
@@ -88,5 +88,38 @@ export async function deleteAvatar(userId: string): Promise<boolean> {
     } catch (error) {
         console.error('Avatar delete failed:', error)
         return false
+    }
+}
+
+/**
+ * Upload a logo to the 'logos' bucket.
+ */
+export async function uploadLogo(id: string, file: File | Blob): Promise<string | null> {
+    try {
+        const bytes = await file.arrayBuffer()
+        const buffer = Buffer.from(bytes)
+
+        const filePath = `${id}`
+
+        const { error: uploadError } = await supabase.storage
+            .from('logos')
+            .upload(filePath, buffer, {
+                contentType: file.type || 'image/webp',
+                upsert: true
+            })
+
+        if (uploadError) {
+            console.error('Logo upload error:', uploadError)
+            return null
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+            .from('logos')
+            .getPublicUrl(filePath)
+
+        return publicUrl
+    } catch (error) {
+        console.error('Logo upload failed:', error)
+        return null
     }
 }
