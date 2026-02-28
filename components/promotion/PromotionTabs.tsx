@@ -18,20 +18,20 @@ interface PromotionTabsProps {
     defaultBeltFees?: any
 }
 
-// Belt tiers: White(0) Yellow(1) Orange(2) Green(3) Purple(4) Blue(5) Maroon(6) Red(7) Brown(8) Black(9)
-const WHITE_TO_PURPLE_BELTS = ['yellow', 'orange', 'green', 'purple']
-const BLUE_TO_BROWN_BELTS = ['blue', 'maroon', 'red', 'brown', 'black']
+// Belt tiers: Grouping belts for fee calculation
+const WHITE_TO_PURPLE_BELTS = ['white', 'yellow', 'orange', 'green', 'purple']
+const BLUE_TO_BROWN_BELTS = ['blue', 'maroon', 'red', 'brown']
 
-function getRegistrationFee(targetBelt: string | null | undefined, defaultBeltFees: any): number {
-    if (!targetBelt || !defaultBeltFees) return 0
-    const belt = targetBelt.toLowerCase()
+function getRegistrationFee(currentBelt: string | null | undefined, defaultBeltFees: any): number {
+    if (!currentBelt || !defaultBeltFees) return 0
+    const belt = currentBelt.toLowerCase()
     if (WHITE_TO_PURPLE_BELTS.includes(belt)) return Number(defaultBeltFees.whiteToPurple) || 0
     if (BLUE_TO_BROWN_BELTS.includes(belt)) return Number(defaultBeltFees.blueToBrown) || 0
     return 0
 }
 
 function calculateTotalFees(registrations: any[], defaultBeltFees: any): number {
-    return registrations.reduce((sum, r) => sum + getRegistrationFee(r.targetBelt, defaultBeltFees), 0)
+    return registrations.reduce((sum, r) => sum + getRegistrationFee(r.currentBelt, defaultBeltFees), 0)
 }
 
 export default function PromotionTabs({ promotionTest, userRole, defaultBeltFees }: PromotionTabsProps) {
@@ -154,7 +154,7 @@ export default function PromotionTabs({ promotionTest, userRole, defaultBeltFees
                                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Revenue (Approved)</p>
                                             <h3 className="text-4xl font-black text-gray-900 leading-none">
                                                 ₱{calculateTotalFees(
-                                                    promotionTest.registrations.filter(r => r.status === 'APPROVED'),
+                                                    promotionTest.registrations.filter(r => ['APPROVED', 'PASSED', 'FAILED'].includes(r.status)),
                                                     defaultBeltFees
                                                 ).toLocaleString()}
                                             </h3>
@@ -187,7 +187,7 @@ export default function PromotionTabs({ promotionTest, userRole, defaultBeltFees
                                             <div className="space-y-0.5">
                                                 <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Confirmed</p>
                                                 <p className="text-base font-bold text-gray-900">₱{calculateTotalFees(
-                                                    promotionTest.registrations.filter(r => r.status === 'APPROVED'),
+                                                    promotionTest.registrations.filter(r => ['APPROVED', 'PASSED', 'FAILED'].includes(r.status)),
                                                     defaultBeltFees
                                                 ).toLocaleString()}</p>
                                             </div>
