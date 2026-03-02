@@ -849,6 +849,7 @@ export async function updateOrganizationSettings(formData: FormData) {
         const organizationId = formData.get('organizationId') as string
         const name = formData.get('name') as string
         const logoFile = formData.get('logo') as File | null
+        const bannerFile = formData.get('emailBanner') as File | null
         const address = formData.get('address') as string | null
         const phone = formData.get('phone') as string | null
         const email = formData.get('email') as string | null
@@ -905,7 +906,7 @@ export async function updateOrganizationSettings(formData: FormData) {
             }
         }
 
-        // Handle File Upload
+        // Handle Logo Upload
         if (logoFile && logoFile.size > 0) {
             // Validate file type (image only)
             if (!logoFile.type.startsWith('image/')) {
@@ -946,6 +947,46 @@ export async function updateOrganizationSettings(formData: FormData) {
                 .getPublicUrl(filename)
 
             updateData.logoUrl = publicUrl
+        }
+
+        // Handle Banner Upload
+        if (bannerFile && bannerFile.size > 0) {
+            if (!bannerFile.type.startsWith('image/')) {
+                return { error: 'Banner must be an image' }
+            }
+            if (bannerFile.size > 5 * 1024 * 1024) {
+                return { error: 'Banner size must be less than 5MB' }
+            }
+
+            const supabase = createClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.SUPABASE_SERVICE_ROLE_KEY!
+            )
+
+            const bytes = await bannerFile.arrayBuffer()
+            const buffer = Buffer.from(bytes)
+
+            const timestamp = Date.now()
+            const safeName = bannerFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+            const filename = `org-banner-${organizationId}-${timestamp}-${safeName}`
+
+            const { error: uploadError } = await supabase.storage
+                .from('uploads')
+                .upload(filename, buffer, {
+                    contentType: bannerFile.type,
+                    upsert: false
+                })
+
+            if (uploadError) {
+                console.error('Supabase banner upload error:', uploadError)
+                return { error: 'Failed to upload banner image' }
+            }
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('uploads')
+                .getPublicUrl(filename)
+
+            updateData.emailBannerUrl = publicUrl
         }
 
         await prisma.organization.update({

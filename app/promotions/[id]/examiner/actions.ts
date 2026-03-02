@@ -44,17 +44,29 @@ export async function examinerUpdateStatus(registrationId: string, status: strin
             if (user.email) {
                 const promotionTest = await prisma.promotionTest.findUnique({
                     where: { id: registration.promotionTestId },
-                    select: { name: true }
+                    select: {
+                        name: true,
+                        organization: {
+                            select: {
+                                name: true,
+                                emailBannerUrl: true
+                            }
+                        }
+                    }
                 })
+
+                const orgName = promotionTest?.organization?.name || 'World Olympic Taekwondo Federation - Philippines (WOTF)'
+                const orgBannerUrl = promotionTest?.organization?.emailBannerUrl || null
 
                 await sendEmail({
                     to: user.email,
-                    subject: 'Congratulations on your new belt! 🥋',
+                    subject: `Official Certification: Results of the ${promotionTest?.name || 'Promotion Test'}`,
                     reactData: React.createElement(PromotionPassedEmail, {
                         athleteName: user.name || 'Athlete',
                         beltName: nextBelt,
                         clubName: user.clubName || 'Your Club',
-                        promotionTestName: promotionTest?.name || 'Promotion Test',
+                        organizationName: orgName,
+                        emailBannerUrl: orgBannerUrl,
                         dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://ktmsports.com'}/athlete?tab=achievements`
                     })
                 })

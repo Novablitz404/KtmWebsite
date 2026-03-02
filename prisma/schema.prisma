@@ -243,6 +243,7 @@ model Organization {
   owner         User     @relation("OrganizationOwner", fields: [ownerId], references: [id])
   establishedAt DateTime @default(now())
   logoUrl       String?
+  emailBannerUrl String?
   status        String   @default("APPROVED") // PENDING, APPROVED, REJECTED
 
   // Organization Details

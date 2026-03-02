@@ -10,6 +10,7 @@ interface OrganizationSettingsButtonProps {
     organizationId: string
     orgName: string
     orgLogo?: string | null
+    emailBanner?: string | null
     address?: string | null
     phone?: string | null
     email?: string | null
@@ -25,6 +26,7 @@ export default function OrganizationSettingsButton({
     organizationId,
     orgName,
     orgLogo,
+    emailBanner,
     address,
     phone,
     email,
@@ -39,10 +41,12 @@ export default function OrganizationSettingsButton({
     const [showSettings, setShowSettings] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [logoPreview, setLogoPreview] = useState<string | null>(orgLogo || null)
+    const [bannerPreview, setBannerPreview] = useState<string | null>(emailBanner || null)
 
     useEffect(() => {
         setLogoPreview(orgLogo || null)
-    }, [orgLogo])
+        setBannerPreview(emailBanner || null)
+    }, [orgLogo, emailBanner])
 
     return (
         <>
@@ -107,54 +111,40 @@ export default function OrganizationSettingsButton({
                             <input type="hidden" name="organizationId" value={organizationId} />
 
                             <div className="flex flex-col sm:flex-row gap-6">
-                                {/* Logo Upload */}
-                                <div className="w-full sm:w-1/3">
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Organization Logo</label>
-                                    <div className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer group relative overflow-hidden h-40">
-                                        {logoPreview ? (
-                                            <>
-                                                <img src={logoPreview} alt="Preview" className="w-full h-full object-contain" />
-                                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <p className="text-white text-sm font-medium">Click to change</p>
+                                {/* Logo & Banner Uploads */}
+                                <div className="w-full sm:w-1/3 space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Organization Logo</label>
+                                        <div className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer group relative overflow-hidden h-40">
+                                            {logoPreview ? (
+                                                <>
+                                                    <img src={logoPreview} alt="Preview" className="w-full h-full object-contain" />
+                                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <p className="text-white text-sm font-medium">Click to change</p>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="text-center">
+                                                    <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2 group-hover:text-indigo-500 transition-colors" />
+                                                    <p className="text-sm text-gray-500">Upload logo</p>
                                                 </div>
-                                            </>
-                                        ) : (
-                                            <div className="text-center">
-                                                <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2 group-hover:text-indigo-500 transition-colors" />
-                                                <p className="text-sm text-gray-500">Click to upload logo</p>
-                                                <p className="text-[10px] text-gray-400 mt-1">PNG, JPG (Max 5MB)</p>
-                                            </div>
-                                        )}
-                                        <input
-                                            type="file"
-                                            name="logo"
-                                            accept="image/*"
-                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                            onChange={(e) => {
-                                                const file = e.target.files?.[0]
-                                                if (file) {
-                                                    if (file.size > 5 * 1024 * 1024) {
-                                                        toast.error('File size must be less than 5MB')
-                                                        e.target.value = ''
-                                                        return
+                                            )}
+                                            <input
+                                                type="file"
+                                                name="logo"
+                                                accept="image/*"
+                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                                onChange={(e) => {
+                                                    const file = e.target.files?.[0]
+                                                    if (file) {
+                                                        const url = URL.createObjectURL(file)
+                                                        setLogoPreview(url)
                                                     }
-                                                    const url = URL.createObjectURL(file)
-                                                    setLogoPreview(url)
-                                                }
-                                            }}
-                                        />
+                                                }}
+                                            />
+                                        </div>
                                     </div>
-                                    {logoPreview && (
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setLogoPreview(null)
-                                            }}
-                                            className="text-xs text-red-500 mt-2 hover:underline w-full text-center"
-                                        >
-                                            Remove Preview
-                                        </button>
-                                    )}
+
                                 </div>
 
                                 {/* Main Info Fields */}
@@ -194,6 +184,56 @@ export default function OrganizationSettingsButton({
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+
+                            {/* Email Banner Upload */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Email Banner</label>
+                                <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer group relative overflow-hidden min-h-[160px]">
+                                    {bannerPreview ? (
+                                        <>
+                                            <img src={bannerPreview} alt="Banner Preview" className="w-full h-full object-cover" />
+                                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <p className="text-white text-sm font-medium">Click to change banner</p>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="text-center">
+                                            <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2 group-hover:text-indigo-500 transition-colors" />
+                                            <p className="text-sm text-gray-500">Click to upload email banner</p>
+                                            <p className="text-[10px] text-gray-400 mt-1">Recommended dimension: 1200x400 pixels • Max size: 5MB</p>
+                                        </div>
+                                    )}
+                                    <input
+                                        type="file"
+                                        name="emailBanner"
+                                        accept="image/*"
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0]
+                                            if (file) {
+                                                if (file.size > 5 * 1024 * 1024) {
+                                                    toast.error('File size must be less than 5MB')
+                                                    e.target.value = ''
+                                                    return
+                                                }
+                                                const url = URL.createObjectURL(file)
+                                                setBannerPreview(url)
+                                            }
+                                        }}
+                                    />
+                                </div>
+                                {bannerPreview && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setBannerPreview(null)
+                                        }}
+                                        className="text-xs text-red-500 mt-2 hover:underline w-full text-right block"
+                                    >
+                                        Remove Banner
+                                    </button>
+                                )}
                             </div>
 
                             <div className="space-y-4">

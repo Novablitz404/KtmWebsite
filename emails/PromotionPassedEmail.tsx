@@ -18,42 +18,92 @@ interface PromotionPassedEmailProps {
     athleteName: string
     beltName: string
     clubName: string
-    promotionTestName: string
+    organizationName: string
+    emailBannerUrl?: string | null
     dashboardUrl: string
+}
+
+// Map standard belt names to formal Gup/Dan ranks
+const getFormalBeltRank = (belt: string) => {
+    switch (belt.toLowerCase()) {
+        case 'white': return '9th Gup - White Belt'
+        case 'yellow': return '8th Gup - Yellow Belt'
+        case 'orange': return '7th Gup - Orange Belt'
+        case 'green': return '6th Gup - Green Belt'
+        case 'purple': return '5th Gup - Purple Belt'
+        case 'blue': return '4th Gup - Blue Belt'
+        case 'red': return '3rd Gup - Red Belt'
+        case 'maroon': return '2nd Gup - Maroon Belt'
+        case 'brown': return '1st Gup - Brown Belt'
+        case 'black': return '1st Dan - Black Belt'
+        default: return `${belt} Belt`
+    }
 }
 
 export const PromotionPassedEmail = ({
     athleteName = 'Athlete',
-    beltName = 'Black Belt',
+    beltName = 'Black',
     clubName = 'Your Club',
-    promotionTestName = 'Promotion Test',
+    organizationName = 'World Olympic Taekwondo Federation - Philippines (WOTF)',
+    emailBannerUrl = null,
     dashboardUrl = 'https://ktmsports.com/athlete',
 }: PromotionPassedEmailProps) => {
+    const formalRank = getFormalBeltRank(beltName)
+
     return (
         <Html>
             <Head />
-            <Preview>Congratulations! You passed your {beltName} promotion test.</Preview>
+            <Preview>Congratulations on your promotion to {formalRank}!</Preview>
             <Body style={main}>
                 <Container style={container}>
                     <Section style={coverSection}>
-                        <Section style={imageSection}>
-                            {/* Will fallback to alt text if image doesn't load */}
-                            <Img
-                                src="https://ktmsports.com/KTMLogo.png"
-                                width="75"
-                                height="75"
-                                alt="KTM Logo"
-                                style={logo}
-                            />
-                        </Section>
+                        {emailBannerUrl ? (
+                            <Section style={bannerSection}>
+                                <Img
+                                    src={emailBannerUrl}
+                                    width="100%"
+                                    height="auto"
+                                    alt="Organization Banner"
+                                    style={bannerImage}
+                                />
+                            </Section>
+                        ) : (
+                            <Section style={imageSection}>
+                                <Img
+                                    src="https://ktmsports.com/KTMLogo.png"
+                                    width="75"
+                                    height="75"
+                                    alt="KTM Logo"
+                                    style={logo}
+                                />
+                            </Section>
+                        )}
                         <Section style={upperSection}>
-                            <Heading style={h1}>Congratulations, {athleteName}! 🥋</Heading>
+                            <Heading style={h1}>Dear {athleteName},</Heading>
+                            <Heading style={h2}>Congratulations!</Heading>
+
                             <Text style={mainText}>
-                                We are thrilled to inform you that you have officially passed your grading at the <strong>{promotionTestName}</strong>.
+                                On behalf of the {organizationName}, we are pleased to inform you that you have successfully met the requirements of the Katma Imav Promotion Test.
                             </Text>
+
                             <Text style={mainText}>
-                                Your hard work and dedication have paid off. You are now officially recognized as a <strong>{beltName}</strong> under {clubName}.
+                                Your technical skill, discipline, and commitment to the tenets of Taekwondo were clearly demonstrated during your evaluation. As a result, the Federation officially recognizes your promotion to the rank of <strong>{formalRank}</strong>.
                             </Text>
+
+                            <Text style={mainText}>
+                                While your daily training continues at {clubName}, this promotion is a testament to your growth within the national standards of our organization. We take great pride in seeing practitioners like you elevate the spirit of the sport in the Philippines.
+                            </Text>
+
+                            <Heading style={h3}>Next Steps:</Heading>
+                            <Text style={mainText}>
+                                <strong>Official Recognition:</strong> Your new rank has been recorded in the Federation’s database.<br />
+                                <strong>Certificate & Belt:</strong> Your official {organizationName} certification and new belt will be issued through your head instructor.
+                            </Text>
+
+                            <Text style={mainText}>
+                                Continue to train with an indomitable spirit. We look forward to seeing your progress toward your next milestone.
+                            </Text>
+
                             <Section style={buttonContainer}>
                                 <Button href={dashboardUrl} style={button}>
                                     View Achievements
@@ -63,8 +113,10 @@ export const PromotionPassedEmail = ({
                         <Hr style={hr} />
                         <Section style={lowerSection}>
                             <Text style={footerText}>
-                                Keep training hard and inspiring others on the mats.
-                                <br />- The KTM Team
+                                Kicking goals and breaking barriers,
+                                <br /><br />
+                                <strong>The Board of Examiners</strong><br />
+                                {organizationName}
                             </Text>
                         </Section>
                     </Section>
@@ -97,8 +149,20 @@ const coverSection = {
     boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)',
 }
 
+const bannerSection = {
+    backgroundColor: '#ffffff', // Generic background in case of transparency
+    width: '100%',
+    display: 'block',
+}
+
+const bannerImage = {
+    width: '100%',
+    objectFit: 'cover' as const,
+    display: 'block',
+}
+
 const imageSection = {
-    backgroundColor: '#dc2626', // Red-600
+    backgroundColor: '#dc2626', // Red-600 fallback
     padding: '40px 0',
     display: 'flex',
     justifyContent: 'center',
@@ -115,10 +179,26 @@ const upperSection = {
 
 const h1 = {
     color: '#111827',
+    fontSize: '20px',
+    fontWeight: '700',
+    lineHeight: '28px',
+    margin: '0 0 16px',
+}
+
+const h2 = {
+    color: '#dc2626',
     fontSize: '24px',
     fontWeight: '700',
     lineHeight: '32px',
     margin: '0 0 20px',
+}
+
+const h3 = {
+    color: '#111827',
+    fontSize: '18px',
+    fontWeight: '600',
+    lineHeight: '26px',
+    margin: '24px 0 12px',
 }
 
 const mainText = {
@@ -156,8 +236,8 @@ const lowerSection = {
 }
 
 const footerText = {
-    color: '#6b7280',
-    fontSize: '14px',
+    color: '#4b5563',
+    fontSize: '15px',
     lineHeight: '24px',
     margin: '0',
 }

@@ -31,6 +31,7 @@ export default async function OrganizationPage() {
                     id: true,
                     name: true,
                     logoUrl: true,
+                    emailBannerUrl: true,
                     address: true,
                     contactPhone: true,
                     contactEmail: true,

@@ -21,6 +21,7 @@ interface OrganizationSettingsViewProps {
         id: string
         name: string
         logoUrl: string | null
+        emailBannerUrl: string | null
         address: string | null
         contactPhone: string | null
         contactEmail: string | null
@@ -137,6 +138,7 @@ export default async function OrganizationSettingsView({ dbUser, organization, c
                                 organizationId={organization.id}
                                 orgName={organization.name}
                                 orgLogo={organization.logoUrl}
+                                emailBanner={organization.emailBannerUrl}
                                 address={organization.address}
                                 phone={organization.contactPhone}
                                 email={organization.contactEmail}
@@ -190,6 +192,27 @@ export default async function OrganizationSettingsView({ dbUser, organization, c
                             <p className="text-sm font-medium text-gray-900">{organization.address || '-'}</p>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {/* Email Banner Preview */}
+            <div className="bg-white sm:rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+                    <h3 className="text-sm font-semibold text-gray-900">Email Banner Preview</h3>
+                </div>
+                <div className="p-6">
+                    {organization.emailBannerUrl ? (
+                        <img
+                            src={organization.emailBannerUrl}
+                            alt="Organization Email Banner"
+                            className="w-full max-h-64 object-cover rounded-xl border border-gray-200"
+                        />
+                    ) : (
+                        <div className="w-full h-32 bg-gray-50 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 text-gray-400">
+                            <span className="text-sm font-medium">No Email Banner Uploaded</span>
+                            <span className="text-xs mt-1 text-gray-500">Upload one using the Edit button above</span>
+                        </div>
+                    )}
                 </div>
             </div>
 
