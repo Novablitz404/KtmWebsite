@@ -1,6 +1,14 @@
+'use client'
+
 import { Skeleton, SkeletonPageHeader } from '@/components/ui/Skeleton'
+import { useTenant } from '@/app/providers/TenantProvider'
 
 export default function AboutLoading() {
+    const tenant = useTenant()
+
+    // Non-KTM tenants: don't show KTM-branded skeleton
+    if (tenant.slug !== 'ktm') return null
+
     return (
         <main className="min-h-screen bg-white">
             {/* Hero Section Skeleton */}

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Eye, EyeOff, Loader2, ArrowLeft, ShieldCheck } from 'lucide-react'
+import { useTenant } from '@/app/providers/TenantProvider'
 
 type Step = 'credentials' | 'verification' | '2fa'
 
@@ -26,6 +27,7 @@ export default function CustomSignInForm({ hideBranding = false }: CustomSignInF
     const [resendCountdown, setResendCountdown] = useState(0)
     // Removed success state to transition directly to skeleton loading
     const router = useRouter()
+    const tenant = useTenant()
 
     // Countdown timer for resend
     useEffect(() => {
@@ -377,8 +379,8 @@ export default function CustomSignInForm({ hideBranding = false }: CustomSignInF
                             <>
                                 <div className="relative w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-3 sm:mb-4">
                                     <Image
-                                        src="/KTMLogo.png"
-                                        alt="KTM Logo"
+                                        src={tenant.logoUrl}
+                                        alt={`${tenant.name} Logo`}
                                         fill
                                         sizes="80px"
                                         className="object-contain"
@@ -467,8 +469,8 @@ export default function CustomSignInForm({ hideBranding = false }: CustomSignInF
                 <div className="text-center mb-6 sm:mb-8">
                     <div className="relative w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-3 sm:mb-4">
                         <Image
-                            src="/KTMLogo.png"
-                            alt="KTM Logo"
+                            src={tenant.logoUrl}
+                            alt={`${tenant.name} Logo`}
                             fill
                             sizes="(max-width: 640px) 64px, 80px"
                             className="object-contain"

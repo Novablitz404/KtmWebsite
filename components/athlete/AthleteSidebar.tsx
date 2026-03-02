@@ -1,6 +1,7 @@
 'use client'
 
 import { useClerk } from '@clerk/nextjs'
+import { useTenant } from '@/app/providers/TenantProvider'
 import { useRouter } from 'next/navigation'
 import {
     LayoutDashboard,
@@ -39,10 +40,12 @@ export default function AthleteSidebar({
 }: AthleteSidebarProps) {
     const { signOut } = useClerk()
     const router = useRouter()
+    const tenant = useTenant()
 
     const handleLogout = async () => {
-        await signOut()
-        router.push('/')
+        const redirectUrl = tenant.slug === 'ktm' ? '/' : `/?tenant=${tenant.slug}`
+        console.log('[Logout] tenant.slug:', tenant.slug, '| redirectUrl:', redirectUrl)
+        await signOut({ redirectUrl })
     }
 
     return (
@@ -61,12 +64,12 @@ export default function AthleteSidebar({
                 <div className="p-6 border-b border-gray-100">
                     <div className="flex items-center gap-3">
                         <img
-                            src="/KTMLogo.png"
-                            alt="KTM"
+                            src={tenant.logoUrl}
+                            alt={tenant.name}
                             className="w-10 h-10 object-contain"
                         />
                         <div className="flex-1 min-w-0">
-                            <h2 className="font-bold text-sm truncate text-gray-900">KTM</h2>
+                            <h2 className="font-bold text-sm truncate text-gray-900">{tenant.name}</h2>
                             <p className="text-xs text-gray-500">Athlete Dashboard</p>
                         </div>
                     </div>

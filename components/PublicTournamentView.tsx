@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Calendar, MapPin, Search, Filter, Info, ChevronRight, FileText } from 'lucide-react'
 import { format } from 'date-fns'
 import { Tournament, Player as PrismaPlayer } from '@prisma/client'
+import { useTenant } from '@/app/providers/TenantProvider'
 
 // Extended Player type with enriched fields
 type Player = PrismaPlayer & {
@@ -86,6 +87,14 @@ export default function PublicTournamentView(props: PublicTournamentViewProps) {
     const [activeTab, setActiveTab] = useState<'overview' | 'guidelines'>('overview')
 
     const router = useRouter()
+    const tenant = useTenant()
+    const isKtm = tenant.slug === 'ktm'
+
+    // Tenant-aware accent colors
+    const accentColor = tenant.primaryColor || '#dc2626' // fallback red-600
+    const accentStyle = { color: accentColor }
+    const accentBgStyle = { backgroundColor: accentColor }
+    const accentBorderStyle = { borderColor: accentColor }
 
     return (
         <div className="space-y-8">
@@ -134,7 +143,8 @@ export default function PublicTournamentView(props: PublicTournamentViewProps) {
                         return (
                             <a
                                 href={`/tournament/${tournament.id}/register`}
-                                className="inline-flex items-center px-6 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-md transition-all active:scale-95"
+                                className="inline-flex items-center px-6 py-2 text-white font-semibold rounded-lg shadow-md transition-all active:scale-95 hover:opacity-90"
+                                style={accentBgStyle}
                             >
                                 Register Now
                                 <ChevronRight className="w-4 h-4 ml-1" />
@@ -179,9 +189,10 @@ export default function PublicTournamentView(props: PublicTournamentViewProps) {
                 <button
                     onClick={() => setActiveTab('overview')}
                     className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${activeTab === 'overview'
-                        ? 'border-red-600 text-red-600'
+                        ? 'border-current'
                         : 'border-transparent text-gray-500 hover:text-gray-700'
                         }`}
+                    style={activeTab === 'overview' ? { ...accentStyle, borderColor: accentColor } : {}}
                 >
                     Overview
                 </button>
@@ -189,9 +200,10 @@ export default function PublicTournamentView(props: PublicTournamentViewProps) {
                     <button
                         onClick={() => setActiveTab('guidelines')}
                         className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${activeTab === 'guidelines'
-                            ? 'border-red-600 text-red-600'
+                            ? 'border-current'
                             : 'border-transparent text-gray-500 hover:text-gray-700'
                             }`}
+                        style={activeTab === 'guidelines' ? { ...accentStyle, borderColor: accentColor } : {}}
                     >
                         Guidelines
                     </button>
@@ -204,11 +216,11 @@ export default function PublicTournamentView(props: PublicTournamentViewProps) {
                     {/* Stats Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center">
-                            <span className="text-4xl font-bold text-red-600 block mb-1">{teams.length}</span>
+                            <span className="text-4xl font-bold block mb-1" style={accentStyle}>{teams.length}</span>
                             <span className="text-sm text-gray-500 font-medium uppercase tracking-wider">Participating Teams</span>
                         </div>
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center">
-                            <span className="text-4xl font-bold text-red-600 block mb-1">{uniqueAthletes.length}</span>
+                            <span className="text-4xl font-bold block mb-1" style={accentStyle}>{uniqueAthletes.length}</span>
                             <span className="text-sm text-gray-500 font-medium uppercase tracking-wider">Registered Athletes</span>
                         </div>
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center flex flex-col justify-center">
@@ -319,7 +331,7 @@ export default function PublicTournamentView(props: PublicTournamentViewProps) {
                                                             className="w-14 h-14 rounded-full object-cover bg-gray-100"
                                                         />
                                                     ) : (
-                                                        <div className="w-14 h-14 rounded-full bg-red-50 text-red-500 flex items-center justify-center text-lg font-bold border border-red-100">
+                                                        <div className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold border" style={{ backgroundColor: `${accentColor}10`, color: accentColor, borderColor: `${accentColor}20` }}>
                                                             {initials}
                                                         </div>
                                                     )}
@@ -376,7 +388,8 @@ export default function PublicTournamentView(props: PublicTournamentViewProps) {
                         </h3>
                         <Link
                             href={`/tournament/${tournament.id}/guidelines`}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg transition-colors text-sm font-medium"
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium hover:opacity-80"
+                            style={{ backgroundColor: `${accentColor}10`, color: accentColor }}
                         >
                             <FileText className="w-4 h-4" />
                             View Full Page / Download PDF

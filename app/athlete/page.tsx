@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import { fetchAthleteDashboardData } from '@/app/actions'
 import AthleteDashboardView from '@/components/athlete/AthleteDashboardView'
+import { getTenant } from '@/lib/tenant'
 
 export const revalidate = 30
 
@@ -20,6 +21,9 @@ export default async function AthleteDashboardPage({
     if (!clerkUser) {
         redirect('/sign-in')
     }
+
+    // Get tenant for data scoping
+    const tenant = await getTenant()
 
     // Fetch user data
     const dbUser = await prisma.user.findUnique({
@@ -50,8 +54,8 @@ export default async function AthleteDashboardPage({
     // Check if profile is complete
     const isProfileComplete = dbUser.height && dbUser.weight
 
-    // Fetch initial dashboard data server-side
-    const initialDashboardData = await fetchAthleteDashboardData(clerkUser.id)
+    // Fetch initial dashboard data server-side (scoped by tenant org)
+    const initialDashboardData = await fetchAthleteDashboardData(clerkUser.id, tenant.id)
 
     return (
         <main className="min-h-screen bg-gray-50">

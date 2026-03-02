@@ -4,6 +4,7 @@ import { completeOnboarding, checkEmailAvailability, getExistingProfile } from '
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
+import { useTenant } from '@/app/providers/TenantProvider'
 import { toast } from 'sonner'
 import { Camera, ArrowRight, ArrowLeft, CheckCircle, Loader2, Ruler, Weight, Users, Building2, Award, Calendar, ImageIcon, Hash, MapPin, Phone } from 'lucide-react'
 import Image from 'next/image'
@@ -24,6 +25,8 @@ const GENDER_OPTIONS = ['Male', 'Female']
 export default function CompleteProfilePage() {
     const { user, isLoaded } = useUser()
     const router = useRouter()
+    const tenant = useTenant()
+    const isKtm = tenant.slug === 'ktm'
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [step, setStep] = useState<OnboardingStep>('profile')
     const [roleLoaded, setRoleLoaded] = useState(false)
@@ -85,7 +88,7 @@ export default function CompleteProfilePage() {
     const [newClubName, setNewClubName] = useState('')
     const [clubLogoFile, setClubLogoFile] = useState<File | null>(null)
     const [clubLogoPreview, setClubLogoPreview] = useState<string | null>(null)
-    const [organizationId, setOrganizationId] = useState('')
+    const [organizationId, setOrganizationId] = useState(isKtm ? '' : (tenant.id || ''))
     const [orgSearch, setOrgSearch] = useState('')
     const [organizations, setOrganizations] = useState<{ id: string; name: string }[]>([])
     const [clubAddress, setClubAddress] = useState('')
@@ -102,11 +105,20 @@ export default function CompleteProfilePage() {
     // Pre-fill existing data from Clerk + DB
     useEffect(() => {
         if (!isLoaded || !user) return
-        setName(user.fullName || user.firstName || '')
+        // Only pre-fill name if Clerk has a real name (not auto-derived from email)
+        const clerkName = user.fullName || user.firstName || ''
+        const email = user.emailAddresses?.[0]?.emailAddress || ''
+        const emailPrefix = email.split('@')[0] || ''
+        // Skip if the name looks like an email prefix (contains + or @ or matches email prefix)
+        const isEmailDerived = clerkName && (
+            clerkName.includes('+') ||
+            clerkName.includes('@') ||
+            clerkName.toLowerCase() === emailPrefix.toLowerCase()
+        )
+        setName(isEmailDerived ? '' : clerkName)
         if (user.imageUrl) setImgPreview(user.imageUrl)
 
         // Fetch existing DB profile (e.g. pre-registered by clubmaster)
-        const email = user.emailAddresses?.[0]?.emailAddress
         if (email) {
             getExistingProfile(email).then((profile) => {
                 if (!profile) return
@@ -122,25 +134,26 @@ export default function CompleteProfilePage() {
         }
     }, [isLoaded, user])
 
-    // Fetch clubs for athlete dropdown
+    // Fetch clubs for athlete dropdown (scoped to tenant org)
     useEffect(() => {
         if (role === 'ATHLETE') {
-            fetch('/api/clubs')
+            const url = !isKtm && tenant.id ? `/api/clubs?orgId=${tenant.id}` : '/api/clubs'
+            fetch(url)
                 .then(res => res.json())
                 .then(data => setClubs(data))
                 .catch(() => { })
         }
-    }, [role])
+    }, [role, isKtm, tenant.id])
 
-    // Fetch organizations for club master dropdown
+    // Fetch organizations for club master dropdown (only for KTM tenant)
     useEffect(() => {
-        if (role === 'CLUB_MASTER') {
+        if (role === 'CLUB_MASTER' && isKtm) {
             fetch('/api/organizations')
                 .then(res => res.json())
                 .then(data => setOrganizations(data))
                 .catch(() => { })
         }
-    }, [role])
+    }, [role, isKtm])
 
     const filteredClubs = clubs.filter(c =>
         c.name.toLowerCase().includes(clubSearch.toLowerCase())
@@ -212,8 +225,8 @@ export default function CompleteProfilePage() {
                 return
             }
         } else if (role === 'CLUB_MASTER') {
-            if (!newClubName || !organizationId) {
-                setError('Please fill in club name and select an organization')
+            if (!newClubName || (!organizationId && isKtm)) {
+                setError('Please fill in club name' + (isKtm ? ' and select an organization' : ''))
                 return
             }
             if (!clubLogoFile) {
@@ -273,8 +286,19 @@ export default function CompleteProfilePage() {
             })
 
             if (!res.ok) {
-                const err = await res.json()
-                throw new Error(err.message || 'Failed to complete profile')
+                let errorMessage = 'Failed to complete profile'
+                const text = await res.text().catch(() => '')
+                try {
+                    const err = JSON.parse(text)
+                    errorMessage = err.error || err.message || errorMessage
+                } catch {
+                    if (res.status === 413 || text.toLowerCase().includes('too large')) {
+                        errorMessage = 'Image file is too large. Please use an image under 4MB.'
+                    } else {
+                        errorMessage = text || `Server error (${res.status})`
+                    }
+                }
+                throw new Error(errorMessage)
             }
 
             toast.success('Profile completed successfully!')
@@ -290,7 +314,7 @@ export default function CompleteProfilePage() {
     // ─── LOADING STATE ───
     if (!isLoaded || !roleLoaded) return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
-            <Loader2 className="h-8 w-8 animate-spin text-red-600 mb-4" />
+            <Loader2 className="h-8 w-8 animate-spin mb-4" style={{ color: isKtm ? '#DC2626' : tenant.primaryColor }} />
             <p className="text-gray-500 font-medium">Loading your profile...</p>
         </div>
     )
@@ -329,7 +353,7 @@ export default function CompleteProfilePage() {
         }
 
         return (
-            <div className="md:w-5/12 relative bg-red-600 text-white flex flex-col justify-between p-10">
+            <div className={`md:w-5/12 relative text-white flex flex-col justify-between p-10 ${isKtm ? 'bg-red-600' : ''}`} style={!isKtm ? { backgroundColor: tenant.primaryColor } : undefined}>
                 <div className="relative z-10">
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
@@ -337,7 +361,7 @@ export default function CompleteProfilePage() {
                         transition={{ delay: 0.2 }}
                     >
                         <h1 className="text-3xl font-black mb-4">Welcome!</h1>
-                        <p className="text-red-100 font-medium leading-relaxed">
+                        <p className={`font-medium leading-relaxed ${isKtm ? 'text-red-100' : 'text-white/80'}`}>
                             {sidebarMessage()}
                         </p>
                     </motion.div>
@@ -350,12 +374,12 @@ export default function CompleteProfilePage() {
                     className="relative z-10 space-y-4 mt-8"
                 >
                     {steps.map((s, i) => (
-                        <div key={i} className={`flex items-center gap-3 text-sm ${s.done ? 'font-medium text-red-100' : s.active ? 'font-bold text-white' : 'font-medium text-red-100 opacity-60'
+                        <div key={i} className={`flex items-center gap-3 text-sm ${s.done ? `font-medium ${isKtm ? 'text-red-100' : 'text-white/80'}` : s.active ? 'font-bold text-white' : `font-medium ${isKtm ? 'text-red-100' : 'text-white/80'} opacity-60`
                             }`}>
                             {s.done ? (
                                 <CheckCircle className="w-5 h-5 text-white" />
                             ) : (
-                                <div className={`w-5 h-5 rounded-full border-2 ${s.active ? 'border-white' : 'border-red-200'} flex items-center justify-center text-[10px]`}>
+                                <div className={`w-5 h-5 rounded-full border-2 ${s.active ? 'border-white' : isKtm ? 'border-red-200' : 'border-white/40'} flex items-center justify-center text-[10px]`}>
                                     {i + 1}
                                 </div>
                             )}
@@ -374,7 +398,8 @@ export default function CompleteProfilePage() {
         <div className="flex items-center gap-6">
             <div
                 onClick={() => profileInputRef.current?.click()}
-                className="relative w-20 h-20 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 hover:border-red-500 cursor-pointer transition-all overflow-hidden flex items-center justify-center group flex-shrink-0"
+                className={`relative w-20 h-20 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 cursor-pointer transition-all overflow-hidden flex items-center justify-center group flex-shrink-0 ${isKtm ? 'hover:border-red-500' : ''}`}
+                style={!isKtm ? { ['--hover-color' as any]: tenant.primaryColor } : undefined}
             >
                 {imgPreview ? (
                     <Image src={imgPreview} alt="Profile" fill className="object-cover" />
@@ -459,7 +484,8 @@ export default function CompleteProfilePage() {
                                     <button
                                         type="button"
                                         onClick={handleProfileNext}
-                                        className="w-full h-12 bg-red-600 hover:bg-red-700 text-white font-bold text-lg rounded-lg shadow-lg shadow-red-500/20 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                                        className={`w-full h-12 text-white font-bold text-lg rounded-lg shadow-lg transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 ${isKtm ? 'bg-red-600 hover:bg-red-700 shadow-red-500/20' : ''}`}
+                                        style={!isKtm ? { backgroundColor: tenant.primaryColor } : undefined}
                                     >
                                         Next: Club Details <ArrowRight className="w-5 h-5" />
                                     </button>
@@ -535,7 +561,7 @@ export default function CompleteProfilePage() {
                                     <div className="flex-1 space-y-4">
                                         <div className="space-y-2">
                                             <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                                <Users className="w-4 h-4 text-red-600" /> Club Name
+                                                <Users className="w-4 h-4" style={{ color: isKtm ? '#DC2626' : tenant.primaryColor }} /> Club Name
                                             </label>
                                             <input
                                                 value={newClubName}
@@ -545,37 +571,39 @@ export default function CompleteProfilePage() {
                                                 className={inputClass}
                                             />
                                         </div>
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                                <Building2 className="w-4 h-4 text-red-600" /> Affiliated Organization
-                                            </label>
-                                            <div className="relative">
-                                                <input
-                                                    value={orgSearch}
-                                                    onChange={(e) => setOrgSearch(e.target.value)}
-                                                    onFocus={() => { }}
-                                                    placeholder="Search organizations..."
-                                                    className={inputClass}
-                                                />
-                                                {orgSearch && filteredOrgs.length > 0 && (
-                                                    <div className="absolute z-20 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
-                                                        {filteredOrgs.map(org => (
-                                                            <button
-                                                                key={org.id}
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    setOrganizationId(org.id)
-                                                                    setOrgSearch(org.name)
-                                                                }}
-                                                                className="w-full text-left px-4 py-2 text-sm hover:bg-red-50 transition-colors"
-                                                            >
-                                                                {org.name}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                )}
+                                        {isKtm && (
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                                                    <Building2 className="w-4 h-4 text-red-600" /> Affiliated Organization
+                                                </label>
+                                                <div className="relative">
+                                                    <input
+                                                        value={orgSearch}
+                                                        onChange={(e) => setOrgSearch(e.target.value)}
+                                                        onFocus={() => { }}
+                                                        placeholder="Search organizations..."
+                                                        className={inputClass}
+                                                    />
+                                                    {orgSearch && filteredOrgs.length > 0 && (
+                                                        <div className="absolute z-20 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                                                            {filteredOrgs.map(org => (
+                                                                <button
+                                                                    key={org.id}
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setOrganizationId(org.id)
+                                                                        setOrgSearch(org.name)
+                                                                    }}
+                                                                    className="w-full text-left px-4 py-2 text-sm hover:bg-red-50 transition-colors"
+                                                                >
+                                                                    {org.name}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -616,7 +644,8 @@ export default function CompleteProfilePage() {
                                 <div className="pt-4">
                                     <button
                                         type="submit"
-                                        className="w-full h-12 bg-red-600 hover:bg-red-700 text-white font-bold text-lg rounded-lg shadow-lg shadow-red-500/20 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className={`w-full h-12 text-white font-bold text-lg rounded-lg shadow-lg transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${isKtm ? 'bg-red-600 hover:bg-red-700 shadow-red-500/20' : ''}`}
+                                        style={!isKtm ? { backgroundColor: tenant.primaryColor } : undefined}
                                         disabled={isSubmitting}
                                     >
                                         {isSubmitting ? (
@@ -678,7 +707,8 @@ export default function CompleteProfilePage() {
                                     <button
                                         type="button"
                                         onClick={handleProfileNext}
-                                        className="w-full h-12 bg-red-600 hover:bg-red-700 text-white font-bold text-lg rounded-lg shadow-lg shadow-red-500/20 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                                        className={`w-full h-12 text-white font-bold text-lg rounded-lg shadow-lg transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 ${isKtm ? 'bg-red-600 hover:bg-red-700 shadow-red-500/20' : ''}`}
+                                        style={!isKtm ? { backgroundColor: tenant.primaryColor } : undefined}
                                     >
                                         Next: Organization Details <ArrowRight className="w-5 h-5" />
                                     </button>
@@ -789,7 +819,8 @@ export default function CompleteProfilePage() {
                                 <div className="pt-4">
                                     <button
                                         type="submit"
-                                        className="w-full h-12 bg-red-600 hover:bg-red-700 text-white font-bold text-lg rounded-lg shadow-lg shadow-red-500/20 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className={`w-full h-12 text-white font-bold text-lg rounded-lg shadow-lg transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${isKtm ? 'bg-red-600 hover:bg-red-700 shadow-red-500/20' : ''}`}
+                                        style={!isKtm ? { backgroundColor: tenant.primaryColor } : undefined}
                                         disabled={isSubmitting}
                                     >
                                         {isSubmitting ? (
@@ -957,7 +988,8 @@ export default function CompleteProfilePage() {
                             <div className="pt-4">
                                 <button
                                     type="submit"
-                                    className="w-full h-12 bg-red-600 hover:bg-red-700 text-white font-bold text-lg rounded-lg shadow-lg shadow-red-500/20 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className={`w-full h-12 text-white font-bold text-lg rounded-lg shadow-lg transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${isKtm ? 'bg-red-600 hover:bg-red-700 shadow-red-500/20' : ''}`}
+                                    style={!isKtm ? { backgroundColor: tenant.primaryColor } : undefined}
                                     disabled={isSubmitting}
                                 >
                                     {isSubmitting ? (

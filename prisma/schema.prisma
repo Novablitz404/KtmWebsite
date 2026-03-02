@@ -158,6 +158,10 @@ model User {
   club         Club?
   organization Organization? @relation("OrganizationOwner")
 
+  // Tenant Membership (which org's website the user signed up through)
+  organizationMemberId String?
+  memberOrganization   Organization? @relation("OrganizationMembers", fields: [organizationMemberId], references: [id])
+
   // Organizer Relations
   createdTournaments Tournament[] @relation("OrganizerTournaments")
   managedTournaments Tournament[] @relation("TournamentManagers")
@@ -174,6 +178,7 @@ model User {
 
   @@index([clubName])
   @@index([name])
+  @@index([organizationMemberId])
 }
 
 model Player {
@@ -246,6 +251,17 @@ model Organization {
   emailBannerUrl String?
   status        String   @default("APPROVED") // PENDING, APPROVED, REJECTED
 
+  // White-Label Branding
+  slug           String?  @unique // "wotf", "tapelite" — routing key
+  customDomain   String?  @unique // "wotf.org" — domain-based tenant detection
+  primaryColor   String?           // "#C62828"
+  secondaryColor String?           // "#1565C0"
+  accentColor    String?           // "#FF9800"
+  faviconUrl     String?
+  heroImageUrl   String?
+  tagline        String?           // "World of Taekwondo Federation"
+  footerText     String?
+
   // Organization Details
   chairman     String?
   viceChairman String?
@@ -257,6 +273,9 @@ model Organization {
   // Co-Organizers (many-to-many - users who can help manage this organization)
   coOrganizers User[] @relation("OrganizationCoOrganizers")
   coOrganizerInvites CoOrganizerInvite[]
+
+  // Tenant Members (users who signed up through this org's website)
+  members User[] @relation("OrganizationMembers")
 
   clubs Club[]
 

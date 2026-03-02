@@ -1,11 +1,103 @@
 import { prisma } from '@/lib/prisma'
 import Image from 'next/image'
 import Link from 'next/link'
+import { getTenant } from '@/lib/tenant'
+import WOTFEventsPage from '@/components/landing/wotf/pages/EventsPage'
 
 // Force dynamic rendering to ensure real-time data and avoid build-time DB connections
 export const dynamic = 'force-dynamic'
 
 export default async function EventsPage() {
+    const tenant = await getTenant()
+
+    // Non-KTM tenant: show org-specific events page with real data
+    if (tenant.slug !== 'ktm') {
+        const now = new Date()
+        now.setHours(0, 0, 0, 0)
+
+        // Build org filter for seminars (they have organizationId)
+        let seminarOrgFilter: any = {}
+        if (tenant.id) {
+            const ktmOrg = await prisma.organization.findFirst({
+                where: { slug: 'ktm' },
+                select: { id: true }
+            })
+            const allowedOrgIds = [tenant.id]
+            if (ktmOrg && ktmOrg.id !== tenant.id) {
+                allowedOrgIds.push(ktmOrg.id)
+            }
+            seminarOrgFilter = { organizationId: { in: allowedOrgIds } }
+        }
+
+        const [tournaments, seminars] = await Promise.all([
+            prisma.tournament.findMany({
+                where: {
+                    startDate: { gte: now },
+                    status: { not: 'CANCELLED' },
+                },
+                orderBy: { startDate: 'asc' },
+                select: {
+                    id: true,
+                    name: true,
+                    startDate: true,
+                    venue: true,
+                    headerImageUrl: true,
+                    status: true,
+                    categories: {
+                        select: { type: true }
+                    }
+                }
+            }),
+            prisma.seminar.findMany({
+                where: {
+                    startDate: { gte: now },
+                    status: { not: 'CANCELLED' },
+                    ...seminarOrgFilter,
+                },
+                orderBy: { startDate: 'asc' },
+                select: {
+                    id: true,
+                    name: true,
+                    startDate: true,
+                    endDate: true,
+                    venue: true,
+                    bannerUrl: true,
+                    status: true,
+                }
+            })
+        ])
+
+        // Normalize to a common shape for the events page
+        const events = [
+            ...tournaments.map(t => ({
+                id: t.id,
+                title: t.name,
+                type: 'competition' as const,
+                start: t.startDate,
+                end: t.startDate, // Tournaments don't have endDate
+                location: t.venue || 'TBA',
+                image: t.headerImageUrl || 'bg-gradient-to-br from-spanish-red to-orange-600',
+                status: t.status === 'UPCOMING' ? 'upcoming' as const : 'open' as const,
+                tags: [...new Set(t.categories.map(c => c.type))],
+                link: `/tournament/${t.id}`,
+            })),
+            ...seminars.map(s => ({
+                id: s.id,
+                title: s.name,
+                type: 'camp' as const,
+                start: s.startDate,
+                end: s.endDate || s.startDate,
+                location: s.venue || 'TBA',
+                image: s.bannerUrl || 'bg-gradient-to-br from-african-turquoise to-teal-600',
+                status: s.status === 'UPCOMING' ? 'upcoming' as const : 'open' as const,
+                tags: ['Seminar'],
+                link: `/seminars/${s.id}`,
+            })),
+        ].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+
+        return <WOTFEventsPage events={events} />
+    }
+
     const now = new Date()
     now.setHours(0, 0, 0, 0)
 

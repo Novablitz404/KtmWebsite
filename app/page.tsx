@@ -3,13 +3,33 @@ import { currentUser } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import { fetchLandingPageEvents } from '@/app/actions'
 import LandingPage from '@/components/LandingPage'
+import { getTenant } from '@/lib/tenant'
+import WOTFLandingPage from '@/components/landing/wotf/pages/LandingPage'
 
 const ADMIN_EMAILS = ['ericjann21@gmail.com']
 
 export default async function Home() {
   const user = await currentUser()
+  const tenant = await getTenant()
 
-  // Role-based redirects for logged-in users
+  // Non-KTM tenant handling
+  if (tenant.slug !== 'ktm') {
+    if (user) {
+      // Authenticated tenant user → redirect to their dashboard (with tenant param)
+      const existingTenantUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        select: { role: true }
+      })
+      const tenantQs = `?tenant=${tenant.slug}`
+      if (existingTenantUser?.role === 'ATHLETE') {
+        redirect(`/athlete${tenantQs}`)
+      } else if (existingTenantUser?.role === 'CLUB_MASTER' || existingTenantUser?.role === 'ASSISTANT_CLUB_MASTER') {
+        redirect(`/club${tenantQs}`)
+      }
+    }
+    // Unauthenticated visitor → show org-specific landing
+    return <WOTFLandingPage />
+  }
   if (user) {
     const userEmail = user.emailAddresses[0]?.emailAddress
 

@@ -1100,6 +1100,7 @@ export async function completeOnboarding(formData: FormData) {
     if (!user) throw new Error('Not authenticated')
 
     const role = formData.get('role') as string
+    const tenant = (formData.get('tenant') as string) || 'ktm'
 
     if (!role) {
         throw new Error('Role is required')
@@ -1109,7 +1110,8 @@ export async function completeOnboarding(formData: FormData) {
     const isCoOrganizer = role === 'CO_ORGANIZER'
 
     const userEmail = user.emailAddresses[0].emailAddress
-    const userName = user.fullName || user.firstName || userEmail.split('@')[0]
+    // Don't pre-fill name from email — real name is collected on the onboarding profile form
+    const userName = ''
 
     console.log('Completing onboarding for:', { role, email: userEmail })
 
@@ -1205,7 +1207,8 @@ export async function completeOnboarding(formData: FormData) {
         await client.users.updateUser(user.id, {
             publicMetadata: {
                 role: assignedRole,
-                profileComplete
+                profileComplete,
+                tenant,
             }
         })
     } catch (error) {
@@ -2131,7 +2134,13 @@ export async function fetchLandingPageEvents() {
         .slice(0, 6)
 }
 
-export async function fetchAthleteDashboardData(clerkId: string) {
+export async function fetchAthleteDashboardData(clerkId: string, organizationId?: string | null) {
+    // If no organizationId passed, auto-detect from tenant headers (for client-side refetch)
+    if (organizationId === undefined) {
+        const { getTenant } = await import('@/lib/tenant')
+        const tenant = await getTenant()
+        organizationId = tenant.id
+    }
     const dbUser = await prisma.user.findUnique({
         where: { clerkId: clerkId },
         select: {
@@ -2239,17 +2248,37 @@ export async function fetchAthleteDashboardData(clerkId: string) {
     })
 
     // Fetch generic upcoming events for the club (My Events)
+    // Scoped by organization: show events from user's org + KTM-created (global) events
     let clubUpcomingEvents: any[] = []
     if (clubId) {
         const today = new Date()
         today.setHours(0, 0, 0, 0)
 
+        // Build org filter: user's org events + KTM global events
+        // Tournament doesn't have organizationId, Seminar and PromotionTest do
+        let seminarOrgFilter: any = {}
+        if (organizationId) {
+            // Look up KTM org ID to include global events
+            const ktmOrg = await prisma.organization.findFirst({
+                where: { slug: 'ktm' },
+                select: { id: true }
+            })
+            const allowedOrgIds = [organizationId]
+            if (ktmOrg && ktmOrg.id !== organizationId) {
+                allowedOrgIds.push(ktmOrg.id)
+            }
+            seminarOrgFilter = { organizationId: { in: allowedOrgIds } }
+        }
+        // If no organizationId provided (KTM admin), show all events
+
         const [tournaments, seminars, promotionTests] = await Promise.all([
+            // Tournaments don't have organizationId — they're already scoped
+            // by participatingClubs (only shows events the club was invited to)
             prisma.tournament.findMany({
                 where: {
                     participatingClubs: { some: { clubId } },
                     startDate: { gte: today },
-                    status: { not: 'CANCELLED' }
+                    status: { not: 'CANCELLED' },
                 },
                 orderBy: { startDate: 'asc' },
                 take: 20,
@@ -2272,7 +2301,8 @@ export async function fetchAthleteDashboardData(clerkId: string) {
                 where: {
                     participatingClubs: { some: { clubId } },
                     startDate: { gte: today },
-                    status: { not: 'CANCELLED' }
+                    status: { not: 'CANCELLED' },
+                    ...seminarOrgFilter,
                 },
                 orderBy: { startDate: 'asc' },
                 take: 20,
@@ -2288,7 +2318,8 @@ export async function fetchAthleteDashboardData(clerkId: string) {
                 where: {
                     participatingClubs: { some: { clubId } },
                     testDate: { gte: today },
-                    status: { not: 'CANCELLED' }
+                    status: { not: 'CANCELLED' },
+                    ...seminarOrgFilter,
                 },
                 orderBy: { testDate: 'asc' },
                 take: 20,

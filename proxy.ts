@@ -8,6 +8,8 @@ const isPublicRoute = createRouteMatcher([
     '/api/webhooks(.*)',
     '/api/tournament(.*)',
     '/api/poomsae(.*)',
+    '/api/clubs',
+    '/api/v1/onboarding(.*)',
     '/tournaments(.*)',
     '/tournament/(.*)',
     '/about',
@@ -81,27 +83,62 @@ export default clerkMiddleware(async (auth, request) => {
         await auth.protect()
     }
 
-    // Role-based redirect for Landing Page ("/")
-    if (request.nextUrl.pathname === '/') {
-        const { userId, sessionClaims } = await auth()
-        if (userId && (sessionClaims?.publicMetadata as any)?.role) {
-            const role = (sessionClaims.publicMetadata as any).role as string
-            const origin = request.nextUrl.origin
 
-            if (role === 'CLUB_MASTER' || role === 'ASSISTANT_CLUB_MASTER') {
-                return NextResponse.redirect(`${origin}/club`)
-            } else if (role === 'ATHLETE') {
-                return NextResponse.redirect(`${origin}/athlete`)
-            } else if (role === 'MANAGER') {
-                return NextResponse.redirect(`${origin}/organization?tab=events`)
-            } else if (role === 'ADMIN') {
-                return NextResponse.redirect(`${origin}/admin`)
-            }
-        }
+    // ========================================
+    // TENANT DETECTION
+    // Priority: 1) ?tenant= query param  2) Custom domain  3) Clerk session metadata  4) KTM default
+    // Requires Clerk session token template to include publicMetadata.
+    // ========================================
+    const hostname = request.headers.get('host') || ''
+    const { searchParams } = request.nextUrl
+
+    // Static tenant map for known domains
+    const TENANT_MAP: Record<string, string> = {
+        // Custom domains → org slug
+        // 'wotf.org': 'wotf',
+        // 'www.wotf.org': 'wotf',
+        // 'tapelite.com': 'tapelite',
     }
 
-    // Get the response from NextResponse
-    const response = NextResponse.next()
+    // KTM admin domains (no tenant — serves KTM super admin)
+    const KTM_DOMAINS = ['ktm.com', 'www.ktm.com', 'ktm-website.vercel.app']
+
+    const tenantParam = searchParams.get('tenant')
+    const tenantFromDomain = TENANT_MAP[hostname]
+    const isKtmDomain = KTM_DOMAINS.includes(hostname) || hostname.startsWith('localhost')
+
+    // Read tenant from Clerk session (catches RSC requests without ?tenant= param)
+    let tenantFromSession: string | null = null
+    try {
+        const { sessionClaims } = await auth()
+        tenantFromSession = (sessionClaims?.publicMetadata as any)?.tenant || null
+    } catch { }
+
+    let orgSlug = 'ktm'
+    if (tenantParam) {
+        orgSlug = tenantParam
+    } else if (tenantFromDomain) {
+        orgSlug = tenantFromDomain
+    } else if (tenantFromSession && tenantFromSession !== 'ktm') {
+        orgSlug = tenantFromSession
+    } else if (isKtmDomain) {
+        orgSlug = 'ktm'
+    } else {
+        orgSlug = hostname
+    }
+
+    console.log('[Proxy] path:', request.nextUrl.pathname, '| tenantParam:', tenantParam, '| tenantFromSession:', tenantFromSession, '| orgSlug:', orgSlug)
+
+    // Clone the request headers and add the tenant slug
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set('x-org-slug', orgSlug)
+
+    // Get the response, passing the modified request headers
+    const response = NextResponse.next({
+        request: {
+            headers: requestHeaders,
+        },
+    })
 
     // Add security headers
     Object.entries(securityHeaders).forEach(([key, value]) => {

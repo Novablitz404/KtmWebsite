@@ -1,7 +1,16 @@
 import CustomSignUpForm from '../../../components/auth/CustomSignUpForm'
 import Image from 'next/image'
+import { getTenant } from '@/lib/tenant'
+import WOTFSignUpPage from '@/components/landing/wotf/pages/SignUpPage'
 
 export default async function SignUpPage() {
+    const tenant = await getTenant()
+
+    // Non-KTM tenant: show org-specific sign-up page
+    if (tenant.slug !== 'ktm') {
+        return <WOTFSignUpPage />
+    }
+
     return (
         <div className="min-h-screen grid grid-cols-1 md:grid-cols-2 bg-gray-50 md:bg-white overflow-hidden">
             {/* Left Column: Sign Up Form */}

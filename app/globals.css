@@ -3,6 +3,10 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Tenant-customizable colors (defaults = KTM branding) */
+  --tenant-primary: #DC2626;
+  --tenant-secondary: #1E40AF;
+  --tenant-accent: #F59E0B;
   /* Safe area insets for iOS */
   --safe-area-top: env(safe-area-inset-top);
   --safe-area-bottom: env(safe-area-inset-bottom);
@@ -15,6 +19,13 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* WOTF brand colors */
+  --color-congo-blue: #0085C7;
+  --color-dashing-yellow: #F4C300;
+  --color-african-turquoise: #000000;
+  --color-super-green: #009F3D;
+  --color-spanish-red: #DF0024;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -75,4 +86,50 @@ body {
 
 .mobile-card-press:active {
   animation: card-press 0.15s ease-out;
+}
+
+/* === WOTF-specific CSS === */
+
+/* 3D Flip Utilities */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.transform-style-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+.group:hover .group-hover\:rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+@media (min-width: 768px) {
+  .group:hover .md\:group-hover\:rotate-y-180 {
+    transform: rotateY(180deg);
+  }
+}
+
+/* Partners marquee - GPU-accelerated */
+.marquee-track {
+  animation: marquee 25s linear infinite;
+  will-change: transform;
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(calc(-50% - 10px));
+  }
 }

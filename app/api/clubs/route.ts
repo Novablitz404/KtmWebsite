@@ -1,10 +1,15 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
     try {
+        const orgId = request.nextUrl.searchParams.get('orgId')
+
         const clubs = await prisma.club.findMany({
-            where: { status: 'APPROVED' },
+            where: {
+                status: 'APPROVED',
+                ...(orgId ? { organizationId: orgId } : {}),
+            },
             orderBy: { name: 'asc' },
             select: { id: true, name: true }
         })

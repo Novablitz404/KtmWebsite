@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { Eye, EyeOff, Loader2, ArrowLeft, ArrowRight } from 'lucide-react'
 import { completeOnboarding, checkEmailAvailability } from '@/app/actions'
 import { toast } from 'sonner'
+import { useTenant } from '@/app/providers/TenantProvider'
 
 interface CustomSignUpFormProps {
     headerMode?: 'mobile' | 'desktop'
@@ -18,6 +19,7 @@ type Step = 'role-selection' | 'account' | 'verification'
 export default function CustomSignUpForm({ headerMode = 'mobile' }: CustomSignUpFormProps) {
     const { isLoaded, signUp, setActive } = useSignUp()
     const router = useRouter()
+    const tenant = useTenant()
 
     // Steps State
     const [step, setStep] = useState<Step>('role-selection')
@@ -245,11 +247,11 @@ export default function CustomSignUpForm({ headerMode = 'mobile' }: CustomSignUp
                 <div className={`text-center mb-10 ${headerMode === 'desktop' ? 'md:text-center' : ''}`}>
                     {headerMode !== 'desktop' && (
                         <div className="relative w-20 h-20 mx-auto mb-6">
-                            <Image src="/KTMLogo.png" alt="KTM Logo" fill className="object-contain" priority />
+                            <Image src={tenant.logoUrl} alt={`${tenant.name} Logo`} fill className="object-contain" priority />
                         </div>
                     )}
                     <h1 className={`${headerMode === 'desktop' ? 'text-4xl' : 'text-3xl'} font-black text-gray-900 tracking-tight`}>
-                        Join the KTM Community
+                        Join {tenant.name}
                     </h1>
                     <p className="text-gray-500 mt-3 text-lg">
                         Choose how you want to participate
@@ -311,7 +313,7 @@ export default function CustomSignUpForm({ headerMode = 'mobile' }: CustomSignUp
                 <div className={`text-center mb-8 ${headerMode === 'desktop' ? 'text-left md:text-center' : ''}`}>
                     {headerMode !== 'desktop' && (
                         <div className="relative w-16 h-16 mx-auto mb-4">
-                            <Image src="/KTMLogo.png" alt="KTM Logo" fill className="object-contain" priority />
+                            <Image src={tenant.logoUrl} alt={`${tenant.name} Logo`} fill className="object-contain" priority />
                         </div>
                     )}
                     <h1 className={`${headerMode === 'desktop' ? 'text-3xl lg:text-4xl' : 'text-2xl'} font-black text-gray-900 tracking-tight`}>
@@ -450,7 +452,7 @@ export default function CustomSignUpForm({ headerMode = 'mobile' }: CustomSignUp
                 <div className="mb-8 text-center">
                     {headerMode !== 'desktop' && (
                         <div className="relative w-16 h-16 mx-auto mb-4">
-                            <Image src="/KTMLogo.png" alt="KTM Logo" fill className="object-contain" priority />
+                            <Image src={tenant.logoUrl} alt={`${tenant.name} Logo`} fill className="object-contain" priority />
                         </div>
                     )}
                     <h1 className={`${headerMode === 'desktop' ? 'text-3xl lg:text-4xl' : 'text-2xl'} font-black text-gray-900 tracking-tight`}>

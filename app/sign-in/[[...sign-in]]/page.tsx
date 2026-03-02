@@ -4,12 +4,22 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { currentUser } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
+import { getTenant } from '@/lib/tenant'
+import WOTFSignInPage from '@/components/landing/wotf/pages/SignInPage'
 
 export default async function SignInPage() {
     // If user is already authenticated, redirect them away from sign-in
+    // Only for KTM — WOTF sign-in client component handles its own redirect
     const user = await currentUser()
-    if (user) {
+    const tenant = await getTenant()
+
+    if (user && tenant.slug === 'ktm') {
         redirect('/')
+    }
+
+    // Non-KTM tenant: show org-specific sign-in page
+    if (tenant.slug !== 'ktm') {
+        return <WOTFSignInPage />
     }
 
     return (

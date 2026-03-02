@@ -213,8 +213,12 @@ export async function POST(request: Request) {
         if (dbUser.clerkId) {
             try {
                 const client = await clerkClient()
+                // Read existing metadata to preserve tenant field
+                const clerkUser = await client.users.getUser(dbUser.clerkId)
+                const existingMeta = (clerkUser.publicMetadata as any) || {}
                 await client.users.updateUser(dbUser.clerkId, {
                     publicMetadata: {
+                        ...existingMeta,
                         role: dbUser.role,
                         profileComplete: true
                     }

@@ -5,11 +5,13 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import { motion } from 'framer-motion'
+import { useTenant } from '@/app/providers/TenantProvider'
 
 export default function Header() {
     const { user, isLoaded } = useUser()
     const pathname = usePathname()
     const [scrolled, setScrolled] = useState(false)
+    const tenant = useTenant()
 
     // PWA detection state
     const [isMobilePWA, setIsMobilePWA] = useState(false)
@@ -65,14 +67,14 @@ export default function Header() {
                         <div className="flex items-center gap-8 lg:gap-12">
                             <Link href="/" className="flex items-center relative">
                                 <img
-                                    src="/ktmnav.png"
-                                    alt="KTM Logo"
+                                    src={tenant.logoUrl}
+                                    alt={`${tenant.name} Logo`}
                                     className={`h-8 sm:h-9 object-contain transition-opacity duration-300 ${scrolled || !isHomePage ? 'opacity-100' : 'opacity-0'
                                         }`}
                                 />
                                 <img
-                                    src="/ktmnav_white.png"
-                                    alt="KTM Logo"
+                                    src={tenant.logoWhiteUrl}
+                                    alt={`${tenant.name} Logo`}
                                     className={`h-8 sm:h-9 object-contain transition-opacity duration-300 absolute left-0 ${scrolled || !isHomePage ? 'opacity-0' : 'opacity-100'
                                         }`}
                                 />
