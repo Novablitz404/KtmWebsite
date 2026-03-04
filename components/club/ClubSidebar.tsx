@@ -1,6 +1,7 @@
 'use client'
 
 import { useClerk } from '@clerk/nextjs'
+import { useTenant } from '@/app/providers/TenantProvider'
 import { useRouter } from 'next/navigation'
 import {
     LayoutDashboard,
@@ -38,10 +39,10 @@ export default function ClubSidebar({
 }: ClubSidebarProps) {
     const { signOut } = useClerk()
     const router = useRouter()
+    const tenant = useTenant()
 
     const handleLogout = async () => {
-        await signOut()
-        router.push('/')
+        await signOut({ redirectUrl: '/' })
     }
 
     return (

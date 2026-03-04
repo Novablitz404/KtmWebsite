@@ -4,29 +4,9 @@ import { useEffect, useState, useRef } from 'react';
 import { useInView } from 'framer-motion';
 import MotionWrapper from './MotionWrapper';
 
-const stats = [
-    {
-        id: 1,
-        value: 5000,
-        label: "Active Athletes",
-        suffix: "+",
-        color: "text-congo-blue",
-    },
-    {
-        id: 2,
-        value: 120,
-        label: "Member Clubs",
-        suffix: "+",
-        color: "text-spanish-red",
-    },
-    {
-        id: 3,
-        value: 25,
-        label: "Annual Events",
-        suffix: "+",
-        color: "text-african-turquoise",
-    },
-];
+interface StatsSectionProps {
+    stats?: { athletes: number; clubs: number; events: number };
+}
 
 const Counter = ({ value, duration = 2 }: { value: number, duration?: number }) => {
     const [count, setCount] = useState(0);
@@ -62,12 +42,36 @@ const Counter = ({ value, duration = 2 }: { value: number, duration?: number }) 
     return <span ref={ref}>{count.toLocaleString()}</span>;
 };
 
-const StatsSection = () => {
+const StatsSection = ({ stats }: StatsSectionProps) => {
+    const statItems = [
+        {
+            id: 1,
+            value: stats?.athletes ?? 0,
+            label: "Active Athletes",
+            suffix: "+",
+            color: "text-congo-blue",
+        },
+        {
+            id: 2,
+            value: stats?.clubs ?? 0,
+            label: "Member Clubs",
+            suffix: "+",
+            color: "text-spanish-red",
+        },
+        {
+            id: 3,
+            value: stats?.events ?? 0,
+            label: "Events Hosted",
+            suffix: "+",
+            color: "text-african-turquoise",
+        },
+    ];
+
     return (
         <section className="py-10 md:py-16 bg-white border-b border-gray-100">
             <div className="container mx-auto px-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
-                    {stats.map((stat, index) => (
+                    {statItems.map((stat, index) => (
                         <MotionWrapper
                             key={stat.id}
                             delay={index * 0.1}

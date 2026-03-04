@@ -4,12 +4,13 @@ import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { getOrganizationDashboardData } from './actions'
-import { getOrganizerTournaments } from '@/app/organization/actions'
+
 import DashboardStats from '@/components/DashboardStats'
 import AffiliatedClubsTable from '@/components/organization/AffiliatedClubsTable'
 import AffiliatedOrgsTable from '@/components/organization/AffiliatedOrgsTable'
-import ClubScheduleWidget from '@/components/club/ClubScheduleWidget'
+
 import AnnouncementsWidget from '@/components/organization/AnnouncementsWidget'
+import PendingApprovalsWidget from '@/components/organization/PendingApprovalsWidget'
 import OrganizationSkeleton from '@/components/skeletons/OrganizationSkeleton'
 import OrganizationSidebar from '@/components/organization/OrganizationSidebar'
 import SmartAlertsWidget from '@/components/organization/SmartAlertsWidget'
@@ -17,7 +18,9 @@ import OrganizationEventsView from '@/components/organization/OrganizationEvents
 import OrganizationClubsView from '@/components/organization/OrganizationClubsView'
 import OrganizationTopBar from '@/components/organization/OrganizationTopBar'
 import OrganizationCoOrganizers from '@/components/OrganizationCoOrganizers'
-import { LayoutDashboard, Building2, Calendar, Settings, Users } from 'lucide-react'
+import OrganizationAthletesView from '@/components/organization/OrganizationAthletesView'
+import OrganizationFinancialsView from '@/components/organization/OrganizationFinancialsView'
+import { LayoutDashboard, Building2, Calendar, Settings, Users, IdCard, DollarSign } from 'lucide-react'
 
 interface OrganizationDashboardProps {
     initialData: any | null
@@ -30,7 +33,7 @@ interface OrganizationDashboardProps {
     settingsContent?: React.ReactNode
 }
 
-type ViewType = 'home' | 'clubs' | 'events' | 'team' | 'settings'
+type ViewType = 'home' | 'clubs' | 'events' | 'athletes' | 'financials' | 'team' | 'settings'
 
 export default function OrganizationDashboard({
     initialData,
@@ -60,18 +63,13 @@ export default function OrganizationDashboard({
         staleTime: 1000 * 60 * 5 // 5 minutes
     })
 
-    // Fetch tournaments for the calendar
-    const { data: tournaments, isLoading: tournamentsLoading } = useQuery({
-        queryKey: ['organizer-tournaments'],
-        queryFn: () => getOrganizerTournaments(),
-        staleTime: 1000 * 60 * 5
-    })
+
 
     const mobileNavItems = [
         { id: 'home', label: 'Home', icon: LayoutDashboard },
         { id: 'clubs', label: 'Affiliates', icon: Building2 },
         { id: 'events', label: 'Events', icon: Calendar },
-        { id: 'team', label: 'Team', icon: Users },
+        { id: 'financials', label: 'Financials', icon: DollarSign },
         { id: 'settings', label: 'Settings', icon: Settings },
     ] as const
 
@@ -86,7 +84,6 @@ export default function OrganizationDashboard({
             <OrganizationSidebar
                 activeView={activeView}
                 onNavigate={setActiveView}
-                orgLogo={dashboardData?.organization?.logoUrl}
                 orgName={dashboardData?.organization?.name}
             />
 
@@ -95,7 +92,8 @@ export default function OrganizationDashboard({
                 <OrganizationTopBar
                     userName={userData.name || 'User'}
                     userImageUrl={clerkImageUrl}
-                    title={activeView === 'settings' ? 'Settings' : undefined}
+                    title={activeView === 'settings' ? 'Settings' : activeView === 'athletes' ? 'Athlete Cards' : activeView === 'financials' ? 'Financials' : undefined}
+                    subtitle={activeView === 'athletes' ? 'Manage athlete card activation status' : activeView === 'financials' ? 'Revenue overview for all events' : undefined}
                     searchQuery={searchQuery}
                     onSearchChange={activeView === 'clubs' || activeView === 'events' ? handleSearchChange : undefined}
                     searchPlaceholder={activeView === 'clubs' ? 'Search clubs, masters...' : activeView === 'events' ? 'Search events...' : 'Search...'}
@@ -151,34 +149,21 @@ export default function OrganizationDashboard({
                                             }} />
                                         </div>
 
-
-
-                                        {/* Schedule Calendar Widget */}
-                                        <div className="flex-1 min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
-                                            <ClubScheduleWidget
-                                                tournaments={(tournaments || []).map(t => ({
-                                                    id: t.id,
-                                                    name: t.name,
-                                                    startDate: new Date(t.startDate),
-                                                    athleteCount: t.categories?.reduce((sum: number, cat: any) => sum + (cat._count?.players || 0), 0) || 0,
-                                                    gold: 0,
-                                                    silver: 0,
-                                                    bronze: 0
-                                                }))}
-                                                isLoading={tournamentsLoading}
-                                            />
-                                        </div>
+                                        {/* Pending Approvals Widget */}
+                                        <PendingApprovalsWidget
+                                            pendingClubs={(dashboardData.allClubs || []).filter((c: any) => c?.status === 'PENDING')}
+                                        />
                                     </div>
 
                                     {/* Right Column (Sidebar/Quick Info) - Desktop Only */}
-                                    <div className="hidden xl:flex flex-col gap-6 h-full overflow-hidden">
+                                    <div className="hidden xl:flex flex-col gap-6 h-full">
                                         {/* Smart Alerts Widget (Replaces Details) */}
                                         <div className="flex-shrink-0">
                                             <SmartAlertsWidget />
                                         </div>
 
                                         {/* Announcements Widget */}
-                                        <div className="flex-1 min-h-0 overflow-y-auto">
+                                        <div className="flex-1 min-h-0 flex flex-col">
                                             <AnnouncementsWidget announcements={dashboardData.announcements || []} />
                                         </div>
                                     </div>
@@ -207,6 +192,16 @@ export default function OrganizationDashboard({
                                     templates={dashboardData.guidelineTemplates || []}
                                 />
                             </div>
+                        )}
+
+                        {/* Athletes View */}
+                        {activeView === 'athletes' && (
+                            <OrganizationAthletesView />
+                        )}
+
+                        {/* Financials View */}
+                        {activeView === 'financials' && (
+                            <OrganizationFinancialsView />
                         )}
 
                         {/* Settings View */}

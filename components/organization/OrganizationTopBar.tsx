@@ -1,7 +1,6 @@
 'use client'
 
 import { Search } from 'lucide-react'
-import { JoinNetworkModal } from './JoinNetworkModal'
 
 interface OrganizationTopBarProps {
     userName?: string
@@ -12,6 +11,7 @@ interface OrganizationTopBarProps {
     onSearchChange?: (query: string) => void
     searchPlaceholder?: string
     title?: string
+    subtitle?: string
     onSettingsClick?: () => void
 }
 
@@ -24,12 +24,16 @@ export default function OrganizationTopBar({
     onSearchChange,
     searchPlaceholder = 'Search...',
     title,
+    subtitle,
     onSettingsClick
 }: OrganizationTopBarProps) {
     if (title) {
         return (
             <div className="flex items-center justify-between h-16 px-6 border-b border-gray-100/50 md:border-none bg-white md:bg-transparent">
-                <h1 className="text-xl font-bold text-gray-900">{title}</h1>
+                <div>
+                    <h1 className="text-xl font-bold text-gray-900">{title}</h1>
+                    {subtitle && <p className="text-xs text-gray-500 -mt-0.5">{subtitle}</p>}
+                </div>
 
                 {/* Mobile User Profile (Visible when title is shown, e.g. Settings) */}
                 <div className="md:hidden flex items-center gap-3">
@@ -75,7 +79,7 @@ export default function OrganizationTopBar({
 
             {/* Right Side: Notifications & User Profile */}
             <div className="flex items-center gap-2 md:gap-4">
-                <JoinNetworkModal />
+
 
                 {/* User Profile */}
                 <div

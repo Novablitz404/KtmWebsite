@@ -30,7 +30,27 @@ export async function createTournament(formData: FormData) {
     const registrationStartStr = formData.get('registrationStart') as string | null
     const registrationEndStr = formData.get('registrationEnd') as string | null
     const guidelineTemplateId = formData.get('guidelineTemplateId') as string | null
+    const tier = formData.get('tier') as string | null
     const headerImage = formData.get('headerImage') as File | null
+
+    // Time fields
+    const startTime = formData.get('startTime') as string || '08:00'
+    const regStartTime = formData.get('regStartTime') as string || '00:00'
+    const regEndTime = formData.get('regEndTime') as string || '23:59'
+
+    // Early bird fields
+    const earlyBirdDeadlineStr = formData.get('earlyBirdDeadline') as string | null
+    const earlyBirdTimeStr = formData.get('earlyBirdTime') as string || '23:59'
+    const earlyBirdPriceStr = formData.get('earlyBirdPrice') as string | null
+    const regularPriceStr = formData.get('regularPrice') as string | null
+
+    // Pricing visibility & per-category pricing
+    const showPricing = formData.get('showPricing') === 'true'
+    const categoryPricingStr = formData.get('categoryPricing') as string | null
+    let categoryPricing = null
+    if (categoryPricingStr) {
+        try { categoryPricing = JSON.parse(categoryPricingStr) } catch { /* ignore invalid JSON */ }
+    }
 
     if (!name || !startDateStr) {
         return { error: 'Tournament name and date are required' }
@@ -51,10 +71,13 @@ export async function createTournament(formData: FormData) {
         return { error: 'User profile not found' }
     }
 
-    // Parse dates
-    const startDate = new Date(startDateStr)
-    const registrationStart = registrationStartStr ? new Date(registrationStartStr) : null
-    const registrationEnd = registrationEndStr ? new Date(registrationEndStr) : null
+    // Parse dates with times
+    const startDate = new Date(`${startDateStr}T${startTime}:00`)
+    const registrationStart = registrationStartStr ? new Date(`${registrationStartStr}T${regStartTime}:00`) : null
+    const registrationEnd = registrationEndStr ? new Date(`${registrationEndStr}T${regEndTime}:00`) : null
+    const earlyBirdDeadline = earlyBirdDeadlineStr ? new Date(`${earlyBirdDeadlineStr}T${earlyBirdTimeStr}:00`) : null
+    const earlyBirdPrice = earlyBirdPriceStr ? parseFloat(earlyBirdPriceStr) : null
+    const regularPrice = regularPriceStr ? parseFloat(regularPriceStr) : null
 
     // Handle Header Image upload
     let headerImageUrl: string | null = null
@@ -96,8 +119,14 @@ export async function createTournament(formData: FormData) {
             registrationStart,
             registrationEnd,
             guidelineTemplateId: guidelineTemplateId || null,
+            tier: tier || 'J-2',
+            earlyBirdDeadline,
+            earlyBirdPrice,
+            regularPrice,
             headerImageUrl,
             organizerId: dbUser.id,
+            showPricing,
+            categoryPricing,
         },
     })
 
@@ -1113,7 +1142,22 @@ export async function completeOnboarding(formData: FormData) {
     // Don't pre-fill name from email — real name is collected on the onboarding profile form
     const userName = ''
 
-    console.log('Completing onboarding for:', { role, email: userEmail })
+    // Resolve org ID from tenant slug for organizationMemberId
+    let orgId: string | null = null
+    if (tenant && tenant !== 'ktm') {
+        const org = await prisma.organization.findFirst({
+            where: {
+                OR: [
+                    { slug: tenant },
+                    { customDomain: tenant },
+                ]
+            },
+            select: { id: true }
+        })
+        orgId = org?.id || null
+    }
+
+    console.log('Completing onboarding for:', { role, email: userEmail, tenant, orgId })
 
     // Check if user already exists (by clerkId OR email)
     const existingUser = await prisma.user.findFirst({
@@ -1126,11 +1170,14 @@ export async function completeOnboarding(formData: FormData) {
     })
 
     if (existingUser) {
-        // User already onboarded - update clerkId if needed
-        if (existingUser.clerkId !== user.id) {
+        // User already onboarded - update clerkId and orgMembership if needed
+        const updateData: any = {}
+        if (existingUser.clerkId !== user.id) updateData.clerkId = user.id
+        if (orgId && !existingUser.organizationMemberId) updateData.organizationMemberId = orgId
+        if (Object.keys(updateData).length > 0) {
             await prisma.user.update({
                 where: { id: existingUser.id },
-                data: { clerkId: user.id }
+                data: updateData
             })
         }
         return
@@ -1171,6 +1218,7 @@ export async function completeOnboarding(formData: FormData) {
             email: userEmail,
             role: assignedRole,
             name: userName,
+            ...(orgId && { organizationMemberId: orgId }),
         }
     })
 
@@ -2154,6 +2202,9 @@ export async function fetchAthleteDashboardData(clerkId: string, organizationId?
             weight: true,
             height: true,
             birthDate: true,
+            athleteNumber: true,
+            createdAt: true,
+            isVerified: true,
         }
     })
 
@@ -3128,6 +3179,7 @@ export async function getExistingProfile(email: string) {
             clubName: true,
             imageUrl: true,
             athleteNumber: true,
+            country: true,
         }
     })
 
@@ -3143,6 +3195,7 @@ export async function getExistingProfile(email: string) {
         clubName: user.clubName || null,
         imageUrl: user.imageUrl || null,
         athleteNumber: user.athleteNumber || null,
+        country: user.country || null,
     }
 }
 // --- SEMINAR REGISTRATION ACTION ---

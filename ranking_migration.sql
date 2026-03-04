@@ -1,7 +1,7 @@
 -- Run this exactly as is in your Supabase SQL Editor
 
--- 1. Create the K-Points SQL Function
-CREATE OR REPLACE FUNCTION calculate_k_points(
+-- 1. Create the J-Score SQL Function
+CREATE OR REPLACE FUNCTION calculate_j_score(
     medal text,
     tier text,
     start_date timestamp with time zone
@@ -29,13 +29,13 @@ BEGIN
     END IF;
 
     -- Tier Multiplier
-    IF upper(tier) = 'K-1' THEN
+    IF upper(tier) = 'J-1' THEN
         tier_multiplier := 1;
-    ELSIF upper(tier) = 'K-2' THEN
+    ELSIF upper(tier) = 'J-2' THEN
         tier_multiplier := 2;
-    ELSIF upper(tier) = 'K-3' THEN
+    ELSIF upper(tier) = 'J-3' THEN
         tier_multiplier := 3;
-    ELSIF upper(tier) = 'K-4' THEN
+    ELSIF upper(tier) = 'J-4' THEN
         tier_multiplier := 4;
     ELSE
         tier_multiplier := 1;
@@ -77,7 +77,7 @@ WITH PlayerPoints AS (
         p."division" AS "division",
         p.gender AS "gender",
         cat.type AS "type",
-        calculate_k_points(p.medal, t.tier, t."startDate") AS points
+        calculate_j_score(p.medal, t.tier, t."startDate") AS points
     FROM "Player" p
     JOIN "User" u ON p."userId" = u.id
     JOIN "Category" cat ON p."categoryId" = cat.id

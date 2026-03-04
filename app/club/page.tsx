@@ -152,6 +152,7 @@ export default async function ClubPage(props: { searchParams: Promise<{ page?: s
                     settingsContent={
                         <ClubMasterProfileView
                             dbUser={dbUser}
+                            club={targetClub}
                             clerkImageUrl={clerkUser.imageUrl}
                         />
                     }

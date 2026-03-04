@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { fetchAthleteDashboardData, unregisterFromTournament } from '@/app/actions'
 import AthleteSidebar from '@/components/athlete/AthleteSidebar'
 import AthleteTopBar from '@/components/athlete/AthleteTopBar'
+import AthleteCard from '@/components/athlete/AthleteCard'
 import ProfileEditForm from '@/app/settings/ProfileEditForm'
 import AthleteProfileView from '@/app/settings/AthleteProfileView'
 import { QRCodeSVG } from 'qrcode.react'
@@ -189,10 +190,7 @@ export default function AthleteDashboardView({
                     return (
                         <>
                             {/* Top Bar (Desktop Only) */}
-                            <AthleteTopBar
-                                userName={dbUser?.name || 'Athlete'}
-                                userImageUrl={imageUrl || undefined}
-                            />
+                            <AthleteTopBar />
                             {/* Conditional Content based on activeView */}
                             {activeView === 'achievements' && (
                                 <div className="flex-1 flex flex-col min-h-0 px-4 sm:px-6 lg:px-8 py-6 w-full max-w-[1600px] mx-auto md:overflow-y-auto">
@@ -361,126 +359,221 @@ export default function AthleteDashboardView({
                 {/* Conditional Content based on activeView */}
                 {activeView === 'home' && (
                     <div className="flex-1 flex flex-col min-h-0 px-4 sm:px-6 lg:px-8 py-6 w-full max-w-[1600px] mx-auto md:overflow-y-auto">
+                        <div className="flex flex-col gap-4">
 
-                        {/* Main Content */}
-                        <div className="flex flex-col gap-6 h-full md:min-h-0">
+                            {/* ═══════ ROW 1: Athlete Card + Profile Info ═══════ */}
+                            <div className="grid grid-cols-1 lg:grid-cols-[minmax(320px,400px)_1fr] gap-4 items-stretch">
+                                {/* Athlete ID Card */}
+                                <AthleteCard
+                                    name={dbUser?.name}
+                                    athleteId={dbUser?.athleteNumber || null}
+                                    imageUrl={imageUrl}
+                                    createdAt={dbUser?.createdAt?.toString() || null}
+                                    isVerified={dbUser?.isVerified || false}
+                                />
 
-                            {/* Athlete Profile Card */}
-                            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-                                {!dbUser ? (
-                                    /* Compact Skeleton */
-                                    <div className="flex flex-col md:flex-row items-center gap-6 animate-pulse">
-                                        <Skeleton className="w-16 h-16 rounded-full flex-shrink-0" />
-                                        <div className="flex-1 space-y-2 text-center md:text-left w-full">
-                                            <Skeleton className="h-6 w-40 mx-auto md:mx-0" />
-                                            <Skeleton className="h-4 w-32 mx-auto md:mx-0" />
-                                        </div>
-                                        <div className="hidden md:block w-px h-12 bg-gray-100" />
-                                        <Skeleton className="h-12 w-32" />
-                                        <div className="hidden md:block w-px h-12 bg-gray-100" />
-                                        <Skeleton className="h-12 w-24" />
+                                {/* Profile Info Grid */}
+                                <div className="h-full bg-white rounded-2xl border border-gray-100/80 shadow-sm overflow-hidden flex flex-col">
+                                    <div className="px-5 py-3 border-b border-gray-50">
+                                        <h3 className="text-xs font-black text-gray-900 uppercase tracking-[1.5px]">Profile</h3>
                                     </div>
-                                ) : (
-                                    <div className="flex flex-col md:flex-row items-center gap-6">
-                                        {/* Avatar */}
-                                        <div className="flex-shrink-0">
-                                            {imageUrl ? (
+                                    <div className="p-4 flex-1 grid grid-cols-2 gap-2">
+                                        {[
+                                            { label: 'Full Name', value: dbUser?.name || '—' },
+                                            { label: 'Email', value: dbUser?.email || '—' },
+                                            { label: 'Weight', value: dbUser?.weight ? `${dbUser.weight} kg` : '—' },
+                                            { label: 'Height', value: dbUser?.height ? `${dbUser.height} cm` : '—' },
+                                        ].map((item) => (
+                                            <div key={item.label} className="p-3 rounded-lg hover:bg-gray-50/80 transition-colors">
+                                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{item.label}</p>
+                                                <p className="text-base font-bold text-gray-800 truncate mt-1">{item.value}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* ═══════ ROW 3: Stat Cards ═══════ */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Current Rank */}
+                                <div className="bg-white rounded-2xl p-5 border border-gray-100/80 shadow-sm hover:shadow-lg hover:shadow-gray-200/40 transition-all duration-300">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Current Rank</p>
+                                            <h3 className="text-xl font-black text-gray-900 mt-1 tracking-tight">{dbUser?.belt || '—'}</h3>
+                                            <p className="text-[11px] font-medium text-gray-400 mt-0.5">{dbUser?.belt ? 'Belt level' : 'Not assigned'}</p>
+                                        </div>
+                                        {dbUser?.belt && (() => {
+                                            // Map rank to belt image filename (ported from WOTF Website)
+                                            const getBeltImage = (rank: string): string | null => {
+                                                const danMatch = rank.match(/(\d+)(?:st|nd|rd|th)\s*Dan/i);
+                                                if (danMatch) {
+                                                    const danNum = parseInt(danMatch[1]);
+                                                    if (danNum >= 1 && danNum <= 9) {
+                                                        return `${danNum}${danNum === 1 ? 'st' : danNum === 2 ? 'nd' : danNum === 3 ? 'rd' : 'th'} dan black`;
+                                                    }
+                                                    return 'black';
+                                                }
+                                                if (rank.includes('White')) return 'white';
+                                                if (rank.includes('Yellow')) return 'yellow';
+                                                if (rank.includes('Orange')) return 'orange';
+                                                if (rank.includes('Green')) return 'green';
+                                                if (rank.includes('Purple')) return 'purple';
+                                                if (rank.includes('Blue') && rank.includes('Red')) return 'blue_red';
+                                                if (rank.includes('Blue')) return 'blue_red';
+                                                if (rank.includes('Maroon')) return 'maroon';
+                                                if (rank.includes('Red')) return 'red';
+                                                if (rank.includes('Brown')) return 'brown';
+                                                if (rank.includes('Black') || rank.includes('Dan')) return 'black';
+                                                return null;
+                                            };
+                                            const beltImage = getBeltImage(dbUser.belt);
+                                            if (!beltImage) return null;
+                                            return (
                                                 <img
-                                                    src={imageUrl}
-                                                    alt={dbUser.name || 'Athlete'}
-                                                    className="w-16 h-16 rounded-full border-2 border-white shadow-sm object-cover bg-gray-50"
+                                                    src={`/wotf/Belt Color/${beltImage}.svg`}
+                                                    alt={`${dbUser.belt} Belt`}
+                                                    width={200}
+                                                    height={80}
+                                                    className="flex-shrink-0"
                                                 />
-                                            ) : (
-                                                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-100 to-red-200 shadow-sm flex items-center justify-center text-2xl">
-                                                    🥋
-                                                </div>
-                                            )}
-                                        </div>
+                                            );
+                                        })()}
+                                    </div>
+                                </div>
 
-                                        {/* Info */}
-                                        <div className="flex-1 text-center md:text-left min-w-0">
-                                            <div className="flex items-center justify-center md:justify-start gap-3 flex-wrap">
-                                                <h2 className="text-xl font-bold text-gray-900 truncate">{dbUser.name || 'Athlete'}</h2>
-                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${beltStyle.bg} ${beltStyle.text} border ${beltStyle.border}`}>
-                                                    {dbUser.belt || 'No Belt'}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center justify-center md:justify-start gap-1.5 text-sm text-gray-500 mt-1">
-                                                <Mail size={14} className="flex-shrink-0" />
-                                                <span className="truncate">{dbUser.email}</span>
-                                            </div>
+                                {/* Club */}
+                                <div className="bg-white rounded-2xl p-5 border border-gray-100/80 shadow-sm hover:shadow-lg hover:shadow-gray-200/40 transition-all duration-300">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Club</p>
+                                            <h3 className="text-xl font-black text-gray-900 mt-1 tracking-tight">{dbUser?.clubName || '—'}</h3>
+                                            <p className="text-[11px] font-medium text-gray-400 mt-0.5">{dbUser?.clubName ? 'Active member' : 'No club assigned'}</p>
                                         </div>
-
-                                        {/* Club Info */}
-                                        <div className="flex items-center gap-3 px-6 py-2 bg-gray-50 rounded-xl border border-gray-100">
-                                            {clubLogo ? (
-                                                <img
-                                                    src={clubLogo}
-                                                    alt={dbUser.clubName || 'Club'}
-                                                    className="w-8 h-8 rounded-lg object-contain bg-white"
-                                                />
-                                            ) : (
-                                                <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-sm">
-                                                    🏫
-                                                </div>
-                                            )}
-                                            <div className="text-left">
-                                                <p className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Club</p>
-                                                <p className="text-sm font-semibold text-gray-900 max-w-[150px] truncate">{dbUser.clubName || 'No Club'}</p>
-                                            </div>
-                                        </div>
-
-                                        {/* Physical Stats */}
-                                        {(dbUser.weight || dbUser.height) && (
-                                            <div className="flex items-center gap-4 pl-2">
-                                                {dbUser.weight && (
-                                                    <div className="text-center">
-                                                        <p className="text-base font-bold text-gray-900">{dbUser.weight}<span className="text-xs font-normal text-gray-500 ml-0.5">kg</span></p>
-                                                        <p className="text-[10px] text-gray-400 uppercase font-medium">Weight</p>
-                                                    </div>
-                                                )}
-                                                {dbUser.height && (
-                                                    <div className="text-center border-l border-gray-100 pl-4">
-                                                        <p className="text-base font-bold text-gray-900">{dbUser.height}<span className="text-xs font-normal text-gray-500 ml-0.5">cm</span></p>
-                                                        <p className="text-[10px] text-gray-400 uppercase font-medium">Height</p>
-                                                    </div>
-                                                )}
+                                        {clubLogo && (
+                                            <div className="relative w-20 h-20 rounded-full overflow-hidden border border-gray-100 shadow-sm flex-shrink-0 bg-white">
+                                                <img src={clubLogo} alt={dbUser?.clubName || 'Club'} className="w-full h-full object-cover" />
                                             </div>
                                         )}
                                     </div>
-                                )}
+                                </div>
                             </div>
 
-                            {/* Performance Stats Row */}
-                            <div className="grid grid-cols-1 gap-4">
-                                {/* Performance Summary - Coming Soon */}
-                                <div className="bg-gradient-to-br from-gray-100 to-gray-50 rounded-2xl border border-gray-200 p-5 relative overflow-hidden">
-                                    <div className="absolute top-2 right-2">
-                                        <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Coming Soon</span>
+                            {/* ═══════ ROW 4: Membership + Journey ═══════ */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                {/* Membership Status */}
+                                <div className="bg-white rounded-2xl border border-gray-100/80 shadow-sm overflow-hidden">
+                                    <div className="px-5 py-3.5 border-b border-gray-50">
+                                        <h3 className="text-xs font-black text-gray-900 uppercase tracking-[1.5px]">Membership</h3>
                                     </div>
-                                    <h3 className="font-bold text-gray-900 mb-2">Performance Stats</h3>
-                                    <p className="text-sm text-gray-500">Track your wins, medals, and improvement.</p>
-                                    <div className="mt-4 grid grid-cols-3 gap-2">
-                                        <div className="text-center p-2 bg-white/50 rounded-lg">
-                                            <p className="text-lg font-bold text-gray-400">-</p>
-                                            <p className="text-[10px] text-gray-400">Win Rate</p>
+                                    <div className="p-5">
+                                        <div className="text-center mb-4">
+                                            {dbUser?.isVerified ? (
+                                                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold bg-green-50 text-green-600">
+                                                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                                                    Active
+                                                </div>
+                                            ) : (
+                                                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold bg-amber-50 text-amber-600">
+                                                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                                                    Inactive
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="text-center p-2 bg-white/50 rounded-lg">
-                                            <p className="text-lg font-bold text-gray-400">-</p>
-                                            <p className="text-[10px] text-gray-400">Medals</p>
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="text-gray-400 font-medium">Status</span>
+                                                <span className={`font-bold ${dbUser?.isVerified ? 'text-green-600' : 'text-amber-600'}`}>
+                                                    {dbUser?.isVerified ? 'Verified' : 'Unverified'}
+                                                </span>
+                                            </div>
+                                            <div className="h-px bg-gray-50" />
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="text-gray-400 font-medium">Valid Until</span>
+                                                <span className="font-bold text-gray-800">
+                                                    {dbUser?.createdAt
+                                                        ? new Date(new Date(dbUser.createdAt).setFullYear(new Date(dbUser.createdAt).getFullYear() + 1)).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                                                        : '—'}
+                                                </span>
+                                            </div>
+                                            <div className="h-px bg-gray-50" />
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="text-gray-400 font-medium">Athlete ID</span>
+                                                <span className="font-bold text-gray-800">{dbUser?.athleteNumber || '—'}</span>
+                                            </div>
+                                            <div className="h-px bg-gray-50" />
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="text-gray-400 font-medium">Type</span>
+                                                <span className="font-bold text-gray-800">{dbUser?.role === 'CLUB_MASTER' ? 'Club Master' : 'Athlete'}</span>
+                                            </div>
                                         </div>
-                                        <div className="text-center p-2 bg-white/50 rounded-lg">
-                                            <p className="text-lg font-bold text-gray-400">-</p>
-                                            <p className="text-[10px] text-gray-400">Rank</p>
+                                    </div>
+                                </div>
+
+                                {/* Journey Timeline */}
+                                <div className="bg-white rounded-2xl border border-gray-100/80 shadow-sm overflow-hidden">
+                                    <div className="px-5 py-3.5 border-b border-gray-50">
+                                        <h3 className="text-xs font-black text-gray-900 uppercase tracking-[1.5px]">Journey</h3>
+                                    </div>
+                                    <div className="p-5">
+                                        <div className="relative pl-6 space-y-5">
+                                            {/* Timeline line */}
+                                            <div className="absolute left-[7px] top-1 bottom-1 w-[2px] bg-gradient-to-b from-red-500 via-amber-400 to-green-500 rounded-full opacity-40" />
+
+                                            {/* Registration */}
+                                            <div className="relative">
+                                                <div className="absolute -left-6 top-0.5 w-[16px] h-[16px] rounded-full bg-red-500 border-[3px] border-white shadow-sm" />
+                                                <div>
+                                                    <p className="text-xs font-bold text-gray-800">Registered</p>
+                                                    <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+                                                        {dbUser?.birthDate ? 'Member' : 'Profile created'}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Club */}
+                                            {dbUser?.clubName && (
+                                                <div className="relative">
+                                                    <div className="absolute -left-6 top-0.5 w-[16px] h-[16px] rounded-full bg-amber-400 border-[3px] border-white shadow-sm" />
+                                                    <div>
+                                                        <p className="text-xs font-bold text-gray-800">Joined {dbUser.clubName}</p>
+                                                        <p className="text-[10px] text-gray-400 font-medium mt-0.5">Club assignment</p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Rank */}
+                                            {dbUser?.belt && (
+                                                <div className="relative">
+                                                    <div className="absolute -left-6 top-0.5 w-[16px] h-[16px] rounded-full bg-green-500 border-[3px] border-white shadow-sm" />
+                                                    <div>
+                                                        <p className="text-xs font-bold text-gray-800">Rank: {dbUser.belt}</p>
+                                                        <p className="text-[10px] text-gray-400 font-medium mt-0.5">Belt progression</p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Events */}
+                                            <div className="relative">
+                                                <div className={`absolute -left-6 top-0.5 w-[16px] h-[16px] rounded-full ${completedEvents.length > 0 ? 'bg-green-500' : 'bg-gray-300'} border-[3px] border-white shadow-sm`} />
+                                                <div>
+                                                    <p className="text-xs font-bold text-gray-800">
+                                                        {completedEvents.length > 0 ? `${completedEvents.length} event${completedEvents.length > 1 ? 's' : ''} completed` : 'No events yet'}
+                                                    </p>
+                                                    <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+                                                        {upcomingEvents.length > 0 ? `${upcomingEvents.length} upcoming` : 'Browse events to get started'}
+                                                    </p>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* ============ SECTION 1: My Registrations ============ */}
-                            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col">
+                            {/* ═══════ ROW 5: My Registrations ═══════ */}
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col min-h-[500px]">
                                 <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                                    <h2 className="text-lg font-bold text-gray-900">My Registrations</h2>
+                                    <h2 className="text-xs font-black text-gray-900 uppercase tracking-[1.5px]">My Registrations</h2>
                                     <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">
                                         {registrations.length + seminarRegs.length + promotionRegs.length} {(registrations.length + seminarRegs.length + promotionRegs.length) === 1 ? 'entry' : 'entries'}
                                     </span>
@@ -962,7 +1055,7 @@ export default function AthleteDashboardView({
                                 </div>
                                 <h2 className="text-2xl font-bold text-gray-900 mb-3">Unranked</h2>
                                 <p className="text-gray-500 max-w-md mb-8 leading-relaxed">
-                                    You have not achieved any verified global ranking points yet. Compete in K-Point events to earn your spot on the leaderboard!
+                                    You have not achieved any verified global ranking points yet. Compete in J-Score events to earn your spot on the leaderboard!
                                 </p>
                                 <div className="flex gap-4">
                                     <div className="px-5 py-3 bg-gray-50 rounded-xl border border-gray-100 flex flex-col items-center min-w-[140px] opacity-70">
@@ -974,6 +1067,24 @@ export default function AthleteDashboardView({
                                         <span className="text-2xl font-bold text-gray-300">---</span>
                                     </div>
                                 </div>
+
+                                {/* Athlete Card Notice */}
+                                {!dbUser?.isVerified && (
+                                    <div className="mt-6 w-full max-w-md bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+                                        <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M12 9v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-amber-800">Athlete Card Required</p>
+                                            <p className="text-xs text-amber-600 mt-0.5 leading-relaxed">
+                                                To earn J-Scores and appear on the global leaderboard, you need an activated Athlete Card. Contact your organization to get verified.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
                                 <Link href="/rankings" className="mt-8 px-6 py-2.5 bg-gray-100 text-gray-600 font-semibold rounded-lg hover:bg-gray-200 transition-colors">
                                     View Global Leaderboard
                                 </Link>
@@ -1200,193 +1311,76 @@ export default function AthleteDashboardView({
 function AthleteDashboardSkeleton() {
     return (
         <main className="min-h-[calc(100vh-4rem)] bg-gray-50">
-            <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
+                {/* Header */}
+                <div>
+                    <Skeleton className="h-7 w-32 mb-1" />
+                    <Skeleton className="h-4 w-56" />
+                </div>
 
-                {/* Two Column Layout */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-                    {/* Left Column - Main Content */}
-                    <div className="lg:col-span-2 space-y-8">
-
-                        {/* Stats Cards - STATIC structure */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
-                                        <Trophy size={24} />
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-500">Total Events</p>
-                                        <Skeleton className="h-8 w-12 mt-1" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center text-green-600">
-                                        <Calendar size={24} />
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-500">Upcoming</p>
-                                        <Skeleton className="h-8 w-12 mt-1" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center text-amber-500">
-                                        <Medal size={24} />
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-500">Completed</p>
-                                        <Skeleton className="h-8 w-12 mt-1" />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Performance Stats & Next Event Row */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {/* Performance Summary */}
-                            <div className="bg-gradient-to-br from-gray-100 to-gray-50 rounded-2xl border border-gray-200 p-5 relative overflow-hidden">
-                                <div className="absolute top-2 right-2">
-                                    <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Coming Soon</span>
-                                </div>
-                                <h3 className="font-bold text-gray-900 mb-2">Performance Stats</h3>
-                                <p className="text-sm text-gray-500">Track your wins, medals, and improvement.</p>
-                                <div className="mt-4 grid grid-cols-3 gap-2">
-                                    <div className="text-center p-2 bg-white/50 rounded-lg">
-                                        <p className="text-lg font-bold text-gray-400">-</p>
-                                        <p className="text-[10px] text-gray-400">Win Rate</p>
-                                    </div>
-                                    <div className="text-center p-2 bg-white/50 rounded-lg">
-                                        <p className="text-lg font-bold text-gray-400">-</p>
-                                        <p className="text-[10px] text-gray-400">Medals</p>
-                                    </div>
-                                    <div className="text-center p-2 bg-white/50 rounded-lg">
-                                        <p className="text-lg font-bold text-gray-400">-</p>
-                                        <p className="text-[10px] text-gray-400">Rank</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Next Event Skeleton */}
-                            <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-gray-200 p-5">
-                                <Skeleton className="h-4 w-20 mb-3" />
-                                <Skeleton className="h-5 w-40 mb-2" />
-                                <Skeleton className="h-4 w-32 mb-3" />
-                                <Skeleton className="h-3 w-24" />
-                            </div>
-                        </div>
-
-                        {/* Registrations Table - STATIC headers */}
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                                <h2 className="text-lg font-bold text-gray-900">My Registrations</h2>
-                                <Link
-                                    href="/tournaments"
-                                    className="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
-                                >
-                                    Browse Events <ChevronRight size={16} />
-                                </Link>
-                            </div>
-
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-100">
-                                    <thead className="bg-gray-50">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tournament</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-50">
-                                        {[1, 2, 3].map((i) => (
-                                            <tr key={i}>
-                                                <td className="px-6 py-4 whitespace-nowrap"><Skeleton className="h-4 w-40" /></td>
-                                                <td className="px-6 py-4 whitespace-nowrap"><Skeleton className="h-4 w-24" /></td>
-                                                <td className="px-6 py-4 whitespace-nowrap"><Skeleton className="h-4 w-28" /></td>
-                                                <td className="px-6 py-4 whitespace-nowrap"><Skeleton className="h-5 w-20 rounded-full" /></td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                {/* Profile Row */}
+                <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-4">
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-5 lg:min-w-[320px]">
+                        <Skeleton className="w-14 h-14 rounded-full flex-shrink-0" />
+                        <div className="space-y-2 flex-1">
+                            <Skeleton className="h-5 w-32" />
+                            <Skeleton className="h-4 w-20 rounded-full" />
+                            <Skeleton className="h-3 w-40" />
                         </div>
                     </div>
-
-                    {/* Right Column - Sidebar (Sticky) */}
-                    <div className="space-y-6 lg:sticky lg:top-20 lg:self-start">
-
-                        {/* Profile Card */}
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                            <div className="p-5">
-                                {/* Avatar */}
-                                <div className="mb-4">
-                                    <Skeleton className="w-20 h-20 rounded-xl" />
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            {[1, 2, 3, 4, 5, 6].map(i => (
+                                <div key={i} className="p-2">
+                                    <Skeleton className="h-3 w-16 mb-1" />
+                                    <Skeleton className="h-4 w-24" />
                                 </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
 
-                                {/* Name & Email */}
-                                <Skeleton className="h-5 w-32 mb-1" />
-                                <Skeleton className="h-4 w-48" />
+                {/* Stat Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {[1, 2].map(i => (
+                        <div key={i} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                            <Skeleton className="h-3 w-24 mb-2" />
+                            <Skeleton className="h-6 w-32 mb-1" />
+                            <Skeleton className="h-3 w-20" />
+                        </div>
+                    ))}
+                </div>
 
-                                {/* Belt Badge */}
-                                <div className="mt-4">
-                                    <Skeleton className="h-6 w-20 rounded-full" />
-                                </div>
-
-                                {/* Divider */}
-                                <div className="border-t border-gray-100 my-4" />
-
-                                {/* Club Section */}
-                                <div className="flex items-center gap-3">
-                                    <Skeleton className="w-10 h-10 rounded-lg" />
-                                    <div>
-                                        <p className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">Club</p>
-                                        <Skeleton className="h-4 w-24 mt-0.5" />
-                                    </div>
-                                </div>
-
-                                {/* Physical Stats */}
-                                <div className="border-t border-gray-100 my-4" />
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="text-center p-3 bg-gray-50 rounded-xl">
-                                        <Skeleton className="h-5 w-12 mx-auto mb-1" />
-                                        <p className="text-[10px] text-gray-500 uppercase">Weight</p>
-                                    </div>
-                                    <div className="text-center p-3 bg-gray-50 rounded-xl">
-                                        <Skeleton className="h-5 w-12 mx-auto mb-1" />
-                                        <p className="text-[10px] text-gray-500 uppercase">Height</p>
-                                    </div>
-                                </div>
+                {/* Membership + Journey */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {[1, 2].map(i => (
+                        <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                            <div className="px-5 py-3.5 border-b border-gray-50">
+                                <Skeleton className="h-3 w-24" />
+                            </div>
+                            <div className="p-5 space-y-4">
+                                <Skeleton className="h-8 w-24 mx-auto rounded-full" />
+                                <Skeleton className="h-3 w-full" />
+                                <Skeleton className="h-3 w-3/4" />
+                                <Skeleton className="h-3 w-full" />
                             </div>
                         </div>
+                    ))}
+                </div>
 
-                        {/* Available Events */}
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
-                            <div className="flex items-center gap-2 mb-3">
-                                <span className="text-xl">🏆</span>
-                                <h3 className="font-bold text-gray-900">Available Events</h3>
-                            </div>
-                            <div className="space-y-3">
-                                <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-                                    <Skeleton className="h-4 w-32 mb-1" />
-                                    <Skeleton className="h-3 w-48" />
-                                </div>
-                                <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
-                                    <Skeleton className="h-4 w-28 mb-1" />
-                                    <Skeleton className="h-3 w-40" />
-                                </div>
-                            </div>
-                        </div>
+                {/* Registrations */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                        <Skeleton className="h-3 w-32" />
+                        <Skeleton className="h-5 w-16 rounded-full" />
+                    </div>
+                    <div className="p-6 space-y-3">
+                        {[1, 2, 3].map(i => (
+                            <Skeleton key={i} className="h-12 w-full rounded-lg" />
+                        ))}
                     </div>
                 </div>
             </div>
         </main>
-
-
     )
 }

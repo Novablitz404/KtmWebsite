@@ -7,6 +7,7 @@ import { createTournament } from '@/app/actions'
 import { X, Image as ImageIcon, Check } from 'lucide-react'
 import GlobalDropdown from './GlobalDropdown'
 import GlobalCalendar from './GlobalCalendar'
+import GlobalTimePicker from './GlobalTimePicker'
 import ImageCropperModal from './ImageCropperModal'
 import ActionLoadingOverlay from './ActionLoadingOverlay'
 import { useQueryClient } from '@tanstack/react-query'
@@ -31,6 +32,29 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
     const [startDate, setStartDate] = useState<Date | undefined>(undefined)
     const [registrationStart, setRegistrationStart] = useState<Date | undefined>(undefined)
     const [registrationEnd, setRegistrationEnd] = useState<Date | undefined>(undefined)
+    const [selectedTier, setSelectedTier] = useState('J-2')
+
+    // Time States
+    const [startTime, setStartTime] = useState('08:00')
+    const [regStartTime, setRegStartTime] = useState('00:00')
+    const [regEndTime, setRegEndTime] = useState('23:59')
+
+    // Early Bird States
+    const [showEarlyBird, setShowEarlyBird] = useState(false)
+    const [earlyBirdDate, setEarlyBirdDate] = useState<Date | undefined>(undefined)
+    const [earlyBirdTime, setEarlyBirdTime] = useState('23:59')
+
+    // Pricing States
+    const [showPricing, setShowPricing] = useState(false)
+    const PRICING_COMBOS = [
+        { key: 'KYORUGI_INDIVIDUAL', label: 'Kyorugi Individual' },
+        { key: 'KYORUGI_TEAM', label: 'Kyorugi Team' },
+        { key: 'POOMSAE_INDIVIDUAL', label: 'Poomsae Individual' },
+        { key: 'POOMSAE_PAIR', label: 'Poomsae Pair' },
+        { key: 'POOMSAE_TEAM', label: 'Poomsae Team' },
+        { key: 'KYUKPA_INDIVIDUAL', label: 'Kyukpa Individual' },
+    ]
+    const [categoryPricing, setCategoryPricing] = useState<Record<string, { earlyBird: string; regular: string }>>({})
 
     // Cropper State
     const [showCropper, setShowCropper] = useState(false)
@@ -259,11 +283,38 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                 />
                             </div>
 
-                            {/* Date Row */}
+                            {/* J-Score Tier */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    J-Score Tier
+                                </label>
+                                <div className="flex gap-2">
+                                    {(['J-1', 'J-2', 'J-3', 'J-4'] as const).map((tier) => (
+                                        <button
+                                            key={tier}
+                                            type="button"
+                                            onClick={() => setSelectedTier(tier)}
+                                            className={`px-4 py-2 text-sm font-bold rounded-lg border transition-all ${selectedTier === tier
+                                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                                                }`}
+                                        >
+                                            {tier}
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1.5">
+                                    Higher tiers award more ranking points. J-1 = base, J-4 = 4× multiplier.
+                                </p>
+                                <input type="hidden" name="tier" value={selectedTier} />
+                            </div>
+
+                            {/* Date & Time Row */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {/* Tournament Date + Time */}
                                 <div>
                                     <GlobalCalendar
-                                        label="Tournament Date"
+                                        label="Tournament Date *"
                                         value={startDate}
                                         onChange={(date) => {
                                             setStartDate(date)
@@ -275,7 +326,18 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                         fullWidth
                                     />
                                     <input type="hidden" name="startDate" id="startDate" required />
+                                    <div className="mt-2">
+                                        <GlobalTimePicker
+                                            label="Start Time"
+                                            value={startTime}
+                                            onChange={setStartTime}
+                                            name="startTime"
+                                            fullWidth
+                                        />
+                                    </div>
                                 </div>
+
+                                {/* Registration Opens + Time */}
                                 <div>
                                     <GlobalCalendar
                                         label="Registration Opens"
@@ -290,7 +352,18 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                         fullWidth
                                     />
                                     <input type="hidden" name="registrationStart" id="registrationStart" />
+                                    <div className="mt-2">
+                                        <GlobalTimePicker
+                                            label="Opens At"
+                                            value={regStartTime}
+                                            onChange={setRegStartTime}
+                                            name="regStartTime"
+                                            fullWidth
+                                        />
+                                    </div>
                                 </div>
+
+                                {/* Registration Closes + Time */}
                                 <div>
                                     <GlobalCalendar
                                         label="Registration Closes"
@@ -305,7 +378,188 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                         fullWidth
                                     />
                                     <input type="hidden" name="registrationEnd" id="registrationEnd" />
+                                    <div className="mt-2">
+                                        <GlobalTimePicker
+                                            label="Closes At"
+                                            value={regEndTime}
+                                            onChange={setRegEndTime}
+                                            name="regEndTime"
+                                            fullWidth
+                                        />
+                                    </div>
                                 </div>
+                            </div>
+
+                            {/* Early Bird — shows only when registration dates are set */}
+                            {registrationStart && registrationEnd && (
+                                <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/50 space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-sm font-semibold text-gray-900">Early Bird Pricing</p>
+                                            <p className="text-xs text-gray-500">Offer a discounted rate for early registrations</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowEarlyBird(!showEarlyBird)}
+                                            className={`relative w-11 h-6 rounded-full transition-colors ${showEarlyBird ? 'bg-indigo-600' : 'bg-gray-300'
+                                                }`}
+                                        >
+                                            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${showEarlyBird ? 'translate-x-5' : ''
+                                                }`} />
+                                        </button>
+                                    </div>
+
+                                    {showEarlyBird && (
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-gray-200">
+                                            {/* Early Bird Deadline */}
+                                            <div>
+                                                <GlobalCalendar
+                                                    label="Early Bird Deadline"
+                                                    value={earlyBirdDate}
+                                                    onChange={(date) => {
+                                                        setEarlyBirdDate(date)
+                                                        const input = document.getElementById('earlyBirdDeadline') as HTMLInputElement
+                                                        if (input) input.value = format(date, 'yyyy-MM-dd')
+                                                    }}
+                                                    placeholder="Select date..."
+                                                    className="w-full"
+                                                    fullWidth
+                                                />
+                                                <input type="hidden" name="earlyBirdDeadline" id="earlyBirdDeadline" />
+                                                <div className="mt-2">
+                                                    <GlobalTimePicker
+                                                        label="Deadline Time"
+                                                        value={earlyBirdTime}
+                                                        onChange={setEarlyBirdTime}
+                                                        name="earlyBirdTime"
+                                                        fullWidth
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Early Bird Price */}
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Early Bird Price</label>
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₱</span>
+                                                    <input
+                                                        type="number"
+                                                        name="earlyBirdPrice"
+                                                        step="0.01"
+                                                        min="0"
+                                                        placeholder="0.00"
+                                                        className="w-full pl-7 pr-4 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Regular Price */}
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Regular Price</label>
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₱</span>
+                                                    <input
+                                                        type="number"
+                                                        name="regularPrice"
+                                                        step="0.01"
+                                                        min="0"
+                                                        placeholder="0.00"
+                                                        className="w-full pl-7 pr-4 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Per-Category Pricing */}
+                            <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/50 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-semibold text-gray-900">Category Pricing</p>
+                                        <p className="text-xs text-gray-500">Set fees per event type (e.g., Kyorugi Individual, Poomsae Pair)</p>
+                                    </div>
+                                </div>
+
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                                                <th className="pb-2 pr-4">Event Type</th>
+                                                <th className="pb-2 px-2 text-center">Early Bird (₱)</th>
+                                                <th className="pb-2 pl-2 text-center">Regular (₱)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {PRICING_COMBOS.map(combo => (
+                                                <tr key={combo.key}>
+                                                    <td className="py-2.5 pr-4 text-sm font-medium text-gray-700">{combo.label}</td>
+                                                    <td className="py-2.5 px-2">
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            min="0"
+                                                            placeholder="—"
+                                                            value={categoryPricing[combo.key]?.earlyBird || ''}
+                                                            onChange={(e) => setCategoryPricing(prev => ({
+                                                                ...prev,
+                                                                [combo.key]: { ...prev[combo.key], earlyBird: e.target.value, regular: prev[combo.key]?.regular || '' }
+                                                            }))}
+                                                            className="w-full px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-center focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                                                        />
+                                                    </td>
+                                                    <td className="py-2.5 pl-2">
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            min="0"
+                                                            placeholder="—"
+                                                            value={categoryPricing[combo.key]?.regular || ''}
+                                                            onChange={(e) => setCategoryPricing(prev => ({
+                                                                ...prev,
+                                                                [combo.key]: { ...prev[combo.key], regular: e.target.value, earlyBird: prev[combo.key]?.earlyBird || '' }
+                                                            }))}
+                                                            className="w-full px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-center focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Show Pricing Toggle */}
+                                <div className="flex items-center justify-between pt-3 border-t border-gray-200">
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-700">Show Pricing Publicly</p>
+                                        <p className="text-xs text-gray-400">When enabled, athletes can see fees on the registration page</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPricing(!showPricing)}
+                                        className={`relative w-11 h-6 rounded-full transition-colors ${showPricing ? 'bg-indigo-600' : 'bg-gray-300'}`}
+                                    >
+                                        <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${showPricing ? 'translate-x-5' : ''}`} />
+                                    </button>
+                                </div>
+
+                                {/* Hidden inputs for form submission */}
+                                <input type="hidden" name="showPricing" value={showPricing ? 'true' : 'false'} />
+                                <input
+                                    type="hidden"
+                                    name="categoryPricing"
+                                    value={JSON.stringify(
+                                        Object.fromEntries(
+                                            Object.entries(categoryPricing)
+                                                .filter(([, v]) => v.earlyBird || v.regular)
+                                                .map(([k, v]) => [k, {
+                                                    earlyBird: v.earlyBird ? parseFloat(v.earlyBird) : null,
+                                                    regular: v.regular ? parseFloat(v.regular) : null
+                                                }])
+                                        )
+                                    )}
+                                />
                             </div>
 
                             {/* Guideline Template Selection */}

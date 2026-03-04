@@ -96,14 +96,6 @@ export default function LandingPage({ upcomingTournaments, user, stats }: Landin
                                 </svg>
                             </span>
                         </Link>
-                        {!user && (
-                            <Link
-                                href="/sign-in"
-                                className="px-8 py-4 border-2 border-white/30 text-white font-semibold rounded-xl hover:bg-white/10 hover:border-white/50 transition-all duration-300 backdrop-blur-sm text-center"
-                            >
-                                Sign In
-                            </Link>
-                        )}
                     </div>
 
                     {/* Scroll indicator */}
@@ -609,14 +601,8 @@ export default function LandingPage({ upcomingTournaments, user, stats }: Landin
                             </p>
                             <div className="flex flex-col sm:flex-row justify-center gap-4">
                                 <Link
-                                    href="/sign-up"
-                                    className="px-8 py-4 bg-white text-red-700 font-bold rounded-xl hover:bg-red-50 transition-all duration-200 shadow-lg hover:shadow-xl hover:-translate-y-0.5"
-                                >
-                                    Create Account
-                                </Link>
-                                <Link
                                     href="/about"
-                                    className="px-8 py-4 border-2 border-white/30 text-white font-semibold rounded-xl hover:bg-white/10 hover:border-white/50 transition-all duration-200"
+                                    className="px-8 py-4 bg-white text-red-700 font-bold rounded-xl hover:bg-red-50 transition-all duration-200 shadow-lg hover:shadow-xl hover:-translate-y-0.5"
                                 >
                                     Learn More
                                 </Link>

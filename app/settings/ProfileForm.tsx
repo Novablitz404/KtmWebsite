@@ -148,7 +148,8 @@ export default function ProfileForm({ user, initialImageUrl, customTrigger }: Pr
                                 <p className="text-xs text-gray-500 mt-2">Click to upload new photo</p>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-6">
+                                {/* Full Name - Always full width */}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
                                     <input
@@ -159,84 +160,88 @@ export default function ProfileForm({ user, initialImageUrl, customTrigger }: Pr
                                         className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all bg-gray-50/50 focus:bg-white"
                                     />
                                 </div>
-                                {user.role !== 'CLUB_MASTER' && (
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {user.role !== 'CLUB_MASTER' && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Birth Date</label>
+                                            <GlobalCalendar
+                                                value={birthDate}
+                                                onChange={(date) => {
+                                                    setBirthDate(date)
+                                                    const input = document.getElementsByName('birthDate')[0] as HTMLInputElement
+                                                    if (input) input.value = date.toISOString().split('T')[0]
+                                                }}
+                                                placeholder="Select birth date..."
+                                                className="w-full"
+                                                fullWidth
+                                            />
+                                            <input type="hidden" name="birthDate" value={birthDate ? birthDate.toISOString().split('T')[0] : ''} required />
+                                        </div>
+                                    )}
+                                    {user.role !== 'CLUB_MASTER' && user.role !== 'ASSISTANT_CLUB_MASTER' && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Club</label>
+                                            <input
+                                                type="text"
+                                                name="clubName"
+                                                defaultValue={user.clubName || ''}
+                                                required
+                                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all bg-gray-50/50 focus:bg-white"
+                                            />
+                                        </div>
+                                    )}
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Birth Date</label>
-                                        <GlobalCalendar
-                                            value={birthDate}
-                                            onChange={(date) => {
-                                                setBirthDate(date)
-                                                const input = document.getElementsByName('birthDate')[0] as HTMLInputElement
-                                                if (input) input.value = date.toISOString().split('T')[0]
-                                            }}
-                                            placeholder="Select birth date..."
-                                            className="w-full"
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Belt Rank</label>
+                                        <GlobalDropdown
+                                            name="belt"
+                                            value={belt}
+                                            onChange={setBelt}
                                             fullWidth
+                                            options={
+                                                user.role === 'CLUB_MASTER' || user.role === 'ASSISTANT_CLUB_MASTER'
+                                                    ? ['1st Dan', '2nd Dan', '3rd Dan', '4th Dan', '5th Dan', '6th Dan', '7th Dan', '8th Dan', '9th Dan']
+                                                    : ['White', 'Yellow', 'Orange', 'Green', 'Purple', 'Blue', 'Maroon', 'Red', 'Brown', 'Black']
+                                            }
                                         />
-                                        <input type="hidden" name="birthDate" value={birthDate ? birthDate.toISOString().split('T')[0] : ''} required />
                                     </div>
-                                )}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Club</label>
-                                    <input
-                                        type="text"
-                                        name="clubName"
-                                        defaultValue={user.clubName || ''}
-                                        required
-                                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all bg-gray-50/50 focus:bg-white"
-                                    />
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Gender</label>
+                                        <GlobalDropdown
+                                            name="gender"
+                                            value={gender}
+                                            onChange={setGender}
+                                            fullWidth
+                                            options={['Male', 'Female']}
+                                        />
+                                    </div>
+                                    {user.role === 'ATHLETE' && (
+                                        <>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1.5">Weight (kg)</label>
+                                                <input
+                                                    type="number"
+                                                    name="weight"
+                                                    step="0.1"
+                                                    defaultValue={user.weight || ''}
+                                                    placeholder="e.g. 58.5"
+                                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all bg-gray-50/50 focus:bg-white"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1.5">Height (cm)</label>
+                                                <input
+                                                    type="number"
+                                                    name="height"
+                                                    step="0.1"
+                                                    defaultValue={user.height || ''}
+                                                    placeholder="e.g. 145"
+                                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all bg-gray-50/50 focus:bg-white"
+                                                />
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
-                                <div>
-                                    <GlobalDropdown
-                                        label="Belt"
-                                        name="belt"
-                                        value={belt}
-                                        onChange={setBelt}
-                                        options={[
-                                            'White',
-                                            'Yellow', 'Orange',
-                                            'Green', 'Purple',
-                                            'Blue', 'Maroon',
-                                            'Red', 'Brown',
-                                            'Black'
-                                        ]}
-                                    />
-                                </div>
-                                <div>
-                                    <GlobalDropdown
-                                        label="Gender"
-                                        name="gender"
-                                        value={gender}
-                                        onChange={setGender}
-                                        options={['Male', 'Female']}
-                                    />
-                                </div>
-                                {user.role === 'ATHLETE' && (
-                                    <>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Weight (kg)</label>
-                                            <input
-                                                type="number"
-                                                name="weight"
-                                                step="0.1"
-                                                defaultValue={user.weight || ''}
-                                                placeholder="e.g. 58.5"
-                                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all bg-gray-50/50 focus:bg-white"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Height (cm)</label>
-                                            <input
-                                                type="number"
-                                                name="height"
-                                                step="0.1"
-                                                defaultValue={user.height || ''}
-                                                placeholder="e.g. 145"
-                                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all bg-gray-50/50 focus:bg-white"
-                                            />
-                                        </div>
-                                    </>
-                                )}
                             </div>
 
                             <div className="flex gap-3 pt-4 border-t border-gray-100 justify-end">

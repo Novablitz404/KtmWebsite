@@ -41,7 +41,7 @@ export default async function RankingsPage({ searchParams }: PageProps) {
             <div className="bg-gradient-to-br from-gray-900 to-gray-800 text-white py-16 px-4">
                 <div className="max-w-5xl mx-auto text-center">
                     <h1 className="text-4xl md:text-5xl font-black mb-4 tracking-tight">
-                        <span className="text-red-500">K-POINT</span> RANKINGS
+                        <span className="text-red-500">J-SCORE</span> RANKINGS
                     </h1>
                     <p className="text-gray-400 text-lg max-w-2xl mx-auto">
                         Official leaderboard for verified Taekwondo athletes.
@@ -87,7 +87,7 @@ export default async function RankingsPage({ searchParams }: PageProps) {
                                 <tr>
                                     <th className="px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider w-16">Rank</th>
                                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Athlete</th>
-                                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">K-Points</th>
+                                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">J-Score</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">

@@ -39,7 +39,7 @@ export const TENANT_BRANDING: Record<string, TenantBranding> = {
         footerText: null,
     },
     wotf: {
-        name: 'World Olympic Taekwondo Federation Philippines',
+        name: 'WOTF Philippines',
         slug: 'wotf',
         logoUrl: '/wotf/logo_image.png',
         logoWhiteUrl: '/wotf/wotf_logo_word.png',

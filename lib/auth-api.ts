@@ -28,6 +28,7 @@ export async function authenticateApi() {
             // Actually, based on previous code, User likely has clubName to link or organization?
             // Let's stick to what we know exists from other files: clubName
             clubName: true,
+            organizationMemberId: true,
             // Include club details if available
             club: {
                 select: {

@@ -8,6 +8,7 @@ import { createPromotionTest } from '@/app/organization/actions'
 import { toast } from 'sonner'
 import ImageCropperModal from '@/components/ImageCropperModal'
 import GlobalCalendar from '@/components/GlobalCalendar'
+import GlobalTimePicker from '@/components/GlobalTimePicker'
 
 interface CreatePromotionModalProps {
     isOpen: boolean
@@ -26,6 +27,8 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
 
     const [testDate, setTestDate] = useState<Date | undefined>(undefined)
     const [registrationDeadline, setRegistrationDeadline] = useState<Date | undefined>(undefined)
+    const [testTime, setTestTime] = useState('08:00')
+    const [regDeadlineTime, setRegDeadlineTime] = useState('17:00')
 
     if (!isOpen) return null
 
@@ -135,35 +138,55 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
 
                         {/* Grid for Date/Deadline */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <GlobalCalendar
-                                    label="Test Date"
-                                    value={testDate}
-                                    onChange={(date) => {
-                                        setTestDate(date)
-                                        const input = document.getElementsByName('testDate')[0] as HTMLInputElement
-                                        if (input) input.value = format(date, 'yyyy-MM-dd')
-                                    }}
-                                    placeholder="Select date..."
-                                    className="w-full"
-                                    fullWidth
-                                />
-                                <input type="hidden" name="testDate" required />
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <GlobalCalendar
+                                        label="Test Date"
+                                        value={testDate}
+                                        onChange={(date) => {
+                                            setTestDate(date)
+                                            const input = document.getElementsByName('testDate')[0] as HTMLInputElement
+                                            if (input) input.value = format(date, 'yyyy-MM-dd')
+                                        }}
+                                        placeholder="Select date..."
+                                        className="w-full"
+                                        fullWidth
+                                    />
+                                    <input type="hidden" name="testDate" required />
+                                </div>
+                                <div className="w-[140px]">
+                                    <GlobalTimePicker
+                                        label="Time"
+                                        name="testTime"
+                                        value={testTime}
+                                        onChange={setTestTime}
+                                    />
+                                </div>
                             </div>
-                            <div>
-                                <GlobalCalendar
-                                    label="Registration Deadline"
-                                    value={registrationDeadline}
-                                    onChange={(date) => {
-                                        setRegistrationDeadline(date)
-                                        const input = document.getElementsByName('registrationDeadline')[0] as HTMLInputElement
-                                        if (input) input.value = format(date, 'yyyy-MM-dd')
-                                    }}
-                                    placeholder="Select date..."
-                                    className="w-full"
-                                    fullWidth
-                                />
-                                <input type="hidden" name="registrationDeadline" />
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <GlobalCalendar
+                                        label="Registration Deadline"
+                                        value={registrationDeadline}
+                                        onChange={(date) => {
+                                            setRegistrationDeadline(date)
+                                            const input = document.getElementsByName('registrationDeadline')[0] as HTMLInputElement
+                                            if (input) input.value = format(date, 'yyyy-MM-dd')
+                                        }}
+                                        placeholder="Select date..."
+                                        className="w-full"
+                                        fullWidth
+                                    />
+                                    <input type="hidden" name="registrationDeadline" />
+                                </div>
+                                <div className="w-[140px]">
+                                    <GlobalTimePicker
+                                        label="Time"
+                                        name="registrationDeadlineTime"
+                                        value={regDeadlineTime}
+                                        onChange={setRegDeadlineTime}
+                                    />
+                                </div>
                             </div>
                             {/* Promotions are always internal/private */}
                             <input type="hidden" name="visibility" value="PRIVATE" />

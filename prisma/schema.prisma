@@ -77,11 +77,18 @@ model Tournament {
   venue             String? // Location of the tournament
   registrationStart DateTime? // When registration opens
   registrationEnd   DateTime? // When registration closes
+  earlyBirdDeadline DateTime? // Early bird pricing deadline
+  earlyBirdPrice    Float?    // Early bird registration price
+  regularPrice      Float?    // Regular registration price
   guidelinePdfUrl   String? // URL to uploaded guideline PDF
   headerImageUrl    String? // URL to uploaded header image
   guidelinesText    String? @db.Text // Custom guidelines content
   status            String    @default("UPCOMING") // UPCOMING, ONGOING, COMPLETED, CANCELLED, RESCHEDULED
-  tier              String    @default("K-2") // K-1, K-2, K-3, K-4
+  tier              String    @default("J-2") // J-1, J-2, J-3, J-4
+
+  // Pricing
+  showPricing       Boolean   @default(false) // Toggle pricing visibility for public/athletes
+  categoryPricing   Json?     // Pricing per type+subtype combo, e.g. { "KYORUGI_INDIVIDUAL": { "earlyBird": 115, "regular": 145 } }
 
   // Guideline Template (optional - if set, auto-generates categories)
   guidelineTemplateId String?
@@ -152,6 +159,7 @@ model User {
   clubName  String?
   isVerified    Boolean @default(false) // Athlete License Status
   athleteNumber String? // Kukkiwon No. (Black Belt) or Athlete Card No. (other belts)
+  country       String? // Country of the athlete
 
   // Relations
   players      Player[]
@@ -175,6 +183,9 @@ model User {
   // Push Notifications
   pushSubscriptions PushSubscription[]
   notifications     Notification[]
+
+  // Timestamps
+  createdAt DateTime? // Set when athlete card number is generated
 
   @@index([clubName])
   @@index([name])

@@ -1,20 +1,23 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useUser } from '@clerk/nextjs'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 /**
  * This component wraps page content and handles:
  * 1. Redirecting to onboarding if profile is incomplete (via Clerk metadata)
  * 2. Role-based redirects from home page (via Clerk metadata)
+ * 3. Backfilling organizationMemberId for existing users on org domains
  * 
- * NO API calls are made — everything reads from Clerk's session.
+ * NO API calls are made for routing — everything reads from Clerk's session.
  */
 export default function AuthLoadingWrapper({ children }: { children: React.ReactNode }) {
     const { user, isLoaded } = useUser()
     const pathname = usePathname()
     const router = useRouter()
+    const searchParams = useSearchParams()
+    const backfillDone = useRef(false)
 
     useEffect(() => {
         if (!isLoaded) return // Wait for Clerk
@@ -40,7 +43,18 @@ export default function AuthLoadingWrapper({ children }: { children: React.React
             return
         }
 
-        // 3. Role-Based Redirect from Root
+        // 3. Backfill organizationMemberId for users on org domains (one-time)
+        if (!backfillDone.current && profileComplete) {
+            const tenantParam = searchParams.get('tenant')
+            const tenantFromMeta = metadata?.tenant
+            const tenant = tenantParam || tenantFromMeta
+            if (tenant && tenant !== 'ktm') {
+                backfillDone.current = true
+                fetch('/api/me', { method: 'PATCH' }).catch(() => { })
+            }
+        }
+
+        // 4. Role-Based Redirect from Root
         if (pathname === '/') {
             let redirectTo = '/athlete'
 
@@ -66,7 +80,7 @@ export default function AuthLoadingWrapper({ children }: { children: React.React
             router.replace(redirectTo)
         }
 
-    }, [isLoaded, user, pathname, router])
+    }, [isLoaded, user, pathname, router, searchParams])
 
     return <>{children}</>
 }

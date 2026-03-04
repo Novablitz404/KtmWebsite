@@ -104,29 +104,8 @@ export default function Header() {
                             </nav>
                         </div>
 
-                        {/* Right: CTA & Mobile */}
                         <div className="flex items-center gap-3">
                             <MobilePublicMenu scrolled={scrolled} isHomePage={isHomePage} />
-                            {isLoaded && (
-                                <div className="hidden md:flex items-center gap-2">
-                                    <Link href="/sign-in">
-                                        <button className={`px-5 py-2.5 text-sm font-semibold rounded-xl transition-all duration-200 ${scrolled || !isHomePage
-                                            ? 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
-                                            : 'text-white/80 hover:text-white hover:bg-white/10'
-                                            }`}>
-                                            Sign In
-                                        </button>
-                                    </Link>
-                                    <Link href="/sign-up">
-                                        <button className={`px-5 py-2.5 text-sm font-semibold rounded-xl transition-all duration-200 ${scrolled || !isHomePage
-                                            ? 'bg-red-600 text-white hover:bg-red-700 shadow-sm'
-                                            : 'bg-white text-gray-900 hover:bg-gray-100 shadow-sm'
-                                            }`}>
-                                            Register
-                                        </button>
-                                    </Link>
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>
@@ -190,18 +169,6 @@ function MobilePublicMenu({ scrolled, isHomePage }: { scrolled: boolean; isHomeP
                         </Link>
                     ))}
 
-                    {isLoaded && !user && (
-                        <>
-                            <div className="border-t border-gray-100 my-2" />
-                            <div className="px-4 py-2">
-                                <Link href="/sign-in">
-                                    <button className="w-full px-4 py-3 text-sm font-semibold text-white bg-red-600 rounded-xl hover:bg-red-700 transition-colors">
-                                        Sign In
-                                    </button>
-                                </Link>
-                            </div>
-                        </>
-                    )}
                 </div>
             )}
         </div>

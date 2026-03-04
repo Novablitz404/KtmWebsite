@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { currentUser, clerkClient } from '@clerk/nextjs/server'
 import { revalidatePath } from 'next/cache'
+import { countryToCode } from '@/lib/countries'
 
 export async function promoteToOrganizer(formData: FormData) {
     const user = await currentUser()
@@ -129,6 +130,35 @@ export async function promoteToClubMaster(formData: FormData) {
     revalidatePath('/admin/users')
 }
 
+
+
+async function generateAthleteNumber(country: string | null | undefined): Promise<string> {
+    const code = countryToCode(country)
+    const year = new Date().getFullYear()
+    const prefix = `${code}-${year}-`
+
+    // Find the highest existing athlete number with this prefix
+    const existing = await prisma.user.findMany({
+        where: {
+            athleteNumber: { startsWith: prefix }
+        },
+        select: { athleteNumber: true },
+        orderBy: { athleteNumber: 'desc' },
+        take: 1,
+    })
+
+    let nextNumber = 1
+    if (existing.length > 0 && existing[0].athleteNumber) {
+        const parts = existing[0].athleteNumber.split('-')
+        const currentMax = parseInt(parts[2], 10)
+        if (!isNaN(currentMax)) {
+            nextNumber = currentMax + 1
+        }
+    }
+
+    return `${prefix}${String(nextNumber).padStart(5, '0')}`
+}
+
 export async function toggleAthleteVerification(formData: FormData) {
     const user = await currentUser()
     if (!user) throw new Error('Not authenticated')
@@ -139,18 +169,37 @@ export async function toggleAthleteVerification(formData: FormData) {
     const targetUserId = formData.get('userId') as string
     if (!targetUserId) throw new Error('User ID required')
 
-    // Get current status
+    // Get current status + country for athlete number generation
     const targetUser = await prisma.user.findUnique({
         where: { id: targetUserId },
-        select: { isVerified: true }
+        select: { isVerified: true, athleteNumber: true, country: true }
     })
 
     if (!targetUser) throw new Error('User not found')
 
-    await prisma.user.update({
-        where: { id: targetUserId },
-        data: { isVerified: !targetUser.isVerified }
-    })
+    if (!targetUser.isVerified) {
+        // Verifying: generate athlete number + set createdAt
+        const athleteNumber = targetUser.athleteNumber || await generateAthleteNumber(targetUser.country)
+
+        await prisma.user.update({
+            where: { id: targetUserId },
+            data: {
+                isVerified: true,
+                athleteNumber,
+                createdAt: new Date(),
+            }
+        })
+    } else {
+        // Un-verifying: clear athlete number + createdAt
+        await prisma.user.update({
+            where: { id: targetUserId },
+            data: {
+                isVerified: false,
+                athleteNumber: null,
+                createdAt: null,
+            }
+        })
+    }
 
     revalidatePath('/admin/users')
 }

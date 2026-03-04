@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
 import ImageCropperModal from '@/components/ImageCropperModal'
 import GlobalCalendar from '@/components/GlobalCalendar'
+import GlobalTimePicker from '@/components/GlobalTimePicker'
 
 
 interface CreateSeminarModalProps {
@@ -32,6 +33,11 @@ export default function CreateSeminarModal({ isOpen, onClose }: CreateSeminarMod
     const [startDate, setStartDate] = useState<Date | undefined>(undefined)
     const [endDate, setEndDate] = useState<Date | undefined>(undefined)
     const [registrationDeadline, setRegistrationDeadline] = useState<Date | undefined>(undefined)
+
+    // Time State
+    const [startTime, setStartTime] = useState('08:00')
+    const [endTime, setEndTime] = useState('17:00')
+    const [regDeadlineTime, setRegDeadlineTime] = useState('17:00')
 
     if (!isOpen) return null
 
@@ -193,51 +199,81 @@ export default function CreateSeminarModal({ isOpen, onClose }: CreateSeminarMod
 
 
                         {/* Grid for Date/Deadline/Visibility */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div>
-                                <GlobalCalendar
-                                    label="Start Date"
-                                    value={startDate}
-                                    onChange={(date) => {
-                                        setStartDate(date)
-                                        const input = document.getElementsByName('startDate')[0] as HTMLInputElement
-                                        if (input) input.value = format(date, 'yyyy-MM-dd')
-                                    }}
-                                    placeholder="Start date..."
-                                    className="w-full"
-                                    fullWidth
-                                />
-                                <input type="hidden" name="startDate" required />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <GlobalCalendar
+                                        label="Start Date"
+                                        value={startDate}
+                                        onChange={(date) => {
+                                            setStartDate(date)
+                                            const input = document.getElementsByName('startDate')[0] as HTMLInputElement
+                                            if (input) input.value = format(date, 'yyyy-MM-dd')
+                                        }}
+                                        placeholder="Start date..."
+                                        className="w-full"
+                                        fullWidth
+                                    />
+                                    <input type="hidden" name="startDate" required />
+                                </div>
+                                <div className="w-[140px]">
+                                    <GlobalTimePicker
+                                        label="Time"
+                                        name="startTime"
+                                        value={startTime}
+                                        onChange={setStartTime}
+                                    />
+                                </div>
                             </div>
-                            <div>
-                                <GlobalCalendar
-                                    label="End Date (Optional)"
-                                    value={endDate}
-                                    onChange={(date) => {
-                                        setEndDate(date)
-                                        const input = document.getElementsByName('endDate')[0] as HTMLInputElement
-                                        if (input) input.value = format(date, 'yyyy-MM-dd')
-                                    }}
-                                    placeholder="End date..."
-                                    className="w-full"
-                                    fullWidth
-                                />
-                                <input type="hidden" name="endDate" />
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <GlobalCalendar
+                                        label="End Date (Optional)"
+                                        value={endDate}
+                                        onChange={(date) => {
+                                            setEndDate(date)
+                                            const input = document.getElementsByName('endDate')[0] as HTMLInputElement
+                                            if (input) input.value = format(date, 'yyyy-MM-dd')
+                                        }}
+                                        placeholder="End date..."
+                                        className="w-full"
+                                        fullWidth
+                                    />
+                                    <input type="hidden" name="endDate" />
+                                </div>
+                                <div className="w-[140px]">
+                                    <GlobalTimePicker
+                                        label="Time"
+                                        name="endTime"
+                                        value={endTime}
+                                        onChange={setEndTime}
+                                    />
+                                </div>
                             </div>
-                            <div>
-                                <GlobalCalendar
-                                    label="Reg. Deadline"
-                                    value={registrationDeadline}
-                                    onChange={(date) => {
-                                        setRegistrationDeadline(date)
-                                        const input = document.getElementsByName('registrationDeadline')[0] as HTMLInputElement
-                                        if (input) input.value = format(date, 'yyyy-MM-dd')
-                                    }}
-                                    placeholder="Deadline..."
-                                    className="w-full"
-                                    fullWidth
-                                />
-                                <input type="hidden" name="registrationDeadline" />
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <GlobalCalendar
+                                        label="Reg. Deadline"
+                                        value={registrationDeadline}
+                                        onChange={(date) => {
+                                            setRegistrationDeadline(date)
+                                            const input = document.getElementsByName('registrationDeadline')[0] as HTMLInputElement
+                                            if (input) input.value = format(date, 'yyyy-MM-dd')
+                                        }}
+                                        placeholder="Deadline..."
+                                        className="w-full"
+                                        fullWidth
+                                    />
+                                    <input type="hidden" name="registrationDeadline" />
+                                </div>
+                                <div className="w-[140px]">
+                                    <GlobalTimePicker
+                                        label="Time"
+                                        name="registrationDeadlineTime"
+                                        value={regDeadlineTime}
+                                        onChange={setRegDeadlineTime}
+                                    />
+                                </div>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Visibility</label>

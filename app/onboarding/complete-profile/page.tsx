@@ -6,18 +6,24 @@ import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import { useTenant } from '@/app/providers/TenantProvider'
 import { toast } from 'sonner'
-import { Camera, ArrowRight, ArrowLeft, CheckCircle, Loader2, Ruler, Weight, Users, Building2, Award, Calendar, ImageIcon, Hash, MapPin, Phone } from 'lucide-react'
+import { Camera, ArrowRight, ArrowLeft, CheckCircle, Loader2, Ruler, Weight, Users, Building2, Award, Calendar, ImageIcon, Globe, MapPin, Phone } from 'lucide-react'
 import Image from 'next/image'
 import GlobalDropdown from '@/components/GlobalDropdown'
 import GlobalCalendar from '@/components/GlobalCalendar'
 import { format } from 'date-fns'
 import { motion } from 'framer-motion'
+import { COUNTRIES } from '@/lib/countries'
 
 type OnboardingStep = 'profile' | 'details'
 
 const BELT_OPTIONS = [
     'White', 'Yellow', 'Orange', 'Green', 'Purple',
     'Blue', 'Red', 'Maroon', 'Brown', 'Black'
+]
+
+const DAN_BELT_OPTIONS = [
+    '1st Dan', '2nd Dan', '3rd Dan', '4th Dan', '5th Dan',
+    '6th Dan', '7th Dan', '8th Dan', '9th Dan'
 ]
 
 const GENDER_OPTIONS = ['Male', 'Female']
@@ -80,7 +86,7 @@ export default function CompleteProfilePage() {
     const [height, setHeight] = useState('')
     const [belt, setBelt] = useState('White')
     const [clubName, setClubName] = useState('')
-    const [athleteNumber, setAthleteNumber] = useState('')
+    const [country, setCountry] = useState('')
     const [clubSearch, setClubSearch] = useState('')
     const [clubs, setClubs] = useState<{ id: string; name: string }[]>([])
 
@@ -129,7 +135,7 @@ export default function CompleteProfilePage() {
                 if (profile.height) setHeight(String(profile.height))
                 if (profile.belt) setBelt(profile.belt)
                 if (profile.clubName) setClubName(profile.clubName)
-                if (profile.athleteNumber) setAthleteNumber(profile.athleteNumber)
+                if (profile.country) setCountry(profile.country)
             })
         }
     }, [isLoaded, user])
@@ -266,13 +272,15 @@ export default function CompleteProfilePage() {
                 submitData.append('birthDate', birthDate)
                 submitData.append('gender', gender)
                 submitData.append('clubName', clubName)
-                if (athleteNumber.trim()) submitData.append('athleteNumber', athleteNumber.trim())
+                if (country.trim()) submitData.append('country', country.trim())
             } else if (role === 'CLUB_MASTER') {
                 submitData.append('clubName', newClubName)
                 submitData.append('organizationId', organizationId)
                 submitData.append('clubAddress', clubAddress)
                 submitData.append('clubPhone', clubPhone)
-                if (athleteNumber.trim()) submitData.append('athleteNumber', athleteNumber.trim())
+                if (belt) submitData.append('belt', belt)
+                if (gender) submitData.append('gender', gender)
+                if (country.trim()) submitData.append('country', country.trim())
                 if (clubLogoFile) submitData.append('clubLogo', clubLogoFile)
             } else if (role === 'ORGANIZER') {
                 submitData.append('orgName', orgName)
@@ -460,17 +468,46 @@ export default function CompleteProfilePage() {
                                     />
                                 </div>
 
-                                {/* Athlete Number (Optional) */}
+                                {/* Belt Rank & Gender - Side by Side */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                                            <Award className="w-4 h-4 text-red-600" /> Belt Rank
+                                        </label>
+                                        <GlobalDropdown
+                                            value={belt}
+                                            onChange={setBelt}
+                                            options={DAN_BELT_OPTIONS}
+                                            label="Select Dan rank"
+                                            fullWidth
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                                            <Users className="w-4 h-4 text-red-600" /> Gender
+                                        </label>
+                                        <GlobalDropdown
+                                            value={gender}
+                                            onChange={setGender}
+                                            options={GENDER_OPTIONS}
+                                            label="Select gender"
+                                            fullWidth
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Country */}
                                 <div className="space-y-2">
                                     <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                        <Hash className="w-4 h-4 text-red-600" /> Kukkiwon / Athlete No.
-                                        <span className="text-xs text-gray-400 font-normal">(Optional)</span>
+                                        <Globe className="w-4 h-4 text-red-600" /> Country
                                     </label>
-                                    <input
-                                        value={athleteNumber}
-                                        onChange={(e) => setAthleteNumber(e.target.value)}
-                                        placeholder="e.g. 12345678"
-                                        className={inputClass}
+                                    <GlobalDropdown
+                                        options={COUNTRIES}
+                                        value={country}
+                                        onChange={(val: string) => setCountry(val)}
+                                        fullWidth
+                                        searchable
                                     />
                                 </div>
 
@@ -557,7 +594,7 @@ export default function CompleteProfilePage() {
                                         </div>
                                     </div>
 
-                                    {/* Club Name & Organization */}
+                                    {/* Club Name & Phone */}
                                     <div className="flex-1 space-y-4">
                                         <div className="space-y-2">
                                             <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
@@ -567,6 +604,18 @@ export default function CompleteProfilePage() {
                                                 value={newClubName}
                                                 onChange={(e) => setNewClubName(e.target.value)}
                                                 placeholder="e.g. Manila Taekwondo Center"
+                                                required
+                                                className={inputClass}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                                                <Phone className="w-4 h-4 text-red-600" /> Phone Number
+                                            </label>
+                                            <input
+                                                value={clubPhone}
+                                                onChange={(e) => setClubPhone(e.target.value)}
+                                                placeholder="e.g. 09171234567"
                                                 required
                                                 className={inputClass}
                                             />
@@ -607,33 +656,20 @@ export default function CompleteProfilePage() {
                                     </div>
                                 </div>
 
-                                {/* Address & Phone */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                            <MapPin className="w-4 h-4 text-red-600" /> Club Address
-                                        </label>
-                                        <input
-                                            value={clubAddress}
-                                            onChange={(e) => setClubAddress(e.target.value)}
-                                            placeholder="e.g. 123 Main St, Manila"
-                                            required
-                                            className={inputClass}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                            <Phone className="w-4 h-4 text-red-600" /> Phone Number
-                                        </label>
-                                        <input
-                                            value={clubPhone}
-                                            onChange={(e) => setClubPhone(e.target.value)}
-                                            placeholder="e.g. 09171234567"
-                                            required
-                                            className={inputClass}
-                                        />
-                                    </div>
+                                {/* Club Address - Full Width */}
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                                        <MapPin className="w-4 h-4 text-red-600" /> Club Address
+                                    </label>
+                                    <input
+                                        value={clubAddress}
+                                        onChange={(e) => setClubAddress(e.target.value)}
+                                        placeholder="e.g. 123 Main St, Manila"
+                                        required
+                                        className={inputClass}
+                                    />
                                 </div>
+
 
                                 {error && (
                                     <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm font-medium">
@@ -942,18 +978,17 @@ export default function CompleteProfilePage() {
                                     />
                                 </div>
 
-                                {/* Kukkiwon / Athlete Card Number (dynamic label based on belt) */}
+                                {/* Country */}
                                 <div className="space-y-2">
                                     <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                        <Hash className="w-4 h-4 text-red-600" />
-                                        {belt === 'Black' ? 'Kukkiwon No.' : 'Athlete Card No.'}
-                                        <span className="text-xs text-gray-400 font-normal">(Optional)</span>
+                                        <Globe className="w-4 h-4 text-red-600" /> Country
                                     </label>
-                                    <input
-                                        value={athleteNumber}
-                                        onChange={(e) => setAthleteNumber(e.target.value)}
-                                        placeholder={belt === 'Black' ? 'e.g. 12345678' : 'e.g. ATH-001234'}
-                                        className={inputClass}
+                                    <GlobalDropdown
+                                        options={COUNTRIES}
+                                        value={country}
+                                        onChange={(val: string) => setCountry(val)}
+                                        fullWidth
+                                        searchable
                                     />
                                 </div>
 

@@ -13,6 +13,7 @@ const isPublicRoute = createRouteMatcher([
     '/tournaments(.*)',
     '/tournament/(.*)',
     '/about',
+    '/membership',
     '/events',
     '/rankings(.*)', // Allow detailed views if added later
     '/seminars(.*)',
@@ -44,19 +45,19 @@ const cspDirectives = [
     // Default: only same origin
     "default-src 'self'",
     // Scripts: self, Clerk, and inline (required for Next.js)
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://*.ktmsports.com https://challenges.cloudflare.com",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://*.ktmsports.com https://*.wotf-ph.com https://challenges.cloudflare.com",
     // Styles: self, inline (required for Clerk and many React libs), Google Fonts
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     // Images: self, data URIs, Clerk, Supabase, Unsplash, blob for image processing
-    "img-src 'self' data: blob: https://*.clerk.com https://*.ktmsports.com https://*.supabase.co https://img.clerk.com https://images.unsplash.com",
+    "img-src 'self' data: blob: https://*.clerk.com https://*.ktmsports.com https://*.wotf-ph.com https://*.supabase.co https://img.clerk.com https://images.unsplash.com",
     // Fonts: self, Google Fonts, data URIs
     "font-src 'self' https://fonts.gstatic.com data:",
     // Connect: API calls to self, Clerk, Supabase
-    "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.dev https://*.ktmsports.com https://*.supabase.co wss://*.supabase.co",
+    "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.dev https://*.ktmsports.com https://*.wotf-ph.com https://*.supabase.co wss://*.supabase.co",
     // Frame ancestors: prevent embedding
     "frame-ancestors 'none'",
     // Frame src: allow Clerk iframe for auth
-    "frame-src 'self' https://*.clerk.accounts.dev https://*.ktmsports.com https://challenges.cloudflare.com",
+    "frame-src 'self' https://*.clerk.accounts.dev https://*.ktmsports.com https://*.wotf-ph.com https://challenges.cloudflare.com",
     // Form actions: only self
     "form-action 'self'",
     // Base URI: only self
@@ -95,13 +96,12 @@ export default clerkMiddleware(async (auth, request) => {
     // Static tenant map for known domains
     const TENANT_MAP: Record<string, string> = {
         // Custom domains → org slug
-        // 'wotf.org': 'wotf',
-        // 'www.wotf.org': 'wotf',
-        // 'tapelite.com': 'tapelite',
+        'wotf-ph.com': 'wotf',
+        'www.wotf-ph.com': 'wotf',
     }
 
     // KTM admin domains (no tenant — serves KTM super admin)
-    const KTM_DOMAINS = ['ktm.com', 'www.ktm.com', 'ktm-website.vercel.app']
+    const KTM_DOMAINS = ['ktmsports.com', 'www.ktmsports.com', 'ktm-website.vercel.app']
 
     const tenantParam = searchParams.get('tenant')
     const tenantFromDomain = TENANT_MAP[hostname]

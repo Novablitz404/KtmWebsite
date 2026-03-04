@@ -65,8 +65,19 @@ export default function WOTFSignInPage() {
                 setIsRedirecting(true);
                 // Wait for session to propagate
                 await new Promise(resolve => setTimeout(resolve, 1000));
-                // Client-side nav keeps sign-in page visible until athlete page is ready
-                router.push('/athlete');
+                // Fetch role and redirect to correct dashboard
+                try {
+                    const res = await fetch('/api/me');
+                    const data = await res.json();
+                    const role = data?.data?.role;
+                    const redirectTo = role === 'CLUB_MASTER' || role === 'ASSISTANT_CLUB_MASTER' ? '/club'
+                        : role === 'ORGANIZER' || role === 'MANAGER' ? '/organization'
+                            : role === 'ADMIN' ? '/admin'
+                                : '/athlete';
+                    router.push(redirectTo);
+                } catch {
+                    router.push('/athlete');
+                }
             } else if (result.status === "needs_second_factor") {
                 await signIn.prepareSecondFactor({
                     strategy: "email_code",
@@ -100,7 +111,18 @@ export default function WOTFSignInPage() {
                 await setActive({ session: result.createdSessionId });
                 setIsRedirecting(true);
                 await new Promise(resolve => setTimeout(resolve, 1000));
-                router.push('/athlete');
+                try {
+                    const res = await fetch('/api/me');
+                    const data = await res.json();
+                    const role = data?.data?.role;
+                    const redirectTo = role === 'CLUB_MASTER' || role === 'ASSISTANT_CLUB_MASTER' ? '/club'
+                        : role === 'ORGANIZER' || role === 'MANAGER' ? '/organization'
+                            : role === 'ADMIN' ? '/admin'
+                                : '/athlete';
+                    router.push(redirectTo);
+                } catch {
+                    router.push('/athlete');
+                }
             } else {
                 console.log(result);
                 setIsLoading(false);

@@ -1,6 +1,7 @@
 'use client'
 
 import { useClerk } from '@clerk/nextjs'
+import { useTenant } from '@/app/providers/TenantProvider'
 import { useRouter } from 'next/navigation'
 import {
     LayoutDashboard,
@@ -8,13 +9,14 @@ import {
     Calendar,
     Settings,
     LogOut,
-    Users
+    Users,
+    IdCard,
+    DollarSign
 } from 'lucide-react'
 
 interface OrganizationSidebarProps {
-    activeView: 'home' | 'clubs' | 'events' | 'team' | 'settings'
-    onNavigate: (view: 'home' | 'clubs' | 'events' | 'team' | 'settings') => void
-    orgLogo?: string | null
+    activeView: 'home' | 'clubs' | 'events' | 'athletes' | 'financials' | 'team' | 'settings'
+    onNavigate: (view: 'home' | 'clubs' | 'events' | 'athletes' | 'financials' | 'team' | 'settings') => void
     orgName?: string
 }
 
@@ -22,17 +24,19 @@ const navItems = [
     { id: 'home', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'clubs', label: 'Affiliates', icon: Building2 },
     { id: 'events', label: 'Events', icon: Calendar },
+    { id: 'athletes', label: 'Athletes', icon: IdCard },
+    { id: 'financials', label: 'Financials', icon: DollarSign },
     { id: 'team', label: 'Team', icon: Users },
 ] as const
 
 export default function OrganizationSidebar({
     activeView,
     onNavigate,
-    orgLogo,
     orgName
 }: OrganizationSidebarProps) {
     const { signOut } = useClerk()
     const router = useRouter()
+    const tenant = useTenant()
 
     const handleLogout = async () => {
         await signOut()
@@ -44,19 +48,13 @@ export default function OrganizationSidebar({
             {/* Logo / Brand */}
             <div className="p-6 border-b border-gray-100">
                 <div className="flex items-center gap-3">
-                    {orgLogo ? (
-                        <img
-                            src={orgLogo}
-                            alt={orgName || 'Organization'}
-                            className="w-10 h-10 rounded-lg object-contain"
-                        />
-                    ) : (
-                        <div className="w-10 h-10 rounded-lg bg-red-600 flex items-center justify-center text-lg font-bold text-white">
-                            {orgName?.charAt(0) || 'O'}
-                        </div>
-                    )}
+                    <img
+                        src={tenant.logoUrl}
+                        alt={tenant.name}
+                        className="w-10 h-10 object-contain"
+                    />
                     <div className="flex-1 min-w-0">
-                        <h2 className="font-bold text-sm truncate text-gray-900">{orgName || 'Organization'}</h2>
+                        <h2 className="font-bold text-sm truncate text-gray-900">{tenant.name}</h2>
                         <p className="text-xs text-gray-500">Organization Dashboard</p>
                     </div>
                 </div>

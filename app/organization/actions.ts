@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { currentUser } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
 import { getNextBelt } from '@/lib/belt'
+import { countryToCode } from '@/lib/countries'
 import crypto from 'crypto'
 
 export async function getOrganizationDashboardData() {
@@ -1153,7 +1154,16 @@ export async function getOrganizerTournaments() {
             startDate: true,
             venue: true,
             status: true,
+            tier: true,
             headerImageUrl: true,
+            registrationStart: true,
+            registrationEnd: true,
+            earlyBirdDeadline: true,
+            earlyBirdPrice: true,
+            regularPrice: true,
+            guidelineTemplate: {
+                select: { name: true }
+            },
             _count: {
                 select: {
                     categories: true
@@ -1793,4 +1803,272 @@ export async function updateClubMemberAsOrg(userId: string, data: {
 
     revalidatePath('/organization')
     return { success: true }
+}
+
+// ============================================
+// ATHLETE CARD MANAGEMENT ACTIONS
+// ============================================
+
+
+
+async function generateAthleteNumber(country: string | null | undefined): Promise<string> {
+    const code = countryToCode(country)
+    const year = new Date().getFullYear()
+    const prefix = `${code}-${year}-`
+
+    const existing = await prisma.user.findMany({
+        where: { athleteNumber: { startsWith: prefix } },
+        select: { athleteNumber: true },
+        orderBy: { athleteNumber: 'desc' },
+        take: 1,
+    })
+
+    let nextNumber = 1
+    if (existing.length > 0 && existing[0].athleteNumber) {
+        const parts = existing[0].athleteNumber.split('-')
+        const currentMax = parseInt(parts[2], 10)
+        if (!isNaN(currentMax)) {
+            nextNumber = currentMax + 1
+        }
+    }
+
+    return `${prefix}${String(nextNumber).padStart(5, '0')}`
+}
+
+export async function getOrganizationAthletes() {
+    const user = await currentUser()
+    if (!user) return []
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return []
+    if (!['ORGANIZER', 'MANAGER', 'ADMIN'].includes(dbUser.role)) return []
+
+    const orgId = dbUser.organization.id
+
+    // Get all clubs under this org
+    const clubs = await prisma.club.findMany({
+        where: { organizationId: orgId },
+        select: { name: true }
+    })
+
+    const clubNames = clubs.map(c => c.name)
+
+    // Get all athletes from these clubs
+    const athletes = await prisma.user.findMany({
+        where: {
+            clubName: { in: clubNames },
+            role: 'ATHLETE'
+        },
+        select: {
+            id: true,
+            name: true,
+            email: true,
+            clubName: true,
+            belt: true,
+            isVerified: true,
+            athleteNumber: true,
+            imageUrl: true,
+            country: true,
+            createdAt: true,
+        },
+        orderBy: { name: 'asc' }
+    })
+
+    return athletes
+}
+
+export async function toggleAthleteCardStatus(athleteId: string) {
+    const user = await currentUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return { error: 'No organization found' }
+    if (!['ORGANIZER', 'MANAGER', 'ADMIN'].includes(dbUser.role)) return { error: 'Unauthorized' }
+
+    const orgId = dbUser.organization.id
+
+    // Verify the athlete belongs to this org's clubs
+    const orgClubs = await prisma.club.findMany({
+        where: { organizationId: orgId },
+        select: { name: true }
+    })
+    const clubNames = orgClubs.map(c => c.name)
+
+    const targetUser = await prisma.user.findUnique({
+        where: { id: athleteId },
+        select: { id: true, isVerified: true, athleteNumber: true, country: true, clubName: true }
+    })
+
+    if (!targetUser) return { error: 'Athlete not found' }
+    if (!targetUser.clubName || !clubNames.includes(targetUser.clubName)) {
+        return { error: 'Athlete does not belong to your organization' }
+    }
+
+    if (!targetUser.isVerified) {
+        // Activate: generate athlete number
+        const athleteNumber = targetUser.athleteNumber || await generateAthleteNumber(targetUser.country)
+        await prisma.user.update({
+            where: { id: athleteId },
+            data: {
+                isVerified: true,
+                athleteNumber,
+                createdAt: new Date(),
+            }
+        })
+    } else {
+        // Deactivate: clear athlete number
+        await prisma.user.update({
+            where: { id: athleteId },
+            data: {
+                isVerified: false,
+                athleteNumber: null,
+                createdAt: null,
+            }
+        })
+    }
+
+    revalidatePath('/organization')
+    return { success: true }
+}
+
+// ============================================
+// FINANCIAL DATA ACTIONS
+// ============================================
+
+export async function getOrganizationFinancials() {
+    const user = await currentUser()
+    if (!user) return null
+
+    const dbUser = await prisma.user.findUnique({
+        where: { clerkId: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return null
+    if (!['ORGANIZER', 'MANAGER', 'ADMIN'].includes(dbUser.role)) return null
+
+    const orgId = dbUser.organization.id
+
+    const [promotionTests, seminars] = await Promise.all([
+        prisma.promotionTest.findMany({
+            where: { organizationId: orgId },
+            include: {
+                registrations: {
+                    select: {
+                        id: true,
+                        paymentStatus: true,
+                        playerName: true,
+                        clubName: true,
+                        currentBelt: true,
+                        createdAt: true,
+                    }
+                }
+            },
+            orderBy: { testDate: 'desc' }
+        }),
+        prisma.seminar.findMany({
+            where: { organizationId: orgId },
+            include: {
+                registrations: {
+                    select: {
+                        id: true,
+                        status: true,
+                        playerName: true,
+                        clubName: true,
+                        createdAt: true,
+                    }
+                }
+            },
+            orderBy: { startDate: 'desc' }
+        })
+    ])
+
+    // Build per-event financial breakdown
+    const promotionBreakdown = promotionTests.map(pt => {
+        const fee = pt.fee || 0
+        const totalRegs = pt.registrations.length
+        const paidCount = pt.registrations.filter(r => r.paymentStatus === 'PAID').length
+        const unpaidCount = pt.registrations.filter(r => r.paymentStatus === 'UNPAID').length
+        return {
+            id: pt.id,
+            type: 'promotion' as const,
+            name: pt.name,
+            date: pt.testDate.toISOString(),
+            status: pt.status,
+            fee,
+            totalRegistrations: totalRegs,
+            paidCount,
+            unpaidCount,
+            totalCollected: paidCount * fee,
+            totalExpected: totalRegs * fee,
+        }
+    })
+
+    const seminarBreakdown = seminars.map(s => {
+        const fee = s.fee || 0
+        const approvedRegs = s.registrations.filter(r => r.status === 'APPROVED')
+        const totalRegs = s.registrations.length
+        return {
+            id: s.id,
+            type: 'seminar' as const,
+            name: s.name,
+            date: s.startDate.toISOString(),
+            status: s.status,
+            fee,
+            totalRegistrations: totalRegs,
+            paidCount: approvedRegs.length, // approved = paid for seminars
+            unpaidCount: totalRegs - approvedRegs.length,
+            totalCollected: approvedRegs.length * fee,
+            totalExpected: totalRegs * fee,
+        }
+    })
+
+    const allEvents = [...promotionBreakdown, ...seminarBreakdown]
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+    // Aggregated totals
+    const totalRevenue = allEvents.reduce((sum, e) => sum + e.totalExpected, 0)
+    const totalCollected = allEvents.reduce((sum, e) => sum + e.totalCollected, 0)
+    const totalPending = totalRevenue - totalCollected
+    const totalRegistrations = allEvents.reduce((sum, e) => sum + e.totalRegistrations, 0)
+
+    // Monthly revenue data for bar chart (last 12 months)
+    const monthlyData: { month: string; promotions: number; seminars: number }[] = []
+    const now = new Date()
+    for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+        const monthKey = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+        const year = d.getFullYear()
+        const month = d.getMonth()
+
+        const promoRevenue = promotionBreakdown
+            .filter(e => {
+                const ed = new Date(e.date)
+                return ed.getFullYear() === year && ed.getMonth() === month
+            })
+            .reduce((sum, e) => sum + e.totalCollected, 0)
+
+        const semRevenue = seminarBreakdown
+            .filter(e => {
+                const ed = new Date(e.date)
+                return ed.getFullYear() === year && ed.getMonth() === month
+            })
+            .reduce((sum, e) => sum + e.totalCollected, 0)
+
+        monthlyData.push({ month: monthKey, promotions: promoRevenue, seminars: semRevenue })
+    }
+
+    return {
+        summary: { totalRevenue, totalCollected, totalPending, totalRegistrations },
+        events: allEvents,
+        monthlyData,
+    }
 }

@@ -19,7 +19,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import ClubSidebar from '@/components/club/ClubSidebar'
 import ClubTopBar from '@/components/club/ClubTopBar'
-import ClubScheduleWidget from '@/components/club/ClubScheduleWidget'
+
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import ClubEventBrowser from './ClubEventBrowser'
 import AddAthleteModal from '@/components/club/AddAthleteModal'
@@ -265,7 +265,7 @@ export default function ClubDashboard({
     const [isActionModalOpen, setIsActionModalOpen] = useState(false)
     const alertCount = proposals?.filter((p: any) => !p.myVote).length || 0
 
-    const [isEventBrowserOpen, setIsEventBrowserOpen] = useState(false)
+
 
     // URL Search Support for Members
     const pathname = usePathname()
@@ -701,7 +701,6 @@ export default function ClubDashboard({
                     notificationCount={0}
                     onNotificationsClick={() => setActiveView('notifications')}
                     // Dynamic Props based on View
-                    onBrowseEvents={activeView === 'home' ? () => setIsEventBrowserOpen(true) : undefined}
 
                     // Search Props
                     searchQuery={
@@ -730,14 +729,7 @@ export default function ClubDashboard({
                             {/* Desktop Home View - Full dashboard */}
                             <div className="relative animate-in fade-in duration-300 p-4 md:p-6 h-auto md:h-[calc(100vh-80px)] overflow-visible md:overflow-hidden">
 
-                                {/* Mobile Browse Events Button */}
-                                <button
-                                    onClick={() => setIsEventBrowserOpen(true)}
-                                    className="md:hidden w-full flex items-center justify-center gap-2 px-4 py-3 mb-4 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold shadow-sm transition-all active:scale-95"
-                                >
-                                    <Search className="h-4 w-4" />
-                                    Browse Events
-                                </button>
+
 
                                 {/* Main 2-Column Layout */}
                                 <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6 h-auto md:h-full">
@@ -788,11 +780,11 @@ export default function ClubDashboard({
                                                 </div>
                                             </div>
                                         </div>
-
-                                        {/* Schedule Calendar Widget */}
-                                        <div className="hidden md:flex flex-1 min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm flex-col overflow-hidden">
-                                            <ClubScheduleWidget tournaments={clubTournaments} isLoading={isLoading} />
+                                        {/* Browse Events Widget */}
+                                        <div className="flex-1 min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
+                                            <ClubEventBrowser clubId={clubId} />
                                         </div>
+
                                     </div>
 
                                     {/* Right Column - Sidebar Widgets */}
@@ -890,51 +882,71 @@ export default function ClubDashboard({
                                             </div>
                                         </div>
 
-                                        {/* Top Performers - Swapped to bottom */}
+                                        {/* Action Center Widget */}
                                         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col h-1/2">
                                             <div className="flex items-center justify-between mb-4 flex-shrink-0">
-                                                <h2 className="font-bold text-gray-900">Top Performers</h2>
-                                                <span className="text-xs text-red-600 cursor-pointer hover:text-red-700 font-medium">All →</span>
-                                            </div>
-                                            <div className="space-y-3 flex-1 overflow-y-auto pr-1">
-                                                {isLoading ? (
-                                                    // Skeleton Loading for Top Performers
-                                                    [1, 2, 3].map((i) => (
-                                                        <div key={i} className="flex items-center gap-3 p-2">
-                                                            <Skeleton className="w-8 h-8 rounded-full" />
-                                                            <div className="flex-1">
-                                                                <Skeleton className="h-4 w-24 mb-1" />
-                                                                <Skeleton className="h-3 w-16" />
-                                                            </div>
-                                                            <Skeleton className="h-4 w-4" />
-                                                        </div>
-                                                    ))
-                                                ) : topPerformers && topPerformers.length > 0 ? (
-                                                    topPerformers.slice(0, 10).map((athlete: any, index: number) => (
-                                                        <div key={athlete.name} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center overflow-hidden text-xs font-bold ${index === 0 ? 'bg-yellow-100 text-yellow-700' :
-                                                                index === 1 ? 'bg-gray-100 text-gray-600' :
-                                                                    index === 2 ? 'bg-red-100 text-red-700' :
-                                                                        'bg-red-50 text-red-600'
-                                                                }`}>
-                                                                {athlete.name?.charAt(0)}
-                                                            </div>
-                                                            <div className="flex-1 min-w-0">
-                                                                <p className="text-sm font-medium text-gray-900 truncate">{athlete.name}</p>
-                                                                <p className="text-[10px] text-gray-500">
-                                                                    🥇{athlete.gold} 🥈{athlete.silver} 🥉{athlete.bronze}
-                                                                </p>
-                                                            </div>
-                                                            <span className="text-xs text-gray-400">#{index + 1}</span>
-                                                        </div>
-                                                    ))
-                                                ) : (
-                                                    <p className="text-xs text-gray-400 text-center py-4">No medals yet</p>
+                                                <h2 className="font-bold text-gray-900">Action Center</h2>
+                                                {alertCount > 0 && (
+                                                    <span className="text-xs font-semibold text-white bg-red-500 px-2 py-0.5 rounded-full">
+                                                        {alertCount}
+                                                    </span>
                                                 )}
                                             </div>
-                                            <button className="w-full mt-4 py-2.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors flex-shrink-0">
-                                                View all
-                                            </button>
+                                            <div className="space-y-2 flex-1 overflow-y-auto pr-1">
+                                                {isLoading ? (
+                                                    [1, 2, 3].map((i) => (
+                                                        <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50">
+                                                            <Skeleton className="w-8 h-8 rounded-full" />
+                                                            <div className="flex-1">
+                                                                <Skeleton className="h-4 w-32 mb-1" />
+                                                                <Skeleton className="h-3 w-20" />
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                ) : proposals && proposals.length > 0 ? (
+                                                    <>
+                                                        {proposals.slice(0, 3).map((proposal: any) => (
+                                                            <div
+                                                                key={proposal.id}
+                                                                className={`flex items-center gap-3 p-3 rounded-xl ${!proposal.myVote
+                                                                    ? 'bg-red-50 border border-red-100'
+                                                                    : 'bg-gray-50 border border-gray-100'
+                                                                    }`}
+                                                            >
+                                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 ${!proposal.myVote
+                                                                    ? 'bg-red-100 text-red-600'
+                                                                    : 'bg-green-100 text-green-600'
+                                                                    }`}>
+                                                                    {!proposal.myVote ? '⚠️' : '✓'}
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="text-sm font-medium text-gray-900 truncate">{proposal.title || proposal.type}</p>
+                                                                    <p className="text-xs text-gray-500 truncate">{proposal.description || 'Needs your review'}</p>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                        {proposals.length > 3 && (
+                                                            <p className="text-xs text-gray-400 text-center pt-1">
+                                                                +{proposals.length - 3} more action{proposals.length - 3 > 1 ? 's' : ''}
+                                                            </p>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                                                        <span className="text-3xl mb-2">✅</span>
+                                                        <p className="text-sm font-medium text-gray-900">All caught up!</p>
+                                                        <p className="text-xs text-gray-500 mt-1">No pending actions</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {proposals && proposals.length > 0 && (
+                                                <button
+                                                    onClick={() => setIsActionModalOpen(true)}
+                                                    className="w-full mt-4 py-2.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors flex-shrink-0"
+                                                >
+                                                    View all actions
+                                                </button>
+                                            )}
                                         </div>
 
                                     </div>
@@ -1134,7 +1146,6 @@ export default function ClubDashboard({
                                                             {registrationType === 'TOURNAMENT' ? (
                                                                 // Tournament List
                                                                 currentRegistrations.map((player, index) => {
-                                                                    const avatar = getPlayerAvatar(player)
                                                                     const isPending = player.registrationStatus === 'PENDING'
                                                                     const isSelected = selectedRegistrationIds.has(player.id)
                                                                     const isLastItems = currentRegistrations.length > 2 && index >= currentRegistrations.length - 2
@@ -1163,14 +1174,7 @@ export default function ClubDashboard({
                                                                                     </button>
                                                                                 )}
 
-                                                                                {/* Avatar */}
-                                                                                {avatar ? (
-                                                                                    <img src={avatar} alt={player.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
-                                                                                ) : (
-                                                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-500 to-purple-500 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
-                                                                                        {player.name.charAt(0)}
-                                                                                    </div>
-                                                                                )}
+
 
                                                                                 {/* Info */}
                                                                                 <div className="flex-1 min-w-0">
@@ -1284,9 +1288,7 @@ export default function ClubDashboard({
 
                                                                         return (
                                                                             <div key={promo.id} className="flex items-center gap-3 md:px-4 md:py-3 p-4 rounded-2xl md:rounded-none shadow-sm md:shadow-none border border-gray-100 md:border-0 bg-white md:bg-transparent">
-                                                                                <div className="w-10 h-10 rounded-full bg-red-100 text-red-700 flex items-center justify-center font-bold text-sm">
-                                                                                    {promo.name.charAt(0)}
-                                                                                </div>
+
                                                                                 <div className="flex-1 min-w-0">
                                                                                     <div className="flex items-center gap-2">
                                                                                         <h3 className="font-semibold text-gray-900 text-sm truncate">{promo.name}</h3>
@@ -1361,13 +1363,7 @@ export default function ClubDashboard({
 
                                                                     return (
                                                                         <div key={seminar.id} className="flex items-center gap-3 md:px-4 md:py-3 p-4 rounded-2xl md:rounded-none shadow-sm md:shadow-none border border-gray-100 md:border-0 bg-white md:bg-transparent">
-                                                                            {seminar.imageUrl ? (
-                                                                                <img src={seminar.imageUrl} alt={seminar.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
-                                                                            ) : (
-                                                                                <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm">
-                                                                                    {seminar.name.charAt(0)}
-                                                                                </div>
-                                                                            )}
+
                                                                             <div className="flex-1 min-w-0">
                                                                                 <div className="flex items-center gap-3">
                                                                                     <h3 className="font-semibold text-gray-900 text-sm truncate">{seminar.name}</h3>
@@ -1380,13 +1376,7 @@ export default function ClubDashboard({
                                                                                         }`}>
                                                                                         {seminar.status}
                                                                                     </span>
-                                                                                    {/* Payment Status */}
-                                                                                    <span className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold ${seminar.paymentStatus === 'PAID'
-                                                                                        ? 'bg-emerald-100 text-emerald-700'
-                                                                                        : 'bg-gray-100 text-gray-600'
-                                                                                        }`}>
-                                                                                        {seminar.paymentStatus === 'PAID' ? 'PAID' : 'UNPAID'}
-                                                                                    </span>
+
                                                                                 </div>
                                                                                 <p className="text-xs text-gray-500 truncate mt-0.5">
                                                                                     {seminar.eventName} • {new Date(seminar.eventDate).toLocaleDateString()}
@@ -2017,14 +2007,7 @@ export default function ClubDashboard({
             </div>
 
             {/* Global Modals */}
-            {
-                isEventBrowserOpen && (
-                    <ClubEventBrowser
-                        clubId={clubId}
-                        onClose={() => setIsEventBrowserOpen(false)}
-                    />
-                )
-            }
+
 
             <AddAthleteModal
                 isOpen={isAddAthleteOpen}

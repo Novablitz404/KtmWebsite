@@ -1,6 +1,8 @@
-import { prisma } from '@/lib/prisma'
 import ProfileForm from './ProfileForm'
 import ClubSettingsButton from '@/app/components/ClubSettingsButton'
+import LogoutButton from '@/components/LogoutButton'
+import ClubSettingsSubTabs from './ClubSettingsSubTabs'
+import SecurityForm from './SecurityForm'
 
 
 interface ClubMasterProfileViewProps {
@@ -16,125 +18,184 @@ interface ClubMasterProfileViewProps {
         birthDate: Date | null
         role: string
     }
+    club: {
+        id: string
+        name: string
+        logoUrl: string | null
+        address: string | null
+        phone: string | null
+    } | null
     clerkImageUrl: string | undefined
 }
 
-export default async function ClubMasterProfileView({ dbUser, clerkImageUrl }: ClubMasterProfileViewProps) {
-    // Get club stats using optimized count queries
-    const [playersCount, uniqueTournaments, club] = await Promise.all([
-        dbUser.clubName ? prisma.player.count({
-            where: { club: { name: dbUser.clubName } }
-        }) : 0,
-        dbUser.clubName ? prisma.category.groupBy({
-            by: ['tournamentId'],
-            where: {
-                players: { some: { club: { name: dbUser.clubName } } }
-            }
-        }).then(results => results.length) : 0,
-        dbUser.clubName ? prisma.club.findFirst({
-            where: { name: dbUser.clubName }
-        }) : null
-    ])
+export default async function ClubMasterProfileView({ dbUser, club, clerkImageUrl }: ClubMasterProfileViewProps) {
 
-    return (
-        <div className="space-y-4 sm:space-y-6">
-            {/* Profile Header Card - Mobile Optimized */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="p-6 flex flex-col sm:flex-row items-center sm:items-start gap-6">
-                    {/* Avatar */}
+    const profileContent = (
+        <div className="space-y-6">
+            {/* Profile Card */}
+            <div className="bg-white sm:rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+                    <h2 className="text-lg font-semibold text-gray-900">Personal Information</h2>
+                    <ProfileForm user={dbUser} initialImageUrl={clerkImageUrl} />
+                </div>
+                <div className="p-6 sm:p-8">
+                    <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+                        {/* Avatar */}
+                        <div className="flex-shrink-0">
+                            {clerkImageUrl ? (
+                                <img
+                                    src={clerkImageUrl}
+                                    alt={dbUser.name || 'Club Master'}
+                                    className="w-24 h-24 sm:w-28 sm:h-28 rounded-full border-2 border-gray-100 shadow-sm object-cover bg-gray-100"
+                                />
+                            ) : (
+                                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 flex items-center justify-center text-3xl sm:text-4xl border-2 border-gray-100 shadow-sm text-gray-400 font-bold">
+                                    {dbUser.name ? dbUser.name.charAt(0).toUpperCase() : 'C'}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 text-center sm:text-left">
+                            <h3 className="text-xl sm:text-2xl font-bold text-gray-900">{dbUser.name || 'Club Master'}</h3>
+                            <p className="text-gray-500 text-sm mt-1">{dbUser.email}</p>
+
+                            <div className="mt-4">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-100">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
+                                    Club Master
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Profile Details Grid */}
+                    <div className="mt-8 pt-6 border-t border-gray-100">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-5 gap-x-6">
+                            <div>
+                                <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">Full Name</p>
+                                <p className="text-sm font-medium text-gray-900">{dbUser.name || '-'}</p>
+                            </div>
+                            <div>
+                                <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">Email</p>
+                                <p className="text-sm font-medium text-gray-900 truncate">{dbUser.email}</p>
+                            </div>
+                            <div>
+                                <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">Belt Rank</p>
+                                <p className="text-sm font-medium text-gray-900">{dbUser.belt || '-'}</p>
+                            </div>
+                            <div>
+                                <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">Gender</p>
+                                <p className="text-sm font-medium text-gray-900">{dbUser.gender || '-'}</p>
+                            </div>
+                            <div>
+                                <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">Role</p>
+                                <p className="text-sm font-medium text-gray-900">
+                                    {dbUser.role === 'CLUB_MASTER' ? 'Club Master' : dbUser.role === 'ASSISTANT_CLUB_MASTER' ? 'Assistant' : dbUser.role}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Logout - Mobile Only */}
+            <div className="sm:hidden px-4 pb-6">
+                <LogoutButton />
+            </div>
+        </div>
+    )
+
+    const clubContent = (
+        <div className="space-y-6">
+            {/* Club Header Card */}
+            <div className="bg-white sm:rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="p-6 sm:p-8 flex flex-col sm:flex-row items-center gap-5">
+                    {/* Club Logo */}
                     <div className="flex-shrink-0">
-                        {clerkImageUrl ? (
+                        {club?.logoUrl ? (
                             <img
-                                src={clerkImageUrl}
-                                alt={dbUser.name || 'Club Master'}
-                                className="w-24 h-24 rounded-full border-4 border-white shadow-sm object-cover bg-gray-100"
+                                src={club.logoUrl}
+                                alt={club.name}
+                                className="w-24 h-24 rounded-xl border border-gray-200 shadow-sm object-contain bg-white p-1.5"
                             />
                         ) : (
-                            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 flex items-center justify-center text-4xl border-4 border-white shadow-sm">
-                                🏫
+                            <div className="w-24 h-24 rounded-xl bg-gray-100 flex items-center justify-center text-2xl font-bold text-gray-400 border border-gray-200">
+                                {club?.name?.charAt(0) || '🏫'}
                             </div>
                         )}
                     </div>
 
-                    {/* Name & Role */}
-                    <div className="flex-1 text-center sm:text-left pt-2">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-center sm:justify-start">
-                            <h1 className="text-2xl font-bold text-gray-900">{dbUser.name || 'Club Master'}</h1>
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-orange-100 text-orange-700">
-                                👑 Club Master
-                            </span>
-                        </div>
-                        <p className="text-gray-500 mt-1">{dbUser.email}</p>
-
-                        <div className="mt-4 flex flex-wrap gap-4 justify-center sm:justify-start">
-                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                                {club?.logoUrl ? (
-                                    <img src={club.logoUrl} alt="Club" className="w-5 h-5 object-contain" />
-                                ) : (
-                                    <span>🏫</span>
-                                )}
-                                <span>{dbUser.clubName || 'Not Assigned'}</span>
-                            </div>
-                        </div>
+                    {/* Club Name */}
+                    <div className="flex-1 text-center sm:text-left">
+                        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">{club?.name || dbUser.clubName || 'No Club'}</h2>
+                        <p className="text-gray-500 text-sm mt-1">Managed by {dbUser.name || 'Club Master'}</p>
                     </div>
 
-                    {/* Edit Profile Button */}
-                    <div className="mt-4 sm:mt-0">
-                        <ProfileForm user={dbUser} initialImageUrl={clerkImageUrl} />
+                    {/* Edit Button */}
+                    <div className="flex-shrink-0 self-start">
+                        {club && (
+                            <ClubSettingsButton
+                                clubId={club.id}
+                                clubLogo={club.logoUrl}
+                                address={club.address}
+                                phone={club.phone}
+                                buttonText="Edit"
+                            />
+                        )}
                     </div>
                 </div>
             </div>
 
-            {/* Club Details - Desktop and Mobile */}
-            <div className="bg-white sm:rounded-xl shadow-sm border-y sm:border border-gray-200">
-                <div className="px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-100 flex justify-between items-center">
-                    <h2 className="font-semibold text-gray-900">
-                        Club Details
-                    </h2>
-                    {club && (
-                        <ClubSettingsButton
-                            clubId={club.id}
-                            clubLogo={club.logoUrl}
-                            address={club.address}
-                            phone={club.phone}
-                            buttonText="Edit Club"
-                        />
-                    )}
+            {/* Club Details - Two Column Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Club Info */}
+                <div className="bg-white sm:rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-gray-100">
+                        <h3 className="text-sm font-semibold text-gray-900">Club Information</h3>
+                    </div>
+                    <div className="p-6 space-y-4">
+                        <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-500">Club Name</span>
+                            <span className="text-sm font-semibold text-gray-900">{club?.name || dbUser.clubName || '-'}</span>
+                        </div>
+                        <div className="border-t border-gray-100" />
+                        <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-500">Club Master</span>
+                            <span className="text-sm font-semibold text-gray-900">{dbUser.name || '-'}</span>
+                        </div>
+                    </div>
                 </div>
-                <div className="p-4 sm:p-8">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 sm:gap-6">
+
+                {/* Contact Info */}
+                <div className="bg-white sm:rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-gray-100">
+                        <h3 className="text-sm font-semibold text-gray-900">Contact Information</h3>
+                    </div>
+                    <div className="p-6 space-y-4">
                         <div>
-                            <span className="block text-[10px] sm:text-sm text-gray-500 mb-0.5 sm:mb-1">Club Name</span>
-                            <span className="font-medium text-gray-900 text-sm sm:text-base">{dbUser.clubName || '-'}</span>
+                            <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">Email</p>
+                            <p className="text-sm font-medium text-gray-900">{dbUser.email}</p>
                         </div>
                         <div>
-                            <span className="block text-[10px] sm:text-sm text-gray-500 mb-0.5 sm:mb-1">Club Master</span>
-                            <span className="font-medium text-gray-900 text-sm sm:text-base">{dbUser.name || '-'}</span>
+                            <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">Phone</p>
+                            <p className="text-sm font-medium text-gray-900">{club?.phone || '-'}</p>
                         </div>
                         <div>
-                            <span className="block text-[10px] sm:text-sm text-gray-500 mb-0.5 sm:mb-1">Status</span>
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium bg-green-50 text-green-700">
-                                <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                                Active
-                            </span>
-                        </div>
-                        <div>
-                            <span className="block text-[10px] sm:text-sm text-gray-500 mb-0.5 sm:mb-1">Email</span>
-                            <span className="font-medium text-gray-900 text-xs sm:text-sm truncate block">{dbUser.email}</span>
-                        </div>
-                        <div>
-                            <span className="block text-[10px] sm:text-sm text-gray-500 mb-0.5 sm:mb-1">Phone</span>
-                            <span className="font-medium text-gray-900 text-sm sm:text-base">{club?.phone || '-'}</span>
-                        </div>
-                        <div className="col-span-2 sm:col-span-1">
-                            <span className="block text-[10px] sm:text-sm text-gray-500 mb-0.5 sm:mb-1">Address</span>
-                            <span className="font-medium text-gray-900 text-sm sm:text-base">{club?.address || '-'}</span>
+                            <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">Address</p>
+                            <p className="text-sm font-medium text-gray-900">{club?.address || '-'}</p>
                         </div>
                     </div>
                 </div>
             </div>
-
-
         </div>
+    )
+
+    return (
+        <ClubSettingsSubTabs
+            profileContent={profileContent}
+            clubContent={clubContent}
+            securityContent={<SecurityForm />}
+        />
     )
 }

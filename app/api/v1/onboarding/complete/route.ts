@@ -83,7 +83,7 @@ export async function POST(request: Request) {
             const gender = formData.get('gender') as string
             const clubName = toTitleCase(formData.get('clubName') as string)
             const birthDateStr = formData.get('birthDate') as string
-            const athleteNumber = (formData.get('athleteNumber') as string) || undefined
+            const country = (formData.get('country') as string) || undefined
 
             if (!belt || !gender || !clubName || !birthDateStr || isNaN(weight) || isNaN(height)) {
                 return apiError('All athlete profile fields are required', 400)
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
                     gender,
                     clubName,
                     birthDate,
-                    athleteNumber,
+                    country,
                     ...(profileImageUrl && { imageUrl: profileImageUrl })
                 }
             })
@@ -109,10 +109,12 @@ export async function POST(request: Request) {
         } else if (role === 'CLUB_MASTER') {
             const clubName = toTitleCase(formData.get('clubName') as string)
             const organizationId = formData.get('organizationId') as string
-            const athleteNumber = (formData.get('athleteNumber') as string) || undefined
+            const country = (formData.get('country') as string) || undefined
             const clubLogoFile = formData.get('clubLogo') as File | null
             const clubAddress = (formData.get('clubAddress') as string) || undefined
             const clubPhone = (formData.get('clubPhone') as string) || undefined
+            const belt = (formData.get('belt') as string) || undefined
+            const gender = (formData.get('gender') as string) || undefined
 
             if (!clubName || !organizationId) {
                 return apiError('Club name and organization affiliation are required', 400)
@@ -123,7 +125,10 @@ export async function POST(request: Request) {
                 where: { id: dbUser.id },
                 data: {
                     name,
-                    athleteNumber,
+                    clubName,
+                    country,
+                    belt,
+                    gender,
                     ...(profileImageUrl && { imageUrl: profileImageUrl })
                 }
             })
@@ -207,6 +212,32 @@ export async function POST(request: Request) {
                     ...(profileImageUrl && { imageUrl: profileImageUrl })
                 }
             })
+        }
+
+        // ─── BACKFILL organizationMemberId FOR ORG DOMAIN SIGN-UPS ───
+        if (!dbUser.organizationMemberId) {
+            const headersList = request.headers
+            const orgSlug = headersList.get('x-org-slug')
+
+            if (orgSlug && orgSlug !== 'ktm') {
+                const org = await prisma.organization.findFirst({
+                    where: {
+                        OR: [
+                            { slug: orgSlug },
+                            { customDomain: orgSlug },
+                        ]
+                    },
+                    select: { id: true }
+                })
+
+                if (org) {
+                    await prisma.user.update({
+                        where: { id: dbUser.id },
+                        data: { organizationMemberId: org.id }
+                    })
+                    console.log(`[Onboarding] Set organizationMemberId=${org.id} for user ${dbUser.id} (${dbUser.email})`)
+                }
+            }
         }
 
         // ─── SYNC profileComplete TO CLERK METADATA ───

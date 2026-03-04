@@ -1,13 +1,10 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { Building2, Globe, ChevronLeft, ChevronRight, ListFilter, ArrowUpDown, Users, Clock } from 'lucide-react'
+import { Building2, Globe, ChevronLeft, ChevronRight, ListFilter, ArrowUpDown, Users } from 'lucide-react'
 import AffiliatedClubsTable from './AffiliatedClubsTable'
 import AffiliatedOrgsTable from './AffiliatedOrgsTable'
 import GlobalDropdown from '@/components/GlobalDropdown'
-import PendingRequestsModal from './PendingRequestsModal'
-import { useQuery } from '@tanstack/react-query'
-import { getAffiliationRequests } from '@/app/organization/actions'
 
 type ClubViewType = 'clubs' | 'organizations'
 const ITEMS_PER_PAGE = 10
@@ -33,21 +30,7 @@ export default function OrganizationClubsView({
     const [currentPage, setCurrentPage] = useState(1)
     const [sortKey, setSortKey] = useState<'name' | 'members'>('name')
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
-    const [isPendingModalOpen, setIsPendingModalOpen] = useState(false)
 
-    // Compute pending clubs (safeguard against empty/undefined)
-    const pendingClubs = useMemo(() =>
-        (clubs || []).filter(club => club?.status === 'PENDING'),
-        [clubs]
-    )
-
-    // Fetch pending organization requests for the count
-    const { data: pendingOrgs } = useQuery({
-        queryKey: ['affiliation-requests'],
-        queryFn: () => getAffiliationRequests()
-    })
-
-    const totalPendingCount = pendingClubs.length + (pendingOrgs?.length || 0)
 
     // Reset page when switching view type or search query changes
     useEffect(() => {
@@ -99,130 +82,105 @@ export default function OrganizationClubsView({
     }
 
     return (
-        <>
-            <div className="flex flex-col h-full space-y-4">
-                {/* Header with Toggle and Sorting */}
-                <div className="flex-shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        {/* Toggle - Only show if there are organizations OR we are loading (might check later) */}
-                        <div className="flex p-1 bg-gray-100 rounded-xl">
-                            <button
-                                onClick={() => setViewType('clubs')}
-                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${viewType === 'clubs'
-                                    ? 'bg-white text-red-600 shadow-sm'
-                                    : 'text-gray-500 hover:text-gray-700'
-                                    }`}
-                            >
-                                <Building2 size={16} />
-                                Clubs
-                            </button>
-                            <button
-                                onClick={() => setViewType('organizations')}
-                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${viewType === 'organizations'
-                                    ? 'bg-white text-red-600 shadow-sm'
-                                    : 'text-gray-500 hover:text-gray-700'
-                                    }`}
-                            >
-                                <Globe size={16} />
-                                Orgs
-                            </button>
-                        </div>
-
-                        {/* Pending Button - Visible on both views */}
+        <div className="flex flex-col h-full space-y-4">
+            {/* Header with Toggle and Sorting */}
+            <div className="flex-shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    {/* Toggle - Only show if there are organizations OR we are loading (might check later) */}
+                    <div className="flex p-1 bg-gray-100 rounded-xl">
                         <button
-                            onClick={() => setIsPendingModalOpen(true)}
-                            disabled={isLoading}
-                            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${totalPendingCount > 0
-                                ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border border-yellow-200'
-                                : 'bg-gray-100 text-gray-500 hover:bg-gray-200 border border-gray-200'
+                            onClick={() => setViewType('clubs')}
+                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${viewType === 'clubs'
+                                ? 'bg-white text-red-600 shadow-sm'
+                                : 'text-gray-500 hover:text-gray-700'
                                 }`}
                         >
-                            <Clock size={16} />
-                            Pending
-                            {totalPendingCount > 0 && (
-                                <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-yellow-500 text-white text-xs font-bold rounded-full">
-                                    {totalPendingCount}
-                                </span>
-                            )}
+                            <Building2 size={16} />
+                            Clubs
+                        </button>
+                        <button
+                            onClick={() => setViewType('organizations')}
+                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${viewType === 'organizations'
+                                ? 'bg-white text-red-600 shadow-sm'
+                                : 'text-gray-500 hover:text-gray-700'
+                                }`}
+                        >
+                            <Globe size={16} />
+                            Orgs
                         </button>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                        {/* Sorting Dropdown */}
-                        <GlobalDropdown
-                            label="Sort"
-                            icon={<ListFilter className="w-4 h-4" />}
-                            align="right"
-                            items={[
-                                {
-                                    label: 'Name (A-Z)',
-                                    icon: <ArrowUpDown className="w-4 h-4" />,
-                                    onClick: () => { setSortKey('name'); setSortOrder('asc'); }
-                                },
-                                {
-                                    label: 'Members (High-Low)',
-                                    icon: <Users className="w-4 h-4" />,
-                                    onClick: () => { setSortKey('members'); setSortOrder('desc'); }
-                                }
-                            ]}
-                        />
-                    </div>
+
                 </div>
 
-                {/* List Container */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col flex-1 overflow-hidden min-h-0">
-                    <div className="flex-1 overflow-y-auto">
-                        {viewType === 'clubs' ? (
-                            <AffiliatedClubsTable clubs={paginatedData} embedded={true} isLoading={isLoading} />
-                        ) : (
-                            <AffiliatedOrgsTable orgs={paginatedData} embedded={true} isLoading={isLoading} />
-                        )}
-                    </div>
-
-                    {/* Pagination Footer */}
-                    {totalItems > 0 && (
-                        <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white flex items-center justify-end z-10">
-                            <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-100">
-                                <button
-                                    onClick={() => handlePageChange(currentPage - 1)}
-                                    disabled={currentPage <= 1}
-                                    className={`p-2 rounded-lg transition-all ${currentPage <= 1
-                                        ? 'text-gray-300 cursor-not-allowed hidden'
-                                        : 'text-gray-700 hover:bg-white hover:shadow-sm hover:text-gray-900 active:scale-95'
-                                        }`}
-                                    title="Previous Page"
-                                >
-                                    <ChevronLeft className="w-5 h-5" />
-                                </button>
-
-                                <div className="flex items-center gap-1.5 px-3">
-                                    <span className="text-sm font-bold text-gray-900">Page {currentPage}</span>
-                                    <span className="text-xs text-gray-400 font-medium">of {Math.max(totalPages, 1)}</span>
-                                </div>
-
-                                <button
-                                    onClick={() => handlePageChange(currentPage + 1)}
-                                    disabled={currentPage >= totalPages}
-                                    className={`p-2 rounded-lg transition-all ${currentPage >= totalPages
-                                        ? 'text-gray-300 cursor-not-allowed hidden'
-                                        : 'text-gray-700 hover:bg-white hover:shadow-sm hover:text-gray-900 active:scale-95'
-                                        }`}
-                                    title="Next Page"
-                                >
-                                    <ChevronRight className="w-5 h-5" />
-                                </button>
-                            </div>
-                        </div>
-                    )}
+                <div className="flex items-center gap-3">
+                    {/* Sorting Dropdown */}
+                    <GlobalDropdown
+                        label="Sort"
+                        icon={<ListFilter className="w-4 h-4" />}
+                        align="right"
+                        items={[
+                            {
+                                label: 'Name (A-Z)',
+                                icon: <ArrowUpDown className="w-4 h-4" />,
+                                onClick: () => { setSortKey('name'); setSortOrder('asc'); }
+                            },
+                            {
+                                label: 'Members (High-Low)',
+                                icon: <Users className="w-4 h-4" />,
+                                onClick: () => { setSortKey('members'); setSortOrder('desc'); }
+                            }
+                        ]}
+                    />
                 </div>
             </div>
 
-            {/* Pending Requests Modal */}
-            <PendingRequestsModal
-                isOpen={isPendingModalOpen}
-                onClose={() => setIsPendingModalOpen(false)}
-                pendingClubs={pendingClubs}
-            />
-        </>
+            {/* List Container */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col flex-1 overflow-hidden min-h-0">
+                <div className="flex-1 overflow-y-auto">
+                    {viewType === 'clubs' ? (
+                        <AffiliatedClubsTable clubs={paginatedData} embedded={true} isLoading={isLoading} />
+                    ) : (
+                        <AffiliatedOrgsTable orgs={paginatedData} embedded={true} isLoading={isLoading} />
+                    )}
+                </div>
+
+                {/* Pagination Footer */}
+                {totalItems > 0 && (
+                    <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white flex items-center justify-end z-10">
+                        <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-100">
+                            <button
+                                onClick={() => handlePageChange(currentPage - 1)}
+                                disabled={currentPage <= 1}
+                                className={`p-2 rounded-lg transition-all ${currentPage <= 1
+                                    ? 'text-gray-300 cursor-not-allowed hidden'
+                                    : 'text-gray-700 hover:bg-white hover:shadow-sm hover:text-gray-900 active:scale-95'
+                                    }`}
+                                title="Previous Page"
+                            >
+                                <ChevronLeft className="w-5 h-5" />
+                            </button>
+
+                            <div className="flex items-center gap-1.5 px-3">
+                                <span className="text-sm font-bold text-gray-900">Page {currentPage}</span>
+                                <span className="text-xs text-gray-400 font-medium">of {Math.max(totalPages, 1)}</span>
+                            </div>
+
+                            <button
+                                onClick={() => handlePageChange(currentPage + 1)}
+                                disabled={currentPage >= totalPages}
+                                className={`p-2 rounded-lg transition-all ${currentPage >= totalPages
+                                    ? 'text-gray-300 cursor-not-allowed hidden'
+                                    : 'text-gray-700 hover:bg-white hover:shadow-sm hover:text-gray-900 active:scale-95'
+                                    }`}
+                                title="Next Page"
+                            >
+                                <ChevronRight className="w-5 h-5" />
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
     )
 }

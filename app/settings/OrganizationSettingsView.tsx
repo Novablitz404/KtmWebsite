@@ -3,6 +3,8 @@ import OrganizationSettingsButton from '@/app/components/OrganizationSettingsBut
 import LogoutButton from '@/components/LogoutButton'
 import OrganizationTransferOwnership from '@/components/organization/OrganizationTransferOwnership'
 import SettingsSubTabs from './SettingsSubTabs'
+import SecurityForm from './SecurityForm'
+import NetworkSettingsContent from './NetworkSettingsContent'
 
 interface OrganizationSettingsViewProps {
     dbUser: {
@@ -266,6 +268,8 @@ export default async function OrganizationSettingsView({ dbUser, organization, c
         <SettingsSubTabs
             profileContent={profileContent}
             organizationContent={organizationContent}
+            securityContent={<SecurityForm />}
+            networkContent={<NetworkSettingsContent />}
         />
     )
 }
