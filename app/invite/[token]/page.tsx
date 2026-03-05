@@ -4,8 +4,8 @@ import InviteOnboardingClient from './InviteOnboardingClient'
 import Navbar from '@/components/landing/wotf/Navbar'
 import Footer from '@/components/landing/wotf/Footer'
 
-export default async function InvitePage({ params }: { params: { token: string } }) {
-    const token = params.token
+export default async function InvitePage({ params }: { params: Promise<{ token: string }> }) {
+    const { token } = await params
     if (!token) redirect('/')
 
     // 1. Check Co-Organizer Invites
