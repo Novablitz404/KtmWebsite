@@ -50,8 +50,8 @@ export default function CustomSignInForm({ hideBranding = false }: CustomSignInF
                         })
                         const checkData = await checkRes.json()
 
-                        if (checkData.exists) {
-                            // Migrated user — show inline password form
+                        if (checkData.exists && checkData.needsPasswordSetup) {
+                            // Genuinely migrated user — show password setup form
                             setFirstLogin(true)
                             setLoading(false)
                             return

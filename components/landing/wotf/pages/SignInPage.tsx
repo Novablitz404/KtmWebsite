@@ -49,8 +49,8 @@ export default function WOTFSignInPage() {
                         });
                         const checkData = await checkRes.json();
 
-                        if (checkData.exists) {
-                            // Migrated user — show inline password form
+                        if (checkData.exists && checkData.needsPasswordSetup) {
+                            // Genuinely migrated user — show password setup form
                             setFirstLogin(true);
                             setIsLoading(false);
                             return;

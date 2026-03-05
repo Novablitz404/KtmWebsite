@@ -7,6 +7,7 @@ import GlobalDropdown from '@/components/GlobalDropdown'
 import { searchClubMembers, getUpcomingTournaments, registerForTournament, findPlayerCategory } from '@/app/actions'
 import { getUpcomingSeminars, registerForSeminar } from '@/app/seminars/actions'
 import { getUpcomingPromotions, registerForPromotion } from '@/app/promotions/actions'
+import { calculateAge } from '@/lib/placement'
 
 interface AddAthleteModalProps {
     isOpen: boolean
@@ -281,7 +282,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                         const idx = BELT_OPTIONS.findIndex(b => b.toLowerCase() === belt.toLowerCase())
                         return idx !== -1 && idx < BELT_OPTIONS.length - 1 ? BELT_OPTIONS[idx + 1] : undefined
                     })(),
-                    age: selectedMember.birthDate ? new Date().getFullYear() - new Date(selectedMember.birthDate).getFullYear() : undefined
+                    age: selectedMember.birthDate ? calculateAge(selectedMember.birthDate) : undefined
                 })
 
                 if (res.error) toast.error(res.error)
@@ -428,7 +429,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                                     {/* Dynamic: Height for ages 0-11, Weight for ages 12+ */}
                                     {(() => {
                                         const memberAge = selectedMember?.birthDate
-                                            ? Math.floor((Date.now() - new Date(selectedMember.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+                                            ? calculateAge(selectedMember.birthDate)
                                             : null
                                         const usesHeight = memberAge !== null && memberAge <= 11
 

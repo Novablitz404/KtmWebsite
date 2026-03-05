@@ -52,7 +52,7 @@ const cspDirectives = [
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https://*.ktmsports.com https://*.wotf-ph.com https://*.supabase.co https://images.unsplash.com",
     "font-src 'self' https://fonts.gstatic.com data:",
-    "connect-src 'self' https://*.ktmsports.com https://*.wotf-ph.com https://*.supabase.co wss://*.supabase.co",
+    `connect-src 'self' https://*.ktmsports.com https://*.wotf-ph.com https://*.supabase.co wss://*.supabase.co${process.env.NODE_ENV === 'development' ? ' http://127.0.0.1:54321 http://localhost:54321 ws://127.0.0.1:54321 ws://localhost:54321' : ''}`,
     "frame-ancestors 'none'",
     "frame-src 'self' https://challenges.cloudflare.com",
     "form-action 'self'",

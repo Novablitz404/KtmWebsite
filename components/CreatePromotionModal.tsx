@@ -30,6 +30,9 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
     const [testTime, setTestTime] = useState('08:00')
     const [regDeadlineTime, setRegDeadlineTime] = useState('17:00')
 
+    // Xendit State
+    const [xenditEnabled, setXenditEnabled] = useState(false)
+
     if (!isOpen) return null
 
     const handleBackdropChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -235,6 +238,52 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
                                         <p>Testing fees will be automatically calculated based on the student's belt using your Organization's default pricing.</p>
                                     </div>
                                 </div>
+                            </div>
+                        </section>
+
+                        <hr className="border-gray-100" />
+
+                        {/* ─── SECTION 4: Xendit Payment Integration ─── */}
+                        <section>
+                            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                <span className="w-6 h-6 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-xs font-black">4</span>
+                                Online Payment (Xendit)
+                            </h3>
+
+                            <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/50 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-semibold text-gray-900">Enable Xendit Payments</p>
+                                        <p className="text-xs text-gray-500">Collect testing fees online via Xendit</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setXenditEnabled(!xenditEnabled)}
+                                        className={`relative w-11 h-6 rounded-full transition-colors ${xenditEnabled ? 'bg-red-600' : 'bg-gray-300'}`}
+                                    >
+                                        <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${xenditEnabled ? 'translate-x-5' : ''}`} />
+                                    </button>
+                                </div>
+
+                                {xenditEnabled && (
+                                    <div className="pt-3 border-t border-gray-200 space-y-3">
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-1">Xendit Secret API Key</label>
+                                            <input
+                                                type="password"
+                                                name="xenditSecretKey"
+                                                placeholder="xnd_development_..."
+                                                required
+                                                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all text-sm font-mono"
+                                            />
+                                            <p className="text-xs text-gray-400 mt-1">
+                                                Found in your Xendit Dashboard → Settings → API Keys. This key is encrypted before storage.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <input type="hidden" name="xenditEnabled" value={xenditEnabled ? 'true' : 'false'} />
                             </div>
                         </section>
 

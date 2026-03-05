@@ -11,6 +11,7 @@ import { generatePoomsaeBracket } from '@/lib/poomsae-logic'
 import { BracketMatchSpec, generateSingleEliminationBracket } from '@/lib/bracket-logic'
 import { deriveSkillLevel, extractBeltFromCategoryName } from '@/lib/skill-logic'
 import { toTitleCase } from '@/lib/utils'
+import { encrypt } from '@/lib/encryption'
 
 
 export async function fetchClubRegistrationData(clubId: string) {
@@ -51,6 +52,11 @@ export async function createTournament(formData: FormData) {
     if (categoryPricingStr) {
         try { categoryPricing = JSON.parse(categoryPricingStr) } catch { /* ignore invalid JSON */ }
     }
+
+    // Xendit Payment Integration
+    const xenditEnabled = formData.get('xenditEnabled') === 'true'
+    const xenditSecretKeyRaw = formData.get('xenditSecretKey') as string | null
+    const xenditSecretKey = xenditEnabled && xenditSecretKeyRaw ? encrypt(xenditSecretKeyRaw) : null
 
     if (!name || !startDateStr) {
         return { error: 'Tournament name and date are required' }
@@ -118,6 +124,8 @@ export async function createTournament(formData: FormData) {
             organizerId: dbUser.id,
             showPricing,
             categoryPricing,
+            xenditEnabled,
+            xenditSecretKey,
         },
     })
 
@@ -1418,11 +1426,21 @@ export async function registerForTournament(input: RegisterForTournamentInput) {
 export async function approveRegistrations(players: { id: string, skillLevel: string }[]) {
     try {
         for (const player of players) {
+            // Check if the tournament has Xendit enabled
+            const playerRecord = await prisma.player.findUnique({
+                where: { id: player.id },
+                include: { category: { include: { tournament: { select: { xenditEnabled: true } } } } }
+            })
+
+            const xenditEnabled = playerRecord?.category?.tournament?.xenditEnabled || false
+
             await prisma.player.update({
                 where: { id: player.id },
                 data: {
                     skillLevel: player.skillLevel,
-                    registrationStatus: 'APPROVED'
+                    registrationStatus: 'APPROVED',
+                    // Auto-set payment to PAID for manual (non-Xendit) events
+                    ...(!xenditEnabled && { paymentStatus: 'PAID' }),
                 }
             })
         }
@@ -2694,7 +2712,7 @@ export async function removeMemberFromClub(memberId: string) {
     }
 }
 
-export async function updateClubMember(memberId: string, data: { name?: string, weight?: number, belt?: string, gender?: string, email?: string }) {
+export async function updateClubMember(memberId: string, data: { name?: string, weight?: number, height?: number, belt?: string, gender?: string, email?: string }) {
     const dbUser = await getAuthUser()
     if (!dbUser) return { error: 'Unauthorized' }
 
@@ -3191,7 +3209,7 @@ export async function registerForSeminar(formData: FormData) {
 
     // 4. Create Registration Record (PENDING — awaiting clubmaster approval)
     try {
-        await prisma.seminarRegistration.create({
+        const registration = await prisma.seminarRegistration.create({
             data: {
                 seminarId,
                 playerId,
@@ -3203,7 +3221,7 @@ export async function registerForSeminar(formData: FormData) {
         })
 
         revalidatePath(`/seminars/${seminarId}`)
-        return { success: true }
+        return { success: true, registrationId: registration.id }
     } catch (error) {
         console.error('Registration failed:', error)
         return { error: 'Failed to create registration record.' }

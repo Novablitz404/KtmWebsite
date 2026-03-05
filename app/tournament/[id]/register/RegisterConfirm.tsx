@@ -7,6 +7,7 @@ import { registerForTournament, findPlayerCategory } from '@/app/actions'
 import WaiverDocument from '@/components/WaiverDocument'
 import SignatureCanvas from 'react-signature-canvas'
 import { Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { calculateAge } from '@/lib/placement'
 
 // Dynamically import PDFDownloadLink to avoid SSR issues
 const PDFDownloadLink = dynamic(
@@ -35,6 +36,8 @@ interface RegisterConfirmProps {
         id: string
         name: string
         headerImageUrl: string | null
+        xenditEnabled: boolean
+        regularPrice: number | null
     }
     user: {
         id: string
@@ -50,6 +53,7 @@ interface RegisterConfirmProps {
     suggestedCategory: Category | null
     existingRegistrations?: ExistingRegistration[]
     availableTypes: string[]
+    paymentConfirmed?: boolean
 }
 
 export default function RegisterConfirm({
@@ -57,11 +61,12 @@ export default function RegisterConfirm({
     user,
     suggestedCategory,
     existingRegistrations = [],
-    availableTypes
+    availableTypes,
+    paymentConfirmed = false
 }: RegisterConfirmProps) {
     const router = useRouter()
     const [submitting, setSubmitting] = useState(false)
-    const [success, setSuccess] = useState(false)
+    const [success, setSuccess] = useState(paymentConfirmed)
     const [error, setError] = useState('')
 
     // Signature State
@@ -126,7 +131,7 @@ export default function RegisterConfirm({
 
 
     const age = user.birthDate
-        ? Math.floor((Date.now() - new Date(user.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+        ? calculateAge(user.birthDate)
         : 0
 
     const handleRedirect = () => {
@@ -148,7 +153,6 @@ export default function RegisterConfirm({
 
         try {
             const result = await registerForTournament({
-                // tournamentId is not needed by the updated action
                 categoryId: activeCategory.id,
                 userId: user.id,
                 name: user.name!,
@@ -161,6 +165,33 @@ export default function RegisterConfirm({
 
             if (result.error) {
                 setError(result.error)
+            } else if (tournament.xenditEnabled && result.playerId) {
+                // Redirect to Xendit checkout — will come back with ?payment=success
+                try {
+                    const currentUrl = window.location.origin + window.location.pathname
+                    const checkoutRes = await fetch('/api/checkout/xendit', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            eventType: 'tournament',
+                            eventId: tournament.id,
+                            registrationId: result.playerId,
+                            payerEmail: user.id,
+                            payerName: user.name,
+                            amount: tournament.regularPrice || 0,
+                            redirectUrl: currentUrl,
+                        })
+                    })
+                    const checkoutData = await checkoutRes.json()
+                    if (checkoutData.invoiceUrl) {
+                        window.location.href = checkoutData.invoiceUrl
+                        return
+                    } else {
+                        setError(checkoutData.error || 'Failed to create payment link')
+                    }
+                } catch {
+                    setError('Failed to redirect to payment. Please contact your club master.')
+                }
             } else {
                 setSuccess(true)
             }
@@ -191,12 +222,17 @@ export default function RegisterConfirm({
                     <CheckCircle2 className="w-8 h-8 text-green-600" />
                 </div>
 
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Registration Successful!</h2>
-                <p className="text-gray-600 mb-8">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                    {paymentConfirmed ? '✅ Payment Confirmed!' : 'Registration Successful!'}
+                </h2>
+                <p className="text-gray-600 mb-2">
                     You have successfully registered for <span className="font-semibold text-gray-900">{tournament.name}</span>
-                    <br />
-                    Category: <span className="font-semibold text-indigo-600">{activeCategory?.name}</span>
                 </p>
+                {paymentConfirmed && (
+                    <p className="text-sm text-green-600 font-medium mb-4">
+                        💰 Your payment has been received. Please sign the waiver below to complete your registration.
+                    </p>
+                )}
 
                 <div className="space-y-6">
                     {!signatureData ? (
@@ -288,8 +324,28 @@ export default function RegisterConfirm({
                             <p className="font-semibold text-white text-base">{user.name}</p>
                         </div>
                         <div>
+                            <p className="text-slate-300 text-xs uppercase tracking-wider font-semibold mb-1">Age & Gender</p>
+                            <p className="font-semibold text-white text-base">{age} yrs • {user.gender}</p>
+                        </div>
+                        <div>
                             <p className="text-slate-300 text-xs uppercase tracking-wider font-semibold mb-1">Division</p>
-                            <p className="font-semibold text-white text-base">{age} yrs • {user.gender} • {user.weight}kg</p>
+                            <p className="font-semibold text-white text-base">
+                                {age <= 5 ? 'Supertoddler' : age <= 8 ? 'Toddler' : age <= 11 ? 'Grade School' : age <= 14 ? 'Cadet' : age <= 17 ? 'Junior' : 'Senior'}
+                            </p>
+                        </div>
+                        <div>
+                            <p className="text-slate-300 text-xs uppercase tracking-wider font-semibold mb-1">
+                                {age <= 11 ? 'Height' : 'Weight'}
+                            </p>
+                            <p className="font-semibold text-white text-base">
+                                {age <= 11
+                                    ? `${user.height || '—'} cm`
+                                    : `${user.weight || '—'} kg`
+                                }
+                                <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 font-medium">
+                                    {age <= 11 ? 'Height-based' : 'Weight-based'}
+                                </span>
+                            </p>
                         </div>
                     </div>
                 </div>

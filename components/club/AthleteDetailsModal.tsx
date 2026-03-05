@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, Trophy, Award, BookOpen, Loader2, Calendar, MapPin, User, Weight, Ruler, Shield } from 'lucide-react'
 import { getAthleteDetails } from '@/app/club/actions'
 import { useScrollLock } from '@/hooks/useScrollLock'
+import { calculateAge } from '@/lib/placement'
 
 interface AthleteDetailsModalProps {
     isOpen: boolean
@@ -71,7 +72,7 @@ export default function AthleteDetailsModal({ isOpen, onClose, memberId, memberN
 
     const member = data?.member
     const age = member?.birthDate
-        ? Math.floor((Date.now() - new Date(member.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+        ? calculateAge(member.birthDate)
         : null
 
     // Compute summary stats

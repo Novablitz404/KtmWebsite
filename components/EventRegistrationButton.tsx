@@ -12,6 +12,8 @@ interface EventRegistrationButtonProps {
     status?: string
     paymentStatus?: string
     disabled?: boolean
+    xenditEnabled?: boolean
+    fee?: number | null
     onBeforeRegister?: () => boolean
 }
 
@@ -22,6 +24,8 @@ export default function EventRegistrationButton({
     status,
     paymentStatus,
     disabled = false,
+    xenditEnabled = false,
+    fee,
     onBeforeRegister
 }: EventRegistrationButtonProps) {
     const [isPending, startTransition] = useTransition()
@@ -39,6 +43,33 @@ export default function EventRegistrationButton({
 
                 if (result.error) {
                     toast.error(result.error)
+                } else if (xenditEnabled && result.registrationId) {
+                    // Redirect to Xendit checkout — will come back with ?payment=success
+                    try {
+                        const currentUrl = window.location.origin + window.location.pathname
+                        const checkoutRes = await fetch('/api/checkout/xendit', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                eventType: eventType === 'promotion' ? 'promotionTest' : 'seminar',
+                                eventId,
+                                registrationId: result.registrationId,
+                                payerEmail: '',
+                                payerName: '',
+                                amount: fee || 0,
+                                redirectUrl: currentUrl,
+                            })
+                        })
+                        const checkoutData = await checkoutRes.json()
+                        if (checkoutData.invoiceUrl) {
+                            window.location.href = checkoutData.invoiceUrl
+                            return
+                        } else {
+                            toast.error(checkoutData.error || 'Failed to create payment link')
+                        }
+                    } catch {
+                        toast.error('Failed to redirect to payment.')
+                    }
                 } else {
                     toast.success('Successfully registered!')
                 }

@@ -78,6 +78,7 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
                 height: true,
                 skillLevel: true,
                 registrationStatus: true,
+                paymentStatus: true,
                 category: {
                     select: {
                         name: true,
@@ -112,6 +113,7 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
                 height: true,
                 skillLevel: true,
                 registrationStatus: true,
+                paymentStatus: true,
                 category: {
                     select: {
                         name: true,
@@ -211,6 +213,7 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
                 id: true,
                 playerName: true,
                 status: true,
+                paymentStatus: true,
                 currentBelt: true,
                 targetBelt: true,
                 playerId: true,
@@ -237,6 +240,7 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
                 playerName: true,
                 playerId: true,
                 status: true,
+                paymentStatus: true,
                 belt: true,
                 seminar: {
                     select: {
@@ -417,6 +421,7 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
             clerkId: reg.playerId || '',
             email: null,
             status: reg.status,
+            paymentStatus: reg.paymentStatus,
             currentBelt: reg.currentBelt,
             targetBelt: reg.targetBelt,
             eventName: reg.promotionTest.name,
@@ -426,6 +431,7 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
             id: reg.id,
             name: reg.playerName,
             status: reg.status,
+            paymentStatus: reg.paymentStatus,
             belt: reg.belt,
             imageUrl: reg.playerId ? playerImageMap.get(reg.playerId) : null,
             eventName: reg.seminar.name,

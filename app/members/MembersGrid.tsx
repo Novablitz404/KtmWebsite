@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Search, Filter, MoreHorizontal, Mail, ChevronLeft, ChevronRight, Pencil, Trash2, Shield, ShieldOff, Loader2, Eye } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchClubMembers } from '@/app/actions'
+import { calculateAge } from '@/lib/placement'
 import { promoteToAssistant, demoteToAthlete } from '@/app/club/actions'
 import { toast } from 'sonner'
 import AthleteDetailsModal from '@/components/club/AthleteDetailsModal'
@@ -42,6 +43,7 @@ interface MembersGridProps {
     isClubMaster: boolean
     baseUrl?: string
     clubName: string
+    searchQuery?: string
     onEdit?: (member: Member) => void
     onDelete?: (memberId: string) => void
 }
@@ -54,6 +56,7 @@ export default function MembersGrid({
     isClubMaster,
     baseUrl = '/members',
     clubName,
+    searchQuery = '',
     onEdit,
     onDelete
 }: MembersGridProps) {
@@ -157,8 +160,20 @@ export default function MembersGrid({
         }
     }
 
-    const members = data?.members || initialMembers
+    const rawMembers = data?.members || initialMembers
     const totalPages = data?.totalPages || initialTotalPages
+
+    // Client-side search filtering
+    const members = searchQuery
+        ? rawMembers.filter(m => {
+            const q = searchQuery.toLowerCase()
+            return (
+                (m.name || '').toLowerCase().includes(q) ||
+                m.email.toLowerCase().includes(q) ||
+                (m.belt || '').toLowerCase().includes(q)
+            )
+        })
+        : rawMembers
 
     const handlePageChange = (newPage: number) => {
         if (newPage >= 1 && newPage <= totalPages) {
@@ -212,7 +227,7 @@ export default function MembersGrid({
                     members.map(member => {
                         const avatar = member.imageUrl || (member.clerkId ? avatars[member.clerkId] : null)
                         const age = member.birthDate
-                            ? new Date().getFullYear() - new Date(member.birthDate).getFullYear()
+                            ? calculateAge(member.birthDate)
                             : null
                         const isAssistant = member.role === 'ASSISTANT_CLUB_MASTER'
 
@@ -393,7 +408,7 @@ export default function MembersGrid({
                                 members.map(member => {
                                     const avatar = member.imageUrl || (member.clerkId ? avatars[member.clerkId] : null)
                                     const age = member.birthDate
-                                        ? new Date().getFullYear() - new Date(member.birthDate).getFullYear()
+                                        ? calculateAge(member.birthDate)
                                         : null
                                     const isAssistant = member.role === 'ASSISTANT_CLUB_MASTER'
 

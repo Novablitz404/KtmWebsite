@@ -25,7 +25,8 @@ export async function updateRegistrationStatus(registrationId: string, status: s
         where: { id: registrationId },
         data: {
             status,
-            ...(status === 'APPROVED' && { paymentStatus: 'PAID' })
+            // Auto-set payment to PAID for manual (non-Xendit) events
+            ...(status === 'APPROVED' && !registration.promotionTest.xenditEnabled && { paymentStatus: 'PAID' })
         }
     })
 

@@ -12,21 +12,24 @@ interface SeminarRegistrationFormProps {
         id: string
         name: string
         fee: number | null
+        xenditEnabled: boolean
     }
     user: {
         name: string | null
         email: string
     }
     disabled?: boolean
+    paymentConfirmed?: boolean
 }
 
-export default function SeminarRegistrationForm({ seminar, user, disabled = false }: SeminarRegistrationFormProps) {
+export default function SeminarRegistrationForm({ seminar, user, disabled = false, paymentConfirmed = false }: SeminarRegistrationFormProps) {
     const router = useRouter()
     const [waiverAccepted, setWaiverAccepted] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
 
     const handleSubmit = async () => {
-        if (!waiverAccepted) {
+        // For non-Xendit flow, waiver is required before registration
+        if (!seminar.xenditEnabled && !waiverAccepted) {
             toast.error('Please accept the waiver before registering.')
             return
         }
@@ -41,6 +44,33 @@ export default function SeminarRegistrationForm({ seminar, user, disabled = fals
 
             if (result.error) {
                 toast.error(result.error)
+            } else if (seminar.xenditEnabled && result.registrationId) {
+                // Redirect to Xendit checkout — will come back with ?payment=success
+                try {
+                    const currentUrl = window.location.origin + window.location.pathname
+                    const checkoutRes = await fetch('/api/checkout/xendit', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            eventType: 'seminar',
+                            eventId: seminar.id,
+                            registrationId: result.registrationId,
+                            payerEmail: user.email,
+                            payerName: user.name,
+                            amount: seminar.fee || 0,
+                            redirectUrl: currentUrl,
+                        })
+                    })
+                    const checkoutData = await checkoutRes.json()
+                    if (checkoutData.invoiceUrl) {
+                        window.location.href = checkoutData.invoiceUrl
+                        return
+                    } else {
+                        toast.error(checkoutData.error || 'Failed to create payment link')
+                    }
+                } catch {
+                    toast.error('Failed to redirect to payment. Please contact your club master.')
+                }
             } else {
                 toast.success('Registration submitted successfully! Waiting for approval.')
                 router.push('/athlete')
@@ -53,6 +83,71 @@ export default function SeminarRegistrationForm({ seminar, user, disabled = fals
         }
     }
 
+    // If returning from Xendit payment, show payment confirmed + waiver
+    if (paymentConfirmed) {
+        return (
+            <div className="space-y-5">
+                {/* Payment Confirmed Banner */}
+                <div className="bg-green-50 border border-green-200 rounded-xl p-5 text-center">
+                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <CheckCircle className="w-6 h-6 text-green-600" />
+                    </div>
+                    <h3 className="text-lg font-bold text-green-900 mb-1">✅ Payment Confirmed!</h3>
+                    <p className="text-sm text-green-700">
+                        💰 Your payment for <span className="font-semibold">{seminar.name}</span> has been received.
+                    </p>
+                    <p className="text-sm text-green-600 mt-1">
+                        Please accept the waiver below to complete your registration.
+                    </p>
+                </div>
+
+                {/* Waiver (required after payment) */}
+                <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                    <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                        <span>📋</span> Waiver & Agreement
+                    </h3>
+                    <div className="text-xs text-gray-600 leading-relaxed space-y-2 max-h-32 overflow-y-auto pr-2 mb-4">
+                        <p className="font-semibold text-gray-800">Participant Waiver and Release of Liability</p>
+                        <p>In consideration of being allowed to participate in any way in the seminar, related events and activities, I, the undersigned participant, acknowledge, appreciate, and agree that:</p>
+                        <ol className="list-decimal pl-4 space-y-1.5">
+                            <li>The risk of injury from the activities involved in this program is significant, and while particular rules, equipment, and personal discipline may reduce this risk, the risk of serious injury does exist.</li>
+                            <li>I KNOWINGLY AND FREELY ASSUME ALL SUCH RISKS and assume full responsibility for my participation.</li>
+                            <li>I willingly agree to comply with the stated and customary terms and conditions for participation.</li>
+                            <li>I HEREBY RELEASE AND HOLD HARMLESS the organizers, their officers, officials, agents, and/or employees WITH RESPECT TO ANY AND ALL INJURY, DISABILITY, DEATH, or loss or damage to person or property.</li>
+                        </ol>
+                    </div>
+                    <label className="flex items-start gap-3 cursor-pointer select-none group">
+                        <input
+                            type="checkbox"
+                            checked={waiverAccepted}
+                            onChange={(e) => setWaiverAccepted(e.target.checked)}
+                            className="mt-0.5 w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer"
+                        />
+                        <span className="text-xs text-gray-700 group-hover:text-gray-900 transition-colors">
+                            I have read and agree to the waiver and terms above.
+                        </span>
+                    </label>
+                </div>
+
+                <div className="flex justify-center pt-2">
+                    <button
+                        onClick={() => {
+                            if (!waiverAccepted) {
+                                toast.error('Please accept the waiver.')
+                                return
+                            }
+                            toast.success('Registration complete! Waiting for club master approval.')
+                            router.push('/athlete')
+                        }}
+                        className="px-8 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl shadow-lg shadow-green-200 transition-all disabled:opacity-50 disabled:shadow-none"
+                    >
+                        ✅ Complete Registration
+                    </button>
+                </div>
+            </div>
+        )
+    }
+
     return (
         <div className="space-y-5">
             {/* How it works */}
@@ -62,10 +157,21 @@ export default function SeminarRegistrationForm({ seminar, user, disabled = fals
                     <div className="text-sm text-amber-800">
                         <p className="font-semibold mb-1">How it works</p>
                         <ol className="list-decimal pl-4 space-y-0.5 text-xs text-amber-700">
-                            <li>Submit your registration below</li>
-                            <li>Pay the registration fee to your club master</li>
-                            <li>Your club master will approve your registration once payment is confirmed</li>
-                            <li>You&apos;ll receive a QR code to present at the event</li>
+                            {seminar.xenditEnabled ? (
+                                <>
+                                    <li>Submit your registration below</li>
+                                    <li>Complete payment via Xendit</li>
+                                    <li>Sign the waiver after payment</li>
+                                    <li>Your club master will approve your registration</li>
+                                </>
+                            ) : (
+                                <>
+                                    <li>Accept the waiver below</li>
+                                    <li>Submit your registration</li>
+                                    <li>Pay the registration fee to your club master</li>
+                                    <li>Your club master will approve your registration once payment is confirmed</li>
+                                </>
+                            )}
                         </ol>
                     </div>
                 </div>
@@ -86,49 +192,51 @@ export default function SeminarRegistrationForm({ seminar, user, disabled = fals
                 </div>
             </div>
 
-            {/* Waiver */}
-            <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
-                <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-                    <span>📋</span> Waiver & Agreement
-                </h3>
-                <div className="text-xs text-gray-600 leading-relaxed space-y-2 max-h-32 overflow-y-auto pr-2 mb-4">
-                    <p className="font-semibold text-gray-800">Participant Waiver and Release of Liability</p>
-                    <p>
-                        In consideration of being allowed to participate in any way in the seminar, related events and activities, I, the undersigned participant, acknowledge, appreciate, and agree that:
-                    </p>
-                    <ol className="list-decimal pl-4 space-y-1.5">
-                        <li>The risk of injury from the activities involved in this program is significant, including the potential for permanent paralysis and death, and while particular rules, equipment, and personal discipline may reduce this risk, the risk of serious injury does exist.</li>
-                        <li>I KNOWINGLY AND FREELY ASSUME ALL SUCH RISKS, both known and unknown, EVEN IF ARISING FROM THE NEGLIGENCE OF THE RELEASEES or others, and assume full responsibility for my participation.</li>
-                        <li>I willingly agree to comply with the stated and customary terms and conditions for participation.</li>
-                        <li>I, for myself and on behalf of my heirs, assigns, personal representatives and next of kin, HEREBY RELEASE AND HOLD HARMLESS the organizers, their officers, officials, agents, and/or employees, other participants, sponsoring agencies, sponsors, advertisers, and owners and lessors of premises used to conduct the event, WITH RESPECT TO ANY AND ALL INJURY, DISABILITY, DEATH, or loss or damage to person or property.</li>
-                    </ol>
-                    <p className="font-semibold text-gray-800">
-                        I HAVE READ THIS RELEASE OF LIABILITY AND ASSUMPTION OF RISK AGREEMENT, FULLY UNDERSTAND ITS TERMS, AND SIGN IT FREELY AND VOLUNTARILY.
-                    </p>
+            {/* Waiver — only shown for non-Xendit flow */}
+            {!seminar.xenditEnabled && (
+                <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                    <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                        <span>📋</span> Waiver & Agreement
+                    </h3>
+                    <div className="text-xs text-gray-600 leading-relaxed space-y-2 max-h-32 overflow-y-auto pr-2 mb-4">
+                        <p className="font-semibold text-gray-800">Participant Waiver and Release of Liability</p>
+                        <p>
+                            In consideration of being allowed to participate in any way in the seminar, related events and activities, I, the undersigned participant, acknowledge, appreciate, and agree that:
+                        </p>
+                        <ol className="list-decimal pl-4 space-y-1.5">
+                            <li>The risk of injury from the activities involved in this program is significant, including the potential for permanent paralysis and death, and while particular rules, equipment, and personal discipline may reduce this risk, the risk of serious injury does exist.</li>
+                            <li>I KNOWINGLY AND FREELY ASSUME ALL SUCH RISKS, both known and unknown, EVEN IF ARISING FROM THE NEGLIGENCE OF THE RELEASEES or others, and assume full responsibility for my participation.</li>
+                            <li>I willingly agree to comply with the stated and customary terms and conditions for participation.</li>
+                            <li>I, for myself and on behalf of my heirs, assigns, personal representatives and next of kin, HEREBY RELEASE AND HOLD HARMLESS the organizers, their officers, officials, agents, and/or employees, other participants, sponsoring agencies, sponsors, advertisers, and owners and lessors of premises used to conduct the event, WITH RESPECT TO ANY AND ALL INJURY, DISABILITY, DEATH, or loss or damage to person or property.</li>
+                        </ol>
+                        <p className="font-semibold text-gray-800">
+                            I HAVE READ THIS RELEASE OF LIABILITY AND ASSUMPTION OF RISK AGREEMENT, FULLY UNDERSTAND ITS TERMS, AND SIGN IT FREELY AND VOLUNTARILY.
+                        </p>
+                    </div>
+                    <label className="flex items-start gap-3 cursor-pointer select-none group">
+                        <input
+                            type="checkbox"
+                            checked={waiverAccepted}
+                            onChange={(e) => setWaiverAccepted(e.target.checked)}
+                            className="mt-0.5 w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer"
+                        />
+                        <span className="text-xs text-gray-700 group-hover:text-gray-900 transition-colors">
+                            I have read and agree to the waiver and terms above.
+                        </span>
+                    </label>
                 </div>
-                <label className="flex items-start gap-3 cursor-pointer select-none group">
-                    <input
-                        type="checkbox"
-                        checked={waiverAccepted}
-                        onChange={(e) => setWaiverAccepted(e.target.checked)}
-                        className="mt-0.5 w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer"
-                    />
-                    <span className="text-xs text-gray-700 group-hover:text-gray-900 transition-colors">
-                        I have read and agree to the waiver and terms above.
-                    </span>
-                </label>
-            </div>
+            )}
 
             {/* Submit */}
             <div className="flex justify-center pt-2">
                 <LoadingButton
                     onClick={handleSubmit}
                     isLoading={isSubmitting}
-                    loadingText="Registering..."
+                    loadingText={seminar.xenditEnabled ? 'Proceeding to Payment...' : 'Registering...'}
                     disabled={disabled}
                     className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all disabled:opacity-50 disabled:shadow-none"
                 >
-                    Submit Registration
+                    {seminar.xenditEnabled ? 'Register & Pay' : 'Submit Registration'}
                 </LoadingButton>
             </div>
         </div>

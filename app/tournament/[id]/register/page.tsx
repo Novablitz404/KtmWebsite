@@ -6,10 +6,13 @@ import RegisterConfirm from './RegisterConfirm'
 
 interface Props {
     params: Promise<{ id: string }>
+    searchParams: Promise<{ payment?: string; registrationId?: string }>
 }
 
-export default async function RegisterPage({ params }: Props) {
+export default async function RegisterPage({ params, searchParams }: Props) {
     const { id: tournamentId } = await params
+    const resolvedSearchParams = await searchParams
+    const paymentConfirmed = resolvedSearchParams.payment === 'success'
 
     const dbUser = await getAuthUser()
     if (!dbUser) {
@@ -144,7 +147,8 @@ export default async function RegisterPage({ params }: Props) {
                     user={dbUser}
                     suggestedCategory={predictedCategory}
                     existingRegistrations={existingRegistrations as any}
-                    availableTypes={availableTypes.length > 0 ? availableTypes : ['KYORUGI', 'POOMSAE', 'KYUKPA']} // Fallback
+                    availableTypes={availableTypes.length > 0 ? availableTypes : ['KYORUGI', 'POOMSAE', 'KYUKPA']}
+                    paymentConfirmed={paymentConfirmed}
                 />
             </div>
         </main>

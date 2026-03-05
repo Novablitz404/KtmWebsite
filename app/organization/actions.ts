@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js'
 import { getNextBelt } from '@/lib/belt'
 import { countryToCode } from '@/lib/countries'
 import crypto from 'crypto'
+import { encrypt } from '@/lib/encryption'
 
 export async function getOrganizationDashboardData() {
     const user = await getAuthUser()
@@ -259,6 +260,11 @@ export async function createPromotionTest(formData: FormData) {
     const venue = formData.get('venue') as string
     const visibility = (formData.get('visibility') as string) || 'PRIVATE'
 
+    // Xendit Payment Integration
+    const xenditEnabled = formData.get('xenditEnabled') === 'true'
+    const xenditSecretKeyRaw = formData.get('xenditSecretKey') as string | null
+    const xenditSecretKey = xenditEnabled && xenditSecretKeyRaw ? encrypt(xenditSecretKeyRaw) : null
+
     if (!name || !testDate) return { error: 'Name and test date are required' }
 
     const promotionTest = await prisma.promotionTest.create({
@@ -270,7 +276,9 @@ export async function createPromotionTest(formData: FormData) {
             registrationDeadline: registrationDeadline ? new Date(registrationDeadline) : null,
             venue: venue || null,
             status: 'UPCOMING',
-            visibility
+            visibility,
+            xenditEnabled,
+            xenditSecretKey,
         }
     })
 
@@ -420,6 +428,11 @@ export async function createSeminar(formData: FormData) {
     const visibility = (formData.get('visibility') as string) || 'PRIVATE'
     const paymentInstructions = formData.get('paymentInstructions') as string
 
+    // Xendit Payment Integration
+    const xenditEnabled = formData.get('xenditEnabled') === 'true'
+    const xenditSecretKeyRaw = formData.get('xenditSecretKey') as string | null
+    const xenditSecretKey = xenditEnabled && xenditSecretKeyRaw ? encrypt(xenditSecretKeyRaw) : null
+
     const bannerFile = formData.get('banner') as File | null
 
     if (!name || !startDate) return { error: 'Name and start date are required' }
@@ -475,7 +488,8 @@ export async function createSeminar(formData: FormData) {
             visibility,
             paymentInstructions: paymentInstructions || null,
             bannerUrl,
-
+            xenditEnabled,
+            xenditSecretKey,
         }
     })
 
@@ -796,6 +810,10 @@ export async function updateSeminarRegistrationStatus(registrationId: string, st
         // Auto-generate QR token on approval, clear on other statuses
         if (status === 'APPROVED') {
             data.qrCodeToken = crypto.randomUUID()
+            // Auto-set payment to PAID for manual (non-Xendit) events
+            if (!registration.seminar.xenditEnabled) {
+                data.paymentStatus = 'PAID'
+            }
         } else {
             data.qrCodeToken = null
         }
@@ -1639,23 +1657,10 @@ export async function registerForPromotionTest(promotionTestId: string) {
         }
     }
 
-    await prisma.promotionTestRegistration.create({
+    const registration = await prisma.promotionTestRegistration.create({
         data: {
             promotionTestId,
-            playerId: dbUser.id, // Linking to User ID (acts as Player ID if we treat them same, wait. User has ID "00123". Player has ID "00123"? Usually disjoint tables).
-            // Schema has `playerId String?` which usually refers to `Player.id`.
-            // But `User` often IS the player or manages players. 
-            // In KTM context, we have `User` and `Player` tables.
-            // If User is ATHLETE, they might be a Player?
-            // Actually, `User` (clerk) -> `Player`? No.
-            // `User` has `players Player[]`.
-            // So we need to find the "Main Player" associated with this User?
-            // Or just use the User's name/profile?
-            // "we will only get the name, age, belt" -> from User profile.
-            // I will use `dbUser.id` for `playerId` if it matches format? User ID is 5-digit. Player ID is 5-digit.
-            // Actually `on click register` implies the logged in user is registering THEMSELVES.
-            // So `playerName` = `dbUser.name`.
-
+            playerId: dbUser.id,
             playerName: dbUser.name || 'Unknown',
             clubName: dbUser.clubName || dbUser.club?.name,
             currentBelt: dbUser.belt || 'White',
@@ -1667,7 +1672,7 @@ export async function registerForPromotionTest(promotionTestId: string) {
     })
 
     revalidatePath(`/promotions/${promotionTestId}`)
-    return { success: true }
+    return { success: true, registrationId: registration.id }
 }
 
 export async function registerForSeminar(seminarId: string) {
@@ -1708,7 +1713,7 @@ export async function registerForSeminar(seminarId: string) {
         }
     }
 
-    await prisma.seminarRegistration.create({
+    const registration = await prisma.seminarRegistration.create({
         data: {
             seminarId,
             playerId: dbUser.id,
@@ -1721,7 +1726,7 @@ export async function registerForSeminar(seminarId: string) {
     })
 
     revalidatePath(`/seminars/${seminarId}`)
-    return { success: true }
+    return { success: true, registrationId: registration.id }
 }
 
 // ============================================

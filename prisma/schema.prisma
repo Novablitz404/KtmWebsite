@@ -90,6 +90,10 @@ model Tournament {
   showPricing       Boolean   @default(false) // Toggle pricing visibility for public/athletes
   categoryPricing   Json?     // Pricing per type+subtype combo, e.g. { "KYORUGI_INDIVIDUAL": { "earlyBird": 115, "regular": 145 } }
 
+  // Xendit Payment Integration
+  xenditEnabled     Boolean   @default(false) // Toggle online payments for this tournament
+  xenditSecretKey   String?   // Encrypted Xendit API Secret Key
+
   // Guideline Template (optional - if set, auto-generates categories)
   guidelineTemplateId String?
   guidelineTemplate   GuidelineTemplate? @relation(fields: [guidelineTemplateId], references: [id])
@@ -204,6 +208,11 @@ model Player {
   registrationStatus String  @default("PENDING") // PENDING, APPROVED, REJECTED
   skillLevel         String? @default("Novice")
   medal              String? // Gold, Silver, Bronze, QF, R16
+
+  // Xendit Payment
+  xenditInvoiceId    String? @unique // Xendit Invoice ID for webhook cross-reference
+  xenditPaymentUrl   String?         // Checkout URL for player to pay
+  paymentStatus      String  @default("UNPAID") // UNPAID, PENDING, PAID, EXPIRED
 
   // Poomsae Specifics
   teamId      String? // "1", "2", "A", "B" - assigned by Club Master
@@ -345,6 +354,10 @@ model PromotionTest {
   fee                  Float? // Registration fee
   status               String    @default("UPCOMING") // UPCOMING, OPEN, CLOSED, COMPLETED, CANCELLED
 
+  // Xendit Payment Integration
+  xenditEnabled     Boolean   @default(false)
+  xenditSecretKey   String?   // Encrypted Xendit API Secret Key
+
   visibility String  @default("PRIVATE") // PRIVATE, PUBLIC
   bannerUrl  String? // Storage URL for banner image
 
@@ -373,6 +386,10 @@ model PromotionTestRegistration {
   paymentStatus String @default("UNPAID") // UNPAID, PAID
   isJump        Boolean @default(false) // Skip a rank (e.g., White -> Orange instead of White -> Yellow)
 
+  // Xendit Payment
+  xenditInvoiceId  String? @unique
+  xenditPaymentUrl String?
+
   createdAt DateTime @default(now())
 
   @@index([promotionTestId])
@@ -391,6 +408,10 @@ model Seminar {
   venue                String?
   fee                  Float?
   status               String    @default("UPCOMING") // UPCOMING, OPEN, CLOSED, COMPLETED, CANCELLED
+
+  // Xendit Payment Integration
+  xenditEnabled     Boolean   @default(false)
+  xenditSecretKey   String?   // Encrypted Xendit API Secret Key
 
   visibility String  @default("PRIVATE") // PRIVATE, PUBLIC
   bannerUrl  String?
@@ -435,6 +456,11 @@ model SeminarRegistration {
   
   status        String @default("PENDING") // PENDING, APPROVED, REJECTED
   qrCodeToken   String?  @unique // Generated on approval, used for QR code at event
+
+  // Xendit Payment
+  xenditInvoiceId  String? @unique
+  xenditPaymentUrl String?
+  paymentStatus    String  @default("UNPAID") // UNPAID, PENDING, PAID, EXPIRED
 
   createdAt DateTime @default(now())
 

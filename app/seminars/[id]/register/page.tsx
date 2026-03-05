@@ -9,10 +9,13 @@ import SeminarQRCode from '@/components/seminars/SeminarQRCode'
 
 interface Props {
     params: Promise<{ id: string }>
+    searchParams: Promise<{ payment?: string; registrationId?: string }>
 }
 
-export default async function SeminarRegisterPage({ params }: Props) {
+export default async function SeminarRegisterPage({ params, searchParams }: Props) {
     const { id: seminarId } = await params
+    const resolvedSearchParams = await searchParams
+    const paymentConfirmed = resolvedSearchParams.payment === 'success'
 
     const dbUser = await getAuthUser()
     if (!dbUser) {
@@ -158,7 +161,7 @@ export default async function SeminarRegisterPage({ params }: Props) {
                             <DollarSign className="w-4 h-4" />
                             <span className="text-[11px] font-semibold uppercase tracking-wider">Payment</span>
                         </div>
-                        <p className="text-sm font-bold text-gray-900">Pay to Clubmaster</p>
+                        <p className="text-sm font-bold text-gray-900">{seminar.xenditEnabled ? 'Online Payment (Xendit)' : 'Pay to Clubmaster'}</p>
                     </div>
 
                     <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
@@ -211,12 +214,14 @@ export default async function SeminarRegisterPage({ params }: Props) {
                                 id: seminar.id,
                                 name: seminar.name,
                                 fee: seminar.fee,
+                                xenditEnabled: seminar.xenditEnabled,
                             }}
                             user={{
                                 name: dbUser.name,
                                 email: dbUser.email
                             }}
                             disabled={!isOpen || !!deadlinePassed}
+                            paymentConfirmed={paymentConfirmed}
                         />
                     </div>
                 </div>
