@@ -29,7 +29,8 @@ const PartnerLogo = ({ partner }: { partner: typeof partners[0] }) => (
 const PartnersSection = () => {
     return (
         <section className="py-10 md:py-14 bg-[#f5f6fa] overflow-hidden">
-            <style jsx>{`
+            <style dangerouslySetInnerHTML={{
+                __html: `
                 @keyframes marquee {
                     0% { transform: translateX(0); }
                     100% { transform: translateX(calc(-50% - 1rem)); } /* Adjust based on gap */
@@ -40,15 +41,7 @@ const PartnersSection = () => {
                         100% { transform: translateX(calc(-50% - 2rem)); } /* gap-16 is 4rem, need to shift properly */
                     }
                 }
-                .animate-marquee {
-                    animation: marquee 30s linear infinite;
-                    display: flex;
-                    width: max-content;
-                }
-                .marquee-paused:hover .animate-marquee {
-                    animation-play-state: paused;
-                }
-            `}</style>
+            `}} />
             <div className="container mx-auto px-6">
                 <MotionWrapper className="text-center mb-10" direction="up">
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-[4px] mb-2">

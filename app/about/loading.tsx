@@ -7,7 +7,16 @@ export default function AboutLoading() {
     const tenant = useTenant()
 
     // Non-KTM tenants: don't show KTM-branded skeleton
-    if (tenant.slug !== 'ktm') return null
+    if (tenant.slug !== 'ktm') {
+        return (
+            <main className="min-h-screen bg-white flex flex-col">
+                <div className="w-full h-20 bg-congo-blue animate-pulse" /> {/* Fake Navbar */}
+                <div className="flex-grow flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-congo-blue"></div>
+                </div>
+            </main>
+        )
+    }
 
     return (
         <main className="min-h-screen bg-white">

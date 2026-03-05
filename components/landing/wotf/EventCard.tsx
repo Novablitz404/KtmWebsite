@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Calendar, Clock, ArrowRight } from 'lucide-react';
+import { MapPin, Calendar, Clock, ArrowRight, Trophy, GraduationCap } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 
@@ -18,119 +18,139 @@ interface EventCardProps {
     link?: string;
 }
 
+function formatMonth(dateStr: string | Date) {
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+}
+
+function formatDay(dateStr: string | Date) {
+    return new Date(dateStr).getDate();
+}
+
+function formatFullDate(dateStr: string | Date) {
+    return new Date(dateStr).toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' });
+}
+
 const EventCard = ({ event, index }: { event: EventCardProps; index: number }) => {
     const startDate = new Date(event.start);
     const endDate = new Date(event.end);
-    const isCompetition = event.type === 'competition';
-    const accentColor = isCompetition ? 'text-spanish-red' : 'text-african-turquoise';
-    const bgColor = isCompetition ? 'bg-spanish-red' : 'bg-african-turquoise';
-    const borderColor = isCompetition ? 'border-spanish-red' : 'border-african-turquoise';
+    const isTournament = event.type === 'competition';
 
-    const formatDate = (date: Date) => {
-        const d = new Date(date);
-        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    };
-
-    const formatTime = (date: Date) => {
-        const d = new Date(date);
-        return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-    };
+    // Olympic ring colors: Blue, Yellow, Black, Green, Red
+    const olympicPalette = [
+        { accent: 'text-[#0085C7]', bg: 'bg-[#0085C7]', bgLight: 'bg-[#0085C7]/10', border: 'border-[#0085C7]/20' },
+        { accent: 'text-[#F4C300]', bg: 'bg-[#F4C300]', bgLight: 'bg-[#F4C300]/10', border: 'border-[#F4C300]/20' },
+        { accent: 'text-[#1A1A1A]', bg: 'bg-[#1A1A1A]', bgLight: 'bg-[#1A1A1A]/10', border: 'border-[#1A1A1A]/20' },
+        { accent: 'text-[#009F3D]', bg: 'bg-[#009F3D]', bgLight: 'bg-[#009F3D]/10', border: 'border-[#009F3D]/20' },
+        { accent: 'text-[#DF0024]', bg: 'bg-[#DF0024]', bgLight: 'bg-[#DF0024]/10', border: 'border-[#DF0024]/20' },
+    ];
+    const palette = olympicPalette[index % olympicPalette.length];
 
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: index * 0.1 }}
-            className="group relative bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden h-full"
+            transition={{ duration: 0.3, delay: (index % 10) * 0.1 }}
+            className={`group relative bg-white rounded-2xl border ${palette.border} shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden h-full`}
         >
-            {/* Image / Banner Area */}
-            <div className={`h-48 ${event.image.startsWith('bg-') ? event.image : 'bg-gray-100'} relative overflow-hidden`}>
-                {/* Real image if URL provided */}
+            {/* Banner Image Area */}
+            <div className={`h-40 relative overflow-hidden ${event.image.startsWith('bg-') ? event.image : 'bg-gray-100'}`}>
                 {!event.image.startsWith('bg-') && (
-                    <img src={event.image} alt={event.title} className="w-full h-full object-cover" />
+                    <img
+                        src={event.image}
+                        alt={event.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
                 )}
-                {/* Overlay Gradient */}
-                <div className={`absolute inset-0 bg-gradient-to-t from-black/60 to-transparent`} />
+                {/* Overlay Gradient for readability if we put text over it, but here just for style */}
+                <div className={`absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none`} />
 
                 {/* Status Badge */}
-                <div className="absolute top-4 right-4">
+                <div className="absolute top-3 right-3">
                     <span className={`
-                        px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm
-                        ${event.status === 'open' ? 'bg-emerald-400 text-white' : ''}
-                        ${event.status === 'upcoming' ? 'bg-amber-400 text-white' : ''}
-                        ${event.status === 'sold-out' ? 'bg-gray-200 text-gray-500' : ''}
-                        ${event.status === 'completed' ? 'bg-gray-200 text-gray-500' : ''}
+                        px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm
+                        ${event.status === 'open' ? 'text-emerald-600' : ''}
+                        ${event.status === 'upcoming' ? 'text-amber-600' : ''}
+                        ${event.status === 'sold-out' ? 'text-gray-500' : ''}
+                        ${event.status === 'completed' ? 'text-gray-500' : ''}
                     `}>
                         {event.status.replace('-', ' ')}
                     </span>
                 </div>
+            </div>
 
+            {/* Top Accent Bar under image */}
+            <div className={`h-1.5 ${palette.bg}`} />
+
+            {/* Content Header: Date Badge + Type/Title */}
+            <div className="p-5 pb-0 flex items-start gap-4">
                 {/* Date Badge */}
-                <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm rounded-xl p-2 text-center min-w-[60px] shadow-sm">
-                    <span className={`block text-xs font-black uppercase tracking-wider ${accentColor}`}>
-                        {startDate.toLocaleDateString('en-US', { month: 'short' })}
+                <div className={`${palette.bgLight} rounded-xl p-3 text-center min-w-[64px] flex-shrink-0`}>
+                    <span className={`block text-xs font-black uppercase tracking-wider ${palette.accent}`}>
+                        {formatMonth(startDate)}
                     </span>
-                    <span className="block text-2xl font-black text-gray-900 leading-none mt-0.5">
-                        {startDate.getDate()}
+                    <span className="block text-3xl font-black text-gray-900 leading-none mt-0.5">
+                        {formatDay(startDate)}
                     </span>
                 </div>
 
-                {/* Type Tag */}
-                <div className="absolute bottom-4 left-4">
-                    <span className={`text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5`}>
-                        <span className={`w-2 h-2 rounded-full ${bgColor}`}></span>
+                {/* Type Badge & Title */}
+                <div className="flex-1 min-w-0 pt-1">
+                    <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider ${palette.accent}`}>
+                        {isTournament ? <Trophy size={12} /> : <GraduationCap size={12} />}
                         {event.type}
                     </span>
+                    <h3 className="text-lg font-black text-gray-900 leading-snug mt-1 group-hover:text-congo-blue transition-colors line-clamp-2">
+                        {event.title}
+                    </h3>
                 </div>
             </div>
 
-            {/* Content */}
-            <div className="p-6 flex flex-col flex-1">
-                <h3 className="text-xl font-black text-gray-900 leading-tight mb-3 group-hover:text-congo-blue transition-colors">
-                    {event.title}
-                </h3>
-
-                <div className="space-y-2 mb-6">
-                    <div className="flex items-center gap-2 text-sm text-gray-600 font-medium">
-                        <MapPin size={16} className="text-gray-400" />
-                        <span className="truncate">{event.location}</span>
+            {/* Details */}
+            <div className="p-5 pt-4 flex-1 flex flex-col">
+                <div className="space-y-2 mb-4">
+                    <div className="flex items-center gap-2 text-sm text-gray-500 font-medium">
+                        <Calendar size={14} className="text-gray-400 flex-shrink-0" />
+                        <span>
+                            {formatFullDate(startDate)}
+                            {startDate.getTime() !== endDate.getTime() && ` — ${formatFullDate(endDate)}`}
+                        </span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600 font-medium">
-                        <Clock size={16} className="text-gray-400" />
-                        <span>{formatDate(startDate)} — {formatDate(endDate)}</span>
-                    </div>
+                    {event.location && (
+                        <div className="flex items-center gap-2 text-sm text-gray-500 font-medium">
+                            <MapPin size={14} className="text-gray-400 flex-shrink-0" />
+                            <span className="truncate">{event.location}</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Tags */}
-                <div className="flex flex-wrap gap-2 mb-6">
-                    {event.tags.map((tag, i) => (
-                        <span key={i} className="text-[10px] font-bold text-gray-500 bg-gray-50 px-2.5 py-1 rounded-md uppercase tracking-wide">
-                            {tag}
-                        </span>
-                    ))}
-                </div>
-
-                {/* Footer / Action */}
-                <div className="mt-auto pt-6 border-t border-gray-100 flex items-center justify-between">
-                    <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Registration</span>
-                        {/* Removed Price Display */}
+                {event.tags && event.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-5">
+                        {event.tags.map((tag, i) => (
+                            <span key={i} className="text-[10px] font-bold text-gray-500 bg-gray-50 border border-gray-100 px-2.5 py-1 rounded-md uppercase tracking-wide">
+                                {tag}
+                            </span>
+                        ))}
                     </div>
+                )}
+
+                {/* Footer Action */}
+                <div className="mt-auto pt-4 border-t border-gray-100 flex items-center justify-between">
+                    <span className={`text-[10px] font-bold uppercase tracking-wider ${event.status === 'open' ? 'text-emerald-500' : 'text-gray-400'}`}>
+                        {event.status === 'open' ? 'Registration Open' : 'Action'}
+                    </span>
 
                     {event.link ? (
-                        <Link href={event.link} className={`
-                            w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300
-                            ${event.status === 'open' ? `${bgColor} text-white shadow-md hover:scale-110` : 'bg-gray-100 text-gray-400'}
-                        `}>
-                            <ArrowRight size={20} />
+                        <Link
+                            href={event.link}
+                            className={`w-9 h-9 rounded-full flex items-center justify-center text-white shadow-md hover:scale-110 transition-transform ${event.status === 'open' || event.status === 'upcoming' ? palette.bg : 'bg-gray-300'}`}
+                        >
+                            <ArrowRight size={16} />
                         </Link>
                     ) : (
-                        <button className={`
-                            w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300
-                            ${event.status === 'open' ? `${bgColor} text-white shadow-md shadow-${isCompetition ? 'spanish-red' : 'african-turquoise'}/20 hover:scale-110` : 'bg-gray-100 text-gray-400 cursor-not-allowed'}
-                        `}>
-                            <ArrowRight size={20} />
-                        </button>
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center bg-gray-100 text-gray-300">
+                            <ArrowRight size={16} />
+                        </div>
                     )}
                 </div>
             </div>
