@@ -1,12 +1,8 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { currentUser } from '@clerk/nextjs/server'
-import { createClerkClient } from '@clerk/backend'
+import { getAuthUser } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-
-// Initialize Clerk client
-const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY })
 
 // Generate a random 5-digit ID
 function generateUserId(): string {
@@ -35,14 +31,14 @@ interface CreateClubMemberInput {
 }
 
 export async function createClubMember(input: CreateClubMemberInput) {
-    const user = await currentUser()
-    if (!user) {
+    const dbUser = await getAuthUser()
+    if (!dbUser) {
         return { error: 'Unauthorized' }
     }
 
     // Get the Club Master's club
     const clubMaster = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: dbUser.id },
         include: { club: true }
     })
 
@@ -107,16 +103,10 @@ export async function createClubMember(input: CreateClubMemberInput) {
 }
 
 export async function promoteToAssistant(memberId: string) {
-    const user = await currentUser()
-    if (!user) return { error: 'Unauthorized' }
+    const dbUser = await getAuthUser()
+    if (!dbUser) return { error: 'Unauthorized' }
 
-    // Verify requester is a CLUB_MASTER
-    const requester = await prisma.user.findUnique({
-        where: { clerkId: user.id },
-        select: { role: true, clubName: true, club: { select: { id: true } } }
-    })
-
-    if (!requester || requester.role !== 'CLUB_MASTER' || !requester.club) {
+    if (!dbUser || dbUser.role !== 'CLUB_MASTER') {
         return { error: 'Only Club Masters can promote members' }
     }
 
@@ -127,7 +117,7 @@ export async function promoteToAssistant(memberId: string) {
     })
 
     if (!targetMember) return { error: 'Member not found' }
-    if (targetMember.clubName !== requester.clubName) {
+    if (targetMember.clubName !== dbUser.clubName) {
         return { error: 'Member does not belong to your club' }
     }
 
@@ -145,16 +135,10 @@ export async function promoteToAssistant(memberId: string) {
 }
 
 export async function demoteToAthlete(memberId: string) {
-    const user = await currentUser()
-    if (!user) return { error: 'Unauthorized' }
+    const dbUser = await getAuthUser()
+    if (!dbUser) return { error: 'Unauthorized' }
 
-    // Verify requester is a CLUB_MASTER
-    const requester = await prisma.user.findUnique({
-        where: { clerkId: user.id },
-        select: { role: true, clubName: true }
-    })
-
-    if (!requester || requester.role !== 'CLUB_MASTER') {
+    if (!dbUser || dbUser.role !== 'CLUB_MASTER') {
         return { error: 'Only Club Masters can demote members' }
     }
 
@@ -165,7 +149,7 @@ export async function demoteToAthlete(memberId: string) {
     })
 
     if (!targetMember) return { error: 'Member not found' }
-    if (targetMember.clubName !== requester.clubName) {
+    if (targetMember.clubName !== dbUser.clubName) {
         return { error: 'Member does not belong to your club' }
     }
 
@@ -187,16 +171,10 @@ export async function demoteToAthlete(memberId: string) {
 }
 
 export async function getAthleteDetails(memberId: string) {
-    const user = await currentUser()
-    if (!user) return { error: 'Unauthorized' }
+    const dbUser = await getAuthUser()
+    if (!dbUser) return { error: 'Unauthorized' }
 
-    // Verify requester is a club master
-    const requester = await prisma.user.findUnique({
-        where: { clerkId: user.id },
-        select: { role: true, clubName: true }
-    })
-
-    if (!requester || requester.role !== 'CLUB_MASTER') {
+    if (!dbUser || dbUser.role !== 'CLUB_MASTER') {
         return { error: 'Only Club Masters can view athlete details' }
     }
 
@@ -218,7 +196,7 @@ export async function getAthleteDetails(memberId: string) {
         }
     })
 
-    if (!member || member.clubName !== requester.clubName) {
+    if (!member || member.clubName !== dbUser.clubName) {
         return { error: 'Member not found or not in your club' }
     }
 
@@ -341,8 +319,8 @@ const supabase = createClient(
 )
 
 export async function uploadMemberAvatar(formData: FormData) {
-    const user = await currentUser()
-    if (!user) throw new Error('Unauthorized')
+    const dbUser = await getAuthUser()
+    if (!dbUser) throw new Error('Unauthorized')
 
     const file = formData.get('avatar') as File | null
     const memberId = formData.get('memberId') as string | null
@@ -351,11 +329,7 @@ export async function uploadMemberAvatar(formData: FormData) {
     if (!memberId) throw new Error('No member ID provided')
 
     // Validate club master permission
-    const clubMaster = await prisma.user.findUnique({
-        where: { clerkId: user.id },
-        select: { role: true, clubName: true }
-    })
-    if (!clubMaster || clubMaster.role !== 'CLUB_MASTER') {
+    if (dbUser.role !== 'CLUB_MASTER') {
         throw new Error('Only Club Masters can upload member avatars')
     }
 
@@ -364,7 +338,7 @@ export async function uploadMemberAvatar(formData: FormData) {
         where: { id: memberId },
         select: { clubName: true }
     })
-    if (!member || member.clubName !== clubMaster.clubName) {
+    if (!member || member.clubName !== dbUser.clubName) {
         throw new Error('Member not found in your club')
     }
 

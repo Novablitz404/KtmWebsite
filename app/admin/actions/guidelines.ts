@@ -1,19 +1,14 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { auth } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
 async function checkAdmin() {
-    const { userId } = await auth()
-    if (!userId) return null
+    const user = await getAuthUser()
+    if (!user) return null
 
-    const user = await prisma.user.findUnique({
-        where: { clerkId: userId },
-        select: { role: true }
-    })
-
-    if (user?.role !== 'ADMIN') {
+    if (user.role !== 'ADMIN') {
         throw new Error('Unauthorized')
     }
     return true

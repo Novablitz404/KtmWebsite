@@ -1,6 +1,7 @@
-import { authenticateApi, apiError, apiResponse } from '@/lib/auth-api'
+import { apiError, apiResponse } from '@/lib/auth-api'
+import { createServerClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { clerkClient } from '@clerk/nextjs/server'
+// clerkClient removed — metadata stored in DB only
 import { uploadAvatar, uploadLogo } from '@/lib/supabase-storage'
 
 /**
@@ -49,12 +50,39 @@ function toTitleCase(str: string): string {
  * - CLUB_MASTER: Saves owner profile (name + image) + creates Club record
  * - ORGANIZER: Saves owner profile (name + image) + creates Organization record
  * 
- * After saving, syncs { profileComplete: true } to Clerk publicMetadata.
+ * For new sign-ups, creates the DB user record if it doesn't exist yet.
  */
 export async function POST(request: Request) {
     try {
-        const dbUser = await authenticateApi()
-        if (!dbUser) return apiError('Unauthorized', 401)
+        // Get the authenticated Supabase user
+        const supabase = await createServerClient()
+        const { data: { user: authUser } } = await supabase.auth.getUser()
+        if (!authUser) return apiError('Unauthorized', 401)
+
+        // Look up existing DB record, or create one for new sign-ups
+        let dbUser = await prisma.user.findUnique({
+            where: { clerkId: authUser.id },
+            select: { id: true, email: true, organizationMemberId: true }
+        })
+
+        if (!dbUser) {
+            // New sign-up: create DB record with unique 5-digit ID
+            const role = (authUser.user_metadata?.role as string) || 'ATHLETE'
+            let newId = Math.floor(10000 + Math.random() * 90000).toString()
+            while (await prisma.user.findUnique({ where: { id: newId } })) {
+                newId = Math.floor(10000 + Math.random() * 90000).toString()
+            }
+            dbUser = await prisma.user.create({
+                data: {
+                    id: newId,
+                    clerkId: authUser.id,
+                    email: authUser.email!,
+                    role,
+                },
+                select: { id: true, email: true, organizationMemberId: true }
+            })
+            console.log(`[Onboarding] Created new DB user ${dbUser.id} for ${authUser.email} (role: ${role})`)
+        }
 
         const formData = await request.formData()
         const role = formData.get('role') as string
@@ -240,24 +268,7 @@ export async function POST(request: Request) {
             }
         }
 
-        // ─── SYNC profileComplete TO CLERK METADATA ───
-        if (dbUser.clerkId) {
-            try {
-                const client = await clerkClient()
-                // Read existing metadata to preserve tenant field
-                const clerkUser = await client.users.getUser(dbUser.clerkId)
-                const existingMeta = (clerkUser.publicMetadata as any) || {}
-                await client.users.updateUser(dbUser.clerkId, {
-                    publicMetadata: {
-                        ...existingMeta,
-                        role: dbUser.role,
-                        profileComplete: true
-                    }
-                })
-            } catch (error) {
-                console.error('Failed to sync profileComplete to Clerk:', error)
-            }
-        }
+        // Role and profile status stored in DB — no Clerk metadata sync needed
 
         return apiResponse({ success: true, message: 'Profile completed' })
 

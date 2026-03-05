@@ -1,189 +1,247 @@
 "use client";
 
 import * as React from "react";
-import { useSignIn } from "@clerk/nextjs";
+import { createBrowserClient } from "@/lib/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-    Loader2,
-    ArrowRight,
-    Eye,
-    EyeOff,
-    ArrowLeft,
-    CheckCircle2,
-} from "lucide-react";
+import { Loader2, ArrowRight, Eye, EyeOff, ArrowLeft, Mail } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function WOTFSignInPage() {
-    const { isLoaded, signIn, setActive } = useSignIn();
+    const supabase = createBrowserClient();
     const [email, setEmail] = React.useState("");
     const [password, setPassword] = React.useState("");
+    const [newPassword, setNewPassword] = React.useState("");
+    const [confirmPassword, setConfirmPassword] = React.useState("");
     const [isLoading, setIsLoading] = React.useState(false);
     const [isRedirecting, setIsRedirecting] = React.useState(false);
     const [error, setError] = React.useState("");
     const [showPassword, setShowPassword] = React.useState(false);
-    const [verifying, setVerifying] = React.useState(false);
-    const [code, setCode] = React.useState("");
+    const [resetSent, setResetSent] = React.useState(false);
+    const [firstLogin, setFirstLogin] = React.useState(false);
     const router = useRouter();
     const searchParams = useSearchParams();
     const tenantParam = searchParams.get('tenant');
     const qs = tenantParam ? `?tenant=${tenantParam}` : '';
 
-    if (!isLoaded && !isRedirecting) {
-        return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-white">
-                <div className="relative w-32 h-32 animate-spin">
-                    <Image
-                        src="/wotf/WOTF-Logo-Hero.svg"
-                        alt="Loading..."
-                        fill
-                        className="object-contain"
-                        priority
-                    />
-                </div>
-            </div>
-        );
-    }
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!signIn || !setActive) return;
         setIsLoading(true);
         setError("");
 
         try {
-            const result = await signIn.create({
-                identifier: email,
+            const { data, error: signInError } = await supabase.auth.signInWithPassword({
+                email,
                 password,
             });
 
-            if (result.status === "complete") {
-                await setActive({ session: result.createdSessionId });
+            if (signInError) {
+                if (signInError.message.includes('Invalid login credentials')) {
+                    // Check if this is a migrated user who hasn't set a password yet
+                    try {
+                        const checkRes = await fetch('/api/auth/check-email', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ email }),
+                        });
+                        const checkData = await checkRes.json();
+
+                        if (checkData.exists) {
+                            // Migrated user — show inline password form
+                            setFirstLogin(true);
+                            setIsLoading(false);
+                            return;
+                        }
+                    } catch {
+                        // Fall through to generic error
+                    }
+                    setError('Invalid email or password. Please try again.');
+                } else {
+                    setError(signInError.message);
+                }
+                setIsLoading(false);
+                return;
+            }
+
+            if (data.session) {
                 setIsRedirecting(true);
-                // Wait for session to propagate
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                // Fetch role and redirect to correct dashboard
                 try {
                     const res = await fetch('/api/me');
-                    const data = await res.json();
-                    const role = data?.data?.role;
-                    const redirectTo = role === 'CLUB_MASTER' || role === 'ASSISTANT_CLUB_MASTER' ? '/club'
-                        : role === 'ORGANIZER' || role === 'MANAGER' ? '/organization'
-                            : role === 'ADMIN' ? '/admin'
-                                : '/athlete';
+                    const meData = await res.json();
+                    const role = meData?.data?.role;
+                    const redirectTo = role === 'CLUB_MASTER' || role === 'ASSISTANT_CLUB_MASTER' ? `/club${qs}`
+                        : role === 'ORGANIZER' || role === 'MANAGER' ? `/organization${qs}`
+                            : role === 'ADMIN' ? `/admin${qs}`
+                                : `/athlete${qs}`;
                     router.push(redirectTo);
                 } catch {
-                    router.push('/athlete');
+                    router.push(`/athlete${qs}`);
                 }
-            } else if (result.status === "needs_second_factor") {
-                await signIn.prepareSecondFactor({
-                    strategy: "email_code",
-                });
-                setVerifying(true);
-                setIsLoading(false);
-            } else {
-                console.log(result);
-                setIsLoading(false);
             }
         } catch (err: any) {
-            console.error("error", err.errors[0].longMessage);
-            setError(err.errors[0].longMessage);
+            console.error("Sign in error", err);
+            setError("Something went wrong. Please try again.");
             setIsLoading(false);
         }
     };
 
-    const handleVerify = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!signIn || !setActive) return;
+    const handleForgotPassword = async () => {
+        if (!email) {
+            setError("Please enter your email address first.");
+            return;
+        }
         setIsLoading(true);
         setError("");
 
         try {
-            const result = await signIn.attemptSecondFactor({
-                strategy: "email_code",
-                code,
+            const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/sign-in/reset-password`,
             });
 
-            if (result.status === "complete") {
-                await setActive({ session: result.createdSessionId });
-                setIsRedirecting(true);
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                try {
-                    const res = await fetch('/api/me');
-                    const data = await res.json();
-                    const role = data?.data?.role;
-                    const redirectTo = role === 'CLUB_MASTER' || role === 'ASSISTANT_CLUB_MASTER' ? '/club'
-                        : role === 'ORGANIZER' || role === 'MANAGER' ? '/organization'
-                            : role === 'ADMIN' ? '/admin'
-                                : '/athlete';
-                    router.push(redirectTo);
-                } catch {
-                    router.push('/athlete');
-                }
-            } else {
-                console.log(result);
+            if (resetError) {
+                setError(resetError.message);
                 setIsLoading(false);
+                return;
             }
-        } catch (err: any) {
-            console.error("error", err.errors[0].longMessage);
-            setError(err.errors[0].longMessage);
+
+            setResetSent(true);
+            setIsLoading(false);
+        } catch {
+            setError("Failed to send reset email.");
             setIsLoading(false);
         }
     };
 
-    if (verifying) {
+    const handleSetPassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError("");
+
+        if (newPassword.length < 6) {
+            setError("Password must be at least 6 characters.");
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            setError("Passwords do not match.");
+            return;
+        }
+
+        setIsLoading(true);
+
+        try {
+            const res = await fetch('/api/auth/set-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password: newPassword }),
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                setError(data.error || 'Failed to set password.');
+                setIsLoading(false);
+                return;
+            }
+
+            // Password set — now sign them in automatically
+            const { error: signInError } = await supabase.auth.signInWithPassword({
+                email,
+                password: newPassword,
+            });
+
+            if (signInError) {
+                setError('Password set! Please sign in with your new password.');
+                setFirstLogin(false);
+                setIsLoading(false);
+                return;
+            }
+
+            // Redirect based on role
+            setIsRedirecting(true);
+            try {
+                const meRes = await fetch('/api/me');
+                const meData = await meRes.json();
+                const role = meData?.data?.role;
+                const redirectTo = role === 'CLUB_MASTER' || role === 'ASSISTANT_CLUB_MASTER' ? `/club${qs}`
+                    : role === 'ORGANIZER' || role === 'MANAGER' ? `/organization${qs}`
+                        : role === 'ADMIN' ? `/admin${qs}`
+                            : `/athlete${qs}`;
+                router.push(redirectTo);
+            } catch {
+                router.push(`/${qs}`);
+            }
+        } catch {
+            setError('Something went wrong. Please try again.');
+            setIsLoading(false);
+        }
+    };
+
+    if (firstLogin) {
         return (
             <div className="flex min-h-screen w-full">
                 <div className="relative hidden w-1/2 lg:block">
                     <Image src="/wotf/moon-pic.jpg" alt="Taekwondo Action" fill className="object-cover" priority />
                     <div className="absolute inset-0 bg-[#0085C7]/80 mix-blend-multiply" />
                 </div>
-
                 <div className="relative flex w-full items-center justify-center bg-white px-8 py-12 lg:w-1/2">
-                    <button
-                        type="button"
-                        onClick={() => setVerifying(false)}
-                        className="absolute top-8 left-8 inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"
-                    >
-                        <ArrowLeft className="h-4 w-4" />
-                        Back to Login
-                    </button>
-
                     <motion.div
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        className="w-full max-w-md space-y-8"
+                        className="w-full max-w-md space-y-6"
                     >
-                        <div className="text-center lg:text-left">
-                            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 lg:mx-0 mb-6">
-                                <CheckCircle2 className="h-8 w-8 text-[#0085C7]" />
+                        <div className="text-center">
+                            <div className="relative h-20 w-20 mx-auto mb-4">
+                                <Image src="/wotf/WOTF-Logo-Hero.svg" alt="WOTF Logo" fill className="object-contain" />
                             </div>
-                            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-                                2-Step Verification
-                            </h1>
-                            <p className="mt-2 text-sm text-gray-600">
-                                Enter the verification code sent to your email or phone
+                            <h2 className="text-2xl font-bold text-gray-900">Welcome Back! 🎉</h2>
+                            <p className="text-gray-600 text-sm leading-relaxed mt-2">
+                                We&apos;ve upgraded our system. Please set a new password for <span className="font-semibold text-gray-900">{email}</span>
                             </p>
                         </div>
 
-                        <form className="mt-8 space-y-6" onSubmit={handleVerify}>
+                        <form onSubmit={handleSetPassword} className="space-y-5">
                             <div>
-                                <label htmlFor="code" className="block text-sm font-semibold text-gray-700 mb-1">
-                                    Verification Code
-                                </label>
-                                <Input
-                                    id="code"
-                                    name="code"
-                                    type="text"
-                                    required
-                                    value={code}
-                                    onChange={(e) => setCode(e.target.value)}
-                                    className="h-11 border-gray-300 focus:border-[#0085C7] focus:ring-[#0085C7] text-center text-lg tracking-widest"
-                                    placeholder="123456"
-                                />
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">New Password</label>
+                                <div className="relative">
+                                    <input
+                                        type={showPassword ? "text" : "password"}
+                                        value={newPassword}
+                                        onChange={(e) => setNewPassword(e.target.value)}
+                                        className="w-full h-11 px-4 border border-gray-300 rounded-lg focus:border-[#0085C7] focus:ring-[#0085C7] focus:ring-1 focus:outline-none transition-all text-sm"
+                                        placeholder="Minimum 6 characters"
+                                        required
+                                        minLength={6}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    >
+                                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Confirm Password</label>
+                                <div className="relative">
+                                    <input
+                                        type={showPassword ? "text" : "password"}
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        className="w-full h-11 px-4 border border-gray-300 rounded-lg focus:border-[#0085C7] focus:ring-[#0085C7] focus:ring-1 focus:outline-none transition-all text-sm"
+                                        placeholder="Re-enter your password"
+                                        required
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    >
+                                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
+                                </div>
                             </div>
 
                             {error && (
@@ -195,21 +253,56 @@ export default function WOTFSignInPage() {
                             <Button
                                 type="submit"
                                 className="w-full h-12 text-base text-white bg-[#0085C7] hover:bg-[#0073ad] transition-all duration-200 shadow-lg shadow-blue-500/20"
-                                disabled={isLoading}
+                                disabled={isLoading || isRedirecting}
                             >
-                                {isLoading ? (
+                                {isLoading || isRedirecting ? (
                                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                                 ) : (
-                                    "Verify"
+                                    <>
+                                        Set Password & Sign In
+                                        <ArrowRight className="ml-2 h-5 w-5" />
+                                    </>
                                 )}
                             </Button>
                         </form>
-                    </motion.div>
 
-                    {/* Powered by KTM */}
-                    <div className="absolute bottom-6 left-0 right-0 flex items-center justify-center gap-2">
-                        <span className="text-[11px] text-gray-400 font-medium">Powered by</span>
-                        <Image src="/ktmnav.png" alt="KTM" width={60} height={20} className="opacity-50" />
+                        <div className="text-center">
+                            <button
+                                onClick={() => { setFirstLogin(false); setPassword(""); setNewPassword(""); setConfirmPassword(""); setError(""); }}
+                                className="text-sm font-semibold text-[#0085C7] hover:text-[#006090]"
+                            >
+                                ← Back to Sign In
+                            </button>
+                        </div>
+                    </motion.div>
+                </div>
+            </div>
+        );
+    }
+
+    if (resetSent) {
+        return (
+            <div className="flex min-h-screen w-full">
+                <div className="relative hidden w-1/2 lg:block">
+                    <Image src="/wotf/moon-pic.jpg" alt="Taekwondo Action" fill className="object-cover" priority />
+                    <div className="absolute inset-0 bg-[#0085C7]/80 mix-blend-multiply" />
+                </div>
+                <div className="relative flex w-full items-center justify-center bg-white px-8 py-12 lg:w-1/2">
+                    <div className="w-full max-w-md space-y-6 text-center">
+                        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                            <Mail className="h-8 w-8 text-green-600" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-gray-900">Check Your Email</h2>
+                        <p className="text-gray-500">
+                            We sent a password reset link to<br />
+                            <span className="font-bold text-gray-900">{email}</span>
+                        </p>
+                        <button
+                            onClick={() => { setResetSent(false); setPassword(""); }}
+                            className="text-sm font-semibold text-[#0085C7] hover:text-[#006090]"
+                        >
+                            ← Back to Sign In
+                        </button>
                     </div>
                 </div>
             </div>
@@ -273,9 +366,13 @@ export default function WOTFSignInPage() {
                                     <label htmlFor="password" className="block text-sm font-semibold text-gray-700">
                                         Password
                                     </label>
-                                    <Link href="#" className="text-sm font-medium text-[#0085C7] hover:text-[#006090]">
+                                    <button
+                                        type="button"
+                                        onClick={handleForgotPassword}
+                                        className="text-sm font-medium text-[#0085C7] hover:text-[#006090]"
+                                    >
                                         Forgot password?
-                                    </Link>
+                                    </button>
                                 </div>
                                 <div className="relative">
                                     <Input
@@ -309,9 +406,9 @@ export default function WOTFSignInPage() {
                         <Button
                             type="submit"
                             className="w-full h-12 text-base text-white bg-[#0085C7] hover:bg-[#0073ad] transition-all duration-200 shadow-lg shadow-blue-500/20"
-                            disabled={isLoading}
+                            disabled={isLoading || isRedirecting}
                         >
-                            {isLoading ? (
+                            {isLoading || isRedirecting ? (
                                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                             ) : (
                                 <>

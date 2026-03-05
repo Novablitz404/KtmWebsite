@@ -1,11 +1,11 @@
 import { prisma } from '@/lib/prisma'
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import TournamentsList from './TournamentsList'
 
 
 
 export default async function TournamentsTable() {
-    const user = await currentUser()
+    const user = await getAuthUser()
     const dbUser = user ? await prisma.user.findUnique({
         where: { clerkId: user.id },
         select: { id: true }

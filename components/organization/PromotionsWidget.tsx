@@ -7,6 +7,7 @@ import { Plus, X, Calendar, MapPin, DollarSign, Trash2, Users, ChevronRight, Eye
 import { createPromotionTest, deletePromotionTest } from '@/app/organization/actions'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import GlobalCalendar from '@/components/GlobalCalendar'
 
 interface PromotionTest {
@@ -30,6 +31,9 @@ const getStatusBadge = (status: string) => {
 }
 
 export default function PromotionsWidget({ promotionTests: initial }: { promotionTests: PromotionTest[] }) {
+    const searchParams = useSearchParams()
+    const tenant = searchParams.get('tenant')
+    const tenantQuery = tenant ? `?tenant=${tenant}` : ''
     const queryClient = useQueryClient()
     const [promotionTests, setPromotionTests] = useState(initial)
     const [showModal, setShowModal] = useState(false)
@@ -120,7 +124,7 @@ export default function PromotionsWidget({ promotionTests: initial }: { promotio
                                         <td className="px-6 py-4 whitespace-nowrap text-right">
                                             <div className="flex items-center justify-end gap-2">
                                                 <Link
-                                                    href={`/promotion/${test.id}`}
+                                                    href={`/promotion/${test.id}${tenantQuery}`}
                                                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm"
                                                 >
                                                     Manage
@@ -149,6 +153,7 @@ export default function PromotionsWidget({ promotionTests: initial }: { promotio
                     test={selectedTest}
                     onClose={() => setSelectedTest(null)}
                     onDelete={handleDelete}
+                    tenantQuery={tenantQuery}
                 />
             )}
 
@@ -254,7 +259,7 @@ export default function PromotionsWidget({ promotionTests: initial }: { promotio
     )
 }
 
-function PromotionDetailsModal({ test, onClose, onDelete }: { test: PromotionTest; onClose: () => void; onDelete: (id: string) => void }) {
+function PromotionDetailsModal({ test, onClose, onDelete, tenantQuery }: { test: PromotionTest; onClose: () => void; onDelete: (id: string) => void; tenantQuery: string }) {
     return (
         <div className="fixed inset-0 z-50 overflow-y-auto">
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
@@ -316,7 +321,7 @@ function PromotionDetailsModal({ test, onClose, onDelete }: { test: PromotionTes
                                 Close
                             </button>
                             <Link
-                                href={`/promotion/${test.id}`}
+                                href={`/promotion/${test.id}${tenantQuery}`}
                                 className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm"
                             >
                                 Manage

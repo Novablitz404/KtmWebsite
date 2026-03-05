@@ -1,6 +1,6 @@
 'use client'
 
-import { useClerk } from '@clerk/nextjs'
+import { useAuth } from '@/app/providers/AuthProvider'
 import { useTenant } from '@/app/providers/TenantProvider'
 import { useRouter } from 'next/navigation'
 import {
@@ -34,7 +34,7 @@ export default function OrganizationSidebar({
     onNavigate,
     orgName
 }: OrganizationSidebarProps) {
-    const { signOut } = useClerk()
+    const { signOut } = useAuth()
     const router = useRouter()
     const tenant = useTenant()
 

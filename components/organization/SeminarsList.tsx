@@ -3,6 +3,7 @@
 import { Calendar, MapPin, ChevronRight, Eye, X, Clock, DollarSign, Users, Copy, Check, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 
 const getStatusBadge = (status: string) => {
     switch (status) {
@@ -32,6 +33,9 @@ interface SeminarsListProps {
 }
 
 export default function SeminarsList({ seminars }: SeminarsListProps) {
+    const searchParams = useSearchParams()
+    const tenant = searchParams.get('tenant')
+    const tenantQuery = tenant ? `?tenant=${tenant}` : ''
     const [selectedSeminar, setSelectedSeminar] = useState<Seminar | null>(null)
 
     return (
@@ -88,7 +92,7 @@ export default function SeminarsList({ seminars }: SeminarsListProps) {
                                         <td className="px-6 py-4 whitespace-nowrap text-right">
                                             <div className="flex items-center justify-end gap-2">
                                                 <Link
-                                                    href={`/seminars/${seminar.id}`}
+                                                    href={`/seminars/${seminar.id}${tenantQuery}`}
                                                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm"
                                                 >
                                                     Manage
@@ -116,13 +120,14 @@ export default function SeminarsList({ seminars }: SeminarsListProps) {
                 <SeminarDetailsModal
                     seminar={selectedSeminar}
                     onClose={() => setSelectedSeminar(null)}
+                    tenantQuery={tenantQuery}
                 />
             )}
         </>
     )
 }
 
-function SeminarDetailsModal({ seminar, onClose }: { seminar: Seminar; onClose: () => void }) {
+function SeminarDetailsModal({ seminar, onClose, tenantQuery }: { seminar: Seminar; onClose: () => void; tenantQuery: string }) {
     return (
         <div className="fixed inset-0 z-50 overflow-y-auto">
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
@@ -182,7 +187,7 @@ function SeminarDetailsModal({ seminar, onClose }: { seminar: Seminar; onClose: 
                             Close
                         </button>
                         <Link
-                            href={`/seminars/${seminar.id}`}
+                            href={`/seminars/${seminar.id}${tenantQuery}`}
                             className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm"
                         >
                             Manage

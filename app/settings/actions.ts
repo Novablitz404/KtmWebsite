@@ -2,7 +2,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import { auth } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 
 import { createClient } from '@supabase/supabase-js'
 
@@ -12,8 +12,8 @@ const supabase = createClient(
 )
 
 export async function updateOrganizationProfile(organizationId: string, formData: FormData) {
-    const { userId } = await auth()
-    if (!userId) throw new Error('Unauthorized')
+    const user = await getAuthUser()
+    if (!user) throw new Error('Unauthorized')
 
     const name = formData.get('name') as string
     const chairman = formData.get('chairman') as string
@@ -92,8 +92,8 @@ export async function updateOrganizationProfile(organizationId: string, formData
 }
 
 export async function uploadProfilePicture(formData: FormData) {
-    const { userId } = await auth()
-    if (!userId) throw new Error('Unauthorized')
+    const dbUser = await getAuthUser()
+    if (!dbUser) throw new Error('Unauthorized')
 
     const file = formData.get('avatar') as File | null
     if (!file || file.size === 0) throw new Error('No file provided')
@@ -101,13 +101,6 @@ export async function uploadProfilePicture(formData: FormData) {
     // Validate file
     if (file.size > 5 * 1024 * 1024) throw new Error('File too large (max 5MB)')
     if (!file.type.startsWith('image/')) throw new Error('File must be an image')
-
-    // Find the DB user
-    const dbUser = await prisma.user.findUnique({
-        where: { clerkId: userId },
-        select: { id: true }
-    })
-    if (!dbUser) throw new Error('User not found')
 
     // Upload to Supabase Storage
     const bytes = await file.arrayBuffer()

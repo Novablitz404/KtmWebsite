@@ -2,11 +2,11 @@ import Link from 'next/link'
 import { Suspense } from 'react'
 import TournamentsTable from '@/components/TournamentsTable'
 import { TournamentsTableSkeleton } from '@/components/Skeletons'
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
 export default async function EventsPage() {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) redirect('/sign-in')
 
     return (

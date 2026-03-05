@@ -1,14 +1,14 @@
 import { prisma } from '@/lib/prisma'
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import AdminDashboard from './AdminDashboard'
 
 export default async function AdminPage() {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return redirect('/sign-in')
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id }
+        where: { id: user.id }
     })
 
     if (!dbUser || dbUser.role !== 'ADMIN') {

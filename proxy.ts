@@ -1,144 +1,161 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
-import { NextResponse } from 'next/server'
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
 
-const isPublicRoute = createRouteMatcher([
+const PUBLIC_ROUTES = new Set([
     '/',
-    '/sign-in(.*)',
-    '/sign-up(.*)',
-    '/api/webhooks(.*)',
-    '/api/tournament(.*)',
-    '/api/poomsae(.*)',
-    '/api/clubs',
-    '/api/v1/onboarding(.*)',
-    '/tournaments(.*)',
-    '/tournament/(.*)',
+    '/sign-in',
+    '/sign-up',
     '/about',
     '/membership',
     '/events',
-    '/rankings(.*)', // Allow detailed views if added later
-    '/seminars(.*)',
     '/privacy',
     '/terms',
-    '/terms',
-    '/manifest.json',   // PWA Manifest
+    '/manifest.json',
 ])
 
+const PUBLIC_PREFIXES = [
+    '/sign-in',
+    '/sign-up',
+    '/auth/callback',
+    '/api/auth',
+    '/api/webhooks',
+    '/api/tournament',
+    '/api/poomsae',
+    '/api/clubs',
+    '/api/v1/onboarding',
+    '/tournaments',
+    '/tournament/',
+    '/rankings',
+    '/seminars',
+]
+
+function isPublicRoute(pathname: string): boolean {
+    if (PUBLIC_ROUTES.has(pathname)) return true
+    return PUBLIC_PREFIXES.some(prefix => pathname.startsWith(prefix))
+}
+
 // Security headers configuration
-const securityHeaders = {
-    // Prevent clickjacking - don't allow framing
+const securityHeaders: Record<string, string> = {
     'X-Frame-Options': 'DENY',
-    // Prevent MIME type sniffing
     'X-Content-Type-Options': 'nosniff',
-    // Control referrer information
     'Referrer-Policy': 'strict-origin-when-cross-origin',
-    // Restrict browser features
     'Permissions-Policy': 'camera=(self), microphone=(self), geolocation=(), browsing-topics=()',
-    // Force HTTPS (only in production)
     ...(process.env.NODE_ENV === 'production' && {
         'Strict-Transport-Security': 'max-age=31536000; includeSubDomains'
     }),
 }
 
-// Content Security Policy
-// Note: Clerk requires 'unsafe-inline' for styles and specific script sources
+// Content Security Policy — Clerk references removed
 const cspDirectives = [
-    // Default: only same origin
     "default-src 'self'",
-    // Scripts: self, Clerk, and inline (required for Next.js)
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://*.ktmsports.com https://*.wotf-ph.com https://challenges.cloudflare.com",
-    // Styles: self, inline (required for Clerk and many React libs), Google Fonts
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.ktmsports.com https://*.wotf-ph.com https://challenges.cloudflare.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    // Images: self, data URIs, Clerk, Supabase, Unsplash, blob for image processing
-    "img-src 'self' data: blob: https://*.clerk.com https://*.ktmsports.com https://*.wotf-ph.com https://*.supabase.co https://img.clerk.com https://images.unsplash.com",
-    // Fonts: self, Google Fonts, data URIs
+    "img-src 'self' data: blob: https://*.ktmsports.com https://*.wotf-ph.com https://*.supabase.co https://images.unsplash.com",
     "font-src 'self' https://fonts.gstatic.com data:",
-    // Connect: API calls to self, Clerk, Supabase
-    "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.dev https://*.ktmsports.com https://*.wotf-ph.com https://*.supabase.co wss://*.supabase.co",
-    // Frame ancestors: prevent embedding
+    "connect-src 'self' https://*.ktmsports.com https://*.wotf-ph.com https://*.supabase.co wss://*.supabase.co",
     "frame-ancestors 'none'",
-    // Frame src: allow Clerk iframe for auth
-    "frame-src 'self' https://*.clerk.accounts.dev https://*.ktmsports.com https://*.wotf-ph.com https://challenges.cloudflare.com",
-    // Form actions: only self
+    "frame-src 'self' https://challenges.cloudflare.com",
     "form-action 'self'",
-    // Base URI: only self
     "base-uri 'self'",
-    // Object src: none (no plugins)
     "object-src 'none'",
-    // Worker src: self for service workers
     "worker-src 'self' blob:",
-    // Manifest src: self for PWA
     "manifest-src 'self'",
 ]
 
 const cspHeader = cspDirectives.join('; ')
 
-export default clerkMiddleware(async (auth, request) => {
-    if (!isPublicRoute(request)) {
-        // For API routes, return 401 instead of redirecting
-        if (request.nextUrl.pathname.startsWith('/api/')) {
-            const { userId } = await auth()
-            if (!userId) {
+export default async function middleware(request: NextRequest) {
+    let response = NextResponse.next({
+        request: {
+            headers: request.headers,
+        },
+    })
+
+    // Create Supabase client with cookie handling
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+            cookies: {
+                get(name: string) {
+                    return request.cookies.get(name)?.value
+                },
+                set(name: string, value: string, options: CookieOptions) {
+                    request.cookies.set({ name, value, ...options })
+                    response = NextResponse.next({
+                        request: {
+                            headers: request.headers,
+                        },
+                    })
+                    response.cookies.set({ name, value, ...options })
+                },
+                remove(name: string, options: CookieOptions) {
+                    request.cookies.set({ name, value: '', ...options })
+                    response = NextResponse.next({
+                        request: {
+                            headers: request.headers,
+                        },
+                    })
+                    response.cookies.set({ name, value: '', ...options })
+                },
+            },
+        }
+    )
+
+    // Refresh the session (this also handles token refresh)
+    const { data: { user } } = await supabase.auth.getUser()
+
+    const pathname = request.nextUrl.pathname
+
+    // Protected route checks
+    if (!isPublicRoute(pathname)) {
+        if (!user) {
+            // For API routes, return 401
+            if (pathname.startsWith('/api/')) {
                 return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
             }
+            // For pages, redirect to sign-in
+            const url = request.nextUrl.clone()
+            url.pathname = '/sign-in'
+            return NextResponse.redirect(url)
         }
-        await auth.protect()
     }
-
 
     // ========================================
     // TENANT DETECTION
-    // Priority: 1) ?tenant= query param  2) Custom domain  3) Clerk session metadata  4) KTM default
-    // Requires Clerk session token template to include publicMetadata.
+    // Priority: 1) ?tenant= query param  2) Custom domain  3) KTM default
     // ========================================
     const hostname = request.headers.get('host') || ''
     const { searchParams } = request.nextUrl
 
     // Static tenant map for known domains
     const TENANT_MAP: Record<string, string> = {
-        // Custom domains → org slug
         'wotf-ph.com': 'wotf',
         'www.wotf-ph.com': 'wotf',
     }
 
-    // KTM admin domains (no tenant — serves KTM super admin)
+    // KTM admin domains
     const KTM_DOMAINS = ['ktmsports.com', 'www.ktmsports.com', 'ktm-website.vercel.app']
 
     const tenantParam = searchParams.get('tenant')
     const tenantFromDomain = TENANT_MAP[hostname]
     const isKtmDomain = KTM_DOMAINS.includes(hostname) || hostname.startsWith('localhost')
 
-    // Read tenant from Clerk session (catches RSC requests without ?tenant= param)
-    let tenantFromSession: string | null = null
-    try {
-        const { sessionClaims } = await auth()
-        tenantFromSession = (sessionClaims?.publicMetadata as any)?.tenant || null
-    } catch { }
-
     let orgSlug = 'ktm'
     if (tenantParam) {
         orgSlug = tenantParam
     } else if (tenantFromDomain) {
         orgSlug = tenantFromDomain
-    } else if (tenantFromSession && tenantFromSession !== 'ktm') {
-        orgSlug = tenantFromSession
     } else if (isKtmDomain) {
         orgSlug = 'ktm'
     } else {
         orgSlug = hostname
     }
 
-    console.log('[Proxy] path:', request.nextUrl.pathname, '| tenantParam:', tenantParam, '| tenantFromSession:', tenantFromSession, '| orgSlug:', orgSlug)
+    console.log('[Proxy] path:', pathname, '| orgSlug:', orgSlug)
 
-    // Clone the request headers and add the tenant slug
-    const requestHeaders = new Headers(request.headers)
-    requestHeaders.set('x-org-slug', orgSlug)
-
-    // Get the response, passing the modified request headers
-    const response = NextResponse.next({
-        request: {
-            headers: requestHeaders,
-        },
-    })
+    // Set tenant header
+    response.headers.set('x-org-slug', orgSlug)
 
     // Add security headers
     Object.entries(securityHeaders).forEach(([key, value]) => {
@@ -149,7 +166,7 @@ export default clerkMiddleware(async (auth, request) => {
     response.headers.set('Content-Security-Policy', cspHeader)
 
     return response
-})
+}
 
 export const config = {
     matcher: [

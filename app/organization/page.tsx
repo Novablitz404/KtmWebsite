@@ -1,4 +1,4 @@
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import OrganizationDashboard from './OrganizationDashboard'
@@ -6,7 +6,7 @@ import OrganizationSettingsView from '@/app/settings/OrganizationSettingsView'
 import { getOrganizationDashboardData } from '@/app/organization/actions'
 
 export default async function OrganizationPage() {
-    const user = await currentUser()
+    const user = await getAuthUser()
 
     if (!user) {
         redirect('/sign-in')
@@ -14,7 +14,7 @@ export default async function OrganizationPage() {
 
     // Role verification and Data Fetching
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         select: {
             id: true,
             role: true,
@@ -59,13 +59,13 @@ export default async function OrganizationPage() {
                 name: dbUser.name,
                 email: dbUser.email
             }}
-            clerkImageUrl={user.imageUrl}
+            clerkImageUrl={user.imageUrl || ''}
             settingsContent={
                 dbUser.organization ? (
                     <OrganizationSettingsView
                         dbUser={dbUser}
                         organization={dbUser.organization}
-                        clerkImageUrl={user.imageUrl}
+                        clerkImageUrl={user.imageUrl || ''}
                     />
                 ) : undefined
             }

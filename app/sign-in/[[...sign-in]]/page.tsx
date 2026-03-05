@@ -2,7 +2,7 @@ import CustomSignInForm from '@/components/auth/CustomSignInForm'
 import Image from 'next/image'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { getTenant } from '@/lib/tenant'
 import WOTFSignInPage from '@/components/landing/wotf/pages/SignInPage'
@@ -10,7 +10,7 @@ import WOTFSignInPage from '@/components/landing/wotf/pages/SignInPage'
 export default async function SignInPage() {
     // If user is already authenticated, redirect them away from sign-in
     // Only for KTM — WOTF sign-in client component handles its own redirect
-    const user = await currentUser()
+    const user = await getAuthUser()
     const tenant = await getTenant()
 
     if (user && tenant.slug === 'ktm') {

@@ -166,12 +166,12 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                 <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
 
                     {/* Header */}
-                    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-                        <h2 className="text-lg font-semibold text-gray-900">Create New Tournament</h2>
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-red-600 to-red-700">
+                        <h2 className="text-lg font-bold text-white">Create New Tournament</h2>
                         <button
                             onClick={onClose}
                             disabled={isSubmitting}
-                            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                            className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
                         >
                             <X className="w-5 h-5" />
                         </button>
@@ -182,19 +182,119 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                         <form
                             ref={formRef}
                             onSubmit={handleSubmit}
-                            className="space-y-6"
+                            className="space-y-8"
                         >
-                            {/* Header Image Upload */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Tournament Header Image
-                                </label>
+                            {/* ─── SECTION 1: Tournament Information ─── */}
+                            <section>
+                                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                    <span className="w-6 h-6 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-xs font-black">1</span>
+                                    Tournament Information
+                                </h3>
+
+                                <div className="space-y-4">
+                                    {/* Name + Venue Row */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-1">
+                                                Tournament Name <span className="text-red-500">*</span>
+                                            </label>
+                                            <input
+                                                type="text"
+                                                name="name"
+                                                id="name"
+                                                placeholder="e.g. KTM Winter Championship 2025"
+                                                required
+                                                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all text-sm"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="venue" className="block text-sm font-semibold text-gray-700 mb-1">
+                                                Venue
+                                            </label>
+                                            <input
+                                                type="text"
+                                                name="venue"
+                                                id="venue"
+                                                placeholder="e.g. Mall of Asia Arena, Pasay City"
+                                                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all text-sm"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* J-Score Tier + Guideline Template Row */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                                                J-Score Tier
+                                            </label>
+                                            <div className="flex gap-2">
+                                                {(['J-1', 'J-2', 'J-3', 'J-4'] as const).map((tier) => (
+                                                    <button
+                                                        key={tier}
+                                                        type="button"
+                                                        onClick={() => setSelectedTier(tier)}
+                                                        className={`flex-1 px-3 py-2 text-sm font-bold rounded-lg border transition-all ${selectedTier === tier
+                                                            ? 'bg-red-600 text-white border-red-600 shadow-sm'
+                                                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                                                            }`}
+                                                    >
+                                                        {tier}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            <p className="text-xs text-gray-400 mt-1">
+                                                Higher tiers award more ranking points (J-1 = base, J-4 = 4×).
+                                            </p>
+                                            <input type="hidden" name="tier" value={selectedTier} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                                                Guideline Template
+                                            </label>
+                                            {templates.length === 0 ? (
+                                                <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-200">
+                                                    ⚠️ No templates found. Contact an administrator.
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <GlobalDropdown
+                                                        name="guidelineTemplateId"
+                                                        fullWidth
+                                                        label="Select a template (Optional)"
+                                                        options={templates.map(t => ({
+                                                            value: t.id,
+                                                            label: t.name
+                                                        }))}
+                                                        value={selectedTemplate}
+                                                        onChange={setSelectedTemplate}
+                                                        align="left"
+                                                        className="w-full"
+                                                    />
+                                                    <p className="text-xs text-gray-400 mt-1">
+                                                        Auto-populates categories from the template.
+                                                    </p>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <hr className="border-gray-100" />
+
+                            {/* ─── SECTION 2: Header Image ─── */}
+                            <section>
+                                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                    <span className="w-6 h-6 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-xs font-black">2</span>
+                                    Header Image
+                                </h3>
+
                                 <div className="relative group">
                                     <div className={`
-                                        w-full h-48 rounded-xl border-2 border-dashed border-gray-300 
+                                        w-full h-44 rounded-xl border-2 border-dashed 
                                         flex flex-col items-center justify-center 
                                         bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer overflow-hidden
-                                        ${imagePreview ? 'border-indigo-500' : ''}
+                                        ${imagePreview ? 'border-red-400' : 'border-gray-300'}
                                     `}>
                                         {imagePreview ? (
                                             <>
@@ -212,10 +312,9 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                             </>
                                         ) : (
                                             <label htmlFor="headerImage" className="w-full h-full flex flex-col items-center justify-center cursor-pointer p-4">
-                                                <ImageIcon className="w-10 h-10 text-gray-400 mb-2 group-hover:text-indigo-500 transition-colors" />
+                                                <ImageIcon className="w-8 h-8 text-gray-400 mb-2 group-hover:text-red-500 transition-colors" />
                                                 <p className="text-sm font-medium text-gray-600">Click to upload header image</p>
-                                                <p className="text-xs text-gray-500 mt-1">Recommended: 1200x400</p>
-                                                <p className="text-xs text-gray-400">PNG, JPG, GIF (Max 10MB)</p>
+                                                <p className="text-xs text-gray-400 mt-1">Recommended: 1200×400 · PNG, JPG (Max 10MB)</p>
                                             </label>
                                         )}
                                     </div>
@@ -232,7 +331,7 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                         <Check className="w-3 h-3" /> Image cropped and ready to upload
                                     </p>
                                 )}
-                            </div>
+                            </section>
 
                             {/* Cropper Modal (Nested) */}
                             {showCropper && tempImage && (
@@ -254,79 +353,31 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                 />
                             )}
 
-                            {/* Tournament Name */}
-                            <div>
-                                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-                                    Tournament Name <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    name="name"
-                                    id="name"
-                                    placeholder="e.g. KTM Winter Championship 2025"
-                                    required
-                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                                />
-                            </div>
+                            <hr className="border-gray-100" />
 
-                            {/* Venue */}
-                            <div>
-                                <label htmlFor="venue" className="block text-sm font-medium text-gray-700 mb-1">
-                                    Venue
-                                </label>
-                                <input
-                                    type="text"
-                                    name="venue"
-                                    id="venue"
-                                    placeholder="e.g. Mall of Asia Arena, Pasay City"
-                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                                />
-                            </div>
+                            {/* ─── SECTION 3: Schedule & Registration ─── */}
+                            <section>
+                                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                    <span className="w-6 h-6 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-xs font-black">3</span>
+                                    Schedule & Registration
+                                </h3>
 
-                            {/* J-Score Tier */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    J-Score Tier
-                                </label>
-                                <div className="flex gap-2">
-                                    {(['J-1', 'J-2', 'J-3', 'J-4'] as const).map((tier) => (
-                                        <button
-                                            key={tier}
-                                            type="button"
-                                            onClick={() => setSelectedTier(tier)}
-                                            className={`px-4 py-2 text-sm font-bold rounded-lg border transition-all ${selectedTier === tier
-                                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                                                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                                                }`}
-                                        >
-                                            {tier}
-                                        </button>
-                                    ))}
-                                </div>
-                                <p className="text-xs text-gray-500 mt-1.5">
-                                    Higher tiers award more ranking points. J-1 = base, J-4 = 4× multiplier.
-                                </p>
-                                <input type="hidden" name="tier" value={selectedTier} />
-                            </div>
-
-                            {/* Date & Time Row */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                {/* Tournament Date + Time */}
-                                <div>
-                                    <GlobalCalendar
-                                        label="Tournament Date *"
-                                        value={startDate}
-                                        onChange={(date) => {
-                                            setStartDate(date)
-                                            const input = document.getElementById('startDate') as HTMLInputElement
-                                            if (input) input.value = format(date, 'yyyy-MM-dd')
-                                        }}
-                                        placeholder="Select date..."
-                                        className="w-full"
-                                        fullWidth
-                                    />
-                                    <input type="hidden" name="startDate" id="startDate" required />
-                                    <div className="mt-2">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    {/* Tournament Date + Time */}
+                                    <div className="space-y-2">
+                                        <GlobalCalendar
+                                            label="Tournament Date *"
+                                            value={startDate}
+                                            onChange={(date) => {
+                                                setStartDate(date)
+                                                const input = document.getElementById('startDate') as HTMLInputElement
+                                                if (input) input.value = format(date, 'yyyy-MM-dd')
+                                            }}
+                                            placeholder="Select date..."
+                                            className="w-full"
+                                            fullWidth
+                                        />
+                                        <input type="hidden" name="startDate" id="startDate" required />
                                         <GlobalTimePicker
                                             label="Start Time"
                                             value={startTime}
@@ -335,24 +386,22 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                             fullWidth
                                         />
                                     </div>
-                                </div>
 
-                                {/* Registration Opens + Time */}
-                                <div>
-                                    <GlobalCalendar
-                                        label="Registration Opens"
-                                        value={registrationStart}
-                                        onChange={(date) => {
-                                            setRegistrationStart(date)
-                                            const input = document.getElementById('registrationStart') as HTMLInputElement
-                                            if (input) input.value = format(date, 'yyyy-MM-dd')
-                                        }}
-                                        placeholder="Select date..."
-                                        className="w-full"
-                                        fullWidth
-                                    />
-                                    <input type="hidden" name="registrationStart" id="registrationStart" />
-                                    <div className="mt-2">
+                                    {/* Registration Opens + Time */}
+                                    <div className="space-y-2">
+                                        <GlobalCalendar
+                                            label="Registration Opens"
+                                            value={registrationStart}
+                                            onChange={(date) => {
+                                                setRegistrationStart(date)
+                                                const input = document.getElementById('registrationStart') as HTMLInputElement
+                                                if (input) input.value = format(date, 'yyyy-MM-dd')
+                                            }}
+                                            placeholder="Select date..."
+                                            className="w-full"
+                                            fullWidth
+                                        />
+                                        <input type="hidden" name="registrationStart" id="registrationStart" />
                                         <GlobalTimePicker
                                             label="Opens At"
                                             value={regStartTime}
@@ -361,24 +410,22 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                             fullWidth
                                         />
                                     </div>
-                                </div>
 
-                                {/* Registration Closes + Time */}
-                                <div>
-                                    <GlobalCalendar
-                                        label="Registration Closes"
-                                        value={registrationEnd}
-                                        onChange={(date) => {
-                                            setRegistrationEnd(date)
-                                            const input = document.getElementById('registrationEnd') as HTMLInputElement
-                                            if (input) input.value = format(date, 'yyyy-MM-dd')
-                                        }}
-                                        placeholder="Select date..."
-                                        className="w-full"
-                                        fullWidth
-                                    />
-                                    <input type="hidden" name="registrationEnd" id="registrationEnd" />
-                                    <div className="mt-2">
+                                    {/* Registration Closes + Time */}
+                                    <div className="space-y-2">
+                                        <GlobalCalendar
+                                            label="Registration Closes"
+                                            value={registrationEnd}
+                                            onChange={(date) => {
+                                                setRegistrationEnd(date)
+                                                const input = document.getElementById('registrationEnd') as HTMLInputElement
+                                                if (input) input.value = format(date, 'yyyy-MM-dd')
+                                            }}
+                                            placeholder="Select date..."
+                                            className="w-full"
+                                            fullWidth
+                                        />
+                                        <input type="hidden" name="registrationEnd" id="registrationEnd" />
                                         <GlobalTimePicker
                                             label="Closes At"
                                             value={regEndTime}
@@ -388,224 +435,201 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                         />
                                     </div>
                                 </div>
-                            </div>
+                            </section>
 
-                            {/* Early Bird — shows only when registration dates are set */}
-                            {registrationStart && registrationEnd && (
-                                <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/50 space-y-4">
-                                    <div className="flex items-center justify-between">
+                            <hr className="border-gray-100" />
+
+                            {/* ─── SECTION 4: Pricing ─── */}
+                            <section>
+                                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                    <span className="w-6 h-6 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-xs font-black">4</span>
+                                    Pricing
+                                </h3>
+
+                                <div className="space-y-4">
+                                    {/* Early Bird — shows only when registration dates are set */}
+                                    {registrationStart && registrationEnd && (
+                                        <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/50 space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-sm font-semibold text-gray-900">Early Bird Pricing</p>
+                                                    <p className="text-xs text-gray-500">Offer a discounted rate for early registrations</p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowEarlyBird(!showEarlyBird)}
+                                                    className={`relative w-11 h-6 rounded-full transition-colors ${showEarlyBird ? 'bg-red-600' : 'bg-gray-300'}`}
+                                                >
+                                                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${showEarlyBird ? 'translate-x-5' : ''}`} />
+                                                </button>
+                                            </div>
+
+                                            {showEarlyBird && (
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-gray-200">
+                                                    {/* Early Bird Deadline */}
+                                                    <div>
+                                                        <GlobalCalendar
+                                                            label="Early Bird Deadline"
+                                                            value={earlyBirdDate}
+                                                            onChange={(date) => {
+                                                                setEarlyBirdDate(date)
+                                                                const input = document.getElementById('earlyBirdDeadline') as HTMLInputElement
+                                                                if (input) input.value = format(date, 'yyyy-MM-dd')
+                                                            }}
+                                                            placeholder="Select date..."
+                                                            className="w-full"
+                                                            fullWidth
+                                                        />
+                                                        <input type="hidden" name="earlyBirdDeadline" id="earlyBirdDeadline" />
+                                                        <div className="mt-2">
+                                                            <GlobalTimePicker
+                                                                label="Deadline Time"
+                                                                value={earlyBirdTime}
+                                                                onChange={setEarlyBirdTime}
+                                                                name="earlyBirdTime"
+                                                                fullWidth
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Early Bird Price */}
+                                                    <div>
+                                                        <label className="block text-sm font-semibold text-gray-700 mb-1">Early Bird Price</label>
+                                                        <div className="relative">
+                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₱</span>
+                                                            <input
+                                                                type="number"
+                                                                name="earlyBirdPrice"
+                                                                step="0.01"
+                                                                min="0"
+                                                                placeholder="0.00"
+                                                                className="w-full pl-7 pr-4 py-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Regular Price */}
+                                                    <div>
+                                                        <label className="block text-sm font-semibold text-gray-700 mb-1">Regular Price</label>
+                                                        <div className="relative">
+                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₱</span>
+                                                            <input
+                                                                type="number"
+                                                                name="regularPrice"
+                                                                step="0.01"
+                                                                min="0"
+                                                                placeholder="0.00"
+                                                                className="w-full pl-7 pr-4 py-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Per-Category Pricing */}
+                                    <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/50 space-y-4">
                                         <div>
-                                            <p className="text-sm font-semibold text-gray-900">Early Bird Pricing</p>
-                                            <p className="text-xs text-gray-500">Offer a discounted rate for early registrations</p>
+                                            <p className="text-sm font-semibold text-gray-900">Category Pricing</p>
+                                            <p className="text-xs text-gray-500">Set fees per event type (e.g., Kyorugi Individual, Poomsae Pair)</p>
                                         </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowEarlyBird(!showEarlyBird)}
-                                            className={`relative w-11 h-6 rounded-full transition-colors ${showEarlyBird ? 'bg-indigo-600' : 'bg-gray-300'
-                                                }`}
-                                        >
-                                            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${showEarlyBird ? 'translate-x-5' : ''
-                                                }`} />
-                                        </button>
-                                    </div>
 
-                                    {showEarlyBird && (
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-gray-200">
-                                            {/* Early Bird Deadline */}
-                                            <div>
-                                                <GlobalCalendar
-                                                    label="Early Bird Deadline"
-                                                    value={earlyBirdDate}
-                                                    onChange={(date) => {
-                                                        setEarlyBirdDate(date)
-                                                        const input = document.getElementById('earlyBirdDeadline') as HTMLInputElement
-                                                        if (input) input.value = format(date, 'yyyy-MM-dd')
-                                                    }}
-                                                    placeholder="Select date..."
-                                                    className="w-full"
-                                                    fullWidth
-                                                />
-                                                <input type="hidden" name="earlyBirdDeadline" id="earlyBirdDeadline" />
-                                                <div className="mt-2">
-                                                    <GlobalTimePicker
-                                                        label="Deadline Time"
-                                                        value={earlyBirdTime}
-                                                        onChange={setEarlyBirdTime}
-                                                        name="earlyBirdTime"
-                                                        fullWidth
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            {/* Early Bird Price */}
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">Early Bird Price</label>
-                                                <div className="relative">
-                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₱</span>
-                                                    <input
-                                                        type="number"
-                                                        name="earlyBirdPrice"
-                                                        step="0.01"
-                                                        min="0"
-                                                        placeholder="0.00"
-                                                        className="w-full pl-7 pr-4 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            {/* Regular Price */}
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">Regular Price</label>
-                                                <div className="relative">
-                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₱</span>
-                                                    <input
-                                                        type="number"
-                                                        name="regularPrice"
-                                                        step="0.01"
-                                                        min="0"
-                                                        placeholder="0.00"
-                                                        className="w-full pl-7 pr-4 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                                                    />
-                                                </div>
-                                            </div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-sm">
+                                                <thead>
+                                                    <tr className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                                                        <th className="pb-2 pr-4">Event Type</th>
+                                                        <th className="pb-2 px-2 text-center">Early Bird (₱)</th>
+                                                        <th className="pb-2 pl-2 text-center">Regular (₱)</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-100">
+                                                    {PRICING_COMBOS.map(combo => (
+                                                        <tr key={combo.key}>
+                                                            <td className="py-2.5 pr-4 text-sm font-medium text-gray-700">{combo.label}</td>
+                                                            <td className="py-2.5 px-2">
+                                                                <input
+                                                                    type="number"
+                                                                    step="0.01"
+                                                                    min="0"
+                                                                    placeholder="—"
+                                                                    value={categoryPricing[combo.key]?.earlyBird || ''}
+                                                                    onChange={(e) => setCategoryPricing(prev => ({
+                                                                        ...prev,
+                                                                        [combo.key]: { ...prev[combo.key], earlyBird: e.target.value, regular: prev[combo.key]?.regular || '' }
+                                                                    }))}
+                                                                    className="w-full px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-center focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none"
+                                                                />
+                                                            </td>
+                                                            <td className="py-2.5 pl-2">
+                                                                <input
+                                                                    type="number"
+                                                                    step="0.01"
+                                                                    min="0"
+                                                                    placeholder="—"
+                                                                    value={categoryPricing[combo.key]?.regular || ''}
+                                                                    onChange={(e) => setCategoryPricing(prev => ({
+                                                                        ...prev,
+                                                                        [combo.key]: { ...prev[combo.key], regular: e.target.value, earlyBird: prev[combo.key]?.earlyBird || '' }
+                                                                    }))}
+                                                                    className="w-full px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-center focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none"
+                                                                />
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
                                         </div>
-                                    )}
-                                </div>
-                            )}
 
-                            {/* Per-Category Pricing */}
-                            <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/50 space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-sm font-semibold text-gray-900">Category Pricing</p>
-                                        <p className="text-xs text-gray-500">Set fees per event type (e.g., Kyorugi Individual, Poomsae Pair)</p>
-                                    </div>
-                                </div>
+                                        {/* Show Pricing Toggle */}
+                                        <div className="flex items-center justify-between pt-3 border-t border-gray-200">
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-700">Show Pricing Publicly</p>
+                                                <p className="text-xs text-gray-400">Athletes can see fees on the registration page</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPricing(!showPricing)}
+                                                className={`relative w-11 h-6 rounded-full transition-colors ${showPricing ? 'bg-red-600' : 'bg-gray-300'}`}
+                                            >
+                                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${showPricing ? 'translate-x-5' : ''}`} />
+                                            </button>
+                                        </div>
 
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-sm">
-                                        <thead>
-                                            <tr className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                                                <th className="pb-2 pr-4">Event Type</th>
-                                                <th className="pb-2 px-2 text-center">Early Bird (₱)</th>
-                                                <th className="pb-2 pl-2 text-center">Regular (₱)</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-100">
-                                            {PRICING_COMBOS.map(combo => (
-                                                <tr key={combo.key}>
-                                                    <td className="py-2.5 pr-4 text-sm font-medium text-gray-700">{combo.label}</td>
-                                                    <td className="py-2.5 px-2">
-                                                        <input
-                                                            type="number"
-                                                            step="0.01"
-                                                            min="0"
-                                                            placeholder="—"
-                                                            value={categoryPricing[combo.key]?.earlyBird || ''}
-                                                            onChange={(e) => setCategoryPricing(prev => ({
-                                                                ...prev,
-                                                                [combo.key]: { ...prev[combo.key], earlyBird: e.target.value, regular: prev[combo.key]?.regular || '' }
-                                                            }))}
-                                                            className="w-full px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-center focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                                                        />
-                                                    </td>
-                                                    <td className="py-2.5 pl-2">
-                                                        <input
-                                                            type="number"
-                                                            step="0.01"
-                                                            min="0"
-                                                            placeholder="—"
-                                                            value={categoryPricing[combo.key]?.regular || ''}
-                                                            onChange={(e) => setCategoryPricing(prev => ({
-                                                                ...prev,
-                                                                [combo.key]: { ...prev[combo.key], regular: e.target.value, earlyBird: prev[combo.key]?.earlyBird || '' }
-                                                            }))}
-                                                            className="w-full px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-center focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                                                        />
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-
-                                {/* Show Pricing Toggle */}
-                                <div className="flex items-center justify-between pt-3 border-t border-gray-200">
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-700">Show Pricing Publicly</p>
-                                        <p className="text-xs text-gray-400">When enabled, athletes can see fees on the registration page</p>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPricing(!showPricing)}
-                                        className={`relative w-11 h-6 rounded-full transition-colors ${showPricing ? 'bg-indigo-600' : 'bg-gray-300'}`}
-                                    >
-                                        <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${showPricing ? 'translate-x-5' : ''}`} />
-                                    </button>
-                                </div>
-
-                                {/* Hidden inputs for form submission */}
-                                <input type="hidden" name="showPricing" value={showPricing ? 'true' : 'false'} />
-                                <input
-                                    type="hidden"
-                                    name="categoryPricing"
-                                    value={JSON.stringify(
-                                        Object.fromEntries(
-                                            Object.entries(categoryPricing)
-                                                .filter(([, v]) => v.earlyBird || v.regular)
-                                                .map(([k, v]) => [k, {
-                                                    earlyBird: v.earlyBird ? parseFloat(v.earlyBird) : null,
-                                                    regular: v.regular ? parseFloat(v.regular) : null
-                                                }])
-                                        )
-                                    )}
-                                />
-                            </div>
-
-                            {/* Guideline Template Selection */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Guideline Template
-                                </label>
-                                {templates.length === 0 ? (
-                                    <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-200">
-                                        ⚠️ No guideline templates found. Please contact an administrator.
-                                    </div>
-                                ) : (
-                                    <div className="relative">
-                                        <GlobalDropdown
-                                            name="guidelineTemplateId"
-                                            fullWidth
-                                            label="Select a template (Optional)"
-                                            options={templates.map(t => ({
-                                                value: t.id,
-                                                label: t.name
-                                            }))}
-                                            value={selectedTemplate}
-                                            onChange={setSelectedTemplate}
-                                            align="left"
-                                            className="w-full"
+                                        {/* Hidden inputs for form submission */}
+                                        <input type="hidden" name="showPricing" value={showPricing ? 'true' : 'false'} />
+                                        <input
+                                            type="hidden"
+                                            name="categoryPricing"
+                                            value={JSON.stringify(
+                                                Object.fromEntries(
+                                                    Object.entries(categoryPricing)
+                                                        .filter(([, v]) => v.earlyBird || v.regular)
+                                                        .map(([k, v]) => [k, {
+                                                            earlyBird: v.earlyBird ? parseFloat(v.earlyBird) : null,
+                                                            regular: v.regular ? parseFloat(v.regular) : null
+                                                        }])
+                                                )
+                                            )}
                                         />
-                                        <p className="text-xs text-gray-500 mt-1">
-                                            Select a template to automatically populate categories.
-                                        </p>
                                     </div>
-                                )}
-                            </div>
+                                </div>
+                            </section>
 
                             {/* Error Message */}
                             {error && (
-                                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm font-medium">
                                     {error}
                                 </div>
                             )}
 
                             {/* Submit Button */}
-                            <div className="pt-2">
+                            <div className="pt-2 flex justify-end">
                                 <button
                                     type="submit"
                                     disabled={isSubmitting}
-                                    className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-8 py-2.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-indigo-200"
+                                    className="bg-red-600 hover:bg-red-700 text-white font-bold px-8 py-2.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-red-200"
                                 >
                                     {isSubmitting ? 'Creating...' : 'Create Tournament'}
                                 </button>

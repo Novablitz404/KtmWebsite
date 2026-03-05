@@ -3,7 +3,7 @@
 import { completeOnboarding, checkEmailAvailability, getExistingProfile } from '@/app/actions'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { useUser } from '@clerk/nextjs'
+import { createBrowserClient } from '@/lib/supabase/client'
 import { useTenant } from '@/app/providers/TenantProvider'
 import { toast } from 'sonner'
 import { Camera, ArrowRight, ArrowLeft, CheckCircle, Loader2, Ruler, Weight, Users, Building2, Award, Calendar, ImageIcon, Globe, MapPin, Phone } from 'lucide-react'
@@ -29,49 +29,45 @@ const DAN_BELT_OPTIONS = [
 const GENDER_OPTIONS = ['Male', 'Female']
 
 export default function CompleteProfilePage() {
-    const { user, isLoaded } = useUser()
+    const supabase = createBrowserClient()
     const router = useRouter()
     const tenant = useTenant()
     const isKtm = tenant.slug === 'ktm'
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [step, setStep] = useState<OnboardingStep>('profile')
-    const [roleLoaded, setRoleLoaded] = useState(false)
+    const [isLoaded, setIsLoaded] = useState(false)
     const [error, setError] = useState('')
+    const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({})
 
-    // Role from Clerk metadata
-    const role = (user?.publicMetadata as any)?.role as string | null
+    // User data from DB (fetched via /api/me)
+    const [dbUser, setDbUser] = useState<any>(null)
+    const [authUser, setAuthUser] = useState<any>(null)
+    // Role from DB if available, otherwise from Supabase auth metadata (new sign-ups)
+    const role = (dbUser?.role || authUser?.user_metadata?.role) as string | null
 
-    // Force-refresh Clerk session if role metadata hasn't propagated yet
+    // Fetch user data on mount
     useEffect(() => {
-        if (!isLoaded || !user) return
-
-        if (role) {
-            setRoleLoaded(true)
-            return
-        }
-
-        let attempts = 0
-        const maxAttempts = 10
-        const interval = setInterval(async () => {
-            attempts++
+        async function loadUser() {
             try {
-                await user.reload()
-                const refreshedRole = (user.publicMetadata as any)?.role
-                if (refreshedRole) {
-                    setRoleLoaded(true)
-                    clearInterval(interval)
+                const { data: { user: supaUser } } = await supabase.auth.getUser()
+                if (!supaUser) {
+                    router.push('/sign-in')
+                    return
                 }
-            } catch (e) {
-                console.error('Failed to reload user:', e)
+                setAuthUser(supaUser)
+                const res = await fetch('/api/me')
+                if (res.ok) {
+                    const meData = await res.json()
+                    setDbUser(meData.data)
+                }
+            } catch (err) {
+                console.error('Failed to load user:', err)
+            } finally {
+                setIsLoaded(true)
             }
-            if (attempts >= maxAttempts) {
-                clearInterval(interval)
-                setRoleLoaded(true)
-            }
-        }, 1000)
-
-        return () => clearInterval(interval)
-    }, [isLoaded, user, role])
+        }
+        loadUser()
+    }, [supabase, router])
 
     // Common profile data
     const [name, setName] = useState('')
@@ -108,21 +104,13 @@ export default function CompleteProfilePage() {
     const [establishedDate, setEstablishedDate] = useState('')
     const orgLogoInputRef = useRef<HTMLInputElement>(null)
 
-    // Pre-fill existing data from Clerk + DB
+    // Pre-fill existing data from DB user
     useEffect(() => {
-        if (!isLoaded || !user) return
-        // Only pre-fill name if Clerk has a real name (not auto-derived from email)
-        const clerkName = user.fullName || user.firstName || ''
-        const email = user.emailAddresses?.[0]?.emailAddress || ''
-        const emailPrefix = email.split('@')[0] || ''
-        // Skip if the name looks like an email prefix (contains + or @ or matches email prefix)
-        const isEmailDerived = clerkName && (
-            clerkName.includes('+') ||
-            clerkName.includes('@') ||
-            clerkName.toLowerCase() === emailPrefix.toLowerCase()
-        )
-        setName(isEmailDerived ? '' : clerkName)
-        if (user.imageUrl) setImgPreview(user.imageUrl)
+        if (!isLoaded || !dbUser) return
+        const userName = dbUser.name || ''
+        const email = dbUser.email || ''
+        setName(userName)
+        if (dbUser.imageUrl) setImgPreview(dbUser.imageUrl)
 
         // Fetch existing DB profile (e.g. pre-registered by clubmaster)
         if (email) {
@@ -138,7 +126,7 @@ export default function CompleteProfilePage() {
                 if (profile.country) setCountry(profile.country)
             })
         }
-    }, [isLoaded, user])
+    }, [isLoaded, dbUser])
 
     // Fetch clubs for athlete dropdown (scoped to tenant org)
     useEffect(() => {
@@ -200,12 +188,16 @@ export default function CompleteProfilePage() {
 
     const handleProfileNext = () => {
         setError('')
-        if (!user?.hasImage && !selectedFile) {
-            setError('Please upload a profile picture')
-            return
+        const errors: Record<string, boolean> = {}
+        if (!imgPreview && !selectedFile) errors.profilePic = true
+        if (!name.trim()) errors.name = true
+        if (role === 'CLUB_MASTER') {
+            if (!belt) errors.belt = true
+            if (!gender) errors.gender = true
+            if (!country) errors.country = true
         }
-        if (!name.trim()) {
-            setError('Please enter your full name')
+        if (Object.keys(errors).length > 0) {
+            setFieldErrors(prev => ({ ...prev, ...errors }))
             return
         }
         setStep('details')
@@ -213,46 +205,38 @@ export default function CompleteProfilePage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!user) return
+        if (!dbUser && !authUser) return
         setError('')
 
-        if (!user.hasImage && !selectedFile) {
-            setError('Please upload a profile picture')
-            return
-        }
-        if (!name.trim()) {
-            setError('Please enter your full name')
-            return
-        }
+        const errors: Record<string, boolean> = {}
+
+        if (!imgPreview && !selectedFile) errors.profilePic = true
+        if (!name.trim()) errors.name = true
 
         if (role === 'ATHLETE') {
-            if (!weight || !height || !belt || !birthDate || !gender || !clubName) {
-                setError('Please fill in all required fields')
-                return
-            }
+            if (!birthDate) errors.birthDate = true
+            if (!gender) errors.gender = true
+            if (!weight) errors.weight = true
+            if (!height) errors.height = true
+            if (!belt) errors.belt = true
+            if (!country) errors.country = true
+            if (!clubName) errors.clubName = true
         } else if (role === 'CLUB_MASTER') {
-            if (!newClubName || (!organizationId && isKtm)) {
-                setError('Please fill in club name' + (isKtm ? ' and select an organization' : ''))
-                return
-            }
-            if (!clubLogoFile) {
-                setError('Please upload a club logo')
-                return
-            }
-            if (!clubAddress.trim()) {
-                setError('Please enter the club address')
-                return
-            }
-            if (!clubPhone.trim()) {
-                setError('Please enter a contact phone number')
-                return
-            }
+            if (!newClubName) errors.clubName = true
+            if (isKtm && !organizationId) errors.organizationId = true
+            if (!clubLogoFile) errors.clubLogo = true
+            if (!clubAddress.trim()) errors.clubAddress = true
+            if (!clubPhone.trim()) errors.clubPhone = true
         } else if (role === 'ORGANIZER') {
-            if (!orgName || !establishedDate) {
-                setError('Please fill in organization name and established date')
-                return
-            }
+            if (!orgName) errors.orgName = true
+            if (!establishedDate) errors.establishedDate = true
         }
+
+        if (Object.keys(errors).length > 0) {
+            setFieldErrors(errors)
+            return
+        }
+        setFieldErrors({})
 
         setIsSubmitting(true)
 
@@ -310,7 +294,8 @@ export default function CompleteProfilePage() {
             }
 
             toast.success('Profile completed successfully!')
-            window.location.href = '/'
+            const tenantQs = new URLSearchParams(window.location.search).get('tenant')
+            window.location.href = tenantQs ? `/?tenant=${tenantQs}` : '/'
 
         } catch (err: any) {
             console.error(err)
@@ -320,7 +305,7 @@ export default function CompleteProfilePage() {
     }
 
     // ─── LOADING STATE ───
-    if (!isLoaded || !roleLoaded) return (
+    if (!isLoaded) return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
             <Loader2 className="h-8 w-8 animate-spin mb-4" style={{ color: isKtm ? '#DC2626' : tenant.primaryColor }} />
             <p className="text-gray-500 font-medium">Loading your profile...</p>
@@ -403,39 +388,43 @@ export default function CompleteProfilePage() {
 
     // ─── PROFILE PICTURE UPLOAD ───
     const renderProfilePicture = () => (
-        <div className="flex items-center gap-6">
-            <div
-                onClick={() => profileInputRef.current?.click()}
-                className={`relative w-20 h-20 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 cursor-pointer transition-all overflow-hidden flex items-center justify-center group flex-shrink-0 ${isKtm ? 'hover:border-red-500' : ''}`}
-                style={!isKtm ? { ['--hover-color' as any]: tenant.primaryColor } : undefined}
-            >
-                {imgPreview ? (
-                    <Image src={imgPreview} alt="Profile" fill className="object-cover" />
-                ) : (
-                    <Camera className="w-6 h-6 text-gray-400 group-hover:text-red-500 transition-colors" />
-                )}
-                {imgPreview && (
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <Camera className="w-5 h-5 text-white" />
-                    </div>
-                )}
-                <input
-                    ref={profileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="hidden"
-                />
-            </div>
-            <div>
-                <p className="text-sm font-semibold text-gray-700">Profile Picture</p>
-                <p className="text-xs text-gray-400">Click to upload your photo</p>
+        <div>
+            <div className="flex items-center gap-6">
+                <div
+                    onClick={() => { profileInputRef.current?.click(); setFieldErrors(prev => ({ ...prev, profilePic: false })) }}
+                    className={`relative w-20 h-20 rounded-full bg-gray-100 border-2 border-dashed cursor-pointer transition-all overflow-hidden flex items-center justify-center group flex-shrink-0 ${fieldErrors.profilePic ? 'border-red-500 ring-2 ring-red-200' : 'border-gray-300'} ${isKtm ? 'hover:border-red-500' : ''}`}
+                    style={!isKtm ? { ['--hover-color' as any]: tenant.primaryColor } : undefined}
+                >
+                    {imgPreview ? (
+                        <Image src={imgPreview} alt="Profile" fill className="object-cover" />
+                    ) : (
+                        <Camera className={`w-6 h-6 ${fieldErrors.profilePic ? 'text-red-400' : 'text-gray-400'} group-hover:text-red-500 transition-colors`} />
+                    )}
+                    {imgPreview && (
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <Camera className="w-5 h-5 text-white" />
+                        </div>
+                    )}
+                    <input
+                        ref={profileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => { handleImageChange(e); setFieldErrors(prev => ({ ...prev, profilePic: false })) }}
+                        className="hidden"
+                    />
+                </div>
+                <div>
+                    <p className={`text-sm font-semibold ${fieldErrors.profilePic ? 'text-red-600' : 'text-gray-700'}`}>Profile Picture <span className="text-red-500">*</span></p>
+                    <p className={`text-xs ${fieldErrors.profilePic ? 'text-red-500' : 'text-gray-400'}`}>{fieldErrors.profilePic ? 'Profile picture is required' : 'Click to upload your photo'}</p>
+                </div>
             </div>
         </div>
     )
 
     // ─── INPUT COMPONENT ───
     const inputClass = "w-full h-11 px-4 rounded-lg bg-gray-50 border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors"
+    const inputErrorClass = "w-full h-11 px-4 rounded-lg bg-red-50 border border-red-400 text-sm text-gray-900 placeholder-red-300 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors"
+    const fieldError = (field: string) => fieldErrors[field] ? <p className="text-xs text-red-500 mt-1 font-medium">Required</p> : null
 
     // ======================================
     // CLUB MASTER — Step 1: Owner Profile
@@ -458,57 +447,60 @@ export default function CompleteProfilePage() {
                                 {renderProfilePicture()}
 
                                 <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-gray-700">Full Name</label>
+                                    <label className={`text-sm font-semibold ${fieldErrors.name ? 'text-red-600' : 'text-gray-700'}`}>Full Name <span className="text-red-500">*</span></label>
                                     <input
                                         value={name}
-                                        onChange={(e) => setName(e.target.value)}
+                                        onChange={(e) => { setName(e.target.value); setFieldErrors(prev => ({ ...prev, name: false })) }}
                                         placeholder="Enter your full name"
-                                        required
-                                        className={inputClass}
+                                        className={fieldErrors.name ? inputErrorClass : inputClass}
                                     />
+                                    {fieldError('name')}
                                 </div>
 
                                 {/* Belt Rank & Gender - Side by Side */}
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                            <Award className="w-4 h-4 text-red-600" /> Belt Rank
+                                        <label className={`text-sm font-semibold flex items-center gap-2 ${fieldErrors.belt ? 'text-red-600' : 'text-gray-700'}`}>
+                                            <Award className={`w-4 h-4 ${fieldErrors.belt ? 'text-red-500' : 'text-red-600'}`} /> Belt Rank <span className="text-red-500">*</span>
                                         </label>
                                         <GlobalDropdown
                                             value={belt}
-                                            onChange={setBelt}
+                                            onChange={(val: string) => { setBelt(val); setFieldErrors(prev => ({ ...prev, belt: false })) }}
                                             options={DAN_BELT_OPTIONS}
                                             label="Select Dan rank"
                                             fullWidth
                                         />
+                                        {fieldError('belt')}
                                     </div>
 
                                     <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                            <Users className="w-4 h-4 text-red-600" /> Gender
+                                        <label className={`text-sm font-semibold flex items-center gap-2 ${fieldErrors.gender ? 'text-red-600' : 'text-gray-700'}`}>
+                                            <Users className={`w-4 h-4 ${fieldErrors.gender ? 'text-red-500' : 'text-red-600'}`} /> Gender <span className="text-red-500">*</span>
                                         </label>
                                         <GlobalDropdown
                                             value={gender}
-                                            onChange={setGender}
+                                            onChange={(val: string) => { setGender(val); setFieldErrors(prev => ({ ...prev, gender: false })) }}
                                             options={GENDER_OPTIONS}
                                             label="Select gender"
                                             fullWidth
                                         />
+                                        {fieldError('gender')}
                                     </div>
                                 </div>
 
                                 {/* Country */}
                                 <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                        <Globe className="w-4 h-4 text-red-600" /> Country
+                                    <label className={`text-sm font-semibold flex items-center gap-2 ${fieldErrors.country ? 'text-red-600' : 'text-gray-700'}`}>
+                                        <Globe className={`w-4 h-4 ${fieldErrors.country ? 'text-red-500' : 'text-red-600'}`} /> Country <span className="text-red-500">*</span>
                                     </label>
                                     <GlobalDropdown
                                         options={COUNTRIES}
                                         value={country}
-                                        onChange={(val: string) => setCountry(val)}
+                                        onChange={(val: string) => { setCountry(val); setFieldErrors(prev => ({ ...prev, country: false })) }}
                                         fullWidth
                                         searchable
                                     />
+                                    {fieldError('country')}
                                 </div>
 
                                 {error && (
@@ -560,23 +552,23 @@ export default function CompleteProfilePage() {
 
                             <h2 className="text-2xl font-bold text-gray-900 mb-6">Club Details</h2>
 
-                            <form className="space-y-6" onSubmit={handleSubmit}>
+                            <form className="space-y-6" onSubmit={handleSubmit} noValidate>
                                 <div className="flex gap-6 items-start">
                                     {/* Club Logo */}
                                     <div className="flex-shrink-0">
-                                        <label className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-2">
-                                            <ImageIcon className="w-4 h-4 text-red-600" /> Logo
+                                        <label className={`text-sm font-semibold flex items-center gap-2 mb-2 ${fieldErrors.clubLogo ? 'text-red-600' : 'text-gray-700'}`}>
+                                            <ImageIcon className={`w-4 h-4 ${fieldErrors.clubLogo ? 'text-red-500' : 'text-red-600'}`} /> Logo <span className="text-red-500">*</span>
                                         </label>
                                         <div
-                                            onClick={() => clubLogoInputRef.current?.click()}
-                                            className="relative w-32 h-32 rounded-xl bg-gray-50 border-2 border-dashed border-gray-300 hover:border-red-500 cursor-pointer transition-all overflow-hidden flex items-center justify-center group"
+                                            onClick={() => { clubLogoInputRef.current?.click(); setFieldErrors(prev => ({ ...prev, clubLogo: false })) }}
+                                            className={`relative w-32 h-32 rounded-xl bg-gray-50 border-2 border-dashed cursor-pointer transition-all overflow-hidden flex items-center justify-center group ${fieldErrors.clubLogo ? 'border-red-500 ring-2 ring-red-200' : 'border-gray-300 hover:border-red-500'}`}
                                         >
                                             {clubLogoPreview ? (
                                                 <Image src={clubLogoPreview} alt="Club Logo" fill className="object-contain p-3" />
                                             ) : (
                                                 <div className="text-center">
-                                                    <ImageIcon className="w-7 h-7 text-gray-300 mx-auto mb-1 group-hover:text-red-500 transition-colors" />
-                                                    <p className="text-[10px] text-gray-400">Upload logo</p>
+                                                    <ImageIcon className={`w-7 h-7 mx-auto mb-1 group-hover:text-red-500 transition-colors ${fieldErrors.clubLogo ? 'text-red-400' : 'text-gray-300'}`} />
+                                                    <p className={`text-[10px] ${fieldErrors.clubLogo ? 'text-red-500' : 'text-gray-400'}`}>{fieldErrors.clubLogo ? 'Required' : 'Upload logo'}</p>
                                                 </div>
                                             )}
                                             {clubLogoPreview && (
@@ -588,7 +580,7 @@ export default function CompleteProfilePage() {
                                                 ref={clubLogoInputRef}
                                                 type="file"
                                                 accept="image/*"
-                                                onChange={(e) => handleLogoChange(e, 'club')}
+                                                onChange={(e) => { handleLogoChange(e, 'club'); setFieldErrors(prev => ({ ...prev, clubLogo: false })) }}
                                                 className="hidden"
                                             />
                                         </div>
@@ -597,41 +589,41 @@ export default function CompleteProfilePage() {
                                     {/* Club Name & Phone */}
                                     <div className="flex-1 space-y-4">
                                         <div className="space-y-2">
-                                            <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                                <Users className="w-4 h-4" style={{ color: isKtm ? '#DC2626' : tenant.primaryColor }} /> Club Name
+                                            <label className={`text-sm font-semibold flex items-center gap-2 ${fieldErrors.clubName ? 'text-red-600' : 'text-gray-700'}`}>
+                                                <Users className="w-4 h-4" style={{ color: fieldErrors.clubName ? '#EF4444' : (isKtm ? '#DC2626' : tenant.primaryColor) }} /> Club Name <span className="text-red-500">*</span>
                                             </label>
                                             <input
                                                 value={newClubName}
-                                                onChange={(e) => setNewClubName(e.target.value)}
+                                                onChange={(e) => { setNewClubName(e.target.value); setFieldErrors(prev => ({ ...prev, clubName: false })) }}
                                                 placeholder="e.g. Manila Taekwondo Center"
-                                                required
-                                                className={inputClass}
+                                                className={fieldErrors.clubName ? inputErrorClass : inputClass}
                                             />
+                                            {fieldError('clubName')}
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                                <Phone className="w-4 h-4 text-red-600" /> Phone Number
+                                            <label className={`text-sm font-semibold flex items-center gap-2 ${fieldErrors.clubPhone ? 'text-red-600' : 'text-gray-700'}`}>
+                                                <Phone className={`w-4 h-4 ${fieldErrors.clubPhone ? 'text-red-500' : 'text-red-600'}`} /> Phone Number <span className="text-red-500">*</span>
                                             </label>
                                             <input
                                                 value={clubPhone}
-                                                onChange={(e) => setClubPhone(e.target.value)}
+                                                onChange={(e) => { setClubPhone(e.target.value); setFieldErrors(prev => ({ ...prev, clubPhone: false })) }}
                                                 placeholder="e.g. 09171234567"
-                                                required
-                                                className={inputClass}
+                                                className={fieldErrors.clubPhone ? inputErrorClass : inputClass}
                                             />
+                                            {fieldError('clubPhone')}
                                         </div>
                                         {isKtm && (
                                             <div className="space-y-2">
-                                                <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                                    <Building2 className="w-4 h-4 text-red-600" /> Affiliated Organization
+                                                <label className={`text-sm font-semibold flex items-center gap-2 ${fieldErrors.organizationId ? 'text-red-600' : 'text-gray-700'}`}>
+                                                    <Building2 className={`w-4 h-4 ${fieldErrors.organizationId ? 'text-red-500' : 'text-red-600'}`} /> Affiliated Organization <span className="text-red-500">*</span>
                                                 </label>
                                                 <div className="relative">
                                                     <input
                                                         value={orgSearch}
-                                                        onChange={(e) => setOrgSearch(e.target.value)}
+                                                        onChange={(e) => { setOrgSearch(e.target.value); setFieldErrors(prev => ({ ...prev, organizationId: false })) }}
                                                         onFocus={() => { }}
                                                         placeholder="Search organizations..."
-                                                        className={inputClass}
+                                                        className={fieldErrors.organizationId ? inputErrorClass : inputClass}
                                                     />
                                                     {orgSearch && filteredOrgs.length > 0 && (
                                                         <div className="absolute z-20 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
@@ -642,6 +634,7 @@ export default function CompleteProfilePage() {
                                                                     onClick={() => {
                                                                         setOrganizationId(org.id)
                                                                         setOrgSearch(org.name)
+                                                                        setFieldErrors(prev => ({ ...prev, organizationId: false }))
                                                                     }}
                                                                     className="w-full text-left px-4 py-2 text-sm hover:bg-red-50 transition-colors"
                                                                 >
@@ -651,6 +644,7 @@ export default function CompleteProfilePage() {
                                                         </div>
                                                     )}
                                                 </div>
+                                                {fieldError('organizationId')}
                                             </div>
                                         )}
                                     </div>
@@ -658,16 +652,16 @@ export default function CompleteProfilePage() {
 
                                 {/* Club Address - Full Width */}
                                 <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                        <MapPin className="w-4 h-4 text-red-600" /> Club Address
+                                    <label className={`text-sm font-semibold flex items-center gap-2 ${fieldErrors.clubAddress ? 'text-red-600' : 'text-gray-700'}`}>
+                                        <MapPin className={`w-4 h-4 ${fieldErrors.clubAddress ? 'text-red-500' : 'text-red-600'}`} /> Club Address <span className="text-red-500">*</span>
                                     </label>
                                     <input
                                         value={clubAddress}
-                                        onChange={(e) => setClubAddress(e.target.value)}
+                                        onChange={(e) => { setClubAddress(e.target.value); setFieldErrors(prev => ({ ...prev, clubAddress: false })) }}
                                         placeholder="e.g. 123 Main St, Manila"
-                                        required
-                                        className={inputClass}
+                                        className={fieldErrors.clubAddress ? inputErrorClass : inputClass}
                                     />
+                                    {fieldError('clubAddress')}
                                 </div>
 
 
@@ -782,7 +776,7 @@ export default function CompleteProfilePage() {
 
                             <h2 className="text-2xl font-bold text-gray-900 mb-6">Organization Details</h2>
 
-                            <form className="space-y-6" onSubmit={handleSubmit}>
+                            <form className="space-y-6" onSubmit={handleSubmit} noValidate>
                                 <div className="flex gap-6 items-start">
                                     {/* Org Logo */}
                                     <div className="flex-shrink-0">
@@ -892,125 +886,129 @@ export default function CompleteProfilePage() {
                     >
                         <h2 className="text-2xl font-bold text-gray-900 mb-6">Athlete Details</h2>
 
-                        <form className="space-y-6" onSubmit={handleSubmit}>
+                        <form className="space-y-6" onSubmit={handleSubmit} noValidate>
                             {renderProfilePicture()}
 
                             <div className="grid md:grid-cols-2 gap-5">
                                 {/* Full Name */}
                                 <div className="space-y-2 md:col-span-2">
-                                    <label className="text-sm font-semibold text-gray-700">Full Name</label>
+                                    <label className={`text-sm font-semibold ${fieldErrors.name ? 'text-red-600' : 'text-gray-700'}`}>Full Name <span className="text-red-500">*</span></label>
                                     <input
                                         value={name}
-                                        onChange={(e) => setName(e.target.value)}
+                                        onChange={(e) => { setName(e.target.value); setFieldErrors(prev => ({ ...prev, name: false })) }}
                                         placeholder="Enter your full name"
-                                        required
-                                        className={inputClass}
+                                        className={fieldErrors.name ? inputErrorClass : inputClass}
                                     />
+                                    {fieldError('name')}
                                 </div>
 
                                 {/* Date of Birth */}
                                 <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                        <Calendar className="w-4 h-4 text-red-600" /> Date of Birth
+                                    <label className={`text-sm font-semibold flex items-center gap-2 ${fieldErrors.birthDate ? 'text-red-600' : 'text-gray-700'}`}>
+                                        <Calendar className={`w-4 h-4 ${fieldErrors.birthDate ? 'text-red-500' : 'text-red-600'}`} /> Date of Birth <span className="text-red-500">*</span>
                                     </label>
                                     <GlobalCalendar
                                         label=""
                                         value={birthDate ? new Date(birthDate) : undefined}
-                                        onChange={(date: Date) => setBirthDate(format(date, 'yyyy-MM-dd'))}
+                                        onChange={(date: Date) => { setBirthDate(format(date, 'yyyy-MM-dd')); setFieldErrors(prev => ({ ...prev, birthDate: false })) }}
                                         placeholder="Select date"
                                         fullWidth
                                         maxDate={new Date()}
                                     />
+                                    {fieldError('birthDate')}
                                 </div>
 
                                 {/* Gender */}
                                 <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-gray-700">Gender</label>
+                                    <label className={`text-sm font-semibold ${fieldErrors.gender ? 'text-red-600' : 'text-gray-700'}`}>Gender <span className="text-red-500">*</span></label>
                                     <GlobalDropdown
                                         options={GENDER_OPTIONS}
                                         value={gender}
-                                        onChange={(val: string) => setGender(val)}
+                                        onChange={(val: string) => { setGender(val); setFieldErrors(prev => ({ ...prev, gender: false })) }}
                                         fullWidth
                                     />
+                                    {fieldError('gender')}
                                 </div>
 
                                 {/* Weight */}
                                 <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                        <Weight className="w-4 h-4 text-red-600" /> Weight (kg)
+                                    <label className={`text-sm font-semibold flex items-center gap-2 ${fieldErrors.weight ? 'text-red-600' : 'text-gray-700'}`}>
+                                        <Weight className={`w-4 h-4 ${fieldErrors.weight ? 'text-red-500' : 'text-red-600'}`} /> Weight (kg) <span className="text-red-500">*</span>
                                     </label>
                                     <input
                                         type="number"
                                         value={weight}
-                                        onChange={(e) => setWeight(e.target.value)}
+                                        onChange={(e) => { setWeight(e.target.value); setFieldErrors(prev => ({ ...prev, weight: false })) }}
                                         placeholder="e.g. 60"
-                                        required
-                                        className={inputClass}
+                                        className={fieldErrors.weight ? inputErrorClass : inputClass}
                                     />
+                                    {fieldError('weight')}
                                 </div>
 
                                 {/* Height */}
                                 <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                        <Ruler className="w-4 h-4 text-red-600" /> Height (cm)
+                                    <label className={`text-sm font-semibold flex items-center gap-2 ${fieldErrors.height ? 'text-red-600' : 'text-gray-700'}`}>
+                                        <Ruler className={`w-4 h-4 ${fieldErrors.height ? 'text-red-500' : 'text-red-600'}`} /> Height (cm) <span className="text-red-500">*</span>
                                     </label>
                                     <input
                                         type="number"
                                         value={height}
-                                        onChange={(e) => setHeight(e.target.value)}
+                                        onChange={(e) => { setHeight(e.target.value); setFieldErrors(prev => ({ ...prev, height: false })) }}
                                         placeholder="e.g. 170"
-                                        required
-                                        className={inputClass}
+                                        className={fieldErrors.height ? inputErrorClass : inputClass}
                                     />
+                                    {fieldError('height')}
                                 </div>
 
                                 {/* Belt Rank */}
                                 <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                        <Award className="w-4 h-4 text-red-600" /> Belt Rank
+                                    <label className={`text-sm font-semibold flex items-center gap-2 ${fieldErrors.belt ? 'text-red-600' : 'text-gray-700'}`}>
+                                        <Award className={`w-4 h-4 ${fieldErrors.belt ? 'text-red-500' : 'text-red-600'}`} /> Belt Rank <span className="text-red-500">*</span>
                                     </label>
                                     <GlobalDropdown
                                         options={BELT_OPTIONS}
                                         value={belt}
-                                        onChange={(val: string) => setBelt(val)}
+                                        onChange={(val: string) => { setBelt(val); setFieldErrors(prev => ({ ...prev, belt: false })) }}
                                         fullWidth
                                         searchable
                                     />
+                                    {fieldError('belt')}
                                 </div>
 
                                 {/* Country */}
                                 <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                        <Globe className="w-4 h-4 text-red-600" /> Country
+                                    <label className={`text-sm font-semibold flex items-center gap-2 ${fieldErrors.country ? 'text-red-600' : 'text-gray-700'}`}>
+                                        <Globe className={`w-4 h-4 ${fieldErrors.country ? 'text-red-500' : 'text-red-600'}`} /> Country <span className="text-red-500">*</span>
                                     </label>
                                     <GlobalDropdown
                                         options={COUNTRIES}
                                         value={country}
-                                        onChange={(val: string) => setCountry(val)}
+                                        onChange={(val: string) => { setCountry(val); setFieldErrors(prev => ({ ...prev, country: false })) }}
                                         fullWidth
                                         searchable
                                     />
+                                    {fieldError('country')}
                                 </div>
 
                                 {/* Affiliated Club */}
                                 <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                        <Users className="w-4 h-4 text-red-600" /> Affiliated Club
+                                    <label className={`text-sm font-semibold flex items-center gap-2 ${fieldErrors.clubName ? 'text-red-600' : 'text-gray-700'}`}>
+                                        <Users className={`w-4 h-4 ${fieldErrors.clubName ? 'text-red-500' : 'text-red-600'}`} /> Affiliated Club <span className="text-red-500">*</span>
                                     </label>
                                     <GlobalDropdown
                                         options={(() => {
                                             const clubOptions = clubs.map(c => ({ value: c.name, label: c.name }))
-                                            // Ensure pre-filled club is always available as an option
                                             if (clubName && !clubOptions.some(o => o.value === clubName)) {
                                                 clubOptions.unshift({ value: clubName, label: clubName })
                                             }
                                             return clubOptions
                                         })()}
                                         value={clubName}
-                                        onChange={(val: string) => setClubName(val)}
+                                        onChange={(val: string) => { setClubName(val); setFieldErrors(prev => ({ ...prev, clubName: false })) }}
                                         fullWidth
                                         searchable
                                     />
+                                    {fieldError('clubName')}
                                 </div>
                             </div>
 

@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { SignOutButton } from '@clerk/nextjs'
+import { useAuth } from '@/app/providers/AuthProvider'
 
 interface ClubPendingViewProps {
     organizationName?: string
@@ -9,6 +9,7 @@ interface ClubPendingViewProps {
 }
 
 export default function ClubPendingView({ organizationName, userEmail }: ClubPendingViewProps) {
+    const { signOut } = useAuth()
     // Calculate 4 hours from now
     const now = new Date()
     const futureDate = new Date(now.getTime() + 4 * 60 * 60 * 1000)
@@ -62,13 +63,12 @@ export default function ClubPendingView({ organizationName, userEmail }: ClubPen
                         </div>
 
                         <div className="mt-6">
-                            <SignOutButton>
-                                <button
-                                    className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                                >
-                                    Log Out
-                                </button>
-                            </SignOutButton>
+                            <button
+                                onClick={() => signOut()}
+                                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                            >
+                                Log Out
+                            </button>
                         </div>
                     </div>
                 </div>

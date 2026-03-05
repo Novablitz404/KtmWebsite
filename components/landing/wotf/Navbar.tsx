@@ -38,6 +38,7 @@ const Navbar = ({ variant = 'default', animate: shouldAnimate = false }: NavbarP
     const navLinks = [
         { name: 'Events/Camps', href: '/events' },
         { name: 'Membership', href: '/membership' },
+        { name: 'Rankings', href: '/rankings' },
         { name: 'About', href: '/about' },
     ];
 

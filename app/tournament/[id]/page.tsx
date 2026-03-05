@@ -1,20 +1,24 @@
 import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
 import TournamentTabs from '@/components/TournamentTabs'
+import Navbar from '@/components/landing/wotf/Navbar'
+import Footer from '@/components/landing/wotf/Footer'
+import { getTenant } from '@/lib/tenant'
 
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import PublicTournamentView from '@/components/PublicTournamentView'
 
 
 export default async function TournamentDetail({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
-    const user = await currentUser()
+    const user = await getAuthUser()
+    const tenant = await getTenant()
     let currentUserId = undefined
     let dbUserRole = undefined
 
     if (user) {
         const dbUser = await prisma.user.findUnique({
-            where: { clerkId: user.id },
+            where: { id: user.id },
             select: { id: true, role: true }
         })
         currentUserId = dbUser?.id
@@ -205,21 +209,27 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
                     userRole={dbUserRole}
                 />
             ) : (
-                <div className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-10">
-                    <PublicTournamentView
-                        tournament={tournament}
-                        players={enrichedPlayers}
-                        guidelinesContent={
-                            tournament.guidelinesText || (tournament.guidelineTemplate?.content
-                                ? tournament.guidelineTemplate.content
-                                    .replace(/{{Tournament Name}}/g, tournament.name)
-                                    .replace(/{{Date}}/g, new Date(tournament.startDate).toLocaleDateString())
-                                    .replace(/{{Venue}}/g, tournament.venue || 'TBA')
-                                : null)
-                        }
-                        currentUserId={currentUserId}
-                    />
-                </div>
+                <>
+                    {tenant.slug !== 'ktm' && <Navbar variant="dark" />}
+                    <div className="pt-20">
+                        <div className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-10">
+                            <PublicTournamentView
+                                tournament={tournament}
+                                players={enrichedPlayers}
+                                guidelinesContent={
+                                    tournament.guidelinesText || (tournament.guidelineTemplate?.content
+                                        ? tournament.guidelineTemplate.content
+                                            .replace(/{{Tournament Name}}/g, tournament.name)
+                                            .replace(/{{Date}}/g, new Date(tournament.startDate).toLocaleDateString())
+                                            .replace(/{{Venue}}/g, tournament.venue || 'TBA')
+                                        : null)
+                                }
+                                currentUserId={currentUserId}
+                            />
+                        </div>
+                    </div>
+                    {tenant.slug !== 'ktm' && <Footer />}
+                </>
             )}
         </main>
     )

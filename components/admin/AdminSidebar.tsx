@@ -1,6 +1,6 @@
 'use client'
 
-import { useClerk } from '@clerk/nextjs'
+import { useAuth } from '@/app/providers/AuthProvider'
 import { useRouter } from 'next/navigation'
 import {
     LayoutDashboard,
@@ -32,7 +32,7 @@ export default function AdminSidebar({
     onNavigate,
     userName
 }: AdminSidebarProps) {
-    const { signOut } = useClerk()
+    const { signOut } = useAuth()
     const router = useRouter()
 
     const handleLogout = async () => {

@@ -1,4 +1,4 @@
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { redirect, notFound } from 'next/navigation'
 
@@ -11,18 +11,9 @@ interface Props {
 export default async function RegisterPage({ params }: Props) {
     const { id: tournamentId } = await params
 
-    const clerkUser = await currentUser()
-    if (!clerkUser) {
-        redirect('/sign-in')
-    }
-
-    // Get user profile
-    const dbUser = await prisma.user.findUnique({
-        where: { clerkId: clerkUser.id }
-    })
-
+    const dbUser = await getAuthUser()
     if (!dbUser) {
-        redirect('/onboarding')
+        redirect('/sign-in')
     }
 
     // Check if profile is complete (now including birthDate)

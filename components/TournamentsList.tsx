@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { Calendar, MapPin, ChevronRight, Copy, Check, Eye, X, Clock, Tag, Users, Layers, Bird, Trophy } from 'lucide-react'
 import { useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 
 // Helper for badge style
 const getStatusBadge = (status: string) => {
@@ -46,6 +47,9 @@ interface TournamentsListProps {
 }
 
 export default function TournamentsList({ tournaments, embedded = false }: TournamentsListProps) {
+    const searchParams = useSearchParams()
+    const tenant = searchParams.get('tenant')
+    const tenantQuery = tenant ? `?tenant=${tenant}` : ''
     const [selectedTournament, setSelectedTournament] = useState<any | null>(null)
 
     return (
@@ -104,7 +108,7 @@ export default function TournamentsList({ tournaments, embedded = false }: Tourn
                                             <td className="px-6 py-4 whitespace-nowrap text-right">
                                                 <div className="flex items-center justify-end gap-2">
                                                     <Link
-                                                        href={`/tournament/${tournament.id}`}
+                                                        href={`/tournament/${tournament.id}${tenantQuery}`}
                                                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm"
                                                     >
                                                         Manage
@@ -133,13 +137,14 @@ export default function TournamentsList({ tournaments, embedded = false }: Tourn
                 <TournamentDetailsModal
                     tournament={selectedTournament}
                     onClose={() => setSelectedTournament(null)}
+                    tenantQuery={tenantQuery}
                 />
             )}
         </>
     )
 }
 
-function TournamentDetailsModal({ tournament, onClose }: { tournament: any; onClose: () => void }) {
+function TournamentDetailsModal({ tournament, onClose, tenantQuery }: { tournament: any; onClose: () => void; tenantQuery: string }) {
     const playerCount = tournament.categories.reduce((acc: number, cat: any) => acc + cat._count.players, 0)
     const startDt = formatDateTime(tournament.startDate)
     const regStartDt = formatDateTime(tournament.registrationStart)
@@ -285,7 +290,7 @@ function TournamentDetailsModal({ tournament, onClose }: { tournament: any; onCl
                             Close
                         </button>
                         <Link
-                            href={`/tournament/${tournament.id}`}
+                            href={`/tournament/${tournament.id}${tenantQuery}`}
                             className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-sm"
                         >
                             Manage

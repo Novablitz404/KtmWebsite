@@ -2,11 +2,11 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 
 export async function addTournamentManager(tournamentId: string, email: string) {
     try {
-        const user = await currentUser()
+        const user = await getAuthUser()
         if (!user) throw new Error('Unauthorized')
 
         // Verify current user is the organizer of the tournament
@@ -18,7 +18,7 @@ export async function addTournamentManager(tournamentId: string, email: string) 
         if (!tournament) throw new Error('Tournament not found')
 
         const dbUser = await prisma.user.findUnique({
-            where: { clerkId: user.id }
+            where: { id: user.id }
         })
 
         if (!dbUser || tournament.organizerId !== dbUser.id) {
@@ -54,7 +54,7 @@ export async function addTournamentManager(tournamentId: string, email: string) 
 
 export async function removeTournamentManager(tournamentId: string, userId: string) {
     try {
-        const user = await currentUser()
+        const user = await getAuthUser()
         if (!user) throw new Error('Unauthorized')
 
         // Verify current user is the organizer
@@ -66,7 +66,7 @@ export async function removeTournamentManager(tournamentId: string, userId: stri
         if (!tournament) throw new Error('Tournament not found')
 
         const dbUser = await prisma.user.findUnique({
-            where: { clerkId: user.id }
+            where: { id: user.id }
         })
 
         if (!dbUser || tournament.organizerId !== dbUser.id) {

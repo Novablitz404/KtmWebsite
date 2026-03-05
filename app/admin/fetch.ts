@@ -1,14 +1,14 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 
 async function checkAdmin() {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) throw new Error('Not authenticated')
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         select: { role: true }
     })
 

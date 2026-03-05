@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { Calendar, MapPin, DollarSign, Users, Settings } from 'lucide-react'
 import Link from 'next/link'
 import PromotionStatusActions from './PromotionStatusActions'
@@ -13,11 +13,11 @@ const statusConfig: Record<string, { bg: string, text: string }> = {
 }
 
 export default async function PromotionsTable() {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return null
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 

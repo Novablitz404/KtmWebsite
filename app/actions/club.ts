@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { createClient } from '@supabase/supabase-js'
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,7 +11,7 @@ const supabase = createClient(
 )
 
 export async function updateClubDetails(formData: FormData) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) throw new Error('Not authenticated')
 
     const clubId = formData.get('clubId') as string

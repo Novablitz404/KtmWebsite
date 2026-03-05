@@ -2,6 +2,8 @@ import { fetchRankings } from './fetch'
 import { Shield } from 'lucide-react'
 import RankingFilters from './RankingFilters'
 import Link from 'next/link'
+import { getTenant } from '@/lib/tenant'
+import WOTFRankingPage from '@/components/landing/wotf/pages/WOTFRankingPage'
 
 export const dynamic = 'force-dynamic' // Ensure fresh data on load
 
@@ -11,6 +13,12 @@ interface PageProps {
 
 export default async function RankingsPage({ searchParams }: PageProps) {
     const params = await searchParams
+    const tenant = await getTenant()
+
+    // Pass control to custom tenant pages if necessary
+    if (tenant.slug === 'wotf') {
+        return <WOTFRankingPage searchParams={params} />
+    }
 
     // Extract filters safely
     // Default type to KYORUGI if not specified, OR show both?
@@ -22,7 +30,9 @@ export default async function RankingsPage({ searchParams }: PageProps) {
     const skillLevel = typeof params.skillLevel === 'string' ? params.skillLevel : undefined
     const gender = typeof params.gender === 'string' ? params.gender : undefined
 
-    const rankings = await fetchRankings({ type: currentType, division, belt, skillLevel, gender })
+    const tenantId = tenant.slug !== 'ktm' ? (tenant.id || undefined) : undefined
+
+    const rankings = await fetchRankings({ type: currentType, division, belt, skillLevel, gender, tenantId })
 
     // Helper to generate tab link
     const getTabLink = (type: string) => {

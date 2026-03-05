@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { fetchLandingPageEvents } from '@/app/actions'
 import LandingPage from '@/components/LandingPage'
@@ -9,7 +9,7 @@ import WOTFLandingPage from '@/components/landing/wotf/pages/LandingPage'
 const ADMIN_EMAILS = ['ericjann21@gmail.com']
 
 export default async function Home() {
-  const user = await currentUser()
+  const user = await getAuthUser()
   const tenant = await getTenant()
 
   // Non-KTM tenant handling
@@ -17,7 +17,7 @@ export default async function Home() {
     if (user) {
       // Authenticated tenant user → redirect to their dashboard (with tenant param)
       const existingTenantUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         select: { role: true }
       })
       const tenantQs = `?tenant=${tenant.slug}`
@@ -92,11 +92,11 @@ export default async function Home() {
     return <WOTFLandingPage stats={stats} upcomingEvents={upcomingEvents} />
   }
   if (user) {
-    const userEmail = user.emailAddresses[0]?.emailAddress
+    const userEmail = user.email
 
     // Parallel fetch all needed data upfront
     const existingUser = await prisma.user.findUnique({
-      where: { clerkId: user.id },
+      where: { id: user.id },
       select: { id: true, role: true, imageUrl: true }
     })
 
@@ -113,7 +113,7 @@ export default async function Home() {
             data: {
               clerkId: user.id,
               role: 'ADMIN',
-              name: user.firstName ? `${user.firstName} ${user.lastName}` : existingByEmail.name,
+              name: user.name || existingByEmail.name,
               imageUrl: user.imageUrl
             }
           })
@@ -130,7 +130,7 @@ export default async function Home() {
               id: adminId,
               clerkId: user.id,
               email: userEmail,
-              name: user.firstName ? `${user.firstName} ${user.lastName}` : 'Super Admin',
+              name: user.name || 'Super Admin',
               role: 'ADMIN',
               clubName: 'KTM Admin',
               imageUrl: user.imageUrl
@@ -193,8 +193,8 @@ export default async function Home() {
   // Prepare serializable user data for client component
   const userData = user ? {
     isLoggedIn: true,
-    firstName: user.firstName,
-    lastName: user.lastName,
+    firstName: user.name?.split(' ')[0] ?? null,
+    lastName: user.name?.split(' ').slice(1).join(' ') ?? null,
     imageUrl: user.imageUrl
   } : null
 

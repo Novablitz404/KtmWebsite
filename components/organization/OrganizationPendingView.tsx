@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { SignOutButton } from '@clerk/nextjs'
+import { useAuth } from '@/app/providers/AuthProvider'
 import { Building2 } from 'lucide-react'
 
 interface OrganizationPendingViewProps {
@@ -10,6 +10,8 @@ interface OrganizationPendingViewProps {
 }
 
 export default function OrganizationPendingView({ organizationName, userEmail }: OrganizationPendingViewProps) {
+    const { signOut } = useAuth()
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-red-50 to-white flex flex-col justify-center py-12 sm:px-6 lg:px-8">
             <div className="sm:mx-auto sm:w-full sm:max-w-md">
@@ -68,11 +70,9 @@ export default function OrganizationPendingView({ organizationName, userEmail }:
                         </div>
 
                         {/* Log Out Button */}
-                        <SignOutButton>
-                            <button className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-sm transition-colors">
-                                Log Out
-                            </button>
-                        </SignOutButton>
+                        <button onClick={() => signOut()} className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-sm transition-colors">
+                            Log Out
+                        </button>
                     </div>
                 </div>
             </div>

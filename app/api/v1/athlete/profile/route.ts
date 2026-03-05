@@ -1,6 +1,6 @@
 import { authenticateApi, apiError, apiResponse } from '@/lib/auth-api'
 import { prisma } from '@/lib/prisma'
-import { clerkClient } from '@clerk/nextjs/server'
+import { uploadAvatar } from '@/lib/supabase-storage'
 
 export async function PUT(request: Request) {
     try {
@@ -24,6 +24,15 @@ export async function PUT(request: Request) {
 
         const birthDate = birthDateStr ? new Date(birthDateStr) : undefined
 
+        // Upload image to Supabase Storage if provided
+        let imageUrl: string | undefined = undefined
+        if (imageFile && imageFile.size > 0) {
+            const url = await uploadAvatar(user.id, imageFile)
+            if (url) {
+                imageUrl = `${url}?t=${Date.now()}`
+            }
+        }
+
         // Update Prisma User
         const updatedUser = await prisma.user.update({
             where: { id: user.id },
@@ -34,7 +43,8 @@ export async function PUT(request: Request) {
                 gender: gender || user.gender,
                 weight: isNaN(weight) ? undefined : weight,
                 height: isNaN(height) ? undefined : height,
-                birthDate: birthDate || undefined
+                birthDate: birthDate || undefined,
+                ...(imageUrl && { imageUrl })
             },
             select: {
                 id: true,
@@ -48,33 +58,6 @@ export async function PUT(request: Request) {
                 role: true
             }
         })
-
-        // Update Clerk User Image if Provided
-        if (imageFile && imageFile.size > 0 && user.clerkId) {
-            try {
-                const client = await clerkClient()
-                await client.users.updateUserProfileImage(user.clerkId, {
-                    file: imageFile
-                })
-            } catch (error) {
-                console.error('Failed to update Clerk profile image via API:', error)
-            }
-        }
-
-        // Sync profileComplete to Clerk metadata
-        if (user.clerkId) {
-            try {
-                const client = await clerkClient()
-                await client.users.updateUser(user.clerkId, {
-                    publicMetadata: {
-                        role: user.role,
-                        profileComplete: true
-                    }
-                })
-            } catch (error) {
-                console.error('Failed to sync profileComplete to Clerk:', error)
-            }
-        }
 
         return apiResponse(updatedUser)
 

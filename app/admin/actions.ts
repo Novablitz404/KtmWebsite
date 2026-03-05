@@ -1,12 +1,13 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { currentUser, clerkClient } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { countryToCode } from '@/lib/countries'
 
 export async function promoteToOrganizer(formData: FormData) {
-    const user = await currentUser()
+    const user = await getAuthUser()
 
     // Verify Admin
     if (!user) {
@@ -14,7 +15,7 @@ export async function promoteToOrganizer(formData: FormData) {
     }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id }
+        where: { id: user.id }
     })
 
     if (dbUser?.role !== 'ADMIN') {
@@ -33,10 +34,10 @@ export async function promoteToOrganizer(formData: FormData) {
 }
 
 export async function updateAdminProfile(fullName: string) {
-    const user = await currentUser();
+    const user = await getAuthUser();
     if (!user) throw new Error('Not authenticated');
 
-    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } });
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
     if (dbUser?.role !== 'ADMIN') throw new Error('Unauthorized');
 
     await prisma.user.update({
@@ -53,10 +54,10 @@ export async function updateAdminProfile(fullName: string) {
 // ============================================
 
 export async function getPendingOrganizations() {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) throw new Error('Not authenticated')
 
-    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
     if (dbUser?.role !== 'ADMIN') throw new Error('Unauthorized')
 
     const pendingOrgs = await prisma.organization.findMany({
@@ -73,10 +74,10 @@ export async function getPendingOrganizations() {
 }
 
 export async function approveOrganization(orgId: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) throw new Error('Not authenticated')
 
-    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
     if (dbUser?.role !== 'ADMIN') throw new Error('Unauthorized')
 
     await prisma.organization.update({
@@ -89,10 +90,10 @@ export async function approveOrganization(orgId: string) {
 }
 
 export async function rejectOrganization(orgId: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) throw new Error('Not authenticated')
 
-    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
     if (dbUser?.role !== 'ADMIN') throw new Error('Unauthorized')
 
     await prisma.organization.update({
@@ -107,10 +108,10 @@ export async function rejectOrganization(orgId: string) {
 
 
 export async function promoteToClubMaster(formData: FormData) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) throw new Error('Not authenticated')
 
-    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
     if (dbUser?.role !== 'ADMIN') throw new Error('Unauthorized')
 
     const targetUserId = formData.get('userId') as string
@@ -160,10 +161,10 @@ async function generateAthleteNumber(country: string | null | undefined): Promis
 }
 
 export async function toggleAthleteVerification(formData: FormData) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) throw new Error('Not authenticated')
 
-    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
     if (dbUser?.role !== 'ADMIN') throw new Error('Unauthorized')
 
     const targetUserId = formData.get('userId') as string
@@ -207,10 +208,10 @@ export async function toggleAthleteVerification(formData: FormData) {
 // ============= Delete User Action =============
 
 export async function deleteUser(formData: FormData) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) throw new Error('Not authenticated')
 
-    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
     if (dbUser?.role !== 'ADMIN') throw new Error('Unauthorized')
 
     const targetUserId = formData.get('userId') as string
@@ -234,14 +235,17 @@ export async function deleteUser(formData: FormData) {
         throw new Error('Cannot delete yourself')
     }
 
-    // 1. Delete from Clerk first (if they have a clerkId)
+    // 1. Delete from Supabase Auth (if they have a clerkId / auth UUID)
     if (targetUser.clerkId) {
         try {
-            const clerk = await clerkClient()
-            await clerk.users.deleteUser(targetUser.clerkId)
+            const supabaseAdmin = createClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.SUPABASE_SERVICE_ROLE_KEY!,
+                { auth: { autoRefreshToken: false, persistSession: false } }
+            )
+            await supabaseAdmin.auth.admin.deleteUser(targetUser.clerkId)
         } catch (error) {
-            console.error('Failed to delete user from Clerk:', error)
-            // Continue anyway - user might have been manually deleted from Clerk
+            console.error('Failed to delete user from Supabase Auth:', error)
         }
     }
 

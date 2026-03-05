@@ -1,4 +1,4 @@
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import InviteActions from './InviteActions' // Keep this? Yes, needed for props if we kept it. Wait, I deleted the fetching for invites too.
@@ -9,19 +9,10 @@ export const revalidate = 30
 
 export default async function MembersPage(props: { searchParams: Promise<{ page?: string; search?: string }> }) {
     const searchParams = await props.searchParams
-    const clerkUser = await currentUser()
-
-    if (!clerkUser) {
-        redirect('/sign-in')
-    }
-
-    const dbUser = await prisma.user.findUnique({
-        where: { clerkId: clerkUser.id },
-        select: { role: true, clubName: true, name: true }
-    })
+    const dbUser = await getAuthUser()
 
     if (!dbUser) {
-        redirect('/onboarding')
+        redirect('/sign-in')
     }
 
     // Only Club Masters can access this page

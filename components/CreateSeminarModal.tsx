@@ -114,25 +114,62 @@ export default function CreateSeminarModal({ isOpen, onClose }: CreateSeminarMod
                 <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
 
                     {/* Header */}
-                    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-                        <h2 className="text-xl font-bold text-gray-900">Create New Seminar</h2>
-                        <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-red-600 to-red-700">
+                        <h2 className="text-lg font-bold text-white">Create New Seminar</h2>
+                        <button onClick={onClose} className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <X className="w-5 h-5" />
                         </button>
                     </div>
 
-                    <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[85vh] overflow-y-auto">
-                        {/* Banner Image Upload */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Seminar Banner Image
-                            </label>
+                    <form onSubmit={handleSubmit} className="p-6 space-y-8 max-h-[85vh] overflow-y-auto">
+                        {/* ─── SECTION 1: Seminar Information ─── */}
+                        <section>
+                            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                <span className="w-6 h-6 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-xs font-black">1</span>
+                                Seminar Information
+                            </h3>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                        Seminar Title <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        name="name"
+                                        type="text"
+                                        required
+                                        className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all text-sm"
+                                        placeholder="e.g., International Poomsae Seminar 2026"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Description</label>
+                                    <textarea
+                                        name="description"
+                                        rows={3}
+                                        className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all resize-none text-sm"
+                                        placeholder="Details about the seminar (topics, speakers, schedule)..."
+                                    />
+                                </div>
+                            </div>
+                        </section>
+
+                        <hr className="border-gray-100" />
+
+                        {/* ─── SECTION 2: Banner Image ─── */}
+                        <section>
+                            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                <span className="w-6 h-6 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-xs font-black">2</span>
+                                Banner Image
+                            </h3>
+
                             <div className="relative group">
                                 <div className={`
-                                    w-full h-48 rounded-xl border-2 border-dashed border-gray-300 
+                                    w-full h-44 rounded-xl border-2 border-dashed 
                                     flex flex-col items-center justify-center 
                                     bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer overflow-hidden
-                                    ${imagePreview ? 'border-sky-500' : ''}
+                                    ${imagePreview ? 'border-red-400' : 'border-gray-300'}
                                 `}>
                                     {imagePreview ? (
                                         <>
@@ -150,10 +187,9 @@ export default function CreateSeminarModal({ isOpen, onClose }: CreateSeminarMod
                                         </>
                                     ) : (
                                         <label htmlFor="banner" className="w-full h-full flex flex-col items-center justify-center cursor-pointer p-4">
-                                            <ImageIcon className="w-10 h-10 text-gray-400 mb-2 group-hover:text-sky-500 transition-colors" />
+                                            <ImageIcon className="w-8 h-8 text-gray-400 mb-2 group-hover:text-red-500 transition-colors" />
                                             <p className="text-sm font-medium text-gray-600">Click to upload banner image</p>
-                                            <p className="text-xs text-gray-500 mt-1">Recommended: 1200x400</p>
-                                            <p className="text-xs text-gray-400">PNG, JPG, GIF (Max 10MB)</p>
+                                            <p className="text-xs text-gray-400 mt-1">Recommended: 1200×400 · PNG, JPG (Max 10MB)</p>
                                         </label>
                                     )}
                                 </div>
@@ -170,166 +206,156 @@ export default function CreateSeminarModal({ isOpen, onClose }: CreateSeminarMod
                                     <Check className="w-3 h-3" /> Image cropped and ready
                                 </p>
                             )}
-                        </div>
+                        </section>
 
-                        {/* Name */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Seminar Title <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                name="name"
-                                type="text"
-                                required
-                                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
-                                placeholder="e.g., International Poomsae Seminar 2026"
-                            />
-                        </div>
+                        <hr className="border-gray-100" />
 
-                        {/* Description */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                            <textarea
-                                name="description"
-                                rows={3}
-                                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all resize-none"
-                                placeholder="Details about the seminar (topics, speakers, schedule)..."
-                            />
-                        </div>
+                        {/* ─── SECTION 3: Schedule ─── */}
+                        <section>
+                            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                <span className="w-6 h-6 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-xs font-black">3</span>
+                                Schedule
+                            </h3>
 
-
-                        {/* Grid for Date/Deadline/Visibility */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="flex gap-2">
-                                <div className="flex-1">
-                                    <GlobalCalendar
-                                        label="Start Date"
-                                        value={startDate}
-                                        onChange={(date) => {
-                                            setStartDate(date)
-                                            const input = document.getElementsByName('startDate')[0] as HTMLInputElement
-                                            if (input) input.value = format(date, 'yyyy-MM-dd')
-                                        }}
-                                        placeholder="Start date..."
-                                        className="w-full"
-                                        fullWidth
-                                    />
-                                    <input type="hidden" name="startDate" required />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="flex gap-2">
+                                    <div className="flex-1">
+                                        <GlobalCalendar
+                                            label="Start Date *"
+                                            value={startDate}
+                                            onChange={(date) => {
+                                                setStartDate(date)
+                                                const input = document.getElementsByName('startDate')[0] as HTMLInputElement
+                                                if (input) input.value = format(date, 'yyyy-MM-dd')
+                                            }}
+                                            placeholder="Start date..."
+                                            className="w-full"
+                                            fullWidth
+                                        />
+                                        <input type="hidden" name="startDate" required />
+                                    </div>
+                                    <div className="w-[140px]">
+                                        <GlobalTimePicker
+                                            label="Time"
+                                            name="startTime"
+                                            value={startTime}
+                                            onChange={setStartTime}
+                                        />
+                                    </div>
                                 </div>
-                                <div className="w-[140px]">
-                                    <GlobalTimePicker
-                                        label="Time"
-                                        name="startTime"
-                                        value={startTime}
-                                        onChange={setStartTime}
-                                    />
+                                <div className="flex gap-2">
+                                    <div className="flex-1">
+                                        <GlobalCalendar
+                                            label="End Date (Optional)"
+                                            value={endDate}
+                                            onChange={(date) => {
+                                                setEndDate(date)
+                                                const input = document.getElementsByName('endDate')[0] as HTMLInputElement
+                                                if (input) input.value = format(date, 'yyyy-MM-dd')
+                                            }}
+                                            placeholder="End date..."
+                                            className="w-full"
+                                            fullWidth
+                                        />
+                                        <input type="hidden" name="endDate" />
+                                    </div>
+                                    <div className="w-[140px]">
+                                        <GlobalTimePicker
+                                            label="Time"
+                                            name="endTime"
+                                            value={endTime}
+                                            onChange={setEndTime}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <div className="flex-1">
+                                        <GlobalCalendar
+                                            label="Reg. Deadline"
+                                            value={registrationDeadline}
+                                            onChange={(date) => {
+                                                setRegistrationDeadline(date)
+                                                const input = document.getElementsByName('registrationDeadline')[0] as HTMLInputElement
+                                                if (input) input.value = format(date, 'yyyy-MM-dd')
+                                            }}
+                                            placeholder="Deadline..."
+                                            className="w-full"
+                                            fullWidth
+                                        />
+                                        <input type="hidden" name="registrationDeadline" />
+                                    </div>
+                                    <div className="w-[140px]">
+                                        <GlobalTimePicker
+                                            label="Time"
+                                            name="registrationDeadlineTime"
+                                            value={regDeadlineTime}
+                                            onChange={setRegDeadlineTime}
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Visibility</label>
+                                    <div className="flex bg-gray-100 p-1 rounded-xl">
+                                        <label className="flex-1 cursor-pointer">
+                                            <input type="radio" name="visibility" value="PRIVATE" className="sr-only peer" defaultChecked />
+                                            <span className="flex items-center justify-center py-1.5 text-sm font-medium rounded-lg text-gray-500 peer-checked:bg-white peer-checked:text-gray-900 peer-checked:shadow-sm transition-all">
+                                                Private
+                                            </span>
+                                        </label>
+                                        <label className="flex-1 cursor-pointer">
+                                            <input type="radio" name="visibility" value="PUBLIC" className="sr-only peer" />
+                                            <span className="flex items-center justify-center py-1.5 text-sm font-medium rounded-lg text-gray-500 peer-checked:bg-white peer-checked:text-gray-900 peer-checked:shadow-sm transition-all">
+                                                Public
+                                            </span>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
-                            <div className="flex gap-2">
-                                <div className="flex-1">
-                                    <GlobalCalendar
-                                        label="End Date (Optional)"
-                                        value={endDate}
-                                        onChange={(date) => {
-                                            setEndDate(date)
-                                            const input = document.getElementsByName('endDate')[0] as HTMLInputElement
-                                            if (input) input.value = format(date, 'yyyy-MM-dd')
-                                        }}
-                                        placeholder="End date..."
-                                        className="w-full"
-                                        fullWidth
-                                    />
-                                    <input type="hidden" name="endDate" />
-                                </div>
-                                <div className="w-[140px]">
-                                    <GlobalTimePicker
-                                        label="Time"
-                                        name="endTime"
-                                        value={endTime}
-                                        onChange={setEndTime}
-                                    />
-                                </div>
-                            </div>
-                            <div className="flex gap-2">
-                                <div className="flex-1">
-                                    <GlobalCalendar
-                                        label="Reg. Deadline"
-                                        value={registrationDeadline}
-                                        onChange={(date) => {
-                                            setRegistrationDeadline(date)
-                                            const input = document.getElementsByName('registrationDeadline')[0] as HTMLInputElement
-                                            if (input) input.value = format(date, 'yyyy-MM-dd')
-                                        }}
-                                        placeholder="Deadline..."
-                                        className="w-full"
-                                        fullWidth
-                                    />
-                                    <input type="hidden" name="registrationDeadline" />
-                                </div>
-                                <div className="w-[140px]">
-                                    <GlobalTimePicker
-                                        label="Time"
-                                        name="registrationDeadlineTime"
-                                        value={regDeadlineTime}
-                                        onChange={setRegDeadlineTime}
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Visibility</label>
-                                <div className="flex bg-gray-100 p-1 rounded-xl">
-                                    <label className="flex-1 cursor-pointer">
-                                        <input type="radio" name="visibility" value="PRIVATE" className="sr-only peer" defaultChecked />
-                                        <span className="flex items-center justify-center py-1.5 text-sm font-medium rounded-lg text-gray-500 peer-checked:bg-white peer-checked:text-gray-900 peer-checked:shadow-sm transition-all">
-                                            Private
-                                        </span>
+                        </section>
+
+                        <hr className="border-gray-100" />
+
+                        {/* ─── SECTION 4: Venue & Pricing ─── */}
+                        <section>
+                            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                <span className="w-6 h-6 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-xs font-black">4</span>
+                                Venue & Pricing
+                            </h3>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                        Venue
                                     </label>
-                                    <label className="flex-1 cursor-pointer">
-                                        <input type="radio" name="visibility" value="PUBLIC" className="sr-only peer" />
-                                        <span className="flex items-center justify-center py-1.5 text-sm font-medium rounded-lg text-gray-500 peer-checked:bg-white peer-checked:text-gray-900 peer-checked:shadow-sm transition-all">
-                                            Public
-                                        </span>
+                                    <input
+                                        name="venue"
+                                        type="text"
+                                        className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all text-sm"
+                                        placeholder="Location"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                        Fee (₱)
                                     </label>
+                                    <input
+                                        name="fee"
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all text-sm"
+                                        placeholder="0.00"
+                                    />
                                 </div>
                             </div>
-                        </div>
-
-                        {/* Venue & Fee */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Venue
-                                </label>
-                                <input
-                                    name="venue"
-                                    type="text"
-                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
-                                    placeholder="Location"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Fee (₱)
-                                </label>
-                                <input
-                                    name="fee"
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
-                                    placeholder="0.00"
-                                />
-                            </div>
-                        </div>
-
-
+                        </section>
 
                         {/* Submit */}
-                        <div className="pt-2">
+                        <div className="pt-2 flex justify-end">
                             <button
                                 type="submit"
                                 disabled={isSubmitting}
-                                className="w-full sm:w-auto bg-sky-500 hover:bg-sky-600 text-white font-medium px-8 py-2.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-sky-200"
+                                className="bg-red-600 hover:bg-red-700 text-white font-bold px-8 py-2.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-red-200"
                             >
                                 {isSubmitting ? 'Creating...' : 'Create Seminar'}
                             </button>

@@ -160,7 +160,7 @@ export default function PendingApprovalsWidget({ pendingClubs }: PendingApproval
                         <div className="divide-y divide-gray-100">
                             {pendingClubs.map((club) => (
                                 <div key={club.id} className="p-4 hover:bg-gray-50/50 transition-colors">
-                                    <div className="flex items-start gap-3">
+                                    <div className="flex items-center gap-3">
                                         {club.logoUrl ? (
                                             <img
                                                 src={club.logoUrl}
@@ -175,41 +175,35 @@ export default function PendingApprovalsWidget({ pendingClubs }: PendingApproval
                                         <div className="flex-1 min-w-0">
                                             <h3 className="font-bold text-gray-900 text-sm truncate">{club.name}</h3>
                                             <p className="text-xs text-gray-500">{club.masterName}</p>
-                                            <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                                                {club.address && (
-                                                    <span className="inline-flex items-center gap-1 text-[10px] text-gray-400">
-                                                        <MapPin className="w-2.5 h-2.5" />
-                                                        {club.address}
-                                                    </span>
-                                                )}
-                                                <span className="inline-flex items-center gap-1 text-[10px] text-gray-400">
-                                                    <Users className="w-2.5 h-2.5" />
-                                                    {club.memberCount}
+                                            {club.address && (
+                                                <span className="inline-flex items-center gap-1 text-[10px] text-gray-400 mt-0.5">
+                                                    <MapPin className="w-2.5 h-2.5" />
+                                                    {club.address}
                                                 </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-2 mt-3 pl-[52px]">
-                                        <button
-                                            onClick={() => handleRejectClub(club.id)}
-                                            disabled={!!actionLoading}
-                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-gray-600 border border-gray-200 text-xs font-bold rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                                        >
-                                            <X size={13} />
-                                            Reject
-                                        </button>
-                                        <button
-                                            onClick={() => handleApproveClub(club.id)}
-                                            disabled={!!actionLoading}
-                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
-                                        >
-                                            {actionLoading === club.id ? (
-                                                <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                            ) : (
-                                                <Check size={13} />
                                             )}
-                                            Approve
-                                        </button>
+                                        </div>
+                                        <div className="flex items-center gap-2 flex-shrink-0">
+                                            <button
+                                                onClick={() => handleRejectClub(club.id)}
+                                                disabled={!!actionLoading}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-gray-600 border border-gray-200 text-xs font-bold rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                                            >
+                                                <X size={13} />
+                                                Reject
+                                            </button>
+                                            <button
+                                                onClick={() => handleApproveClub(club.id)}
+                                                disabled={!!actionLoading}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                                            >
+                                                {actionLoading === club.id ? (
+                                                    <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                ) : (
+                                                    <Check size={13} />
+                                                )}
+                                                Approve
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             ))}

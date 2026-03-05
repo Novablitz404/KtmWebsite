@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import { fetchAthleteDashboardData } from '@/app/actions'
@@ -15,37 +15,15 @@ export default async function AthleteDashboardPage({
 }: {
     searchParams: Promise<{ tab?: string }>
 }) {
-    const clerkUser = await currentUser()
+    const dbUser = await getAuthUser()
     await searchParams // Consume promise
 
-    if (!clerkUser) {
+    if (!dbUser) {
         redirect('/sign-in')
     }
 
     // Get tenant for data scoping
     const tenant = await getTenant()
-
-    // Fetch user data
-    const dbUser = await prisma.user.findUnique({
-        where: { clerkId: clerkUser.id },
-        select: {
-            id: true,
-            role: true,
-            name: true,
-            email: true,
-            clubName: true,
-            belt: true,
-            gender: true,
-            weight: true,
-            height: true,
-            birthDate: true,
-            imageUrl: true,
-        }
-    })
-
-    if (!dbUser) {
-        redirect('/onboarding')
-    }
 
     if (dbUser.role !== 'ATHLETE') {
         redirect('/')
@@ -55,13 +33,13 @@ export default async function AthleteDashboardPage({
     const isProfileComplete = dbUser.height && dbUser.weight
 
     // Fetch initial dashboard data server-side (scoped by tenant org)
-    const initialDashboardData = await fetchAthleteDashboardData(clerkUser.id, tenant.id)
+    const initialDashboardData = await fetchAthleteDashboardData(dbUser.clerkId!, tenant.id)
 
     return (
         <main className="min-h-screen bg-gray-50">
             {!isProfileComplete && <CompleteProfileModal />}
             <AthleteDashboardView
-                clerkId={clerkUser.id}
+                clerkId={dbUser.clerkId!}
                 imageUrl={dbUser.imageUrl}
                 initialData={initialDashboardData}
             />

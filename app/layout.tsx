@@ -17,7 +17,7 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
-import { ClerkProvider } from '@clerk/nextjs'
+import { AuthProvider } from '@/app/providers/AuthProvider'
 import Header from '@/components/Header'
 import { Toaster } from 'sonner'
 import AuthLoadingWrapper from '@/components/AuthLoadingWrapper'
@@ -45,7 +45,7 @@ export default async function RootLayout({
   const tenant = await getTenant()
 
   return (
-    <ClerkProvider>
+    <AuthProvider>
       <html lang="en" suppressHydrationWarning>
         <head />
         <body
@@ -70,7 +70,7 @@ export default async function RootLayout({
           </QueryProvider>
         </body>
       </html>
-    </ClerkProvider>
+    </AuthProvider>
   );
 }
 

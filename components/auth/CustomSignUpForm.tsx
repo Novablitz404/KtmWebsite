@@ -1,47 +1,39 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { useSignUp } from '@clerk/nextjs'
+import { createBrowserClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Eye, EyeOff, Loader2, ArrowLeft, ArrowRight } from 'lucide-react'
-import { completeOnboarding, checkEmailAvailability } from '@/app/actions'
-import { toast } from 'sonner'
+import { Eye, EyeOff, Loader2, ArrowLeft, ArrowRight, Mail } from 'lucide-react'
+import { checkEmailAvailability } from '@/app/actions'
 import { useTenant } from '@/app/providers/TenantProvider'
 
 interface CustomSignUpFormProps {
     headerMode?: 'mobile' | 'desktop'
 }
 
-type Step = 'role-selection' | 'account' | 'verification'
+type Step = 'role-selection' | 'account' | 'check-email'
 
 export default function CustomSignUpForm({ headerMode = 'mobile' }: CustomSignUpFormProps) {
-    const { isLoaded, signUp, setActive } = useSignUp()
+    const supabase = createBrowserClient()
     const router = useRouter()
     const tenant = useTenant()
 
-    // Steps State
     const [step, setStep] = useState<Step>('role-selection')
-
-    // Account Data
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [emailError, setEmailError] = useState<string | null>(null)
-
-    // Role
     const [role, setRole] = useState<'ATHLETE' | 'CLUB_MASTER' | 'ORGANIZER' | 'MANAGER' | 'CO_ORGANIZER'>('ATHLETE')
-    const isOrganization = role === 'ORGANIZER'
+    const [isEmailLocked, setIsEmailLocked] = useState(false)
+    const [showPassword, setShowPassword] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+    const [loading, setLoading] = useState(false)
+
     const isManager = role === 'MANAGER'
     const isCoOrganizer = role === 'CO_ORGANIZER'
+    const isOrganization = role === 'ORGANIZER'
 
-    // Verification Data
-    const [code, setCode] = useState('')
-    const [resending, setResending] = useState(false)
-    const [resendCountdown, setResendCountdown] = useState(0)
-    const [isEmailLocked, setIsEmailLocked] = useState(false)
-
-    // Handle URL Params for Invites
     useEffect(() => {
         const searchParams = new URLSearchParams(window.location.search)
         const roleParam = searchParams.get('role')
@@ -61,25 +53,6 @@ export default function CustomSignUpForm({ headerMode = 'mobile' }: CustomSignUp
         }
     }, [])
 
-    // Countdown timer
-    React.useEffect(() => {
-        if (resendCountdown > 0) {
-            const timer = setTimeout(() => setResendCountdown(resendCountdown - 1), 1000)
-            return () => clearTimeout(timer)
-        }
-    }, [resendCountdown])
-
-    // UI State
-    const [showPassword, setShowPassword] = useState(false)
-    const [error, setError] = useState<string | null>(null)
-    const [loading, setLoading] = useState(false)
-
-    if (!isLoaded) return null
-
-    // ----------------------------------------------------
-    // HANDLERS
-    // ----------------------------------------------------
-
     const handleEmailBlur = async () => {
         if (!email) return
         const { available } = await checkEmailAvailability(email)
@@ -90,11 +63,8 @@ export default function CustomSignUpForm({ headerMode = 'mobile' }: CustomSignUp
         }
     }
 
-    // Account -> Create Clerk Account -> Verification
     const handleAccountSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!isLoaded) return
-
         setError(null)
 
         if (!email || !password) {
@@ -102,7 +72,6 @@ export default function CustomSignUpForm({ headerMode = 'mobile' }: CustomSignUp
             return
         }
 
-        // Final check for email availability
         if (emailError) return
 
         const { available } = await checkEmailAvailability(email)
@@ -114,133 +83,70 @@ export default function CustomSignUpForm({ headerMode = 'mobile' }: CustomSignUp
         setLoading(true)
 
         try {
-            // 1. Create Clerk User
-            await signUp.create({
-                emailAddress: email,
+            const { data, error: signUpError } = await supabase.auth.signUp({
+                email,
                 password,
+                options: {
+                    data: {
+                        role: role,
+                    },
+                    emailRedirectTo: `${window.location.origin}/auth/callback?role=${role}`,
+                }
             })
 
-            // 2. Prepare Verification
-            await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
-
-            // 3. Move to Verify Step
-            setStep('verification')
-            setLoading(false)
-
-        } catch (err: any) {
-            setLoading(false)
-            console.error('Sign up error', err)
-            if (err.errors && err.errors.length > 0) {
-                setError(err.errors[0].longMessage || err.errors[0].message)
-            } else {
-                setError('Something went wrong. Please try again.')
-            }
-        }
-    }
-
-    // Verify OTP -> Complete Onboarding -> Redirect
-    const handleVerification = async (e: React.FormEvent) => {
-        e.preventDefault()
-        if (!isLoaded) return
-
-        setLoading(true)
-        setError(null)
-
-        try {
-            // 1. Attempt Verification
-            const completeSignUp = await signUp.attemptEmailAddressVerification({
-                code,
-            })
-
-            if (completeSignUp.status !== 'complete') {
-                console.error(JSON.stringify(completeSignUp, null, 2))
+            if (signUpError) {
+                setError(signUpError.message)
                 setLoading(false)
-                setError('Verification invalid.')
                 return
             }
 
-            // 2. Set Active Session (Login)
-            if (completeSignUp.createdSessionId) {
-                await setActive({ session: completeSignUp.createdSessionId })
-            }
-
-            // 3. Create Database Record (Role only)
-            const formData = new FormData()
-            formData.append('role', role)
-
-            await completeOnboarding(formData)
-
-            // 4. Redirect based on role
-            if (isManager || isCoOrganizer) {
-                // Managers/Co-Organizers don't need onboarding
-                router.push('/')
+            if (data.session) {
+                // Auto-confirmed (e.g., in dev mode) — redirect to onboarding
+                if (isManager || isCoOrganizer) {
+                    router.push('/')
+                } else {
+                    router.push('/onboarding/complete-profile')
+                }
             } else {
-                // Athletes, Club Masters, Organizers -> complete-profile
-                router.push('/onboarding/complete-profile')
+                // Email confirmation required — show check email screen
+                setStep('check-email')
+                setLoading(false)
             }
-
         } catch (err: any) {
             setLoading(false)
-            console.error('Verification error', err)
-            if (err.errors && err.errors.length > 0) {
-                setError(err.errors[0].longMessage || err.errors[0].message)
-            } else {
-                setError('Invalid code. Please try again.')
-            }
+            console.error('Sign up error', err)
+            setError('Something went wrong. Please try again.')
         }
     }
 
-    const handleDigitChange = (index: number, value: string) => {
-        if (!/^\d*$/.test(value)) return
-
-        const newCode = code.split('')
-        newCode[index] = value.slice(-1)
-        const updatedCode = newCode.join('').slice(0, 6)
-        setCode(updatedCode)
-
-        if (value && index < 5) {
-            const nextInput = document.getElementById(`otp-${index + 1}`)
-            nextInput?.focus()
-        }
+    // CHECK EMAIL STEP
+    if (step === 'check-email') {
+        return (
+            <div className={`w-full max-w-md mx-auto flex flex-col justify-center ${headerMode === 'desktop' ? '' : 'min-h-[80vh] md:min-h-0 p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100'}`}>
+                <div className="text-center">
+                    <div className="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
+                        <Mail className="w-8 h-8 text-green-600" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Check Your Email</h2>
+                    <p className="text-gray-500 mb-4">
+                        We sent a confirmation link to<br />
+                        <span className="font-bold text-gray-900">{email}</span>
+                    </p>
+                    <p className="text-sm text-gray-400 mb-6">
+                        Click the link in the email to verify your account. After verification, you'll be redirected to complete your profile.
+                    </p>
+                    <button
+                        onClick={() => { setStep('account'); }}
+                        className="text-sm font-semibold text-red-600 hover:text-red-700"
+                    >
+                        ← Back to Sign Up
+                    </button>
+                </div>
+            </div>
+        )
     }
 
-    const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === 'Backspace' && !code[index] && index > 0) {
-            const prevInput = document.getElementById(`otp-${index - 1}`)
-            prevInput?.focus()
-        }
-    }
-
-    const handlePaste = (e: React.ClipboardEvent) => {
-        e.preventDefault()
-        const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
-        setCode(pastedData)
-        const focusIndex = Math.min(pastedData.length, 5)
-        const input = document.getElementById(`otp-${focusIndex}`)
-        input?.focus()
-    }
-
-    const handleResendCode = async () => {
-        if (!isLoaded) return
-        setError(null)
-        setResending(true)
-        try {
-            await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
-            setResendCountdown(60)
-            toast.success('Code resent successfully')
-        } catch (err: any) {
-            console.error('Resend error', err)
-            setError('Failed to resend code. Please try again.')
-        } finally {
-            setResending(false)
-        }
-    }
-
-    // ----------------------------------------------------
-    // RENDER STEPS
-    // ----------------------------------------------------
-
-    // STEP 0: ROLE SELECTION
+    // ROLE SELECTION STEP
     if (step === 'role-selection') {
         return (
             <div className={`w-full max-w-4xl mx-auto flex flex-col justify-center ${headerMode === 'desktop' ? '' : 'min-h-[80vh] md:min-h-0 p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100'}`}>
@@ -259,34 +165,20 @@ export default function CustomSignUpForm({ headerMode = 'mobile' }: CustomSignUp
                 </div>
 
                 <div className="flex flex-col md:flex-row gap-4 justify-center max-w-4xl mx-auto">
-                    {/* Athlete Option */}
                     <button
-                        onClick={() => {
-                            setRole('ATHLETE')
-                            setStep('account')
-                        }}
+                        onClick={() => { setRole('ATHLETE'); setStep('account'); }}
                         className="flex-1 py-4 px-8 rounded-full border border-gray-100 shadow-sm bg-white text-gray-600 font-bold text-sm md:text-base transition-all duration-300 transform hover:-translate-y-1 hover:bg-red-600 hover:text-white hover:border-red-600 hover:shadow-lg hover:shadow-red-600/20 text-center uppercase tracking-wide"
                     >
                         Athlete
                     </button>
-
-                    {/* Club Master Option */}
                     <button
-                        onClick={() => {
-                            setRole('CLUB_MASTER')
-                            setStep('account')
-                        }}
+                        onClick={() => { setRole('CLUB_MASTER'); setStep('account'); }}
                         className="flex-1 py-4 px-8 rounded-full border border-gray-100 shadow-sm bg-white text-gray-600 font-bold text-sm md:text-base transition-all duration-300 transform hover:-translate-y-1 hover:bg-red-600 hover:text-white hover:border-red-600 hover:shadow-lg hover:shadow-red-600/20 text-center uppercase tracking-wide"
                     >
                         Club
                     </button>
-
-                    {/* Organization Option */}
                     <button
-                        onClick={() => {
-                            setRole('ORGANIZER')
-                            setStep('account')
-                        }}
+                        onClick={() => { setRole('ORGANIZER'); setStep('account'); }}
                         className="flex-1 py-4 px-8 rounded-full border border-gray-100 shadow-sm bg-white text-gray-600 font-bold text-sm md:text-base transition-all duration-300 transform hover:-translate-y-1 hover:bg-red-600 hover:text-white hover:border-red-600 hover:shadow-lg hover:shadow-red-600/20 text-center uppercase tracking-wide"
                     >
                         Organization
@@ -305,11 +197,10 @@ export default function CustomSignUpForm({ headerMode = 'mobile' }: CustomSignUp
         )
     }
 
-    // STEP 1: ACCOUNT (Email + Password)
+    // ACCOUNT STEP (Email + Password)
     if (step === 'account') {
         return (
             <div className={`w-full max-w-md mx-auto flex flex-col justify-center ${headerMode === 'desktop' ? '' : 'min-h-[80vh] md:min-h-0 p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100'}`}>
-
                 <div className={`text-center mb-8 ${headerMode === 'desktop' ? 'text-left md:text-center' : ''}`}>
                     {headerMode !== 'desktop' && (
                         <div className="relative w-16 h-16 mx-auto mb-4">
@@ -322,32 +213,24 @@ export default function CustomSignUpForm({ headerMode = 'mobile' }: CustomSignUp
                                 role === 'ORGANIZER' ? 'Organizer Sign Up' : 'Create Account'}
                     </h1>
                     <p className={`${headerMode === 'desktop' ? 'text-lg mt-3' : 'text-sm mt-2'} text-gray-500`}>
-                        {headerMode === 'desktop' ? "Join us to manage or participate in upcoming tournaments" : "Step 1 of 2: Account Details"}
+                        {headerMode === 'desktop' ? "Join us to manage or participate in upcoming tournaments" : "Account Details"}
                     </p>
                 </div>
 
-                {/* Back Button */}
                 <button
-                    onClick={() => {
-                        setStep('role-selection')
-                        setError(null)
-                    }}
+                    onClick={() => { setStep('role-selection'); setError(null); }}
                     className="absolute top-6 left-6 z-10 flex items-center text-gray-400 hover:text-gray-600 transition-colors text-sm font-medium"
                 >
                     <ArrowLeft size={16} className="mr-1" /> Back
                 </button>
 
                 <form onSubmit={handleAccountSubmit} className="space-y-4">
-
                     <div>
                         <label className="block text-xs font-bold text-gray-600 mb-1 uppercase ml-1">Email Address</label>
                         <input
                             type="email"
                             value={email}
-                            onChange={(e) => {
-                                setEmail(e.target.value)
-                                setEmailError(null)
-                            }}
+                            onChange={(e) => { setEmail(e.target.value); setEmailError(null); }}
                             onBlur={handleEmailBlur}
                             className={`w-full px-4 py-3 bg-gray-50 border rounded-xl text-gray-900 focus:outline-none focus:ring-2 transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed ${emailError ? 'border-red-500 ring-2 ring-red-500/20' : 'border-gray-200 focus:ring-red-500/20 focus:border-red-500'}`}
                             placeholder="athlete@example.com"
@@ -368,6 +251,7 @@ export default function CustomSignUpForm({ headerMode = 'mobile' }: CustomSignUp
                             className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all font-medium"
                             placeholder="••••••••"
                             required
+                            minLength={6}
                         />
                         <button
                             type="button"
@@ -385,8 +269,6 @@ export default function CustomSignUpForm({ headerMode = 'mobile' }: CustomSignUp
                         </div>
                     )}
 
-                    <div id="clerk-captcha"></div>
-
                     <button
                         type="submit"
                         disabled={loading}
@@ -395,7 +277,7 @@ export default function CustomSignUpForm({ headerMode = 'mobile' }: CustomSignUp
                         {loading ? (
                             <><Loader2 className="animate-spin" /> Creating Account...</>
                         ) : (
-                            <>Next <ArrowRight size={20} /></>
+                            <>Sign Up <ArrowRight size={20} /></>
                         )}
                     </button>
                 </form>
@@ -406,7 +288,6 @@ export default function CustomSignUpForm({ headerMode = 'mobile' }: CustomSignUp
                     <div className="h-px bg-gray-100 flex-1" />
                 </div>
 
-                {/* Social Login */}
                 <div className="relative">
                     <button
                         type="button"
@@ -432,91 +313,6 @@ export default function CustomSignUpForm({ headerMode = 'mobile' }: CustomSignUp
                         Sign In
                     </Link>
                 </p>
-            </div>
-        )
-    }
-
-    // STEP 2: VERIFICATION
-    if (step === 'verification') {
-        const codeDigits = code.split('').concat(Array(6 - code.length).fill(''))
-
-        return (
-            <div className={`w-full max-w-md mx-auto flex flex-col justify-center ${headerMode === 'desktop' ? '' : 'min-h-[80vh] md:min-h-0 p-6 md:p-8 bg-white md:bg-white rounded-3xl md:shadow-xl md:border md:border-gray-100'}`}>
-                <button
-                    onClick={() => { setStep('account'); setCode(''); }}
-                    className="flex items-center text-gray-500 hover:text-gray-900 transition-colors mb-4 self-start"
-                >
-                    <ArrowLeft size={20} className="mr-1" /> Back
-                </button>
-
-                <div className="mb-8 text-center">
-                    {headerMode !== 'desktop' && (
-                        <div className="relative w-16 h-16 mx-auto mb-4">
-                            <Image src={tenant.logoUrl} alt={`${tenant.name} Logo`} fill className="object-contain" priority />
-                        </div>
-                    )}
-                    <h1 className={`${headerMode === 'desktop' ? 'text-3xl lg:text-4xl' : 'text-2xl'} font-black text-gray-900 tracking-tight`}>
-                        Verify Email
-                    </h1>
-                    <p className="text-gray-500 mt-2 text-sm">
-                        Enter the 6-digit code sent to
-                    </p>
-                    <p className="font-bold text-gray-900 text-base">{email}</p>
-                </div>
-
-                <form onSubmit={handleVerification} className="space-y-6">
-                    <div className="flex justify-center gap-2 sm:gap-3" onPaste={handlePaste}>
-                        {codeDigits.map((digit, index) => (
-                            <input
-                                key={index}
-                                id={`otp-${index}`}
-                                type="text"
-                                inputMode="numeric"
-                                maxLength={1}
-                                value={digit}
-                                onChange={(e) => handleDigitChange(index, e.target.value)}
-                                onKeyDown={(e) => handleKeyDown(index, e)}
-                                className={`w-12 h-14 sm:w-14 sm:h-16 bg-gray-50 border-2 border-gray-200 rounded-xl text-gray-900 text-center text-2xl font-black focus:outline-none focus:ring-2 transition-all ${isOrganization ? 'focus:ring-indigo-500/30 focus:border-indigo-500' : 'focus:ring-red-500/30 focus:border-red-500'}`}
-                                autoComplete={index === 0 ? "one-time-code" : "off"}
-                            />
-                        ))}
-                    </div>
-
-                    {error && (
-                        <div className="p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2">
-                            <span className="text-lg">⚠️</span>
-                            <span className="text-xs text-red-600 font-bold">{error}</span>
-                        </div>
-                    )}
-
-                    <button
-                        type="submit"
-                        disabled={loading || code.length !== 6}
-                        className={`w-full py-4 text-white font-bold rounded-2xl shadow-lg active:scale-[0.98] transition-all disabled:opacity-70 flex items-center justify-center gap-2 text-lg ${isOrganization ? 'bg-indigo-600 shadow-indigo-600/20 hover:bg-indigo-700' : 'bg-red-600 shadow-red-600/20 hover:bg-red-700'}`}
-                    >
-                        {loading ? (
-                            <><Loader2 className="animate-spin" /> Verifying...</>
-                        ) : 'Verify & Complete'}
-                    </button>
-                </form>
-
-                <div className="mt-6 text-center">
-                    <p className="text-sm text-gray-500">
-                        Didn't receive the code?{' '}
-                        {resendCountdown > 0 ? (
-                            <span className="text-gray-400">Resend in {resendCountdown}s</span>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={handleResendCode}
-                                disabled={resending}
-                                className={`font-bold hover:underline disabled:opacity-50 ${isOrganization ? 'text-indigo-600' : 'text-red-600'}`}
-                            >
-                                {resending ? 'Sending...' : 'Resend Code'}
-                            </button>
-                        )}
-                    </p>
-                </div>
             </div>
         )
     }

@@ -1,4 +1,4 @@
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -12,12 +12,12 @@ interface PageProps {
 
 export default async function ManagePromotionPage({ params }: PageProps) {
     const { id } = await params
-    const user = await currentUser()
+    const user = await getAuthUser()
     let dbUser = null
 
     if (user) {
         dbUser = await prisma.user.findUnique({
-            where: { clerkId: user.id },
+            where: { id: user.id },
             include: {
                 organization: true,
                 club: true

@@ -102,122 +102,148 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
                 <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
 
                     {/* Header */}
-                    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-                        <h2 className="text-xl font-bold text-gray-900">Schedule New Promotion Test</h2>
-                        <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-red-600 to-red-700">
+                        <h2 className="text-lg font-bold text-white">Schedule New Promotion Test</h2>
+                        <button onClick={onClose} className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
                             <X className="w-5 h-5" />
                         </button>
                     </div>
 
-                    <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[85vh] overflow-y-auto">
-                        {/* Name */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Test Name <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                name="name"
-                                type="text"
-                                required
-                                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all"
-                                placeholder="e.g., January 2026 Belt Promotion"
-                            />
-                        </div>
+                    <form onSubmit={handleSubmit} className="p-6 space-y-8 max-h-[85vh] overflow-y-auto">
+                        {/* ─── SECTION 1: Test Information ─── */}
+                        <section>
+                            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                <span className="w-6 h-6 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-xs font-black">1</span>
+                                Test Information
+                            </h3>
 
-                        {/* Description */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                            <textarea
-                                name="description"
-                                rows={3}
-                                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all resize-none"
-                                placeholder="Details about the promotion test..."
-                            />
-                        </div>
-
-
-                        {/* Grid for Date/Deadline */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="flex gap-2">
-                                <div className="flex-1">
-                                    <GlobalCalendar
-                                        label="Test Date"
-                                        value={testDate}
-                                        onChange={(date) => {
-                                            setTestDate(date)
-                                            const input = document.getElementsByName('testDate')[0] as HTMLInputElement
-                                            if (input) input.value = format(date, 'yyyy-MM-dd')
-                                        }}
-                                        placeholder="Select date..."
-                                        className="w-full"
-                                        fullWidth
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                        Test Name <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        name="name"
+                                        type="text"
+                                        required
+                                        className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all text-sm"
+                                        placeholder="e.g., January 2026 Belt Promotion"
                                     />
-                                    <input type="hidden" name="testDate" required />
                                 </div>
-                                <div className="w-[140px]">
-                                    <GlobalTimePicker
-                                        label="Time"
-                                        name="testTime"
-                                        value={testTime}
-                                        onChange={setTestTime}
+
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Description</label>
+                                    <textarea
+                                        name="description"
+                                        rows={3}
+                                        className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all resize-none text-sm"
+                                        placeholder="Details about the promotion test..."
                                     />
                                 </div>
                             </div>
-                            <div className="flex gap-2">
-                                <div className="flex-1">
-                                    <GlobalCalendar
-                                        label="Registration Deadline"
-                                        value={registrationDeadline}
-                                        onChange={(date) => {
-                                            setRegistrationDeadline(date)
-                                            const input = document.getElementsByName('registrationDeadline')[0] as HTMLInputElement
-                                            if (input) input.value = format(date, 'yyyy-MM-dd')
-                                        }}
-                                        placeholder="Select date..."
-                                        className="w-full"
-                                        fullWidth
-                                    />
-                                    <input type="hidden" name="registrationDeadline" />
-                                </div>
-                                <div className="w-[140px]">
-                                    <GlobalTimePicker
-                                        label="Time"
-                                        name="registrationDeadlineTime"
-                                        value={regDeadlineTime}
-                                        onChange={setRegDeadlineTime}
-                                    />
-                                </div>
-                            </div>
-                            {/* Promotions are always internal/private */}
-                            <input type="hidden" name="visibility" value="PRIVATE" />
-                        </div>
+                        </section>
 
-                        {/* Venue & Fee Info */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Venue
-                                </label>
-                                <input
-                                    name="venue"
-                                    type="text"
-                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all"
-                                    placeholder="Location"
-                                />
+                        <hr className="border-gray-100" />
+
+                        {/* ─── SECTION 2: Schedule ─── */}
+                        <section>
+                            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                <span className="w-6 h-6 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-xs font-black">2</span>
+                                Schedule
+                            </h3>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="flex gap-2">
+                                    <div className="flex-1">
+                                        <GlobalCalendar
+                                            label="Test Date *"
+                                            value={testDate}
+                                            onChange={(date) => {
+                                                setTestDate(date)
+                                                const input = document.getElementsByName('testDate')[0] as HTMLInputElement
+                                                if (input) input.value = format(date, 'yyyy-MM-dd')
+                                            }}
+                                            placeholder="Select date..."
+                                            className="w-full"
+                                            fullWidth
+                                        />
+                                        <input type="hidden" name="testDate" required />
+                                    </div>
+                                    <div className="w-[140px]">
+                                        <GlobalTimePicker
+                                            label="Time"
+                                            name="testTime"
+                                            value={testTime}
+                                            onChange={setTestTime}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <div className="flex-1">
+                                        <GlobalCalendar
+                                            label="Registration Deadline"
+                                            value={registrationDeadline}
+                                            onChange={(date) => {
+                                                setRegistrationDeadline(date)
+                                                const input = document.getElementsByName('registrationDeadline')[0] as HTMLInputElement
+                                                if (input) input.value = format(date, 'yyyy-MM-dd')
+                                            }}
+                                            placeholder="Select date..."
+                                            className="w-full"
+                                            fullWidth
+                                        />
+                                        <input type="hidden" name="registrationDeadline" />
+                                    </div>
+                                    <div className="w-[140px]">
+                                        <GlobalTimePicker
+                                            label="Time"
+                                            name="registrationDeadlineTime"
+                                            value={regDeadlineTime}
+                                            onChange={setRegDeadlineTime}
+                                        />
+                                    </div>
+                                </div>
+                                {/* Promotions are always internal/private */}
+                                <input type="hidden" name="visibility" value="PRIVATE" />
                             </div>
-                            <div className="flex flex-col justify-end pb-1">
-                                <div className="bg-blue-50 text-blue-800 text-xs px-3 py-2.5 rounded-lg border border-blue-100 flex gap-2 items-start">
-                                    <DollarSign className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-                                    <p>Testing fees will be automatically calculated based on the student's belt using your Organization's default pricing.</p>
+                        </section>
+
+                        <hr className="border-gray-100" />
+
+                        {/* ─── SECTION 3: Venue & Fees ─── */}
+                        <section>
+                            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                <span className="w-6 h-6 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-xs font-black">3</span>
+                                Venue & Fees
+                            </h3>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                        Venue
+                                    </label>
+                                    <input
+                                        name="venue"
+                                        type="text"
+                                        className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all text-sm"
+                                        placeholder="Location"
+                                    />
+                                </div>
+                                <div className="flex flex-col justify-end pb-1">
+                                    <div className="bg-blue-50 text-blue-800 text-xs px-3 py-2.5 rounded-lg border border-blue-100 flex gap-2 items-start">
+                                        <DollarSign className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                                        <p>Testing fees will be automatically calculated based on the student's belt using your Organization's default pricing.</p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        </section>
 
-                        <div className="pt-2">
+                        {/* Submit */}
+                        <div className="pt-2 flex justify-end">
                             <button
                                 type="submit"
                                 disabled={isSubmitting}
-                                className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white font-medium px-8 py-2.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-amber-200"
+                                className="bg-red-600 hover:bg-red-700 text-white font-bold px-8 py-2.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-red-200"
                             >
                                 {isSubmitting ? 'Creating...' : 'Create Promotion Test'}
                             </button>

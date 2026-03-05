@@ -1,6 +1,6 @@
 'use client'
 
-import { useClerk } from '@clerk/nextjs'
+import { useAuth } from '@/app/providers/AuthProvider'
 import { useRouter } from 'next/navigation'
 import { LogOut, Shield } from 'lucide-react'
 
@@ -15,7 +15,7 @@ interface AdminSettingsViewProps {
 }
 
 export default function AdminSettingsView({ user }: AdminSettingsViewProps) {
-    const { signOut } = useClerk()
+    const { signOut } = useAuth()
     const router = useRouter()
 
     const handleSignOut = async () => {

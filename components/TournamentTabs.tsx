@@ -26,6 +26,7 @@ import {
     Save
 } from 'lucide-react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 
 type TournamentWithData = Tournament & {
     categories: (Category & { matches: Match[], poomsaeMatches: any[], _count?: { players: number } })[]
@@ -49,6 +50,7 @@ interface TournamentTabsProps {
 }
 
 export default function TournamentTabs({ tournament, players, pendingManagerInvites = [], publicView = false, totalPlayersCount = 0, userRole }: TournamentTabsProps) {
+    const searchParams = useSearchParams()
     const [activeTab, setActiveTab] = useState<'categories' | 'brackets' | 'athletes' | 'managers' | 'settings'>(
         publicView ? 'athletes' : 'categories'
     )
@@ -147,7 +149,7 @@ export default function TournamentTabs({ tournament, players, pendingManagerInvi
                     {/* Header */}
                     <div className="p-4 border-b border-gray-100 bg-gray-50/50">
                         <Link
-                            href={userRole === 'ADMIN' ? '/admin' : '/organization?tab=events'}
+                            href={userRole === 'ADMIN' ? `/admin${searchParams.get('tenant') ? `?tenant=${searchParams.get('tenant')}` : ''}` : `/organization?tab=events${searchParams.get('tenant') ? `&tenant=${searchParams.get('tenant')}` : ''}`}
                             className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-4 group"
                         >
                             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />

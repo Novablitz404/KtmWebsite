@@ -1,161 +1,112 @@
 "use client";
 
 import * as React from "react";
-import { useSignUp } from "@clerk/nextjs";
+import { createBrowserClient } from "@/lib/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
-import { completeOnboarding } from '@/app/actions';
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, ArrowRight, ArrowLeft, CheckCircle2, Eye, EyeOff, User, Shield } from "lucide-react";
+import { Loader2, ArrowRight, ArrowLeft, Eye, EyeOff, User, Shield, Mail } from "lucide-react";
 import { motion } from "framer-motion";
+import { checkEmailAvailability } from "@/app/actions";
 
 export default function WOTFSignUpPage() {
-    const { isLoaded, signUp, setActive } = useSignUp();
+    const supabase = createBrowserClient();
     const [step, setStep] = React.useState<1 | 2>(1);
     const [email, setEmail] = React.useState("");
     const [password, setPassword] = React.useState("");
-    const [verifying, setVerifying] = React.useState(false);
-    const [code, setCode] = React.useState("");
     const [isLoading, setIsLoading] = React.useState(false);
     const [error, setError] = React.useState("");
     const [showPassword, setShowPassword] = React.useState(false);
     const [role, setRole] = React.useState<"athlete" | "clubmaster">("athlete");
+    const [checkEmail, setCheckEmail] = React.useState(false);
+    const [emailError, setEmailError] = React.useState<string | null>(null);
     const router = useRouter();
     const searchParams = useSearchParams();
     const tenantParam = searchParams.get('tenant');
     const qs = tenantParam ? `?tenant=${tenantParam}` : '';
 
-    if (!isLoaded) {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-gray-50">
-                <Loader2 className="h-8 w-8 animate-spin text-[#DF0024]" />
-            </div>
-        );
-    }
+    const handleEmailBlur = async () => {
+        if (!email) return;
+        const { available } = await checkEmailAvailability(email);
+        setEmailError(available ? null : 'This email is already registered');
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
         setError("");
 
-        try {
-            await signUp.create({
-                emailAddress: email,
-                password,
-            });
+        if (emailError) { setIsLoading(false); return; }
 
-            await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
-            setVerifying(true);
-        } catch (err: any) {
-            console.error("error", err.errors[0].longMessage);
-            setError(err.errors[0].longMessage);
-        } finally {
+        const { available } = await checkEmailAvailability(email);
+        if (!available) {
+            setEmailError('This email is already registered');
             setIsLoading(false);
+            return;
         }
-    };
-
-    const handleVerify = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsLoading(true);
-        setError("");
 
         try {
-            const completeSignUp = await signUp.attemptEmailAddressVerification({
-                code,
+            const supabaseRole = role === 'clubmaster' ? 'CLUB_MASTER' : 'ATHLETE';
+            const { data, error: signUpError } = await supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    data: { role: supabaseRole, tenant: tenantParam || 'ktm' },
+                    emailRedirectTo: `${window.location.origin}/auth/callback?role=${supabaseRole}${qs ? '&' + qs.slice(1) : ''}`,
+                }
             });
 
-            if (completeSignUp.status === "complete") {
-                await setActive({ session: completeSignUp.createdSessionId });
+            if (signUpError) {
+                setError(signUpError.message);
+                setIsLoading(false);
+                return;
+            }
 
-                // Set role and tenant in Clerk metadata
-                const formData = new FormData();
-                formData.append('role', role === 'clubmaster' ? 'CLUB_MASTER' : 'ATHLETE');
-                formData.append('tenant', tenantParam || 'ktm');
-                await completeOnboarding(formData);
-
+            if (data.session) {
+                // Auto-confirmed — redirect to onboarding
                 router.push(`/onboarding/complete-profile${qs}`);
             } else {
-                console.log(JSON.stringify(completeSignUp, null, 2));
+                // Email confirmation required
+                setCheckEmail(true);
+                setIsLoading(false);
             }
         } catch (err: any) {
-            console.error("error", err.errors[0].longMessage);
-            setError(err.errors[0].longMessage);
-        } finally {
+            console.error("Sign up error", err);
+            setError("Something went wrong. Please try again.");
             setIsLoading(false);
         }
     };
 
-    // --- Step: Email Verification ---
-    if (verifying) {
+    // --- Check Email Screen ---
+    if (checkEmail) {
         return (
             <div className="flex min-h-screen w-full">
                 <div className="relative hidden w-1/2 lg:block">
                     <Image src="/wotf/moon-pic.jpg" alt="Taekwondo Action" fill className="object-cover" priority />
                     <div className="absolute inset-0 bg-[#DF0024]/80 mix-blend-multiply" />
                 </div>
-
                 <div className="relative flex w-full items-center justify-center bg-white px-8 py-12 lg:w-1/2">
-                    <motion.div
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="w-full max-w-md space-y-8"
-                    >
-                        <div className="text-center lg:text-left">
-                            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 lg:mx-0 mb-6">
-                                <CheckCircle2 className="h-8 w-8 text-green-600" />
-                            </div>
-                            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-                                Verify your email
-                            </h1>
-                            <p className="mt-2 text-sm text-gray-600">
-                                We sent a secure code to <span className="font-semibold text-gray-900">{email}</span>
-                            </p>
+                    <div className="w-full max-w-md space-y-6 text-center">
+                        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                            <Mail className="h-8 w-8 text-green-600" />
                         </div>
-
-                        <form className="mt-8 space-y-6" onSubmit={handleVerify}>
-                            <div>
-                                <label htmlFor="code" className="block text-sm font-semibold text-gray-700 mb-1">
-                                    Verification Code
-                                </label>
-                                <Input
-                                    id="code"
-                                    name="code"
-                                    type="text"
-                                    required
-                                    value={code}
-                                    onChange={(e) => setCode(e.target.value)}
-                                    className="h-11 border-gray-300 focus:border-[#DF0024] focus:ring-[#DF0024] text-center text-lg tracking-widest"
-                                    placeholder="123456"
-                                />
-                            </div>
-
-                            {error && (
-                                <div className="rounded-md bg-red-50 p-3 text-sm text-[#DF0024]">{error}</div>
-                            )}
-
-                            <Button
-                                type="submit"
-                                className="w-full h-12 text-base text-white bg-[#DF0024] hover:bg-[#b3001d] transition-all duration-200 shadow-lg shadow-red-500/20"
-                                disabled={isLoading}
-                            >
-                                {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : "Verify Email"}
-                            </Button>
-
-                            <div className="text-center text-sm">
-                                <button
-                                    type="button"
-                                    onClick={() => setVerifying(false)}
-                                    className="text-gray-500 hover:text-gray-900 underline"
-                                >
-                                    Change email address
-                                </button>
-                            </div>
-                        </form>
-                    </motion.div>
-
-                    {/* Powered by KTM */}
+                        <h2 className="text-2xl font-bold text-gray-900">Check Your Email</h2>
+                        <p className="text-gray-500">
+                            We sent a confirmation link to<br />
+                            <span className="font-bold text-gray-900">{email}</span>
+                        </p>
+                        <p className="text-sm text-gray-400">
+                            Click the link to verify your account and start your profile setup.
+                        </p>
+                        <button
+                            onClick={() => setCheckEmail(false)}
+                            className="text-sm font-semibold text-[#DF0024] hover:text-[#b3001d]"
+                        >
+                            ← Change email address
+                        </button>
+                    </div>
                     <div className="absolute bottom-6 left-0 right-0 flex items-center justify-center gap-2">
                         <span className="text-[11px] text-gray-400 font-medium">Powered by</span>
                         <Image src="/ktmnav.png" alt="KTM" width={60} height={20} className="opacity-50" />
@@ -260,7 +211,6 @@ export default function WOTFSignUpPage() {
                         </div>
                     </motion.div>
 
-                    {/* Powered by KTM */}
                     <div className="absolute bottom-6 left-0 right-0 flex items-center justify-center gap-2">
                         <span className="text-[11px] text-gray-400 font-medium">Powered by</span>
                         <Image src="/ktmnav.png" alt="KTM" width={60} height={20} className="opacity-50" />
@@ -317,10 +267,14 @@ export default function WOTFSignUpPage() {
                                     autoComplete="email"
                                     required
                                     value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    className="h-11 border-gray-300 focus:border-[#DF0024] focus:ring-[#DF0024]"
+                                    onChange={(e) => { setEmail(e.target.value); setEmailError(null); }}
+                                    onBlur={handleEmailBlur}
+                                    className={`h-11 ${emailError ? 'border-red-500 ring-2 ring-red-500/20' : 'border-gray-300 focus:border-[#DF0024] focus:ring-[#DF0024]'}`}
                                     placeholder="name@example.com"
                                 />
+                                {emailError && (
+                                    <p className="text-red-500 text-xs mt-1 font-semibold">{emailError}</p>
+                                )}
                             </div>
 
                             <div>
@@ -338,6 +292,7 @@ export default function WOTFSignUpPage() {
                                         onChange={(e) => setPassword(e.target.value)}
                                         className="h-11 border-gray-300 focus:border-[#DF0024] focus:ring-[#DF0024] pr-11"
                                         placeholder="Create a password"
+                                        minLength={6}
                                     />
                                     <button
                                         type="button"
@@ -348,13 +303,10 @@ export default function WOTFSignUpPage() {
                                     </button>
                                 </div>
                                 <p className="mt-2 text-xs text-gray-500">
-                                    Must be at least 8 characters long
+                                    Must be at least 6 characters long
                                 </p>
                             </div>
                         </div>
-
-                        {/* Clerk CAPTCHA widget mount point */}
-                        <div id="clerk-captcha" />
 
                         {error && (
                             <div className="rounded-md bg-red-50 p-3 text-sm text-[#DF0024]">{error}</div>
@@ -384,7 +336,6 @@ export default function WOTFSignUpPage() {
                     </div>
                 </motion.div>
 
-                {/* Powered by KTM */}
                 <div className="absolute bottom-6 left-0 right-0 flex items-center justify-center gap-2">
                     <span className="text-[11px] text-gray-400 font-medium">Powered by</span>
                     <Image src="/ktmnav.png" alt="KTM" width={60} height={20} className="opacity-50" />

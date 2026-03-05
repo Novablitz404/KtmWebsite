@@ -1,17 +1,18 @@
-import { auth } from '@clerk/nextjs/server'
+import { createServerClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 
 export async function authenticateApi() {
-    const { userId } = await auth()
+    const supabase = await createServerClient()
+    const { data: { user } } = await supabase.auth.getUser()
 
-    if (!userId) {
+    if (!user) {
         return null
     }
 
-    // Fetch user from database with role and club info
+    // Fetch user from database using clerkId (which now stores Supabase Auth UUID)
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: userId },
+        where: { clerkId: user.id },
         select: {
             id: true,
             clerkId: true,
@@ -23,13 +24,8 @@ export async function authenticateApi() {
             weight: true,
             height: true,
             birthDate: true,
-            // clubId might not exist on User directly if 1-1 or handled differently, check schema
-            // For now, let's remove clubId and rely on the relation or just check schema first.
-            // Actually, based on previous code, User likely has clubName to link or organization?
-            // Let's stick to what we know exists from other files: clubName
             clubName: true,
             organizationMemberId: true,
-            // Include club details if available
             club: {
                 select: {
                     id: true,

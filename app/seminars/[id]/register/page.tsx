@@ -1,5 +1,5 @@
 
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -14,18 +14,9 @@ interface Props {
 export default async function SeminarRegisterPage({ params }: Props) {
     const { id: seminarId } = await params
 
-    const clerkUser = await currentUser()
-    if (!clerkUser) {
-        redirect('/sign-in')
-    }
-
-    // Get user profile
-    const dbUser = await prisma.user.findUnique({
-        where: { clerkId: clerkUser.id }
-    })
-
+    const dbUser = await getAuthUser()
     if (!dbUser) {
-        redirect('/onboarding')
+        redirect('/sign-in')
     }
 
     // Fetch seminar with registration count

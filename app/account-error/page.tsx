@@ -1,9 +1,10 @@
-import { currentUser } from '@clerk/nextjs/server'
-import { SignOutButton } from '@clerk/nextjs'
+'use client'
+
+import { useAuth } from '@/app/providers/AuthProvider'
 import Image from 'next/image'
 
-export default async function AccountErrorPage() {
-    const user = await currentUser()
+export default function AccountErrorPage() {
+    const { user, signOut } = useAuth()
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
@@ -28,7 +29,7 @@ export default async function AccountErrorPage() {
                     <h3 className="text-lg font-medium text-gray-900 mb-2">Profile Not Found</h3>
 
                     <p className="text-sm text-gray-600 mb-6">
-                        We detected a login session ({user?.emailAddresses?.[0]?.emailAddress}), but your user profile is missing from our database.
+                        We detected a login session ({user?.email}), but your user profile is missing from our database.
                     </p>
 
                     <div className="bg-gray-50 rounded-lg p-4 mb-6 text-left">
@@ -45,11 +46,12 @@ export default async function AccountErrorPage() {
                     </p>
 
                     <div className="flex justify-center">
-                        <SignOutButton>
-                            <button className="text-red-600 font-bold hover:text-red-800 text-sm flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-red-50 transition-colors">
-                                Sign Out
-                            </button>
-                        </SignOutButton>
+                        <button
+                            onClick={() => signOut()}
+                            className="text-red-600 font-bold hover:text-red-800 text-sm flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-red-50 transition-colors"
+                        >
+                            Sign Out
+                        </button>
                     </div>
                 </div>
             </div>

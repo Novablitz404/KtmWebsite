@@ -33,7 +33,7 @@ export const TENANT_BRANDING: Record<string, TenantBranding> = {
         primaryColor: '#DC2626',
         secondaryColor: '#1E40AF',
         accentColor: '#F59E0B',
-        faviconUrl: null,
+        faviconUrl: '/KTMLogo.png',
         heroImageUrl: null,
         tagline: 'Taekwondo Management Platform',
         footerText: null,

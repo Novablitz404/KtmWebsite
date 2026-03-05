@@ -77,12 +77,15 @@ WITH PlayerPoints AS (
         p."division" AS "division",
         p.gender AS "gender",
         cat.type AS "type",
+        c."organizationId" AS "organizationId",
+        org."parentOrganizationId" AS "parentOrganizationId",
         calculate_j_score(p.medal, t.tier, t."startDate") AS points
     FROM "Player" p
     JOIN "User" u ON p."userId" = u.id
     JOIN "Category" cat ON p."categoryId" = cat.id
     JOIN "Tournament" t ON cat."tournamentId" = t.id
     LEFT JOIN "Club" c ON p."clubId" = c.id
+    LEFT JOIN "Organization" org ON c."organizationId" = org.id
     WHERE u."isVerified" = true
       AND p.medal IS NOT NULL
       AND p.medal != ''
@@ -93,6 +96,8 @@ AggregatedPoints AS (
         "playerName",
         "clubName",
         "type",
+        MAX("organizationId") AS "organizationId",
+        MAX("parentOrganizationId") AS "parentOrganizationId",
         MAX("division") as "division",
         MAX("gender") as "gender",
         SUM(points) AS "totalPoints"
@@ -104,6 +109,8 @@ SELECT
     "userId",
     "playerName",
     "clubName",
+    "organizationId",
+    "parentOrganizationId",
     "division",
     "gender",
     "type",

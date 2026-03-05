@@ -9,11 +9,19 @@ const Footer = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
                     {/* Brand / About */}
                     <div>
-                        <h2 className="text-3xl font-black tracking-tighter mb-6 text-white">
-                            WOTF
-                        </h2>
+                        <div className="flex items-center gap-3 mb-6">
+                            {/* Logo Word Only */}
+                            <div className="relative h-12 w-48 md:h-14 md:w-56 mt-3">
+                                <Image
+                                    src="/wotf/wotf_logo_word.png"
+                                    alt="WOTF"
+                                    fill
+                                    className="object-contain object-left drop-shadow-[0_0_6px_rgba(0,0,0,0.15)] brightness-0 invert opacity-90"
+                                />
+                            </div>
+                        </div>
                         <p className="text-gray-400 mb-6 leading-relaxed">
-                            The National Governing Body for the sport of Taekwondo in the Philippines, recognized by the Philippine Olympic Committee.
+                            World Olympic Taekwondo Federation - Philippines is an organization under the World Olympic Taekwondo Federation.
                         </p>
                         <div className="flex gap-4">
                             <Link href="#" className="text-white hover:text-dashing-yellow transition-colors"><Facebook size={20} /></Link>

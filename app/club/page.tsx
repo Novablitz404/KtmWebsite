@@ -1,4 +1,4 @@
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import ClubDashboard from './ClubDashboard'
@@ -14,26 +14,17 @@ export const revalidate = 30
 
 export default async function ClubPage(props: { searchParams: Promise<{ page?: string; search?: string }> }) {
     const searchParams = await props.searchParams
-    const clerkUser = await currentUser()
+    const authUser = await getAuthUser()
 
-    if (!clerkUser) {
+    if (!authUser) {
         redirect('/sign-in')
     }
 
-    // Get user with minimal data needed (Auth Check)
-    const dbUser = await prisma.user.findUnique({
-        where: { clerkId: clerkUser.id },
+    // authUser is already the full DB user; just need to fetch the club relation
+    const dbUser = authUser
+    const userWithClub = await prisma.user.findUnique({
+        where: { id: authUser.id },
         select: {
-            id: true,
-            role: true,
-            name: true,
-            email: true,
-            clubName: true,
-            belt: true,
-            gender: true,
-            weight: true,
-            height: true,
-            birthDate: true,
             club: {
                 select: {
                     id: true,
@@ -57,7 +48,7 @@ export default async function ClubPage(props: { searchParams: Promise<{ page?: s
     }
 
     // Check if user is a club master or assistant
-    let targetClub = dbUser.club
+    let targetClub = userWithClub?.club
     if (!targetClub && dbUser.role === 'ASSISTANT_CLUB_MASTER' && dbUser.clubName) {
         targetClub = await prisma.club.findFirst({
             where: { name: dbUser.clubName },
@@ -135,7 +126,7 @@ export default async function ClubPage(props: { searchParams: Promise<{ page?: s
                         height: dbUser.height,
                         birthDate: dbUser.birthDate,
                     }}
-                    clerkImageUrl={clerkUser.imageUrl}
+                    clerkImageUrl={authUser.imageUrl || undefined}
 
                     // Legacy Props (Passed as empty/null since new contents supersede them)
                     pendingPlayers={[]}
@@ -153,7 +144,7 @@ export default async function ClubPage(props: { searchParams: Promise<{ page?: s
                         <ClubMasterProfileView
                             dbUser={dbUser}
                             club={targetClub}
-                            clerkImageUrl={clerkUser.imageUrl}
+                            clerkImageUrl={authUser.imageUrl || undefined}
                         />
                     }
                 />

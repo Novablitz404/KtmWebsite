@@ -20,6 +20,8 @@ export async function fetchRankings(
         belt?: string
         skillLevel?: string
         weightCategory?: string
+        tenantId?: string // Added for organization filtering
+        search?: string // Added for athlete name search
     } = {}
 ) {
     let rankings: Array<{
@@ -40,7 +42,14 @@ export async function fetchRankings(
             where: {
                 ...(filters.type ? { type: filters.type } : {}),
                 ...(filters.division ? { division: { contains: filters.division, mode: 'insensitive' as const } } : {}),
-                ...(filters.gender ? { gender: filters.gender } : {})
+                ...(filters.gender ? { gender: filters.gender } : {}),
+                ...(filters.search ? { playerName: { contains: filters.search, mode: 'insensitive' as const } } : {}),
+                ...(filters.tenantId ? {
+                    OR: [
+                        { organizationId: filters.tenantId },
+                        { parentOrganizationId: filters.tenantId }
+                    ]
+                } : {})
             },
             orderBy: { globalRank: 'asc' },
             take: 100 // Top 100 limit

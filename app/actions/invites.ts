@@ -1,19 +1,22 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { sendEmail } from '@/lib/email-service'
+import InviteEmail from '@/emails/InviteEmail'
+import React from 'react'
 
 // ==========================================
 // CLUB ASSISTANT INVITES
 // ==========================================
 
 export async function inviteClubAssistant(formData: FormData) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) throw new Error('Not authenticated')
 
     // 1. Verify User is a Club Master
-    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
     if (dbUser?.role !== 'CLUB_MASTER' || !dbUser.clubName) {
         throw new Error('Unauthorized: Only Club Masters can invite assistants')
     }
@@ -48,10 +51,10 @@ export async function inviteClubAssistant(formData: FormData) {
 }
 
 export async function cancelClubAssistantInvite(inviteId: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) throw new Error('Not authenticated')
 
-    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
     if (dbUser?.role !== 'CLUB_MASTER') throw new Error('Unauthorized')
 
     // Verify ownership indirectly by checking we are deleting an invite made by us? 
@@ -68,7 +71,7 @@ export async function cancelClubAssistantInvite(inviteId: string) {
 // ==========================================
 
 export async function inviteTournamentManager(formData: FormData) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) throw new Error('Not authenticated')
 
     const tournamentId = formData.get('tournamentId') as string
@@ -79,12 +82,12 @@ export async function inviteTournamentManager(formData: FormData) {
     // 1. Verify User is the Organizer of this tournament
     const tournament = await prisma.tournament.findUnique({
         where: { id: tournamentId },
-        select: { organizerId: true }
+        select: { organizerId: true, name: true }
     })
 
     if (!tournament) throw new Error('Tournament not found')
 
-    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
     if (!dbUser || tournament.organizerId !== dbUser.id) {
         throw new Error('Unauthorized: Only the organizer can invite managers')
     }
@@ -128,7 +131,7 @@ export async function inviteTournamentManager(formData: FormData) {
 
     if (existingInvite) throw new Error('Invite already pending for this email')
 
-    await prisma.tournamentManagerInvite.create({
+    const invite = await prisma.tournamentManagerInvite.create({
         data: {
             email,
             tournamentId,
@@ -136,12 +139,27 @@ export async function inviteTournamentManager(formData: FormData) {
         }
     })
 
+    // Send the Magic Link Invite via Resend
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://ktmsports.com'
+    const inviteLink = `${baseUrl}/invite/${invite.token}`
+
+    await sendEmail({
+        to: email,
+        subject: `You have been invited to Manage the Tournament: ${tournament.name}`,
+        reactData: React.createElement(InviteEmail, {
+            roleName: 'Tournament Manager',
+            organizationName: tournament.name || 'Tournament',
+            inviterName: dbUser.name || '',
+            inviteLink
+        })
+    })
+
     revalidatePath(`/tournament/${tournamentId}`)
     return { message: 'Invite sent to new user' }
 }
 
 export async function cancelTournamentManagerInvite(inviteId: string, tournamentId: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) throw new Error('Not authenticated')
 
     // Verify Organizer
@@ -150,7 +168,7 @@ export async function cancelTournamentManagerInvite(inviteId: string, tournament
         select: { organizerId: true }
     })
 
-    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
     if (!dbUser || !tournament || tournament.organizerId !== dbUser.id) {
         throw new Error('Unauthorized')
     }

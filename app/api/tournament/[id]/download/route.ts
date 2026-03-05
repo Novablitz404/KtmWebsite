@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 
 export async function GET(
     request: NextRequest,
@@ -38,9 +38,9 @@ export async function GET(
 
         // 2. Fallback to User Session (for Browser testing)
         if (!isAuthorized) {
-            const user = await currentUser()
+            const user = await getAuthUser()
             if (user) {
-                const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+                const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
                 if (dbUser) {
                     // Check tournament permissions
                     const tournamentCheck = await prisma.tournament.findUnique({

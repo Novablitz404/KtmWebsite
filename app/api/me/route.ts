@@ -12,8 +12,16 @@ export async function GET() {
     if (!dbUser) return apiError('Unauthorized', 401)
 
     return apiResponse({
+        id: dbUser.id,
+        clerkId: dbUser.clerkId,
+        email: dbUser.email,
         role: dbUser.role,
         name: dbUser.name,
+        imageUrl: (dbUser as any).imageUrl ?? null,
+        belt: dbUser.belt,
+        gender: dbUser.gender,
+        clubName: dbUser.clubName,
+        organizationMemberId: dbUser.organizationMemberId,
     })
 }
 

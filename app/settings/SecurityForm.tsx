@@ -1,13 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { useUser } from '@clerk/nextjs'
+import { createBrowserClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import LoadingButton from '@/components/ui/LoadingButton'
 
 export default function SecurityForm() {
-    const { user } = useUser()
-    const [currentPassword, setCurrentPassword] = useState('')
+    const supabase = createBrowserClient()
     const [newPassword, setNewPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
     const [saving, setSaving] = useState(false)
@@ -21,24 +20,26 @@ export default function SecurityForm() {
             return
         }
 
-        if (newPassword.length < 8) {
-            toast.error('Password must be at least 8 characters')
+        if (newPassword.length < 6) {
+            toast.error('Password must be at least 6 characters')
             return
         }
 
         setSaving(true)
         try {
-            await user?.updatePassword({
-                currentPassword,
-                newPassword,
+            const { error } = await supabase.auth.updateUser({
+                password: newPassword,
             })
-            toast.success('Password updated successfully!')
-            setCurrentPassword('')
-            setNewPassword('')
-            setConfirmPassword('')
+
+            if (error) {
+                toast.error(error.message)
+            } else {
+                toast.success('Password updated successfully!')
+                setNewPassword('')
+                setConfirmPassword('')
+            }
         } catch (error: any) {
-            const msg = error?.errors?.[0]?.longMessage || error?.message || 'Failed to update password'
-            toast.error(msg)
+            toast.error(error?.message || 'Failed to update password')
         } finally {
             setSaving(false)
         }
@@ -53,17 +54,6 @@ export default function SecurityForm() {
                 </div>
                 <div className="p-6 sm:p-8">
                     <form onSubmit={handleSubmit} className="space-y-5 max-w-md">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Current Password</label>
-                            <input
-                                type={showPasswords ? 'text' : 'password'}
-                                value={currentPassword}
-                                onChange={(e) => setCurrentPassword(e.target.value)}
-                                required
-                                placeholder="Enter current password"
-                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all bg-gray-50/50 focus:bg-white"
-                            />
-                        </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1.5">New Password</label>
                             <input
@@ -87,7 +77,6 @@ export default function SecurityForm() {
                             />
                         </div>
 
-                        {/* Show/Hide toggle */}
                         <label className="flex items-center gap-2 cursor-pointer select-none">
                             <input
                                 type="checkbox"
@@ -113,7 +102,6 @@ export default function SecurityForm() {
                 </div>
             </div>
 
-            {/* Security Tips */}
             <div className="bg-white sm:rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100">
                     <h3 className="text-sm font-semibold text-gray-900">Security Tips</h3>

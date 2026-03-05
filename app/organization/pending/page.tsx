@@ -1,20 +1,20 @@
 import { prisma } from '@/lib/prisma'
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import OrganizationPendingView from '@/components/organization/OrganizationPendingView'
 
 export default async function OrganizationPendingPage() {
-    const user = await currentUser()
+    const user = await getAuthUser()
 
     if (!user) {
         redirect('/sign-in')
     }
 
-    const userEmail = user.emailAddresses[0]?.emailAddress
+    const userEmail = user.email
 
     // Get the user and their organization
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         select: { id: true, role: true }
     })
 

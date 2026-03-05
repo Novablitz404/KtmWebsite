@@ -2,15 +2,15 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 
 export async function updateTournamentStatus(tournamentId: string, status: string) {
     try {
-        const user = await currentUser()
+        const user = await getAuthUser()
         if (!user) return { error: 'Unauthorized' }
 
         const dbUser = await prisma.user.findUnique({
-            where: { clerkId: user.id }
+            where: { id: user.id }
         })
 
         if (!dbUser) return { error: 'User not found' }

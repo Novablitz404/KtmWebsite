@@ -1,12 +1,12 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { getNextBelt, canManagePromotion } from '@/lib/belt'
 
 export async function updateRegistrationStatus(registrationId: string, status: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
     const registration = await prisma.promotionTestRegistration.findUnique({
@@ -45,7 +45,7 @@ export async function updateRegistrationStatus(registrationId: string, status: s
 }
 
 export async function updateRegistrationPaymentStatus(registrationId: string, paymentStatus: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
     const registration = await prisma.promotionTestRegistration.findUnique({
@@ -70,7 +70,7 @@ export async function updateRegistrationPaymentStatus(registrationId: string, pa
 }
 
 export async function bulkUpdateRegistrations(registrationIds: string[], status: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
     if (registrationIds.length === 0) return { success: true }
@@ -115,7 +115,7 @@ export async function bulkUpdateRegistrations(registrationIds: string[], status:
 }
 
 export async function toggleJump(registrationId: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
     const registration = await prisma.promotionTestRegistration.findUnique({
@@ -140,7 +140,7 @@ export async function toggleJump(registrationId: string) {
 }
 
 export async function deletePromotionRegistration(registrationId: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
     const registration = await prisma.promotionTestRegistration.findUnique({
@@ -162,11 +162,11 @@ export async function deletePromotionRegistration(registrationId: string) {
 }
 
 export async function getPromotionTests() {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return null
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 

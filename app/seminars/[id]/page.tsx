@@ -1,4 +1,4 @@
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -7,6 +7,9 @@ import SeminarStatusActions from '@/components/organization/SeminarStatusActions
 // import EventRegistrationButton from '@/components/EventRegistrationButton'
 import SeminarTabs from '@/components/seminar/SeminarTabs'
 import PublicSeminarView from '@/components/PublicSeminarView'
+import Navbar from '@/components/landing/wotf/Navbar'
+import Footer from '@/components/landing/wotf/Footer'
+import { getTenant } from '@/lib/tenant'
 // import ParticipantsTable from './ParticipantsTable' // I'll need to create this or make it generic later
 
 interface PageProps {
@@ -15,12 +18,13 @@ interface PageProps {
 
 export default async function ManageSeminarPage({ params }: PageProps) {
     const { id } = await params
-    const user = await currentUser()
+    const user = await getAuthUser()
+    const tenant = await getTenant()
     let dbUser = null
 
     if (user) {
         dbUser = await prisma.user.findUnique({
-            where: { clerkId: user.id },
+            where: { id: user.id },
             include: {
                 organization: true,
                 club: true
@@ -74,14 +78,20 @@ export default async function ManageSeminarPage({ params }: PageProps) {
     // Public / Athlete View
     return (
         <main className="min-h-screen bg-gray-50">
-            <div className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-10">
-                <PublicSeminarView
-                    seminar={seminar as any}
-                    currentUserId={dbUser?.id}
-                    isRestricted={isRestricted}
-                    userRole={dbUser?.role}
-                />
-            </div>
+            <>
+                {tenant.slug !== 'ktm' && <Navbar variant="dark" />}
+                <div className="pt-20">
+                    <div className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-10">
+                        <PublicSeminarView
+                            seminar={seminar as any}
+                            currentUserId={dbUser?.id}
+                            isRestricted={isRestricted}
+                            userRole={dbUser?.role}
+                        />
+                    </div>
+                </div>
+                {tenant.slug !== 'ktm' && <Footer />}
+            </>
         </main>
     )
 }

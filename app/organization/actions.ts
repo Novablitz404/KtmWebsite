@@ -2,18 +2,18 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { getNextBelt } from '@/lib/belt'
 import { countryToCode } from '@/lib/countries'
 import crypto from 'crypto'
 
 export async function getOrganizationDashboardData() {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return null
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: {
             organization: {
                 include: {
@@ -171,11 +171,11 @@ export async function getOrganizationAnnouncements(orgId: string, limit = 10) {
 }
 
 export async function createAnnouncement(formData: FormData) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -202,11 +202,11 @@ export async function createAnnouncement(formData: FormData) {
 }
 
 export async function deleteAnnouncement(announcementId: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -242,11 +242,11 @@ export async function getOrganizationPromotionTests(orgId: string, limit = 10) {
 }
 
 export async function createPromotionTest(formData: FormData) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -278,11 +278,11 @@ export async function createPromotionTest(formData: FormData) {
 }
 
 export async function updatePromotionTest(formData: FormData) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -324,11 +324,11 @@ export async function updatePromotionTest(formData: FormData) {
 }
 
 export async function updatePromotionTestStatus(promotionTestId: string, status: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -351,11 +351,11 @@ export async function updatePromotionTestStatus(promotionTestId: string, status:
 }
 
 export async function deletePromotionTest(promotionTestId: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -400,11 +400,11 @@ export async function getOrganizationSeminars(orgId: string, limit = 10) {
 }
 
 export async function createSeminar(formData: FormData) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -484,11 +484,11 @@ export async function createSeminar(formData: FormData) {
 }
 
 export async function updateSeminarStatus(seminarId: string, status: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -511,11 +511,11 @@ export async function updateSeminarStatus(seminarId: string, status: string) {
 }
 
 export async function deleteSeminar(seminarId: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -545,11 +545,11 @@ export async function deleteSeminar(seminarId: string) {
 }
 
 export async function updateSeminar(formData: FormData) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -704,11 +704,11 @@ export async function fetchSeminarRegistrations(
     limit: number = 10,
     search: string = ''
 ) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized', registrations: [], total: 0, totalPages: 0 }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -767,11 +767,11 @@ export async function fetchSeminarRegistrations(
 }
 
 export async function updateSeminarRegistrationStatus(registrationId: string, status?: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -811,11 +811,11 @@ export async function updateSeminarRegistrationStatus(registrationId: string, st
 }
 
 export async function deleteSeminarRegistration(registrationId: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -861,11 +861,11 @@ export async function updateOrganizationSettings(formData: FormData) {
         if (!organizationId) return { error: 'Organization ID is required' }
         if (!name) return { error: 'Organization Name is required' }
 
-        const user = await currentUser()
+        const user = await getAuthUser()
         if (!user) return { error: 'Unauthorized' }
 
         const dbUser = await prisma.user.findUnique({
-            where: { clerkId: user.id },
+            where: { id: user.id },
             include: { organization: true }
         })
 
@@ -1011,11 +1011,11 @@ export async function updateOrganizationSettings(formData: FormData) {
 
 // Helper to check permissions
 async function checkOrgPermission(organizationId: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) throw new Error('Not authenticated')
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -1079,11 +1079,11 @@ export async function rejectClub(clubId: string) {
 // ============================================
 
 export async function getOrganizationStats() {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return null
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: {
             organization: {
                 include: {
@@ -1128,9 +1128,9 @@ export async function getOrganizationStats() {
 }
 
 export async function getOrganizerTournaments() {
-    const user = await currentUser()
+    const user = await getAuthUser()
     const dbUser = user ? await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         select: { id: true, role: true }
     }) : null
 
@@ -1210,12 +1210,12 @@ export async function searchOrganizations(query: string) {
 }
 
 export async function requestAffiliation(parentOrgId: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { success: false, error: "Unauthorized" }
 
     try {
         const dbUser = await prisma.user.findUnique({
-            where: { clerkId: user.id },
+            where: { id: user.id },
             include: { organization: true }
         })
 
@@ -1245,11 +1245,11 @@ export async function requestAffiliation(parentOrgId: string) {
 }
 
 export async function getAffiliationRequests() {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return []
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -1270,11 +1270,11 @@ export async function getAffiliationRequests() {
 
 export async function approveAffiliation(childOrgId: string) {
     // Check permission first
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { success: false, error: "Unauthorized" }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -1307,11 +1307,11 @@ export async function approveAffiliation(childOrgId: string) {
 
 export async function rejectAffiliation(childOrgId: string) {
     // Check permission first
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { success: false, error: "Unauthorized" }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -1368,10 +1368,10 @@ async function getOrganizationAccess(userId: string, orgId: string) {
 
 // Get organization co-organizers and pending invites
 export async function getOrganizationCoOrganizers(orgId: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) throw new Error('Unauthorized')
 
-    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
     if (!dbUser) throw new Error('User not found')
 
     const access = await getOrganizationAccess(dbUser.id, orgId)
@@ -1386,20 +1386,26 @@ export async function getOrganizationCoOrganizers(orgId: string) {
         }
     })
 
+    const orgDetails = access.org as any
+
     return {
-        owner: org?.owner,
-        coOrganizers: org?.coOrganizers || [],
-        pendingInvites: org?.coOrganizerInvites || [],
+        owner: orgDetails?.owner,
+        coOrganizers: orgDetails?.coOrganizers || [],
+        pendingInvites: orgDetails?.coOrganizerInvites || [],
         isOwner: access.isOwner
     }
 }
 
+import { sendEmail } from '@/lib/email-service'
+import InviteEmail from '@/emails/InviteEmail'
+import React from 'react'
+
 // Invite a co-organizer (owner only)
 export async function inviteCoOrganizer(orgId: string, email: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) throw new Error('Unauthorized')
 
-    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
     if (!dbUser) throw new Error('User not found')
 
     const access = await getOrganizationAccess(dbUser.id, orgId)
@@ -1451,23 +1457,40 @@ export async function inviteCoOrganizer(orgId: string, email: string) {
         return { error: 'An invite has already been sent to this email' }
     }
 
-    await prisma.coOrganizerInvite.create({
+    const invite = (await prisma.coOrganizerInvite.create({
         data: {
             email: normalizedEmail,
             organizationId: orgId
         }
+    })) as any
+
+    // Send the Magic Link Invite via Resend
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://ktmsports.com'
+    const inviteLink = `${baseUrl}/invite/${invite.token}`
+
+    const orgDetails = access.org as any
+
+    await sendEmail({
+        to: normalizedEmail,
+        subject: `You have been invited to Co-Organize ${orgDetails.name || 'an Organization'}`,
+        reactData: React.createElement(InviteEmail, {
+            roleName: 'Co-Organizer',
+            organizationName: orgDetails.name || 'Organization',
+            inviterName: dbUser.name || '',
+            inviteLink
+        })
     })
 
     revalidatePath('/organization')
-    return { success: true, message: `Invite created for ${normalizedEmail}. Share the sign-up link with them.` }
+    return { success: true, message: `Invite sent to ${normalizedEmail}` }
 }
 
 // Remove a co-organizer (owner only)
 export async function removeCoOrganizer(orgId: string, coOrganizerUserId: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) throw new Error('Unauthorized')
 
-    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
     if (!dbUser) throw new Error('User not found')
 
     const access = await getOrganizationAccess(dbUser.id, orgId)
@@ -1486,10 +1509,10 @@ export async function removeCoOrganizer(orgId: string, coOrganizerUserId: string
 
 // Cancel a pending invite (owner only)
 export async function cancelCoOrganizerInvite(inviteId: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) throw new Error('Unauthorized')
 
-    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
     if (!dbUser) throw new Error('User not found')
 
     const invite = await prisma.coOrganizerInvite.findUnique({
@@ -1510,10 +1533,10 @@ export async function cancelCoOrganizerInvite(inviteId: string) {
 
 // Transfer organization ownership to a co-organizer (owner only)
 export async function transferOrganizationOwnership(orgId: string, newOwnerId: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) throw new Error('Unauthorized')
 
-    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
     if (!dbUser) throw new Error('User not found')
 
     // Verify current user is the owner
@@ -1563,11 +1586,11 @@ export async function transferOrganizationOwnership(orgId: string, newOwnerId: s
 }
 // NEW: Parallel Fetcher for Events View
 export async function getOrganizationEventsData() {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { tournaments: [], promotionTests: [] }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -1584,11 +1607,11 @@ export async function getOrganizationEventsData() {
 }
 
 export async function registerForPromotionTest(promotionTestId: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { club: true }
     })
 
@@ -1648,11 +1671,11 @@ export async function registerForPromotionTest(promotionTestId: string) {
 }
 
 export async function registerForSeminar(seminarId: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { club: true }
     })
 
@@ -1706,11 +1729,11 @@ export async function registerForSeminar(seminarId: string) {
 // ============================================
 
 export async function getClubMembersForOrg(clubId: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -1755,12 +1778,12 @@ export async function updateClubMemberAsOrg(userId: string, data: {
     weight?: number,
     height?: number
 }) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
     // 1. Verify Requestor is Org Admin/Owner
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -1836,11 +1859,11 @@ async function generateAthleteNumber(country: string | null | undefined): Promis
 }
 
 export async function getOrganizationAthletes() {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return []
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -1882,11 +1905,11 @@ export async function getOrganizationAthletes() {
 }
 
 export async function toggleAthleteCardStatus(athleteId: string) {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -1944,11 +1967,11 @@ export async function toggleAthleteCardStatus(athleteId: string) {
 // ============================================
 
 export async function getOrganizationFinancials() {
-    const user = await currentUser()
+    const user = await getAuthUser()
     if (!user) return null
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         include: { organization: true }
     })
 
@@ -1957,7 +1980,7 @@ export async function getOrganizationFinancials() {
 
     const orgId = dbUser.organization.id
 
-    const [promotionTests, seminars] = await Promise.all([
+    const [promotionTests, seminars, tournaments] = await Promise.all([
         prisma.promotionTest.findMany({
             where: { organizationId: orgId },
             include: {
@@ -1988,15 +2011,57 @@ export async function getOrganizationFinancials() {
                 }
             },
             orderBy: { startDate: 'desc' }
+        }),
+        prisma.tournament.findMany({
+            where: { organizerId: dbUser.id },
+            select: {
+                id: true,
+                name: true,
+                startDate: true,
+                status: true,
+                earlyBirdPrice: true,
+                regularPrice: true,
+                earlyBirdDeadline: true,
+                categoryPricing: true,
+                categories: {
+                    select: {
+                        id: true,
+                        type: true,
+                        subtype: true,
+                        players: {
+                            select: {
+                                id: true,
+                                name: true,
+                                club: { select: { name: true } },
+                                registrationStatus: true,
+                                createdAt: true,
+                            }
+                        }
+                    }
+                }
+            },
+            orderBy: { startDate: 'desc' }
         })
     ])
 
     // Build per-event financial breakdown
+
+    // --- Promotion Tests ---
     const promotionBreakdown = promotionTests.map(pt => {
         const fee = pt.fee || 0
         const totalRegs = pt.registrations.length
         const paidCount = pt.registrations.filter(r => r.paymentStatus === 'PAID').length
         const unpaidCount = pt.registrations.filter(r => r.paymentStatus === 'UNPAID').length
+
+        const mappedRegistrations = pt.registrations.map(r => ({
+            id: r.id,
+            playerName: r.playerName,
+            clubName: r.clubName || 'Independent',
+            status: r.paymentStatus,
+            amountExpected: fee,
+            amountPaid: r.paymentStatus === 'PAID' ? fee : 0
+        }))
+
         return {
             id: pt.id,
             type: 'promotion' as const,
@@ -2009,13 +2074,25 @@ export async function getOrganizationFinancials() {
             unpaidCount,
             totalCollected: paidCount * fee,
             totalExpected: totalRegs * fee,
+            registrations: mappedRegistrations
         }
     })
 
+    // --- Seminars ---
     const seminarBreakdown = seminars.map(s => {
         const fee = s.fee || 0
         const approvedRegs = s.registrations.filter(r => r.status === 'APPROVED')
         const totalRegs = s.registrations.length
+
+        const mappedRegistrations = s.registrations.map(r => ({
+            id: r.id,
+            playerName: r.playerName,
+            clubName: r.clubName || 'Independent',
+            status: r.status === 'APPROVED' ? 'PAID' : 'UNPAID', // For seminars, APPROVED = PAID
+            amountExpected: fee,
+            amountPaid: r.status === 'APPROVED' ? fee : 0
+        }))
+
         return {
             id: s.id,
             type: 'seminar' as const,
@@ -2028,10 +2105,80 @@ export async function getOrganizationFinancials() {
             unpaidCount: totalRegs - approvedRegs.length,
             totalCollected: approvedRegs.length * fee,
             totalExpected: totalRegs * fee,
+            registrations: mappedRegistrations
         }
     })
 
-    const allEvents = [...promotionBreakdown, ...seminarBreakdown]
+    // --- Tournaments (with category pricing + early bird logic) ---
+    const tournamentBreakdown = tournaments.map(t => {
+        const catPricing = (t.categoryPricing || {}) as Record<string, { earlyBird?: number | null; regular?: number | null }>
+        const earlyBirdDeadline = t.earlyBirdDeadline ? new Date(t.earlyBirdDeadline) : null
+
+        let totalExpected = 0
+        let totalCollected = 0
+        let totalRegs = 0
+        let paidCount = 0
+        const mappedRegistrations: any[] = []
+
+        for (const category of t.categories) {
+            const comboKey = `${category.type}_${category.subtype}`
+            const catPrice = catPricing[comboKey]
+
+            for (const player of category.players) {
+                totalRegs++
+
+                // Determine the fee for this player
+                let playerFee = 0
+                const isEarlyBird = earlyBirdDeadline && player.createdAt < earlyBirdDeadline
+
+                if (catPrice) {
+                    // Category-specific pricing takes priority
+                    playerFee = isEarlyBird
+                        ? (catPrice.earlyBird || catPrice.regular || 0)
+                        : (catPrice.regular || 0)
+                } else {
+                    // Fall back to tournament-level pricing
+                    playerFee = isEarlyBird
+                        ? (t.earlyBirdPrice || t.regularPrice || 0)
+                        : (t.regularPrice || 0)
+                }
+
+                totalExpected += playerFee
+                const isPaid = player.registrationStatus === 'APPROVED'
+
+                if (isPaid) {
+                    paidCount++
+                    totalCollected += playerFee
+                }
+
+                mappedRegistrations.push({
+                    id: player.id,
+                    playerName: (player as any).name || 'Player', // Actually need to fix the select query because name wasn't queried
+                    clubName: (player as any).club?.name || 'Independent',
+                    status: isPaid ? 'PAID' : 'UNPAID',
+                    amountExpected: playerFee,
+                    amountPaid: isPaid ? playerFee : 0
+                })
+            }
+        }
+
+        return {
+            id: t.id,
+            type: 'tournament' as const,
+            name: t.name,
+            date: t.startDate.toISOString(),
+            status: t.status,
+            fee: 0, // Varies per category — displayed as "Varies" in UI
+            totalRegistrations: totalRegs,
+            paidCount,
+            unpaidCount: totalRegs - paidCount,
+            totalCollected,
+            totalExpected,
+            registrations: mappedRegistrations
+        }
+    })
+
+    const allEvents = [...tournamentBreakdown, ...promotionBreakdown, ...seminarBreakdown]
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
     // Aggregated totals
@@ -2041,13 +2188,20 @@ export async function getOrganizationFinancials() {
     const totalRegistrations = allEvents.reduce((sum, e) => sum + e.totalRegistrations, 0)
 
     // Monthly revenue data for bar chart (last 12 months)
-    const monthlyData: { month: string; promotions: number; seminars: number }[] = []
+    const monthlyData: { month: string; tournaments: number; promotions: number; seminars: number }[] = []
     const now = new Date()
     for (let i = 11; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
         const monthKey = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
         const year = d.getFullYear()
         const month = d.getMonth()
+
+        const tournamentRevenue = tournamentBreakdown
+            .filter(e => {
+                const ed = new Date(e.date)
+                return ed.getFullYear() === year && ed.getMonth() === month
+            })
+            .reduce((sum, e) => sum + e.totalCollected, 0)
 
         const promoRevenue = promotionBreakdown
             .filter(e => {
@@ -2063,7 +2217,7 @@ export async function getOrganizationFinancials() {
             })
             .reduce((sum, e) => sum + e.totalCollected, 0)
 
-        monthlyData.push({ month: monthKey, promotions: promoRevenue, seminars: semRevenue })
+        monthlyData.push({ month: monthKey, tournaments: tournamentRevenue, promotions: promoRevenue, seminars: semRevenue })
     }
 
     return {

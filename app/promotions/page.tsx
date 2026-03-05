@@ -1,18 +1,18 @@
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import PromotionsClient from './PromotionsClient'
 import PromotionsPageActions from './PromotionsPageActions'
 
 export default async function PromotionsPage() {
-    const user = await currentUser()
+    const user = await getAuthUser()
 
     if (!user) {
         redirect('/sign-in')
     }
 
     const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+        where: { id: user.id },
         select: { id: true, role: true }
     })
 

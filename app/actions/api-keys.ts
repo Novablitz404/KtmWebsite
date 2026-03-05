@@ -3,17 +3,17 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { randomBytes } from 'crypto'
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 
 export async function generateApiKey(ownerId: string, description: string) {
     try {
-        const user = await currentUser()
+        const user = await getAuthUser()
         if (!user) return { error: 'Unauthorized' }
 
         // Must be Admin to create keys for others? Or Admin creates for Organizers?
         // The prompt says "Admin only". Let's verify admin role.
         const dbUser = await prisma.user.findUnique({
-            where: { clerkId: user.id }
+            where: { id: user.id }
         })
 
         if (!dbUser || dbUser.role !== 'ADMIN') {
@@ -44,10 +44,10 @@ export async function generateApiKey(ownerId: string, description: string) {
 
 export async function revokeApiKey(keyId: string) {
     try {
-        const user = await currentUser()
+        const user = await getAuthUser()
         if (!user) return { error: 'Unauthorized' }
 
-        const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+        const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
         if (!dbUser || dbUser.role !== 'ADMIN') return { error: 'Forbidden' }
 
         await prisma.apiKey.update({
@@ -65,10 +65,10 @@ export async function revokeApiKey(keyId: string) {
 
 export async function deleteApiKey(keyId: string) {
     try {
-        const user = await currentUser()
+        const user = await getAuthUser()
         if (!user) return { error: 'Unauthorized' }
 
-        const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+        const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
         if (!dbUser || dbUser.role !== 'ADMIN') return { error: 'Forbidden' }
 
         await prisma.apiKey.delete({

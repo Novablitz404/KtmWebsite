@@ -60,7 +60,6 @@ export default function LandingPage({ upcomingTournaments, user, stats }: Landin
                         fill
                         className="object-cover object-center"
                         priority
-                        quality={90}
                     />
                     {/* Dark overlay — heavier on the left for text readability, lighter on the right to show athletes */}
                     <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/60 to-black/30" />

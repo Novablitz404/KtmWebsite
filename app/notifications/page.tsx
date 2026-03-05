@@ -1,21 +1,13 @@
-import { auth } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import NotificationList from './NotificationList'
 
 export default async function NotificationsPage() {
-    const { userId } = await auth()
-
-    if (!userId) {
-        redirect('/sign-in')
-    }
-
-    const user = await prisma.user.findUnique({
-        where: { clerkId: userId }
-    })
+    const user = await getAuthUser()
 
     if (!user) {
-        redirect('/onboarding')
+        redirect('/sign-in')
     }
 
     // Redirect Athletes to the PWA Dashboard Alerts tab

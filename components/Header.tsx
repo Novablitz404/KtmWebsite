@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useUser } from '@clerk/nextjs'
+import { useUser } from '@/app/providers/AuthProvider'
 import { motion } from 'framer-motion'
 import { useTenant } from '@/app/providers/TenantProvider'
 

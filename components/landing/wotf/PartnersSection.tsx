@@ -5,8 +5,6 @@ import MotionWrapper from './MotionWrapper';
 import Image from 'next/image';
 
 const partners = [
-    { id: 1, name: "World Taekwondo", src: "/wotf/wotfpartners/wt.png" },
-    { id: 2, name: "Philippine Sports Commission", src: "/wotf/wotfpartners/psc.png" },
     { id: 3, name: "Kukkiwon", src: "/wotf/wotfpartners/kukkiwon.png" },
     { id: 4, name: "DG", src: "/wotf/wotfpartners/dg.png" },
     { id: 5, name: "Neocolors", src: "/wotf/wotfpartners/neocolors.png" },
@@ -31,6 +29,26 @@ const PartnerLogo = ({ partner }: { partner: typeof partners[0] }) => (
 const PartnersSection = () => {
     return (
         <section className="py-10 md:py-14 bg-[#f5f6fa] overflow-hidden">
+            <style jsx>{`
+                @keyframes marquee {
+                    0% { transform: translateX(0); }
+                    100% { transform: translateX(calc(-50% - 1rem)); } /* Adjust based on gap */
+                }
+                @media (min-width: 768px) {
+                    @keyframes marquee {
+                        0% { transform: translateX(0); }
+                        100% { transform: translateX(calc(-50% - 2rem)); } /* gap-16 is 4rem, need to shift properly */
+                    }
+                }
+                .animate-marquee {
+                    animation: marquee 30s linear infinite;
+                    display: flex;
+                    width: max-content;
+                }
+                .marquee-paused:hover .animate-marquee {
+                    animation-play-state: paused;
+                }
+            `}</style>
             <div className="container mx-auto px-6">
                 <MotionWrapper className="text-center mb-10" direction="up">
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-[4px] mb-2">
@@ -43,24 +61,29 @@ const PartnersSection = () => {
             </div>
 
             {/* Marquee carousel - pure CSS, GPU-accelerated */}
-            <div className="relative">
+            <div className="relative pt-8 pb-8 flex overflow-hidden">
                 {/* Fade edges */}
-                <div className="absolute left-0 top-0 bottom-0 w-16 md:w-24 bg-gradient-to-r from-[#f5f6fa] to-transparent z-10 pointer-events-none" />
-                <div className="absolute right-0 top-0 bottom-0 w-16 md:w-24 bg-gradient-to-l from-[#f5f6fa] to-transparent z-10 pointer-events-none" />
+                <div className="absolute left-0 top-0 bottom-0 w-16 md:w-32 bg-gradient-to-r from-[#f5f6fa] to-transparent z-10 pointer-events-none" />
+                <div className="absolute right-0 top-0 bottom-0 w-16 md:w-32 bg-gradient-to-l from-[#f5f6fa] to-transparent z-10 pointer-events-none" />
 
-                <div className="marquee-track flex gap-8 md:gap-16 w-max items-center">
+                {/* Using a single track that animates */}
+                <div className="flex w-max flex-nowrap items-center gap-8 md:gap-16 hover:[animation-play-state:paused]" style={{ animation: 'marquee 30s linear infinite' }}>
                     {/* First set */}
-                    <div className="marquee-content flex gap-8 md:gap-16 items-center shrink-0">
-                        {partners.map((partner) => (
-                            <PartnerLogo key={`a-${partner.id}`} partner={partner} />
-                        ))}
-                    </div>
+                    {partners.map((partner) => (
+                        <PartnerLogo key={`a-${partner.id}`} partner={partner} />
+                    ))}
                     {/* Duplicate for seamless loop */}
-                    <div className="marquee-content flex gap-8 md:gap-16 items-center shrink-0" aria-hidden="true">
-                        {partners.map((partner) => (
-                            <PartnerLogo key={`b-${partner.id}`} partner={partner} />
-                        ))}
-                    </div>
+                    {partners.map((partner) => (
+                        <PartnerLogo key={`b-${partner.id}`} partner={partner} />
+                    ))}
+                    {/* Third duplicate to ensure it fills wide screens */}
+                    {partners.map((partner) => (
+                        <PartnerLogo key={`c-${partner.id}`} partner={partner} />
+                    ))}
+                    {/* Fourth duplicate */}
+                    {partners.map((partner) => (
+                        <PartnerLogo key={`d-${partner.id}`} partner={partner} />
+                    ))}
                 </div>
             </div>
 

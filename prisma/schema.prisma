@@ -310,6 +310,7 @@ model Organization {
 model CoOrganizerInvite {
   id             String       @id @default(cuid())
   email          String
+  token          String       @unique @default(uuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
@@ -539,6 +540,7 @@ model ClubAssistantInvite {
 model TournamentManagerInvite {
   id           String     @id @default(cuid())
   email        String
+  token        String     @unique @default(uuid())
   tournamentId String
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   invitedBy    String // Organizer ID (User ID)
@@ -660,15 +662,17 @@ model SmartProposalVote {
 // GLOBAL RANKING VIEW
 // ============================================
 view GlobalAthleteRanking {
-  id          String @id
-  userId      String
-  playerName  String
-  clubName    String?
-  division    String?
-  gender      String?
-  type        String
-  totalPoints Float
-  globalRank  Int
+  id                   String @id
+  userId               String
+  playerName           String
+  clubName             String?
+  organizationId       String?
+  parentOrganizationId String?
+  division             String?
+  gender               String?
+  type                 String
+  totalPoints          Float
+  globalRank           Int
 
   @@map("GlobalAthleteRanking")
 }

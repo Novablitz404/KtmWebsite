@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useClerk } from '@clerk/nextjs'
+import { useAuth } from '@/app/providers/AuthProvider'
 import ProfileEditForm from '@/app/settings/ProfileEditForm'
 import { Settings, Bell, LogOut, Shield, ChevronRight, ChevronLeft, User, Edit2 } from 'lucide-react'
 
@@ -29,7 +29,7 @@ interface SettingsViewProps {
 }
 
 export default function SettingsView({ dbUser, clerkImageUrl, club }: SettingsViewProps) {
-    const { signOut } = useClerk()
+    const { signOut } = useAuth()
     const [isEditing, setIsEditing] = useState(false)
 
     if (isEditing) {
@@ -123,7 +123,7 @@ export default function SettingsView({ dbUser, clerkImageUrl, club }: SettingsVi
                 {/* Bottom Section */}
                 <div className="px-4 pb-4 space-y-3 mt-6">
                     <button
-                        onClick={() => signOut({ redirectUrl: '/' }).then(() => window.location.href = '/')} // Force hard reload after sign out
+                        onClick={() => signOut().then(() => window.location.href = '/')} // Force hard reload after sign out
                         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-red-50 text-red-600 font-semibold hover:bg-red-100 active:scale-[0.98] transition-all border border-red-100 text-sm"
                     >
                         <LogOut size={16} />

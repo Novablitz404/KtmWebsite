@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { currentUser } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import TournamentsView from '@/components/tournaments/TournamentsView'
 
@@ -7,20 +7,10 @@ import TournamentsView from '@/components/tournaments/TournamentsView'
 export const revalidate = 30
 
 export default async function TournamentsPage() {
-    const clerkUser = await currentUser()
-
-    if (!clerkUser) {
-        redirect('/sign-in')
-    }
-
-    // Get user (only need id for registration check)
-    const dbUser = await prisma.user.findUnique({
-        where: { clerkId: clerkUser.id },
-        select: { id: true }
-    })
+    const dbUser = await getAuthUser()
 
     if (!dbUser) {
-        redirect('/onboarding')
+        redirect('/sign-in')
     }
 
     return (

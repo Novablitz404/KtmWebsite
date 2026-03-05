@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { findCategoryForPlayer } from '@/lib/placement'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
-import { currentUser, clerkClient } from '@clerk/nextjs/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { getClubEventsData } from '@/app/club/data'
 import { generatePoomsaeBracket } from '@/lib/poomsae-logic'
@@ -56,19 +56,10 @@ export async function createTournament(formData: FormData) {
         return { error: 'Tournament name and date are required' }
     }
 
-    // Get current user for organizer scoping
-    const user = await currentUser()
-    if (!user) {
-        return { error: 'You must be logged in to create a tournament' }
-    }
-
-    // Find DB user to get ID
-    const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id }
-    })
-
+    // Get current user
+    const dbUser = await getAuthUser()
     if (!dbUser) {
-        return { error: 'User profile not found' }
+        return { error: 'You must be logged in to create a tournament' }
     }
 
     // Parse dates with times
@@ -287,14 +278,8 @@ export async function createTournament(formData: FormData) {
 }
 
 export async function deleteTournament(id: string) {
-    const user = await currentUser()
-    if (!user) throw new Error('Not authenticated')
-
-    const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id }
-    })
-
-    if (!dbUser) throw new Error('User not found')
+    const dbUser = await getAuthUser()
+    if (!dbUser) throw new Error('Not authenticated')
 
     const tournament = await prisma.tournament.findUnique({
         where: { id },
@@ -1125,8 +1110,10 @@ export async function scheduleTournament(tournamentId: string, courtConfig: { na
 
 
 export async function completeOnboarding(formData: FormData) {
-    const user = await currentUser()
-    if (!user) throw new Error('Not authenticated')
+    const { createServerClient } = await import('@/lib/supabase/server')
+    const supabase = await createServerClient()
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) throw new Error('Not authenticated')
 
     const role = formData.get('role') as string
     const tenant = (formData.get('tenant') as string) || 'ktm'
@@ -1138,7 +1125,7 @@ export async function completeOnboarding(formData: FormData) {
     const isManager = role === 'MANAGER'
     const isCoOrganizer = role === 'CO_ORGANIZER'
 
-    const userEmail = user.emailAddresses[0].emailAddress
+    const userEmail = authUser.email!
     // Don't pre-fill name from email — real name is collected on the onboarding profile form
     const userName = ''
 
@@ -1163,7 +1150,7 @@ export async function completeOnboarding(formData: FormData) {
     const existingUser = await prisma.user.findFirst({
         where: {
             OR: [
-                { clerkId: user.id },
+                { clerkId: authUser.id },
                 { email: userEmail }
             ]
         }
@@ -1172,7 +1159,7 @@ export async function completeOnboarding(formData: FormData) {
     if (existingUser) {
         // User already onboarded - update clerkId and orgMembership if needed
         const updateData: any = {}
-        if (existingUser.clerkId !== user.id) updateData.clerkId = user.id
+        if (existingUser.clerkId !== authUser.id) updateData.clerkId = authUser.id
         if (orgId && !existingUser.organizationMemberId) updateData.organizationMemberId = orgId
         if (Object.keys(updateData).length > 0) {
             await prisma.user.update({
@@ -1214,7 +1201,7 @@ export async function completeOnboarding(formData: FormData) {
     const dbUser = await prisma.user.create({
         data: {
             id: newUserId,
-            clerkId: user.id,
+            clerkId: authUser.id,
             email: userEmail,
             role: assignedRole,
             name: userName,
@@ -1222,51 +1209,14 @@ export async function completeOnboarding(formData: FormData) {
         }
     })
 
-    // Check for Tournament Manager Invites (Can exist alongside any role)
-    const managerInvites = await prisma.tournamentManagerInvite.findMany({ where: { email: userEmail } })
-    if (managerInvites.length > 0) {
-        for (const invite of managerInvites) {
-            await prisma.tournament.update({
-                where: { id: invite.tournamentId },
-                data: { managers: { connect: { id: dbUser.id } } }
-            })
-            await prisma.tournamentManagerInvite.delete({ where: { id: invite.id } })
-        }
-    }
-
-    // Check for Co-Organizer Invites (Can exist alongside any role)
-    const coOrganizerInvites = await prisma.coOrganizerInvite.findMany({ where: { email: userEmail } })
-    if (coOrganizerInvites.length > 0) {
-        for (const invite of coOrganizerInvites) {
-            await prisma.organization.update({
-                where: { id: invite.organizationId },
-                data: { coOrganizers: { connect: { id: dbUser.id } } }
-            })
-            await prisma.coOrganizerInvite.delete({ where: { id: invite.id } })
-        }
-    }
-
-    // ----------------------------------------------------------------
-    // SYNC ROLE + PROFILE STATUS TO CLERK METADATA
-    // ----------------------------------------------------------------
-    const profileComplete = isManager || isCoOrganizer // Managers don't need onboarding
-    try {
-        const client = await clerkClient()
-        await client.users.updateUser(user.id, {
-            publicMetadata: {
-                role: assignedRole,
-                profileComplete,
-                tenant,
-            }
-        })
-    } catch (error) {
-        console.error('Failed to sync role to Clerk metadata:', error)
-    }
+    // Role is stored in DB — no Clerk metadata sync needed
 }
 
 export async function completeClubMasterOnboarding(formData: FormData) {
-    const user = await currentUser()
-    if (!user) throw new Error('Not authenticated')
+    const { createServerClient } = await import('@/lib/supabase/server')
+    const supabase = await createServerClient()
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) throw new Error('Not authenticated')
 
     const firstName = formData.get('firstName') as string
     const lastName = formData.get('lastName') as string
@@ -1282,13 +1232,13 @@ export async function completeClubMasterOnboarding(formData: FormData) {
     }
 
     const birthDate = new Date(birthDateStr)
-    const userEmail = user.emailAddresses[0].emailAddress
+    const userEmail = authUser.email!
 
     // Check if user already exists
     const existingUser = await prisma.user.findFirst({
         where: {
             OR: [
-                { clerkId: user.id },
+                { clerkId: authUser.id },
                 { email: userEmail }
             ]
         }
@@ -1326,7 +1276,7 @@ export async function completeClubMasterOnboarding(formData: FormData) {
     const dbUser = await prisma.user.create({
         data: {
             id: newUserId,
-            clerkId: user.id,
+            clerkId: authUser.id,
             email: userEmail,
             role: 'CLUB_MASTER',
             name: `${firstName} ${lastName}`,
@@ -1380,16 +1330,19 @@ export async function updateProfile(formData: FormData) {
         }
     })
 
-    // Update Clerk Image if provided
-    if (imageFile && imageFile.size > 0 && updatedUser.clerkId) {
+    // Upload image to Supabase Storage if provided
+    if (imageFile && imageFile.size > 0) {
         try {
-            const client = await clerkClient()
-            await client.users.updateUserProfileImage(updatedUser.clerkId, {
-                file: imageFile
-            })
+            const { uploadAvatar } = await import('@/lib/supabase-storage')
+            const imageUrl = await uploadAvatar(userId, imageFile)
+            if (imageUrl) {
+                await prisma.user.update({
+                    where: { id: userId },
+                    data: { imageUrl }
+                })
+            }
         } catch (error) {
-            console.error('Failed to update Clerk profile image:', error)
-            // We don't throw here to allow the other profile updates to succeed even if image fails
+            console.error('Failed to upload profile image:', error)
         }
     }
 
@@ -1931,13 +1884,8 @@ export async function updateClubSettings(formData: FormData) {
 
         if (!clubId) return { error: 'Club ID is required' }
 
-        const user = await currentUser()
-        if (!user) return { error: 'Unauthorized' }
-
-        const dbUser = await prisma.user.findUnique({
-            where: { clerkId: user.id },
-            select: { role: true, id: true, club: true, clubName: true }
-        })
+        const dbUser = await getAuthUser()
+        if (!dbUser) return { error: 'Unauthorized' }
 
         if (!dbUser || dbUser.role !== 'CLUB_MASTER') {
             return { error: 'Insufficient permissions' }
@@ -2699,17 +2647,9 @@ export async function toggleEventParticipation(
 }
 
 export async function unregisterFromTournament(playerId: string) {
-    const user = await currentUser()
-    if (!user) {
-        return { error: 'Unauthorized' }
-    }
-
-    const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id }
-    })
-
+    const dbUser = await getAuthUser()
     if (!dbUser) {
-        return { error: 'User not found' }
+        return { error: 'Unauthorized' }
     }
 
     try {
@@ -2735,8 +2675,8 @@ export async function unregisterFromTournament(playerId: string) {
 }
 
 export async function removeMemberFromClub(memberId: string) {
-    const user = await currentUser()
-    if (!user) return { error: 'Unauthorized' }
+    const dbUser = await getAuthUser()
+    if (!dbUser) return { error: 'Unauthorized' }
 
     // Verify requesting user is club master (this check could be more robust)
     // For now assuming the dashboard handles basic auth checks, effectively trusting the session user's context
@@ -2755,8 +2695,8 @@ export async function removeMemberFromClub(memberId: string) {
 }
 
 export async function updateClubMember(memberId: string, data: { name?: string, weight?: number, belt?: string, gender?: string, email?: string }) {
-    const user = await currentUser()
-    if (!user) return { error: 'Unauthorized' }
+    const dbUser = await getAuthUser()
+    if (!dbUser) return { error: 'Unauthorized' }
 
     try {
         await prisma.user.update({
@@ -2787,11 +2727,11 @@ export async function getTournamentCategories(tournamentId: string) {
 }
 
 export async function getAllOrganizationAlerts() {
-    const user = await currentUser()
-    if (!user) return []
+    const dbUser = await getAuthUser()
+    if (!dbUser) return []
 
-    const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+    const userWithTournaments = await prisma.user.findUnique({
+        where: { id: dbUser.id },
         include: {
             createdTournaments: {
                 where: { status: 'UPCOMING' },
@@ -2799,12 +2739,11 @@ export async function getAllOrganizationAlerts() {
             }
         }
     })
-
-    if (!dbUser) return []
+    if (!userWithTournaments) return []
 
     const allAlerts = []
 
-    for (const tournament of dbUser.createdTournaments) {
+    for (const tournament of userWithTournaments.createdTournaments) {
         const { alerts, proposals } = await getTournamentAlerts(tournament.id)
         if (alerts.length > 0) {
             allAlerts.push({
@@ -2898,11 +2837,10 @@ export async function submitClubDecision(
 }
 
 export async function updateTournamentGuidelines(tournamentId: string, guidelinesText: string) {
-    const user = await currentUser()
-    if (!user) return { success: false, error: "Unauthorized" }
+    const dbUser = await getAuthUser()
+    if (!dbUser) return { success: false, error: "Unauthorized" }
 
     try {
-        const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
         if (!dbUser) return { success: false, error: "User not found" }
 
         const tournament = await prisma.tournament.findUnique({
@@ -3208,23 +3146,19 @@ export async function registerForSeminar(formData: FormData) {
     }
 
     // 1. Authenticate User
-    const user = await currentUser()
-    if (!user) {
+    const dbUser = await getAuthUser()
+    if (!dbUser) {
         return { error: 'You must be logged in to register' }
     }
 
-    // 2. Fetch User Profile & Player Record
-    const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
+    // 2. Fetch player records for this user
+    const userWithPlayers = await prisma.user.findUnique({
+        where: { id: dbUser.id },
         include: { players: true }
     })
 
-    if (!dbUser) {
-        return { error: 'User profile not found' }
-    }
-
     // Determine Player ID
-    let playerId = dbUser.players.find(p => p.name === dbUser.name)?.id
+    let playerId = userWithPlayers?.players.find((p: any) => p.name === dbUser.name)?.id
 
     if (!playerId) {
         const club = dbUser.clubName ? await prisma.club.findFirst({ where: { name: dbUser.clubName } }) : null
