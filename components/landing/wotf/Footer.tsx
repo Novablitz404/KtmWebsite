@@ -21,7 +21,7 @@ const Footer = () => {
                             </div>
                         </div>
                         <p className="text-gray-400 mb-6 leading-relaxed">
-                            World Olympic Taekwondo Federation - Philippines is an organization under the World Olympic Taekwondo Federation.
+                            World Olympics Taekwondo Federation - Philippines is an organization under the World Olympics Taekwondo Federation.
                         </p>
                         <div className="flex gap-4">
                             <Link href="#" className="text-white hover:text-dashing-yellow transition-colors"><Facebook size={20} /></Link>

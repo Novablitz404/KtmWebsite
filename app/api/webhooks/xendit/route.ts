@@ -61,6 +61,48 @@ export async function POST(req: NextRequest) {
                     where: { id: registrationId },
                     data: { paymentStatus },
                 })
+            } else if (eventType === 'guest-tournament') {
+                // Update Player payment & registration status
+                await prisma.player.update({
+                    where: { id: registrationId },
+                    data: {
+                        paymentStatus,
+                        ...(paymentStatus === 'PAID' ? { registrationStatus: 'APPROVED' } : {}),
+                    },
+                })
+            } else if (eventType === 'bulk-registration') {
+                // Update BulkRegistration payment status
+                await prisma.bulkRegistration.update({
+                    where: { id: registrationId },
+                    data: { paymentStatus },
+                })
+                // If paid, update all linked Players
+                if (paymentStatus === 'PAID') {
+                    const guestRegs = await prisma.guestRegistration.findMany({
+                        where: { bulkRegistrationId: registrationId },
+                        select: { playerId: true }
+                    })
+                    await prisma.player.updateMany({
+                        where: { id: { in: guestRegs.map(g => g.playerId) } },
+                        data: { paymentStatus: 'PAID', registrationStatus: 'APPROVED' },
+                    })
+                }
+            } else if (eventType === 'affiliation') {
+                // Update ClubAffiliation payment status
+                const updateData: any = { paymentStatus, paymentMethod: 'xendit', xenditInvoiceId: invoiceId }
+                if (paymentStatus === 'PAID') {
+                    const now = new Date()
+                    const expiresAt = new Date(now)
+                    expiresAt.setFullYear(expiresAt.getFullYear() + 1)
+                    updateData.status = 'ACTIVE'
+                    updateData.paidAt = now
+                    updateData.expiresAt = expiresAt
+                    updateData.amountPaid = body.paid_amount || body.amount
+                }
+                await prisma.clubAffiliation.update({
+                    where: { id: registrationId },
+                    data: updateData,
+                })
             }
 
             return NextResponse.json({ success: true })

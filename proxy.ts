@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { EVENT_DOMAIN_MAP } from '@/lib/event-config'
 
 const PUBLIC_ROUTES = new Set([
     '/',
@@ -23,10 +24,12 @@ const PUBLIC_PREFIXES = [
     '/api/poomsae',
     '/api/clubs',
     '/api/v1/onboarding',
+    '/api/event',
     '/tournaments',
     '/tournament/',
     '/rankings',
     '/seminars',
+    '/event/',
 ]
 
 function isPublicRoute(pathname: string): boolean {
@@ -156,6 +159,25 @@ export default async function middleware(request: NextRequest) {
 
     // Set tenant header
     response.headers.set('x-org-slug', orgSlug)
+
+    // ========================================
+    // EVENT DOMAIN DETECTION
+    // If the hostname matches a custom event domain, set the event slug header
+    // Also detect /event/ paths for path-based access (e.g. localhost)
+    // ========================================
+    const eventSlug = EVENT_DOMAIN_MAP[hostname]
+    const pathEventMatch = pathname.match(/^\/event\/([^/]+)/)
+    const resolvedEventSlug = eventSlug || (pathEventMatch ? pathEventMatch[1] : null)
+
+    if (resolvedEventSlug) {
+        // Set on request headers so server components can read via headers()
+        request.headers.set('x-event-slug', resolvedEventSlug)
+        // Recreate response with updated request headers
+        response = NextResponse.next({ request: { headers: request.headers } })
+        response.headers.set('x-org-slug', orgSlug)
+        response.headers.set('x-event-slug', resolvedEventSlug)
+        console.log('[Proxy] event detected:', resolvedEventSlug)
+    }
 
     // Add security headers
     Object.entries(securityHeaders).forEach(([key, value]) => {

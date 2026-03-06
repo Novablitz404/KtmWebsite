@@ -8,6 +8,7 @@ import PlayerRegistration from './PlayerRegistration'
 import TournamentManagers from './TournamentManagers'
 import { getTournamentPlayers, updateTournamentGuidelines } from '@/app/actions'
 import DashboardDataExport from './DashboardDataExport'
+import TournamentSettings from './TournamentSettings'
 import TournamentStatusActions from './TournamentStatusActions'
 import DeleteTournamentButton from './DeleteTournamentButton'
 import {
@@ -265,8 +266,11 @@ export default function TournamentTabs({ tournament, players, pendingManagerInvi
                         <div className="w-full max-w-4xl space-y-8 animate-in fade-in duration-300">
                             <div>
                                 <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-                                <p className="text-gray-500">Configure tournament details and status.</p>
+                                <p className="text-gray-500">Configure tournament details, banner, and status.</p>
                             </div>
+
+                            {/* Banner & Details */}
+                            <TournamentSettings tournament={tournament} />
 
                             {/* Status Section */}
                             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">

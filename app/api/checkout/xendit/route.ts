@@ -17,7 +17,7 @@ import { decrypt } from '@/lib/encryption'
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json()
-        const { eventType, eventId, registrationId, payerEmail, payerName, redirectUrl } = body
+        const { eventType, eventId, registrationId, payerEmail, payerName, redirectUrl, amount: customAmount } = body
 
         if (!eventType || !eventId || !registrationId) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -50,6 +50,33 @@ export async function POST(req: NextRequest) {
             xenditSecretKeyEncrypted = promotionTest.xenditSecretKey
             amount = promotionTest.fee
             eventName = promotionTest.name
+        } else if (eventType === 'guest-tournament') {
+            // Guest registration — uses same tournament Xendit config
+            const tournament = await prisma.tournament.findUnique({ where: { id: eventId } })
+            if (!tournament) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
+            xenditEnabled = tournament.xenditEnabled
+            xenditSecretKeyEncrypted = tournament.xenditSecretKey
+            amount = customAmount || tournament.regularPrice // Use custom amount (with promo discount applied)
+            eventName = tournament.name
+        } else if (eventType === 'bulk-registration') {
+            // Bulk registration — uses same tournament Xendit config
+            const bulkReg = await prisma.bulkRegistration.findUnique({
+                where: { id: registrationId },
+                include: { tournament: true }
+            })
+            if (!bulkReg) return NextResponse.json({ error: 'Bulk registration not found' }, { status: 404 })
+            xenditEnabled = bulkReg.tournament.xenditEnabled
+            xenditSecretKeyEncrypted = bulkReg.tournament.xenditSecretKey
+            amount = bulkReg.totalAmount
+            eventName = bulkReg.tournament.name
+        } else if (eventType === 'affiliation') {
+            // Affiliation payment — uses organization's Xendit config
+            const org = await prisma.organization.findUnique({ where: { id: eventId } })
+            if (!org) return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+            xenditEnabled = org.affiliationXenditEnabled
+            xenditSecretKeyEncrypted = org.affiliationXenditSecretKey
+            amount = customAmount || org.affiliationFee
+            eventName = `${org.name} - Club Affiliation`
         } else {
             return NextResponse.json({ error: 'Invalid event type' }, { status: 400 })
         }
@@ -129,6 +156,26 @@ export async function POST(req: NextRequest) {
             })
         } else if (eventType === 'promotion') {
             await prisma.promotionTestRegistration.update({
+                where: { id: registrationId },
+                data: {
+                    xenditInvoiceId: invoice.id,
+                    xenditPaymentUrl: invoice.invoice_url,
+                    paymentStatus: 'PENDING',
+                },
+            })
+        } else if (eventType === 'guest-tournament') {
+            // Save invoice to the Player record (registrationId = playerId)
+            await prisma.player.update({
+                where: { id: registrationId },
+                data: {
+                    xenditInvoiceId: invoice.id,
+                    xenditPaymentUrl: invoice.invoice_url,
+                    paymentStatus: 'PENDING',
+                },
+            })
+        } else if (eventType === 'bulk-registration') {
+            // Save invoice to the BulkRegistration record
+            await prisma.bulkRegistration.update({
                 where: { id: registrationId },
                 data: {
                     xenditInvoiceId: invoice.id,

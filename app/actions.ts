@@ -1395,6 +1395,15 @@ export async function registerForTournament(input: RegisterForTournamentInput) {
         where: { name: clubName }
     }) : null
 
+    // Check club affiliation
+    if (club) {
+        const { checkClubAffiliation } = await import('@/lib/affiliation')
+        const affiliationCheck = await checkClubAffiliation(club.id)
+        if (!affiliationCheck.isActive) {
+            return { error: affiliationCheck.message }
+        }
+    }
+
     try {
         const playerId = await generatePlayerId()
 
@@ -1527,6 +1536,15 @@ export async function registerForTournamentAuto(input: RegisterAutoInput) {
         })
         if (!club) {
             console.log(`Club not found for name: "${normalizedClubName}"`)
+        }
+
+        // Check club affiliation
+        if (club) {
+            const { checkClubAffiliation } = await import('@/lib/affiliation')
+            const affiliationCheck = await checkClubAffiliation(club.id)
+            if (!affiliationCheck.isActive) {
+                return { error: affiliationCheck.message }
+            }
         }
     }
 
@@ -2056,18 +2074,28 @@ export async function searchClubMembers(clubName: string, query: string) {
     return members
 }
 
-export async function fetchClubMembers(clubName: string, page: number, pageSize: number) {
+export async function fetchClubMembers(clubName: string, page: number, pageSize: number, search?: string) {
     const skip = (page - 1) * pageSize
+
+    const baseWhere: any = { clubName: clubName, role: { in: ['ATHLETE', 'ASSISTANT_CLUB_MASTER'] } }
+
+    // Add search filter if provided
+    if (search && search.trim()) {
+        baseWhere.OR = [
+            { name: { contains: search.trim(), mode: 'insensitive' } },
+            { email: { contains: search.trim(), mode: 'insensitive' } }
+        ]
+    }
 
     const [members, totalCount] = await Promise.all([
         prisma.user.findMany({
-            where: { clubName: clubName, role: { in: ['ATHLETE', 'ASSISTANT_CLUB_MASTER'] } },
+            where: baseWhere,
             orderBy: { name: 'asc' },
             skip,
             take: pageSize
         }),
         prisma.user.count({
-            where: { clubName: clubName, role: { in: ['ATHLETE', 'ASSISTANT_CLUB_MASTER'] } }
+            where: baseWhere
         })
     ])
     // Members already have imageUrl from DB (migrated to Supabase Storage)
@@ -2088,6 +2116,38 @@ import { getClubHomeData } from '@/app/club/data'
 
 export async function fetchClubDashboardData(clubId: string, clubName: string) {
     return await getClubHomeData(clubId, clubName)
+}
+
+export async function getClubAffiliationData(clubId: string) {
+    const { getClubAffiliationStatus } = await import('@/lib/affiliation')
+    const status = await getClubAffiliationStatus(clubId)
+    if (!status || !status.hasOrganization || !status.organizationId) {
+        return { affiliationStatus: null, paymentConfig: null }
+    }
+
+    const org = await prisma.organization.findUnique({
+        where: { id: status.organizationId },
+        select: {
+            affiliationPaymentMethod: true,
+            affiliationQrCodeUrl: true,
+            affiliationBankName: true,
+            affiliationBankAccountNo: true,
+            affiliationBankAccountName: true,
+            affiliationInstructions: true,
+        }
+    })
+
+    return {
+        affiliationStatus: status,
+        paymentConfig: org ? {
+            paymentMethod: org.affiliationPaymentMethod || 'manual',
+            qrCodeUrl: org.affiliationQrCodeUrl,
+            bankName: org.affiliationBankName,
+            bankAccountNo: org.affiliationBankAccountNo,
+            bankAccountName: org.affiliationBankAccountName,
+            instructions: org.affiliationInstructions,
+        } : null
+    }
 }
 
 export async function fetchLandingPageEvents() {
@@ -2889,6 +2949,62 @@ export async function updateTournamentGuidelines(tournamentId: string, guideline
     }
 }
 
+export async function updateTournamentDetails(
+    tournamentId: string,
+    data: {
+        name?: string
+        venue?: string
+        startDate?: string
+        registrationStart?: string
+        registrationEnd?: string
+        earlyBirdDeadline?: string
+        earlyBirdPrice?: number | null
+        regularPrice?: number | null
+        headerImageUrl?: string | null
+    }
+) {
+    const dbUser = await getAuthUser()
+    if (!dbUser) return { success: false, error: 'Unauthorized' }
+
+    try {
+        const tournament = await prisma.tournament.findUnique({
+            where: { id: tournamentId },
+            include: { managers: true }
+        })
+
+        if (!tournament) return { success: false, error: 'Tournament not found' }
+
+        const isOrganizer = tournament.organizerId === dbUser.id
+        const isManager = tournament.managers.some(m => m.id === dbUser.id)
+        const isAdmin = dbUser.role === 'ADMIN'
+
+        if (!isOrganizer && !isManager && !isAdmin) {
+            return { success: false, error: 'Insufficient permissions' }
+        }
+
+        await prisma.tournament.update({
+            where: { id: tournamentId },
+            data: {
+                ...(data.name !== undefined && { name: data.name }),
+                ...(data.venue !== undefined && { venue: data.venue }),
+                ...(data.startDate !== undefined && { startDate: new Date(data.startDate) }),
+                ...(data.registrationStart !== undefined && { registrationStart: data.registrationStart ? new Date(data.registrationStart) : null }),
+                ...(data.registrationEnd !== undefined && { registrationEnd: data.registrationEnd ? new Date(data.registrationEnd) : null }),
+                ...(data.earlyBirdDeadline !== undefined && { earlyBirdDeadline: data.earlyBirdDeadline ? new Date(data.earlyBirdDeadline) : null }),
+                ...(data.earlyBirdPrice !== undefined && { earlyBirdPrice: data.earlyBirdPrice }),
+                ...(data.regularPrice !== undefined && { regularPrice: data.regularPrice }),
+                ...(data.headerImageUrl !== undefined && { headerImageUrl: data.headerImageUrl }),
+            }
+        })
+
+        revalidatePath(`/tournament/${tournamentId}`)
+        return { success: true }
+    } catch (error) {
+        console.error('Failed to update tournament details:', error)
+        return { success: false, error: 'Failed to update tournament details' }
+    }
+}
+
 /**
  * Force executes a proposal (Organiser side or Auto-resolve)
  */
@@ -3167,6 +3283,18 @@ export async function registerForSeminar(formData: FormData) {
     const dbUser = await getAuthUser()
     if (!dbUser) {
         return { error: 'You must be logged in to register' }
+    }
+
+    // 1b. Check club affiliation
+    if (dbUser.clubName) {
+        const club = await prisma.club.findFirst({ where: { name: dbUser.clubName } })
+        if (club) {
+            const { checkClubAffiliation } = await import('@/lib/affiliation')
+            const affiliationCheck = await checkClubAffiliation(club.id)
+            if (!affiliationCheck.isActive) {
+                return { error: affiliationCheck.message }
+            }
+        }
     }
 
     // 2. Fetch player records for this user

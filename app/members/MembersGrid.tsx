@@ -81,10 +81,15 @@ export default function MembersGrid({
         }
     }, [searchParams])
 
+    // Reset to page 1 when search query changes
+    useEffect(() => {
+        setPage(1)
+    }, [searchQuery])
+
     const { data, isLoading } = useQuery({
-        queryKey: ['club-members', clubName, page],
-        queryFn: () => fetchClubMembers(clubName, page, 10),
-        initialData: initialMembers.length > 0 && page === initialPageState ? { members: initialMembers, totalPages: initialTotalPages } : undefined,
+        queryKey: ['club-members', clubName, page, searchQuery],
+        queryFn: () => fetchClubMembers(clubName, page, 10, searchQuery || undefined),
+        initialData: initialMembers.length > 0 && page === initialPageState && !searchQuery ? { members: initialMembers, totalPages: initialTotalPages } : undefined,
         placeholderData: (previousData) => previousData, // Keep previous data while fetching new page
         staleTime: 1000 * 60 // 1 minute
     })
@@ -160,20 +165,8 @@ export default function MembersGrid({
         }
     }
 
-    const rawMembers = data?.members || initialMembers
+    const members = data?.members || initialMembers
     const totalPages = data?.totalPages || initialTotalPages
-
-    // Client-side search filtering
-    const members = searchQuery
-        ? rawMembers.filter(m => {
-            const q = searchQuery.toLowerCase()
-            return (
-                (m.name || '').toLowerCase().includes(q) ||
-                m.email.toLowerCase().includes(q) ||
-                (m.belt || '').toLowerCase().includes(q)
-            )
-        })
-        : rawMembers
 
     const handlePageChange = (newPage: number) => {
         if (newPage >= 1 && newPage <= totalPages) {

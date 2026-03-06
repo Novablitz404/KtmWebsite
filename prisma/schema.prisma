@@ -107,6 +107,11 @@ model Tournament {
 
   smartProposals SmartProposal[]
 
+  // Event Landing Page Relations
+  guestRegistrations GuestRegistration[]
+  promoCodes         PromoCode[]
+  bulkRegistrations  BulkRegistration[]
+
   @@index([startDate])
   @@index([status])
 }
@@ -229,7 +234,8 @@ model Player {
   club   Club?   @relation(fields: [clubId], references: [id])
 
   // Poomsae Relations
-  poomsaeMatches PoomsaeMatch[]
+  poomsaeMatches    PoomsaeMatch[]
+  guestRegistration GuestRegistration?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -255,6 +261,9 @@ model Club {
 
   // Relations
   participatingEvents ClubEventParticipation[]
+  guestRegistrations  GuestRegistration[]
+  bulkRegistrations   BulkRegistration[]
+  affiliations        ClubAffiliation[]
 
   status String @default("PENDING") // PENDING, APPROVED, REJECTED
 
@@ -305,9 +314,23 @@ model Organization {
   parentOrganization      Organization?  @relation("OrganizationAffiliates", fields: [parentOrganizationId], references: [id])
   affiliatedOrganizations Organization[] @relation("OrganizationAffiliates")
 
-  announcements  Announcement[]
-  promotionTests PromotionTest[]
-  seminars       Seminar[]
+  announcements       Announcement[]
+  promotionTests      PromotionTest[]
+  seminars            Seminar[]
+  clubAffiliations    ClubAffiliation[]
+
+  // Affiliation
+  affiliationFee Float? // Annual fee in PHP, e.g. 5000.00
+
+  // Affiliation Payment Config
+  affiliationPaymentMethod String? @default("manual") // "manual" | "xendit"
+  affiliationXenditEnabled Boolean @default(false)
+  affiliationXenditSecretKey String? // Encrypted Xendit API Secret Key for affiliation
+  affiliationQrCodeUrl     String? // QR code image URL for manual payment
+  affiliationBankName      String? // Bank name for manual transfer
+  affiliationBankAccountNo String? // Bank account number
+  affiliationBankAccountName String? // Account holder name
+  affiliationInstructions  String? @db.Text // Additional payment instructions
 
   defaultBeltFees Json? // e.g. {"whiteToPurple": 600, "blueToMaroon": 700, "brown": 800}
 
@@ -685,6 +708,104 @@ model SmartProposalVote {
 }
 
 // ============================================
+// EVENT LANDING PAGE – GUEST REGISTRATION
+// ============================================
+
+model GuestRegistration {
+  id               String   @id @default(cuid())
+  registrationCode String   @unique // Unique code for QR / status lookup (e.g. "EVT-84721")
+
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  playerId String @unique
+  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  // Guest details (snapshot at registration time)
+  email     String
+  fullName  String
+  birthday  DateTime
+  beltRank  String
+  weightKg  Float
+  heightCm  Float
+  gender    String
+  country   String
+
+  // Club selection
+  clubId        String? // FK to existing Club if selected
+  club          Club?   @relation(fields: [clubId], references: [id])
+  clubNameOther String? // Free-text if "Other" selected
+  isIndependent Boolean @default(false)
+
+  // Waiver
+  waiverAccepted   Boolean   @default(false)
+  waiverAcceptedAt DateTime?
+
+  // Promo code
+  promoCodeId    String?
+  promoCode      PromoCode? @relation(fields: [promoCodeId], references: [id])
+  discountApplied Float?
+
+  // Bulk registration link
+  bulkRegistrationId String?
+  bulkRegistration   BulkRegistration? @relation(fields: [bulkRegistrationId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([tournamentId])
+  @@index([email])
+  @@index([bulkRegistrationId])
+}
+
+model PromoCode {
+  id           String     @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  code          String // e.g. "EARLYBIRD20"
+  discountType  String // "PERCENTAGE" or "FIXED"
+  discountValue Float  // 20 (= 20% or 20 PHP depending on type)
+  maxUses       Int?   // null = unlimited
+  currentUses   Int    @default(0)
+  validFrom     DateTime
+  validUntil    DateTime
+  isActive      Boolean  @default(true)
+
+  guestRegistrations GuestRegistration[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([tournamentId, code])
+  @@index([tournamentId])
+}
+
+model BulkRegistration {
+  id           String     @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  clubId      String?
+  club        Club?   @relation(fields: [clubId], references: [id])
+  clubName    String
+  managerEmail String
+  managerName  String
+
+  totalAthletes Int     @default(0)
+  totalAmount   Float   @default(0)
+  paymentStatus String  @default("UNPAID") // UNPAID, PENDING, PAID, EXPIRED
+
+  // Xendit Payment
+  xenditInvoiceId  String? @unique
+  xenditPaymentUrl String?
+
+  guestRegistrations GuestRegistration[]
+
+  createdAt DateTime @default(now())
+
+  @@index([tournamentId])
+}
+
+// ============================================
 // GLOBAL RANKING VIEW
 // ============================================
 view GlobalAthleteRanking {
@@ -701,4 +822,38 @@ view GlobalAthleteRanking {
   globalRank           Int
 
   @@map("GlobalAthleteRanking")
+}
+
+// ============================================
+// CLUB AFFILIATION
+// ============================================
+model ClubAffiliation {
+  id              String   @id @default(cuid())
+  clubId          String
+  club            Club     @relation(fields: [clubId], references: [id])
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+
+  status          String   @default("UNPAID") // UNPAID, ACTIVE, EXPIRED
+  amountPaid      Float?
+  paidAt          DateTime?
+  expiresAt       DateTime?
+
+  // Payment
+  xenditInvoiceId String?
+  paymentStatus   String?  @default("UNPAID") // UNPAID, PENDING, PAID
+  paymentMethod   String?  // "xendit" | "manual"
+
+  // Proof of Payment (manual)
+  proofImageUrl   String?  // Uploaded receipt/proof image
+  proofSubmittedAt DateTime?
+  reviewedBy      String?  // User ID of org admin who reviewed
+  reviewedAt      DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([clubId, organizationId])
+  @@index([status])
+  @@index([expiresAt])
 }

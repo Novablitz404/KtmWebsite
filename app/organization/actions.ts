@@ -2231,3 +2231,178 @@ export async function getOrganizationFinancials() {
         monthlyData,
     }
 }
+
+// ============================================
+// CLUB AFFILIATION FEE MANAGEMENT
+// ============================================
+
+export async function updateAffiliationSettings(data: {
+    affiliationFee?: number
+    affiliationPaymentMethod?: string
+    affiliationQrCodeUrl?: string | null
+    affiliationBankName?: string | null
+    affiliationBankAccountNo?: string | null
+    affiliationBankAccountName?: string | null
+    affiliationInstructions?: string | null
+    affiliationXenditEnabled?: boolean
+    affiliationXenditSecretKey?: string | null
+}) {
+    const user = await getAuthUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return { error: 'No organization found' }
+    if (!['ORGANIZER', 'ADMIN'].includes(dbUser.role)) return { error: 'Only the owner can update affiliation settings' }
+
+    const updateData: any = {}
+    if (data.affiliationFee !== undefined) updateData.affiliationFee = data.affiliationFee
+    if (data.affiliationPaymentMethod !== undefined) updateData.affiliationPaymentMethod = data.affiliationPaymentMethod
+    if (data.affiliationQrCodeUrl !== undefined) updateData.affiliationQrCodeUrl = data.affiliationQrCodeUrl
+    if (data.affiliationBankName !== undefined) updateData.affiliationBankName = data.affiliationBankName
+    if (data.affiliationBankAccountNo !== undefined) updateData.affiliationBankAccountNo = data.affiliationBankAccountNo
+    if (data.affiliationBankAccountName !== undefined) updateData.affiliationBankAccountName = data.affiliationBankAccountName
+    if (data.affiliationInstructions !== undefined) updateData.affiliationInstructions = data.affiliationInstructions
+    if (data.affiliationXenditEnabled !== undefined) updateData.affiliationXenditEnabled = data.affiliationXenditEnabled
+    if (data.affiliationXenditSecretKey !== undefined) {
+        updateData.affiliationXenditSecretKey = data.affiliationXenditSecretKey
+            ? encrypt(data.affiliationXenditSecretKey)
+            : null
+    }
+
+    await prisma.organization.update({
+        where: { id: dbUser.organization.id },
+        data: updateData
+    })
+
+    revalidatePath('/organization')
+    return { success: true }
+}
+
+export async function getClubAffiliations() {
+    const user = await getAuthUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return { error: 'No organization found' }
+    if (!['ORGANIZER', 'MANAGER', 'ADMIN'].includes(dbUser.role)) return { error: 'Unauthorized' }
+
+    const orgId = dbUser.organization.id
+
+    // Get all clubs under this org with their affiliation records
+    const clubs = await prisma.club.findMany({
+        where: { organizationId: orgId },
+        include: {
+            master: { select: { name: true, email: true } },
+            affiliations: {
+                where: { organizationId: orgId },
+                take: 1,
+                orderBy: { createdAt: 'desc' }
+            },
+            _count: {
+                select: {
+                    students: { where: { registrationStatus: 'APPROVED' } }
+                }
+            }
+        },
+        orderBy: { name: 'asc' }
+    })
+
+    return {
+        success: true,
+        clubs: clubs.map(c => ({
+            id: c.id,
+            name: c.name,
+            masterName: c.master.name,
+            masterEmail: c.master.email,
+            memberCount: c._count.students,
+            affiliation: c.affiliations[0] || null,
+        })),
+        orgFee: dbUser.organization.affiliationFee,
+        paymentMethod: dbUser.organization.affiliationPaymentMethod,
+    }
+}
+
+export async function approveAffiliationProof(affiliationId: string) {
+    const user = await getAuthUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return { error: 'No organization found' }
+    if (!['ORGANIZER', 'MANAGER', 'ADMIN'].includes(dbUser.role)) return { error: 'Unauthorized' }
+
+    const affiliation = await prisma.clubAffiliation.findUnique({
+        where: { id: affiliationId }
+    })
+
+    if (!affiliation || affiliation.organizationId !== dbUser.organization.id) {
+        return { error: 'Affiliation not found' }
+    }
+
+    const now = new Date()
+    const expiresAt = new Date(now)
+    expiresAt.setFullYear(expiresAt.getFullYear() + 1)
+
+    await prisma.clubAffiliation.update({
+        where: { id: affiliationId },
+        data: {
+            status: 'ACTIVE',
+            paymentStatus: 'PAID',
+            paidAt: now,
+            expiresAt,
+            amountPaid: dbUser.organization.affiliationFee,
+            reviewedBy: dbUser.id,
+            reviewedAt: now,
+        }
+    })
+
+    revalidatePath('/organization')
+    return { success: true }
+}
+
+export async function rejectAffiliationProof(affiliationId: string) {
+    const user = await getAuthUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return { error: 'No organization found' }
+    if (!['ORGANIZER', 'MANAGER', 'ADMIN'].includes(dbUser.role)) return { error: 'Unauthorized' }
+
+    const affiliation = await prisma.clubAffiliation.findUnique({
+        where: { id: affiliationId }
+    })
+
+    if (!affiliation || affiliation.organizationId !== dbUser.organization.id) {
+        return { error: 'Affiliation not found' }
+    }
+
+    await prisma.clubAffiliation.update({
+        where: { id: affiliationId },
+        data: {
+            status: 'UNPAID',
+            paymentStatus: 'UNPAID',
+            proofImageUrl: null,
+            proofSubmittedAt: null,
+            reviewedBy: dbUser.id,
+            reviewedAt: new Date(),
+        }
+    })
+
+    revalidatePath('/organization')
+    return { success: true }
+}

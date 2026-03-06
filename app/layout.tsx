@@ -25,9 +25,31 @@ import QueryProvider from '@/app/providers/QueryProvider'
 import PageTransition from '@/components/PageTransition'
 import { TenantProvider } from '@/app/providers/TenantProvider'
 import { getTenant } from '@/lib/tenant'
+import { getEventConfig } from '@/lib/event-config'
 
 export async function generateMetadata(): Promise<Metadata> {
   const tenant = await getTenant()
+  const headersList = await import('next/headers').then(mod => mod.headers())
+  const eventSlug = headersList.get('x-event-slug')
+
+  // Event-specific metadata
+  if (eventSlug) {
+    const eventConfig = getEventConfig(eventSlug)
+    if (eventConfig) {
+      return {
+        title: eventConfig.title || eventConfig.name,
+        description: eventConfig.description || `Register for ${eventConfig.name}`,
+        icons: {
+          icon: eventConfig.faviconUrl || '/favicon.ico',
+        },
+        openGraph: eventConfig.ogImageUrl ? {
+          images: [{ url: eventConfig.ogImageUrl }],
+        } : undefined,
+      }
+    }
+  }
+
+  // Default tenant metadata
   return {
     title: tenant.name,
     description: tenant.tagline || 'Taekwondo management platform',
@@ -43,6 +65,8 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const tenant = await getTenant()
+  const headersList = await import('next/headers').then(mod => mod.headers())
+  const isEventPage = !!headersList.get('x-event-slug')
 
   return (
     <AuthProvider>
@@ -60,12 +84,17 @@ export default async function RootLayout({
           <QueryProvider>
             <TenantProvider tenant={tenant}>
               <Toaster position="top-center" richColors />
-              <AuthLoadingWrapper>
-                {tenant.slug === 'ktm' && <Header />}
-                <PageTransition>
-                  {children}
-                </PageTransition>
-              </AuthLoadingWrapper>
+              {isEventPage ? (
+                // Event pages: no header, no auth wrapper, no page transition
+                children
+              ) : (
+                <AuthLoadingWrapper>
+                  {tenant.slug === 'ktm' && <Header />}
+                  <PageTransition>
+                    {children}
+                  </PageTransition>
+                </AuthLoadingWrapper>
+              )}
             </TenantProvider>
           </QueryProvider>
         </body>

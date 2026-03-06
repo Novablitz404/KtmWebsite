@@ -5,6 +5,7 @@ import OrganizationTransferOwnership from '@/components/organization/Organizatio
 import SettingsSubTabs from './SettingsSubTabs'
 import SecurityForm from './SecurityForm'
 import NetworkSettingsContent from './NetworkSettingsContent'
+import OrganizationAffiliationManager from '@/components/OrganizationAffiliationManager'
 
 interface OrganizationSettingsViewProps {
     dbUser: {
@@ -256,6 +257,9 @@ export default async function OrganizationSettingsView({ dbUser, organization, c
                     <p className="text-xs text-gray-500 text-center">Applied automatically to new promotion tests</p>
                 </div>
             </div>
+
+            {/* Club Affiliation Fees */}
+            <OrganizationAffiliationManager organizationId={organization.id} />
 
             {/* Transfer Ownership */}
             {organization && (

@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from 'react'
 import { Upload, X, Home, Settings, ClipboardList, Users, Bell, Trophy, Medal, Clock, Search, Calendar, Zap, ChevronLeft, ChevronRight, Loader2, Camera } from 'lucide-react'
 import Link from 'next/link'
-import { approveRegistrations, unapproveRegistration, deleteRegistration, updatePlayerDetails, bulkUnapproveRegistrations, bulkDeleteRegistrations, fetchClubDashboardData, removeMemberFromClub, updateClubMember, getClubSmartProposals } from '@/app/actions'
+import { approveRegistrations, unapproveRegistration, deleteRegistration, updatePlayerDetails, bulkUnapproveRegistrations, bulkDeleteRegistrations, fetchClubDashboardData, removeMemberFromClub, updateClubMember, getClubSmartProposals, getClubAffiliationData } from '@/app/actions'
 import { uploadMemberAvatar } from '@/app/club/actions'
 import { updateRegistrationStatus, deletePromotionRegistration } from '@/app/promotions/actions'
 import { approveSeminarRegistration, unapproveSeminarRegistration, deleteSeminarRegistration, updateSeminarRegistrationStatus, updateSeminarParticipantDetails } from '@/app/seminars/actions'
@@ -26,6 +26,7 @@ import ClubEventBrowser from './ClubEventBrowser'
 import AddAthleteModal from '@/components/club/AddAthleteModal'
 import CreateMemberModal from '@/components/club/CreateMemberModal'
 import ClubActionCenterModal from './ClubActionCenter'
+import ClubAffiliationCard from '@/components/ClubAffiliationCard'
 
 interface Player {
     id: string
@@ -270,12 +271,24 @@ export default function ClubDashboard({
     const [isActionModalOpen, setIsActionModalOpen] = useState(false)
     const alertCount = proposals?.filter((p: any) => !p.myVote).length || 0
 
+    // Affiliation data
+    const { data: affiliationData } = useQuery({
+        queryKey: ['club-affiliation', clubId],
+        queryFn: () => getClubAffiliationData(clubId),
+        staleTime: 1000 * 60
+    })
+
 
 
     // URL Search Support for Members
     const pathname = usePathname()
 
-    // Members search is now handled client-side via membersSearchQuery state
+    // Reset registration page when search query changes
+    useEffect(() => {
+        setRegistrationsPage(1)
+    }, [registrationSearchQuery])
+
+    // Members search is now handled server-side via MembersGrid
 
     // Loading state is now handled inline within the views
 
@@ -786,6 +799,14 @@ export default function ClubDashboard({
 
                                     {/* Right Column - Sidebar Widgets */}
                                     <div className="flex flex-col gap-6 h-auto md:h-full overflow-visible md:overflow-hidden">
+                                        {/* Affiliation Card */}
+                                        {affiliationData?.affiliationStatus && (
+                                            <ClubAffiliationCard
+                                                clubId={clubId}
+                                                affiliationStatus={affiliationData.affiliationStatus}
+                                                paymentConfig={affiliationData.paymentConfig}
+                                            />
+                                        )}
                                         {/* Upcoming Events - Swapped to top */}
                                         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col flex-1">
                                             <div className="flex items-center justify-between mb-4 flex-shrink-0">
@@ -1488,90 +1509,90 @@ export default function ClubDashboard({
                                                         </div>
                                                     )}
 
-                                                    {/* Pagination */}
-                                                    {(() => {
-                                                        const totalPages = registrationType === 'TOURNAMENT' ? totalRegistrationPages : registrationType === 'PROMOTION' ? totalPromotionPages : totalSeminarPages
-                                                        const totalItems = registrationType === 'TOURNAMENT' ? filteredRegistrations.length : registrationType === 'PROMOTION' ? filteredPromotions.length : filteredSeminars.length
-                                                        if (totalPages <= 1) return null
-                                                        return (
-                                                            <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white flex items-center justify-between">
-                                                                <span className="text-xs text-gray-500 font-medium">
-                                                                    Showing {((registrationsPage - 1) * registrationsPerPage) + 1}–{Math.min(registrationsPage * registrationsPerPage, totalItems)} of {totalItems}
-                                                                </span>
-                                                                <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-100">
-                                                                    <button
-                                                                        onClick={() => setRegistrationsPage(p => Math.max(1, p - 1))}
-                                                                        disabled={registrationsPage === 1}
-                                                                        className={`p-2 rounded-lg transition-all ${registrationsPage <= 1
-                                                                            ? 'text-gray-300 cursor-not-allowed hidden'
-                                                                            : 'text-gray-700 hover:bg-white hover:shadow-sm hover:text-gray-900 active:scale-95'
-                                                                            }`}
-                                                                    >
-                                                                        <ChevronLeft className="w-5 h-5" />
-                                                                    </button>
-                                                                    <div className="flex items-center gap-1.5 px-3">
-                                                                        <span className="text-sm font-bold text-gray-900">Page {registrationsPage}</span>
-                                                                        <span className="text-xs text-gray-400 font-medium">of {totalPages}</span>
-                                                                    </div>
-                                                                    <button
-                                                                        onClick={() => setRegistrationsPage(p => Math.min(totalPages, p + 1))}
-                                                                        disabled={registrationsPage >= totalPages}
-                                                                        className={`p-2 rounded-lg transition-all ${registrationsPage >= totalPages
-                                                                            ? 'text-gray-300 cursor-not-allowed hidden'
-                                                                            : 'text-gray-700 hover:bg-white hover:shadow-sm hover:text-gray-900 active:scale-95'
-                                                                            }`}
-                                                                    >
-                                                                        <ChevronRight className="w-5 h-5" />
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        )
-                                                    })()}
+                                                </div>
 
-                                                    {/* Floating Bulk Action Bar - appears when items selected */}
-                                                    {bulkSelectMode && (
-                                                        <div className="fixed bottom-6 left-4 right-4 md:left-64 bg-gray-900 text-white rounded-2xl shadow-xl p-3 z-40 animate-in slide-in-from-bottom-4 duration-200">
-                                                            <div className="flex items-center justify-between">
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="text-sm font-medium">{selectedRegistrationIds.size} selected</span>
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            setSelectedRegistrationIds(new Set())
-                                                                            setBulkSelectMode(false)
-                                                                        }}
-                                                                        className="text-xs text-gray-400 hover:text-white"
-                                                                    >
-                                                                        Cancel
-                                                                    </button>
+                                                {/* Pagination - pinned at bottom */}
+                                                {(() => {
+                                                    const totalPages = registrationType === 'TOURNAMENT' ? totalRegistrationPages : registrationType === 'PROMOTION' ? totalPromotionPages : totalSeminarPages
+                                                    const totalItems = registrationType === 'TOURNAMENT' ? filteredRegistrations.length : registrationType === 'PROMOTION' ? filteredPromotions.length : filteredSeminars.length
+                                                    if (totalPages <= 1) return null
+                                                    return (
+                                                        <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white flex items-center justify-between">
+                                                            <span className="text-xs text-gray-500 font-medium">
+                                                                Showing {((registrationsPage - 1) * registrationsPerPage) + 1}–{Math.min(registrationsPage * registrationsPerPage, totalItems)} of {totalItems}
+                                                            </span>
+                                                            <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-100">
+                                                                <button
+                                                                    onClick={() => setRegistrationsPage(p => Math.max(1, p - 1))}
+                                                                    disabled={registrationsPage === 1}
+                                                                    className={`p-2 rounded-lg transition-all ${registrationsPage <= 1
+                                                                        ? 'text-gray-300 cursor-not-allowed hidden'
+                                                                        : 'text-gray-700 hover:bg-white hover:shadow-sm hover:text-gray-900 active:scale-95'
+                                                                        }`}
+                                                                >
+                                                                    <ChevronLeft className="w-5 h-5" />
+                                                                </button>
+                                                                <div className="flex items-center gap-1.5 px-3">
+                                                                    <span className="text-sm font-bold text-gray-900">Page {registrationsPage}</span>
+                                                                    <span className="text-xs text-gray-400 font-medium">of {totalPages}</span>
                                                                 </div>
-                                                                <div className="flex items-center gap-2">
-                                                                    <button
-                                                                        onClick={handleBulkApprove}
-                                                                        disabled={submitting || selectedRegistrationIds.size === 0}
-                                                                        className="px-3 py-1.5 text-xs font-medium bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50"
-                                                                    >
-                                                                        Approve
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={handleBulkUnapprove}
-                                                                        disabled={submitting || selectedRegistrationIds.size === 0}
-                                                                        className="px-3 py-1.5 text-xs font-medium bg-yellow-600 hover:bg-yellow-700 rounded-lg disabled:opacity-50"
-                                                                    >
-                                                                        Unapprove
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={handleBulkDelete}
-                                                                        disabled={submitting || selectedRegistrationIds.size === 0}
-                                                                        className="px-3 py-1.5 text-xs font-medium bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-50"
-                                                                    >
-                                                                        Delete
-                                                                    </button>
-                                                                </div>
+                                                                <button
+                                                                    onClick={() => setRegistrationsPage(p => Math.min(totalPages, p + 1))}
+                                                                    disabled={registrationsPage >= totalPages}
+                                                                    className={`p-2 rounded-lg transition-all ${registrationsPage >= totalPages
+                                                                        ? 'text-gray-300 cursor-not-allowed hidden'
+                                                                        : 'text-gray-700 hover:bg-white hover:shadow-sm hover:text-gray-900 active:scale-95'
+                                                                        }`}
+                                                                >
+                                                                    <ChevronRight className="w-5 h-5" />
+                                                                </button>
                                                             </div>
                                                         </div>
-                                                    )}
+                                                    )
+                                                })()}
 
-                                                </div>
+                                                {/* Floating Bulk Action Bar - appears when items selected */}
+                                                {bulkSelectMode && (
+                                                    <div className="fixed bottom-6 left-4 right-4 md:left-64 bg-gray-900 text-white rounded-2xl shadow-xl p-3 z-40 animate-in slide-in-from-bottom-4 duration-200">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-sm font-medium">{selectedRegistrationIds.size} selected</span>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setSelectedRegistrationIds(new Set())
+                                                                        setBulkSelectMode(false)
+                                                                    }}
+                                                                    className="text-xs text-gray-400 hover:text-white"
+                                                                >
+                                                                    Cancel
+                                                                </button>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <button
+                                                                    onClick={handleBulkApprove}
+                                                                    disabled={submitting || selectedRegistrationIds.size === 0}
+                                                                    className="px-3 py-1.5 text-xs font-medium bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50"
+                                                                >
+                                                                    Approve
+                                                                </button>
+                                                                <button
+                                                                    onClick={handleBulkUnapprove}
+                                                                    disabled={submitting || selectedRegistrationIds.size === 0}
+                                                                    className="px-3 py-1.5 text-xs font-medium bg-yellow-600 hover:bg-yellow-700 rounded-lg disabled:opacity-50"
+                                                                >
+                                                                    Unapprove
+                                                                </button>
+                                                                <button
+                                                                    onClick={handleBulkDelete}
+                                                                    disabled={submitting || selectedRegistrationIds.size === 0}
+                                                                    className="px-3 py-1.5 text-xs font-medium bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-50"
+                                                                >
+                                                                    Delete
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
 
 
                                             </>
