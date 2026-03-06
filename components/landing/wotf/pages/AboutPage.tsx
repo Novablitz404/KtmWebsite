@@ -54,7 +54,7 @@ export default function WOTFAboutPage() {
                                 <div className="absolute bottom-8 left-8 right-8">
                                     <div className="bg-white/10 backdrop-blur-md border border-white/20 p-6 rounded-xl">
                                         <p className="text-white font-bold italic text-lg">
-                                            &quot;Elevate Taekwondo beyond medals and podiums.&quot;
+                                            &quot;One Mat. One World. One Olympic Pathway.&quot;
                                         </p>
                                     </div>
                                 </div>
@@ -63,19 +63,39 @@ export default function WOTFAboutPage() {
 
                         <MotionWrapper direction="left" delay={0.3}>
                             <h2 className="text-4xl md:text-5xl font-black text-congo-blue uppercase tracking-tighter mb-8">
-                                The <span className="text-spanish-red">Mandate</span>
+                                WOTF Philippines <span className="text-spanish-red">Mandate</span>
                             </h2>
                             <div className="space-y-6 text-gray-600 text-lg leading-relaxed">
                                 <p>
-                                    The <span className="font-bold text-gray-900">World Olympics Taekwondo Federation</span> is not simply an organizing body. It is a governance mandate.
+                                    The <span className="font-bold text-gray-900">World Olympics Taekwondo Federation Philippines</span> serves as a national platform for athlete development, instructor education, and international cooperation grounded in the values of Olympism.
                                 </p>
                                 <p>
-                                    WOTF exists to elevate Taekwondo beyond medals and podiums to <span className="font-bold text-spanish-red">protect athletes</span>, uphold integrity, and restore purpose to competition.
+                                    WOTF Philippines works to build a structured pathway that supports athletes from grassroots participation to elite international competition while strengthening the community of masters, instructors, and dojangs across the country.
                                 </p>
                                 <p>
-                                    In a sporting landscape where events often prioritize scale and spectacle, WOTF prioritizes <span className="font-bold text-congo-blue">stewardship</span>. Athlete welfare supersedes brackets, medals, and scheduling. Youth protection is non-negotiable.
+                                    Through national programs, technical development, and world class championships, WOTF Philippines creates opportunities for Filipino athletes to <span className="font-bold text-spanish-red">grow, compete, and represent the nation</span> with honor.
                                 </p>
                             </div>
+
+                            {/* Mission & Vision */}
+                            <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-5">
+                                <div className="p-6 bg-congo-blue/5 border border-congo-blue/10 rounded-2xl">
+                                    <h3 className="text-sm font-black text-congo-blue uppercase tracking-widest mb-3">Mission</h3>
+                                    <p className="text-gray-600 text-sm leading-relaxed">
+                                        To develop Filipino Taekwondo athletes through structured programs, instructor education, and international level competitions guided by Athlete First governance and Olympic values.
+                                    </p>
+                                </div>
+                                <div className="p-6 bg-spanish-red/5 border border-spanish-red/10 rounded-2xl">
+                                    <h3 className="text-sm font-black text-spanish-red uppercase tracking-widest mb-3">Vision</h3>
+                                    <p className="text-gray-600 text-sm leading-relaxed">
+                                        To strengthen the Philippine Taekwondo community and contribute to the global Taekwondo Olympic Movement by inspiring the next generation of athletes and leaders.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <p className="mt-8 text-xl font-black text-congo-blue uppercase tracking-wider text-center sm:text-left">
+                                One Mat. One World. One Olympic Pathway.
+                            </p>
                         </MotionWrapper>
                     </div>
                 </div>

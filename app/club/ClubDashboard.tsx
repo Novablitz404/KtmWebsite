@@ -737,11 +737,32 @@ export default function ClubDashboard({
                     {activeView === 'home' && (
                         <>
                             {/* Desktop Home View - Full dashboard */}
-                            <div className="relative animate-in fade-in duration-300 p-4 md:p-6 h-auto md:h-[calc(100vh-80px)] overflow-visible md:overflow-hidden">
+                            <div className="relative animate-in fade-in duration-300 p-4 md:p-6 h-auto md:h-[calc(100vh-80px)] overflow-visible md:overflow-y-auto">
 
 
 
                                 {/* Main 2-Column Layout */}
+                                {/* Affiliation Alert Banner */}
+                                {affiliationData?.affiliationStatus && affiliationData.affiliationStatus.status !== 'ACTIVE' && (
+                                    <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl mb-4">
+                                        <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                                            <Bell className="w-4 h-4 text-amber-600" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-amber-800">
+                                                Your club affiliation is {affiliationData.affiliationStatus.status === 'EXPIRED' ? 'expired' : 'unpaid'}.
+                                                Athletes may not be able to register for events.
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => setActiveView('settings')}
+                                            className="flex-shrink-0 px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 transition-colors"
+                                        >
+                                            Go to Settings
+                                        </button>
+                                    </div>
+                                )}
+
                                 <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6 h-auto md:h-full">
 
                                     {/* Left Column - Main Content */}
@@ -799,14 +820,6 @@ export default function ClubDashboard({
 
                                     {/* Right Column - Sidebar Widgets */}
                                     <div className="flex flex-col gap-6 h-auto md:h-full overflow-visible md:overflow-hidden">
-                                        {/* Affiliation Card */}
-                                        {affiliationData?.affiliationStatus && (
-                                            <ClubAffiliationCard
-                                                clubId={clubId}
-                                                affiliationStatus={affiliationData.affiliationStatus}
-                                                paymentConfig={affiliationData.paymentConfig}
-                                            />
-                                        )}
                                         {/* Upcoming Events - Swapped to top */}
                                         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col flex-1">
                                             <div className="flex items-center justify-between mb-4 flex-shrink-0">

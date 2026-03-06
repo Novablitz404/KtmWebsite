@@ -3,6 +3,7 @@ import ClubSettingsButton from '@/app/components/ClubSettingsButton'
 import LogoutButton from '@/components/LogoutButton'
 import ClubSettingsSubTabs from './ClubSettingsSubTabs'
 import SecurityForm from './SecurityForm'
+import AffiliationCardLoader from '@/components/AffiliationCardLoader'
 
 
 interface ClubMasterProfileViewProps {
@@ -196,6 +197,28 @@ export default async function ClubMasterProfileView({ dbUser, club, clerkImageUr
             profileContent={profileContent}
             clubContent={clubContent}
             securityContent={<SecurityForm />}
+            affiliationContent={club ? <AffiliationTabContent clubId={club.id} /> : undefined}
         />
+    )
+}
+
+// Client-side wrapper that fetches affiliation data for the settings tab
+function AffiliationTabContent({ clubId }: { clubId: string }) {
+    // This is rendered inside a client component (ClubSettingsSubTabs),
+    // so we need to use the 'use client' wrapper approach.
+    // The actual data fetching happens in ClubAffiliationCard via useQuery in ClubDashboard.
+    // We'll render a placeholder that tells the user to check the component.
+    return (
+        <div className="space-y-4">
+            <div className="bg-white sm:rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100">
+                    <h2 className="text-lg font-semibold text-gray-900">Organization Affiliation</h2>
+                    <p className="text-sm text-gray-500 mt-1">Manage your club&apos;s affiliation status and payment</p>
+                </div>
+                <div className="p-6">
+                    <AffiliationCardLoader clubId={clubId} />
+                </div>
+            </div>
+        </div>
     )
 }

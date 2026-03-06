@@ -326,11 +326,12 @@ model Organization {
   affiliationPaymentMethod String? @default("manual") // "manual" | "xendit"
   affiliationXenditEnabled Boolean @default(false)
   affiliationXenditSecretKey String? // Encrypted Xendit API Secret Key for affiliation
-  affiliationQrCodeUrl     String? // QR code image URL for manual payment
-  affiliationBankName      String? // Bank name for manual transfer
-  affiliationBankAccountNo String? // Bank account number
-  affiliationBankAccountName String? // Account holder name
+  affiliationQrCodeUrl     String? // Legacy single QR code
+  affiliationBankName      String? // Legacy single bank
+  affiliationBankAccountNo String? // Legacy single account
+  affiliationBankAccountName String? // Legacy single account name
   affiliationInstructions  String? @db.Text // Additional payment instructions
+  affiliationPaymentMethods Json? // Array of { id, label, bankName, accountNo, accountName, qrCodeUrl }
 
   defaultBeltFees Json? // e.g. {"whiteToPurple": 600, "blueToMaroon": 700, "brown": 800}
 

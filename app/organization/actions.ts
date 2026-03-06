@@ -37,8 +37,13 @@ export async function getOrganizationDashboardData() {
         prisma.club.findMany({
             where: { organizationId: orgId },
             include: {
-                students: true, // Still needed for player-specific data if any
-                master: true
+                students: true,
+                master: true,
+                affiliations: {
+                    where: { organizationId: orgId },
+                    take: 1,
+                    orderBy: { createdAt: 'desc' as const }
+                }
             }
         }),
 
@@ -142,10 +147,20 @@ export async function getOrganizationDashboardData() {
             name: c.name,
             logoUrl: c.logoUrl,
             masterName: c.master?.name || "Unknown",
+            masterEmail: c.master?.email || null,
+            masterImageUrl: c.master?.imageUrl || null,
+            masterBelt: c.master?.belt || null,
+            masterGender: c.master?.gender || null,
+            masterCountry: c.master?.country || null,
             memberCount: memberCountMap.get(c.name) || 0,
             contactPhone: c.phone,
             address: c.address,
-            status: c.status
+            status: c.status,
+            affiliationStatus: (c as any).affiliations?.[0]?.status || 'UNPAID',
+            affiliationExpiresAt: (c as any).affiliations?.[0]?.expiresAt || null,
+            affiliationPaidAt: (c as any).affiliations?.[0]?.paidAt || null,
+            affiliationProofImageUrl: (c as any).affiliations?.[0]?.proofImageUrl || null,
+            affiliationId: (c as any).affiliations?.[0]?.id || null,
         })),
         affiliatedOrgs: affiliatedOrgsWithStats,
         recentMembers,
@@ -2239,13 +2254,10 @@ export async function getOrganizationFinancials() {
 export async function updateAffiliationSettings(data: {
     affiliationFee?: number
     affiliationPaymentMethod?: string
-    affiliationQrCodeUrl?: string | null
-    affiliationBankName?: string | null
-    affiliationBankAccountNo?: string | null
-    affiliationBankAccountName?: string | null
     affiliationInstructions?: string | null
     affiliationXenditEnabled?: boolean
     affiliationXenditSecretKey?: string | null
+    affiliationPaymentMethods?: any[] | null
 }) {
     const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
@@ -2261,12 +2273,9 @@ export async function updateAffiliationSettings(data: {
     const updateData: any = {}
     if (data.affiliationFee !== undefined) updateData.affiliationFee = data.affiliationFee
     if (data.affiliationPaymentMethod !== undefined) updateData.affiliationPaymentMethod = data.affiliationPaymentMethod
-    if (data.affiliationQrCodeUrl !== undefined) updateData.affiliationQrCodeUrl = data.affiliationQrCodeUrl
-    if (data.affiliationBankName !== undefined) updateData.affiliationBankName = data.affiliationBankName
-    if (data.affiliationBankAccountNo !== undefined) updateData.affiliationBankAccountNo = data.affiliationBankAccountNo
-    if (data.affiliationBankAccountName !== undefined) updateData.affiliationBankAccountName = data.affiliationBankAccountName
     if (data.affiliationInstructions !== undefined) updateData.affiliationInstructions = data.affiliationInstructions
     if (data.affiliationXenditEnabled !== undefined) updateData.affiliationXenditEnabled = data.affiliationXenditEnabled
+    if (data.affiliationPaymentMethods !== undefined) updateData.affiliationPaymentMethods = data.affiliationPaymentMethods
     if (data.affiliationXenditSecretKey !== undefined) {
         updateData.affiliationXenditSecretKey = data.affiliationXenditSecretKey
             ? encrypt(data.affiliationXenditSecretKey)
@@ -2315,6 +2324,19 @@ export async function getClubAffiliations() {
         orderBy: { name: 'asc' }
     })
 
+    const org = dbUser.organization
+    const savedMethods = (org as any).affiliationPaymentMethods || []
+
+    // Fallback: build from legacy single fields if new JSON is empty
+    const legacyMethod = savedMethods.length === 0 && org.affiliationBankName ? [{
+        id: 'legacy',
+        label: org.affiliationBankName,
+        bankName: org.affiliationBankName,
+        accountNo: org.affiliationBankAccountNo || '',
+        accountName: org.affiliationBankAccountName || '',
+        qrCodeUrl: org.affiliationQrCodeUrl || null,
+    }] : []
+
     return {
         success: true,
         clubs: clubs.map(c => ({
@@ -2325,8 +2347,10 @@ export async function getClubAffiliations() {
             memberCount: c._count.students,
             affiliation: c.affiliations[0] || null,
         })),
-        orgFee: dbUser.organization.affiliationFee,
-        paymentMethod: dbUser.organization.affiliationPaymentMethod,
+        orgFee: org.affiliationFee,
+        paymentMethod: org.affiliationPaymentMethod,
+        paymentMethods: savedMethods.length > 0 ? savedMethods : legacyMethod,
+        instructions: org.affiliationInstructions,
     }
 }
 
@@ -2400,6 +2424,62 @@ export async function rejectAffiliationProof(affiliationId: string) {
             proofSubmittedAt: null,
             reviewedBy: dbUser.id,
             reviewedAt: new Date(),
+        }
+    })
+
+    revalidatePath('/organization')
+    return { success: true }
+}
+
+export async function manuallyActivateAffiliation(clubId: string) {
+    const user = await getAuthUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return { error: 'No organization found' }
+    if (!['ORGANIZER', 'MANAGER', 'ADMIN'].includes(dbUser.role)) return { error: 'Unauthorized' }
+
+    const orgId = dbUser.organization.id
+    const fee = dbUser.organization.affiliationFee || 0
+
+    // Verify the club belongs to this organization
+    const club = await prisma.club.findFirst({
+        where: { id: clubId, organizationId: orgId }
+    })
+    if (!club) return { error: 'Club not found in your organization' }
+
+    const now = new Date()
+    const expiresAt = new Date(now)
+    expiresAt.setFullYear(expiresAt.getFullYear() + 1)
+
+    // Upsert — create if no record exists, update if one does
+    await prisma.clubAffiliation.upsert({
+        where: { clubId_organizationId: { clubId, organizationId: orgId } },
+        create: {
+            clubId,
+            organizationId: orgId,
+            status: 'ACTIVE',
+            paymentStatus: 'PAID',
+            paymentMethod: 'manual',
+            amountPaid: fee,
+            paidAt: now,
+            expiresAt,
+            reviewedBy: dbUser.id,
+            reviewedAt: now,
+        },
+        update: {
+            status: 'ACTIVE',
+            paymentStatus: 'PAID',
+            paymentMethod: 'manual',
+            amountPaid: fee,
+            paidAt: now,
+            expiresAt,
+            reviewedBy: dbUser.id,
+            reviewedAt: now,
         }
     })
 

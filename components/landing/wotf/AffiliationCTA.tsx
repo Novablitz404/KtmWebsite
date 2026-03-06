@@ -29,8 +29,8 @@ const AffiliationCTA = () => {
                             <span className="text-dashing-yellow">Greater</span>
                         </h2>
                         <p className="text-white/70 text-base md:text-lg max-w-2xl mx-auto mb-10 leading-relaxed">
-                            Whether you&apos;re an athlete, coach, or club owner — WOTF provides the platform,
-                            recognition, and community to elevate your taekwondo journey.
+                            Whether you are an athlete, master, or dojang owner, WOTF Philippines provides the platform, 
+                            recognition, and community to elevate your Taekwondo journey.
                         </p>
                     </MotionWrapper>
 

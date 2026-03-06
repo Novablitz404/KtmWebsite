@@ -53,29 +53,17 @@ const EventCard = ({ event, index }: { event: EventCardProps; index: number }) =
             className={`group relative bg-white rounded-2xl border ${palette.border} shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden h-full`}
         >
             {/* Banner Image Area */}
-            <div className={`h-40 relative overflow-hidden ${event.image.startsWith('bg-') ? event.image : 'bg-gray-100'}`}>
+            <div className={`relative overflow-hidden ${event.image.startsWith('bg-') ? `h-48 ${event.image}` : ''}`}>
                 {!event.image.startsWith('bg-') && (
                     <img
                         src={event.image}
                         alt={event.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        className="w-full h-auto block group-hover:scale-105 transition-transform duration-500"
                     />
                 )}
-                {/* Overlay Gradient for readability if we put text over it, but here just for style */}
-                <div className={`absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none`} />
+                {/* No overlay — show banner at full brightness */}
 
-                {/* Status Badge */}
-                <div className="absolute top-3 right-3">
-                    <span className={`
-                        px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm
-                        ${event.status === 'open' ? 'text-emerald-600' : ''}
-                        ${event.status === 'upcoming' ? 'text-amber-600' : ''}
-                        ${event.status === 'sold-out' ? 'text-gray-500' : ''}
-                        ${event.status === 'completed' ? 'text-gray-500' : ''}
-                    `}>
-                        {event.status.replace('-', ' ')}
-                    </span>
-                </div>
+
             </div>
 
             {/* Top Accent Bar under image */}
@@ -136,8 +124,8 @@ const EventCard = ({ event, index }: { event: EventCardProps; index: number }) =
 
                 {/* Footer Action */}
                 <div className="mt-auto pt-4 border-t border-gray-100 flex items-center justify-between">
-                    <span className={`text-[10px] font-bold uppercase tracking-wider ${event.status === 'open' ? 'text-emerald-500' : 'text-gray-400'}`}>
-                        {event.status === 'open' ? 'Registration Open' : 'Action'}
+                    <span className={`text-xs font-bold ${event.status === 'open' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        {event.status === 'open' ? 'Registration Open' : 'Upcoming'}
                     </span>
 
                     {event.link ? (

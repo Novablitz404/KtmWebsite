@@ -150,6 +150,41 @@ export async function uploadLogo(id: string, file: File | Blob): Promise<string 
 }
 
 /**
+ * Upload a QR code image to the 'qr-codes' bucket.
+ * Deletes old QR code first, then uploads new one.
+ */
+export async function uploadQrCode(id: string, file: File | Blob): Promise<string | null> {
+    try {
+        const bytes = await file.arrayBuffer()
+        const buffer = Buffer.from(bytes)
+        const filePath = `${id}`
+
+        await deleteOldFile('qr-codes', filePath)
+
+        const { error: uploadError } = await supabase.storage
+            .from('qr-codes')
+            .upload(filePath, buffer, {
+                contentType: file.type || 'image/png',
+                upsert: true
+            })
+
+        if (uploadError) {
+            console.error('QR code upload error:', uploadError)
+            return null
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+            .from('qr-codes')
+            .getPublicUrl(filePath)
+
+        return cacheBust(publicUrl)
+    } catch (error) {
+        console.error('QR code upload failed:', error)
+        return null
+    }
+}
+
+/**
  * Upload a tournament banner/header image to the 'logos' bucket.
  * Deletes old banner first, then uploads new one.
  * Stores as `banners/{tournamentId}`.

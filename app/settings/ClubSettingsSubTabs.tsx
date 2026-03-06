@@ -6,18 +6,25 @@ interface ClubSettingsSubTabsProps {
     profileContent: React.ReactNode
     clubContent: React.ReactNode
     securityContent: React.ReactNode
+    affiliationContent?: React.ReactNode
 }
 
-const tabs = [
+const baseTabs = [
     { id: 'profile', label: 'Profile' },
     { id: 'club', label: 'Club' },
+    { id: 'affiliation', label: 'Affiliation' },
     { id: 'security', label: 'Security' },
 ] as const
 
-type TabId = typeof tabs[number]['id']
+type TabId = typeof baseTabs[number]['id']
 
-export default function ClubSettingsSubTabs({ profileContent, clubContent, securityContent }: ClubSettingsSubTabsProps) {
+export default function ClubSettingsSubTabs({ profileContent, clubContent, securityContent, affiliationContent }: ClubSettingsSubTabsProps) {
     const [activeTab, setActiveTab] = useState<TabId>('profile')
+
+    // Only show the Affiliation tab if content is provided
+    const tabs = affiliationContent
+        ? baseTabs
+        : baseTabs.filter(t => t.id !== 'affiliation')
 
     return (
         <div className="space-y-6">
@@ -49,6 +56,7 @@ export default function ClubSettingsSubTabs({ profileContent, clubContent, secur
             <div>
                 {activeTab === 'profile' && profileContent}
                 {activeTab === 'club' && clubContent}
+                {activeTab === 'affiliation' && affiliationContent}
                 {activeTab === 'security' && securityContent}
             </div>
         </div>

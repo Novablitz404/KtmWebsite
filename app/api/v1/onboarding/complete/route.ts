@@ -188,6 +188,33 @@ export async function POST(request: Request) {
                 }
             }
 
+            // Create ClubAffiliation with proof if provided during onboarding
+            const proofImageFile = formData.get('proofImage') as File | null
+            if (proofImageFile && proofImageFile.size > 0) {
+                // Create affiliation record first
+                const affiliation = await prisma.clubAffiliation.create({
+                    data: {
+                        clubId: club.id,
+                        organizationId,
+                        status: 'PENDING_REVIEW',
+                        paymentStatus: 'PENDING',
+                    }
+                })
+
+                // Upload proof image
+                const { uploadProofOfPayment } = await import('@/lib/supabase-storage')
+                const proofUrl = await uploadProofOfPayment(affiliation.id, proofImageFile)
+                if (proofUrl) {
+                    await prisma.clubAffiliation.update({
+                        where: { id: affiliation.id },
+                        data: {
+                            proofImageUrl: proofUrl,
+                            proofSubmittedAt: new Date(),
+                        }
+                    })
+                }
+            }
+
         } else if (role === 'ORGANIZER') {
             const orgName = toTitleCase(formData.get('orgName') as string)
             const establishedDateStr = formData.get('establishedDate') as string

@@ -2134,17 +2134,26 @@ export async function getClubAffiliationData(clubId: string) {
             affiliationBankAccountNo: true,
             affiliationBankAccountName: true,
             affiliationInstructions: true,
+            affiliationPaymentMethods: true,
         }
     })
+
+    // Build payment methods array — prefer new JSON, fall back to legacy fields
+    const paymentMethods = (org as any)?.affiliationPaymentMethods || []
+    const legacyMethod = org?.affiliationBankName ? [{
+        id: 'legacy',
+        label: org.affiliationBankName,
+        bankName: org.affiliationBankName,
+        accountNo: org.affiliationBankAccountNo || '',
+        accountName: org.affiliationBankAccountName || '',
+        qrCodeUrl: org.affiliationQrCodeUrl || null,
+    }] : []
 
     return {
         affiliationStatus: status,
         paymentConfig: org ? {
             paymentMethod: org.affiliationPaymentMethod || 'manual',
-            qrCodeUrl: org.affiliationQrCodeUrl,
-            bankName: org.affiliationBankName,
-            bankAccountNo: org.affiliationBankAccountNo,
-            bankAccountName: org.affiliationBankAccountName,
+            paymentMethods: paymentMethods.length > 0 ? paymentMethods : legacyMethod,
             instructions: org.affiliationInstructions,
         } : null
     }

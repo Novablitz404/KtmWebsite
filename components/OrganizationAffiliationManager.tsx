@@ -5,13 +5,21 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Image from 'next/image'
 import { toast } from 'sonner'
 import {
-    Shield, ShieldCheck, ShieldAlert, ShieldX, Clock,
-    Settings, Upload, Loader2, CheckCircle, XCircle,
-    Eye, ChevronDown, Building2, Users, DollarSign,
-    Banknote, QrCode, CreditCard
+    Shield, Settings, Upload, Loader2, XCircle,
+    Eye, ChevronDown, ChevronUp,
+    Banknote, QrCode, CreditCard, Plus, Trash2
 } from 'lucide-react'
-import { getClubAffiliations, updateAffiliationSettings, approveAffiliationProof, rejectAffiliationProof } from '@/app/organization/actions'
-import { uploadLogo } from '@/lib/supabase-storage'
+import { getClubAffiliations, updateAffiliationSettings } from '@/app/organization/actions'
+import { uploadQrCode } from '@/lib/supabase-storage'
+
+interface PaymentMethod {
+    id: string
+    label: string
+    bankName: string
+    accountNo: string
+    accountName: string
+    qrCodeUrl: string | null
+}
 
 interface OrganizationAffiliationManagerProps {
     organizationId: string
@@ -23,18 +31,16 @@ export default function OrganizationAffiliationManager({ organizationId }: Organ
 
     const [isSaving, setIsSaving] = useState(false)
     const [fee, setFee] = useState('')
-    const [paymentMethod, setPaymentMethod] = useState('manual')
-    const [bankName, setBankName] = useState('')
-    const [bankAccountNo, setBankAccountNo] = useState('')
-    const [bankAccountName, setBankAccountName] = useState('')
+    const [paymentType, setPaymentType] = useState('manual')
     const [instructions, setInstructions] = useState('')
-    const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null)
+    const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
+    const [activeQrUploadId, setActiveQrUploadId] = useState<string | null>(null)
     const [isUploadingQr, setIsUploadingQr] = useState(false)
-    const [viewingProof, setViewingProof] = useState<string | null>(null)
+    const [viewingQr, setViewingQr] = useState<string | null>(null)
     const [isInitialized, setIsInitialized] = useState(false)
-    const [activeFilter, setActiveFilter] = useState<'ALL' | 'ACTIVE' | 'PENDING_REVIEW' | 'UNPAID' | 'EXPIRED'>('ALL')
+    const [showManualDetails, setShowManualDetails] = useState(false)
 
-    const { data, isLoading } = useQuery({
+    const { data } = useQuery({
         queryKey: ['club-affiliations'],
         queryFn: () => getClubAffiliations(),
         staleTime: 1000 * 30,
@@ -43,25 +49,32 @@ export default function OrganizationAffiliationManager({ organizationId }: Organ
     // Initialize form from fetched data
     if (data && 'success' in data && data.success && !isInitialized) {
         setFee(data.orgFee?.toString() || '')
-        setPaymentMethod(data.paymentMethod || 'manual')
+        setPaymentType(data.paymentMethod || 'manual')
+        setInstructions((data as any).instructions || '')
+        const savedMethods = (data as any).paymentMethods || []
+        if (savedMethods.length > 0) {
+            setPaymentMethods(savedMethods)
+        }
         setIsInitialized(true)
     }
 
-    const clubs = (data && 'clubs' in data ? data.clubs : []) || []
+    const addPaymentMethod = () => {
+        setPaymentMethods(prev => [...prev, {
+            id: crypto.randomUUID(),
+            label: '',
+            bankName: '',
+            accountNo: '',
+            accountName: '',
+            qrCodeUrl: null,
+        }])
+    }
 
-    const filteredClubs = activeFilter === 'ALL'
-        ? clubs
-        : clubs.filter((c: any) => {
-            const status = c.affiliation?.status || 'UNPAID'
-            return status === activeFilter
-        })
+    const removePaymentMethod = (id: string) => {
+        setPaymentMethods(prev => prev.filter(pm => pm.id !== id))
+    }
 
-    const counts = {
-        ALL: clubs.length,
-        ACTIVE: clubs.filter((c: any) => c.affiliation?.status === 'ACTIVE').length,
-        PENDING_REVIEW: clubs.filter((c: any) => c.affiliation?.status === 'PENDING_REVIEW').length,
-        UNPAID: clubs.filter((c: any) => !c.affiliation || c.affiliation.status === 'UNPAID').length,
-        EXPIRED: clubs.filter((c: any) => c.affiliation?.status === 'EXPIRED').length,
+    const updatePaymentMethod = (id: string, field: keyof PaymentMethod, value: string | null) => {
+        setPaymentMethods(prev => prev.map(pm => pm.id === id ? { ...pm, [field]: value } : pm))
     }
 
     const handleSaveSettings = async () => {
@@ -69,15 +82,15 @@ export default function OrganizationAffiliationManager({ organizationId }: Organ
         try {
             const res = await updateAffiliationSettings({
                 affiliationFee: fee ? parseFloat(fee) : 0,
-                affiliationPaymentMethod: paymentMethod,
-                affiliationBankName: bankName || null,
-                affiliationBankAccountNo: bankAccountNo || null,
-                affiliationBankAccountName: bankAccountName || null,
+                affiliationPaymentMethod: paymentType,
                 affiliationInstructions: instructions || null,
-                affiliationQrCodeUrl: qrCodeUrl,
+                affiliationPaymentMethods: paymentMethods.length > 0 ? paymentMethods : null,
             })
             if ('error' in res) toast.error(res.error)
-            else toast.success('Affiliation settings saved')
+            else {
+                toast.success('Affiliation settings saved')
+                queryClient.invalidateQueries({ queryKey: ['club-affiliations'] })
+            }
         } catch {
             toast.error('Failed to save')
         } finally {
@@ -87,57 +100,26 @@ export default function OrganizationAffiliationManager({ organizationId }: Organ
 
     const handleQrUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
-        if (!file) return
+        if (!file || !activeQrUploadId) return
         setIsUploadingQr(true)
         try {
-            const url = await uploadLogo(`affiliation-qr-${organizationId}`, file)
+            const url = await uploadQrCode(`affiliation-qr-${activeQrUploadId}`, file)
             if (url) {
-                setQrCodeUrl(url)
+                updatePaymentMethod(activeQrUploadId, 'qrCodeUrl', url)
                 toast.success('QR code uploaded')
             }
         } catch {
             toast.error('QR upload failed')
         } finally {
             setIsUploadingQr(false)
+            setActiveQrUploadId(null)
         }
     }
 
-    const handleApprove = async (affiliationId: string) => {
-        const res = await approveAffiliationProof(affiliationId)
-        if ('error' in res) toast.error(res.error)
-        else {
-            toast.success('Affiliation approved — club is now active for 1 year')
-            queryClient.invalidateQueries({ queryKey: ['club-affiliations'] })
-        }
-    }
-
-    const handleReject = async (affiliationId: string) => {
-        if (!confirm('Reject this proof of payment? The club will need to resubmit.')) return
-        const res = await rejectAffiliationProof(affiliationId)
-        if ('error' in res) toast.error(res.error)
-        else {
-            toast.success('Proof rejected — club can resubmit')
-            queryClient.invalidateQueries({ queryKey: ['club-affiliations'] })
-        }
-    }
-
-    const statusBadge = (status: string) => {
-        switch (status) {
-            case 'ACTIVE': return 'bg-green-100 text-green-700'
-            case 'PENDING_REVIEW': return 'bg-blue-100 text-blue-700'
-            case 'EXPIRED': return 'bg-amber-100 text-amber-700'
-            default: return 'bg-red-100 text-red-700'
-        }
-    }
-
-    const statusLabel = (status: string) => {
-        switch (status) {
-            case 'ACTIVE': return 'Active'
-            case 'PENDING_REVIEW': return 'Pending Review'
-            case 'EXPIRED': return 'Expired'
-            default: return 'Unpaid'
-        }
-    }
+    // Check if data has saved values
+    const savedFee = data && 'orgFee' in data ? data.orgFee : null
+    const savedPaymentType = data && 'paymentMethod' in data ? data.paymentMethod : null
+    const savedPaymentMethods: PaymentMethod[] = data && 'paymentMethods' in data ? (data as any).paymentMethods || [] : []
 
     return (
         <div className="bg-white sm:rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -149,9 +131,45 @@ export default function OrganizationAffiliationManager({ organizationId }: Organ
             </div>
 
             <div className="p-6 space-y-6">
-                {/* Fee & Payment Config */}
+
+                {/* Current Settings Summary */}
+                {savedFee && savedFee > 0 && (
+                    <div className="p-4 bg-indigo-50/50 rounded-xl border border-indigo-100 space-y-3">
+                        <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">Current Settings</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            <div className="bg-white p-3 rounded-lg border border-indigo-100/50">
+                                <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Annual Fee</p>
+                                <p className="text-lg font-bold text-gray-900">₱{savedFee.toLocaleString()}</p>
+                            </div>
+                            <div className="bg-white p-3 rounded-lg border border-indigo-100/50">
+                                <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Payment</p>
+                                <p className="text-sm font-semibold text-gray-900 capitalize flex items-center gap-1.5">
+                                    {savedPaymentType === 'xendit' ? <CreditCard className="w-3.5 h-3.5 text-indigo-500" /> : <Banknote className="w-3.5 h-3.5 text-green-500" />}
+                                    {savedPaymentType || 'Manual'}
+                                </p>
+                            </div>
+                            <div className="bg-white p-3 rounded-lg border border-indigo-100/50">
+                                <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Payment Methods</p>
+                                <p className="text-sm font-semibold text-gray-900">{savedPaymentMethods.length} configured</p>
+                            </div>
+                        </div>
+                        {savedPaymentMethods.length > 0 && (
+                            <div className="space-y-1.5">
+                                {savedPaymentMethods.map((pm: PaymentMethod) => (
+                                    <div key={pm.id} className="flex items-center gap-2 text-xs text-gray-600 bg-white px-3 py-2 rounded-lg border border-indigo-100/50">
+                                        {pm.qrCodeUrl ? <QrCode className="w-3 h-3 text-indigo-500 flex-shrink-0" /> : <Banknote className="w-3 h-3 text-gray-400 flex-shrink-0" />}
+                                        <span className="font-medium">{pm.label || pm.bankName || 'Unnamed'}</span>
+                                        {pm.bankName && <span className="text-gray-400">• {pm.bankName}</span>}
+                                        {pm.accountNo && <span className="text-gray-400 font-mono">• {pm.accountNo}</span>}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Fee & Payment Type */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Annual Fee */}
                     <div>
                         <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Annual Fee (₱)</label>
                         <input
@@ -162,20 +180,18 @@ export default function OrganizationAffiliationManager({ organizationId }: Organ
                             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                         />
                     </div>
-
-                    {/* Payment Method */}
                     <div>
-                        <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Payment Method</label>
+                        <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Payment Type</label>
                         <div className="flex gap-2">
                             <button
-                                onClick={() => setPaymentMethod('manual')}
-                                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition-all flex items-center justify-center gap-1.5 ${paymentMethod === 'manual' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                                onClick={() => setPaymentType('manual')}
+                                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition-all flex items-center justify-center gap-1.5 ${paymentType === 'manual' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
                             >
                                 <Banknote className="w-3.5 h-3.5" /> Manual
                             </button>
                             <button
-                                onClick={() => setPaymentMethod('xendit')}
-                                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition-all flex items-center justify-center gap-1.5 ${paymentMethod === 'xendit' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                                onClick={() => setPaymentType('xendit')}
+                                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition-all flex items-center justify-center gap-1.5 ${paymentType === 'xendit' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
                             >
                                 <CreditCard className="w-3.5 h-3.5" /> Xendit
                             </button>
@@ -183,57 +199,141 @@ export default function OrganizationAffiliationManager({ organizationId }: Organ
                     </div>
                 </div>
 
-                {/* Manual Payment Details */}
-                {paymentMethod === 'manual' && (
-                    <div className="space-y-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Manual Payment Details</p>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                                <label className="text-xs text-gray-500 mb-1 block">Bank Name</label>
-                                <input value={bankName} onChange={e => setBankName(e.target.value)} placeholder="e.g. BDO" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+                {/* Manual Payment Methods — Collapsible */}
+                {paymentType === 'manual' && (
+                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                        <button
+                            onClick={() => setShowManualDetails(!showManualDetails)}
+                            className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors"
+                        >
+                            <div className="flex items-center gap-2">
+                                <Banknote className="w-4 h-4 text-gray-500" />
+                                <span className="text-sm font-semibold text-gray-700">Manual Payment Methods</span>
+                                <span className="text-xs text-gray-400">({paymentMethods.length} configured)</span>
                             </div>
-                            <div>
-                                <label className="text-xs text-gray-500 mb-1 block">Account No.</label>
-                                <input value={bankAccountNo} onChange={e => setBankAccountNo(e.target.value)} placeholder="1234567890" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 font-mono" />
-                            </div>
-                            <div>
-                                <label className="text-xs text-gray-500 mb-1 block">Account Name</label>
-                                <input value={bankAccountName} onChange={e => setBankAccountName(e.target.value)} placeholder="Juan Dela Cruz" className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
-                            </div>
-                        </div>
+                            {showManualDetails ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                        </button>
 
-                        {/* QR Code Upload */}
-                        <div>
-                            <label className="text-xs text-gray-500 mb-1 block">Payment QR Code</label>
-                            <div className="flex items-center gap-3">
-                                {qrCodeUrl ? (
-                                    <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200">
-                                        <Image src={qrCodeUrl} alt="QR Code" fill className="object-contain" unoptimized />
+                        {showManualDetails && (
+                            <div className="p-4 space-y-4">
+                                {paymentMethods.map((pm, idx) => (
+                                    <div key={pm.id} className="p-4 bg-gray-50 rounded-xl border border-gray-100 space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider flex items-center gap-1.5">
+                                                <CreditCard className="w-3 h-3" /> Payment Method {idx + 1}
+                                            </p>
+                                            <button
+                                                onClick={() => removePaymentMethod(pm.id)}
+                                                className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                                title="Remove"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+
+                                        <div>
+                                            <label className="text-xs text-gray-500 mb-1 block">Label (e.g. &quot;GCash&quot;, &quot;BDO Savings&quot;)</label>
+                                            <input
+                                                value={pm.label}
+                                                onChange={e => updatePaymentMethod(pm.id, 'label', e.target.value)}
+                                                placeholder="e.g. GCash, BDO, Maya"
+                                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            <div>
+                                                <label className="text-xs text-gray-500 mb-1 block">Bank/Wallet Name</label>
+                                                <input
+                                                    value={pm.bankName}
+                                                    onChange={e => updatePaymentMethod(pm.id, 'bankName', e.target.value)}
+                                                    placeholder="e.g. BDO, GCash"
+                                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-gray-500 mb-1 block">Account No.</label>
+                                                <input
+                                                    value={pm.accountNo}
+                                                    onChange={e => updatePaymentMethod(pm.id, 'accountNo', e.target.value)}
+                                                    placeholder="1234567890"
+                                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-gray-500 mb-1 block">Account Name</label>
+                                                <input
+                                                    value={pm.accountName}
+                                                    onChange={e => updatePaymentMethod(pm.id, 'accountName', e.target.value)}
+                                                    placeholder="Juan Dela Cruz"
+                                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* QR Code */}
+                                        <div>
+                                            <label className="text-xs text-gray-500 mb-2 block">QR Code (optional)</label>
+                                            <div className="flex items-start gap-3">
+                                                {pm.qrCodeUrl ? (
+                                                    <div
+                                                        className="relative w-24 h-24 rounded-xl overflow-hidden border-2 border-gray-200 cursor-pointer hover:border-indigo-300 transition-colors group flex-shrink-0"
+                                                        onClick={() => setViewingQr(pm.qrCodeUrl)}
+                                                    >
+                                                        <Image src={pm.qrCodeUrl} alt="QR Code" fill className="object-contain p-1" unoptimized />
+                                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                                            <Eye className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="w-24 h-24 rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400 flex-shrink-0">
+                                                        <QrCode className="w-6 h-6 mb-1" />
+                                                        <span className="text-[9px]">No QR</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex flex-col gap-1.5">
+                                                    <button
+                                                        onClick={() => { setActiveQrUploadId(pm.id); qrInputRef.current?.click() }}
+                                                        disabled={isUploadingQr}
+                                                        className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600 hover:bg-gray-100 transition-colors flex items-center gap-1"
+                                                    >
+                                                        {isUploadingQr && activeQrUploadId === pm.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                                                        {pm.qrCodeUrl ? 'Change' : 'Upload'}
+                                                    </button>
+                                                    {pm.qrCodeUrl && (
+                                                        <button
+                                                            onClick={() => updatePaymentMethod(pm.id, 'qrCodeUrl', null)}
+                                                            className="px-2.5 py-1.5 border border-red-200 rounded-lg text-xs text-red-500 hover:bg-red-50 transition-colors flex items-center gap-1"
+                                                        >
+                                                            <XCircle className="w-3 h-3" /> Remove
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                ) : null}
-                                <button
-                                    onClick={() => qrInputRef.current?.click()}
-                                    disabled={isUploadingQr}
-                                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors flex items-center gap-1.5"
-                                >
-                                    {isUploadingQr ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <QrCode className="w-3.5 h-3.5" />}
-                                    {qrCodeUrl ? 'Change' : 'Upload QR'}
-                                </button>
-                                <input ref={qrInputRef} type="file" accept="image/*" onChange={handleQrUpload} className="hidden" />
-                            </div>
-                        </div>
+                                ))}
 
-                        {/* Instructions */}
-                        <div>
-                            <label className="text-xs text-gray-500 mb-1 block">Payment Instructions</label>
-                            <textarea
-                                value={instructions}
-                                onChange={e => setInstructions(e.target.value)}
-                                rows={2}
-                                placeholder="Optional notes for club masters..."
-                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-                            />
-                        </div>
+                                <button
+                                    onClick={addPaymentMethod}
+                                    className="w-full px-4 py-2.5 border-2 border-dashed border-gray-300 rounded-xl text-sm text-gray-500 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Plus className="w-4 h-4" /> Add Payment Method
+                                </button>
+
+                                {/* Instructions */}
+                                <div>
+                                    <label className="text-xs text-gray-500 mb-1 block">Payment Instructions (shown to all clubs)</label>
+                                    <textarea
+                                        value={instructions}
+                                        onChange={e => setInstructions(e.target.value)}
+                                        rows={2}
+                                        placeholder="Optional notes for club masters..."
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -247,107 +347,23 @@ export default function OrganizationAffiliationManager({ organizationId }: Organ
                     Save Settings
                 </button>
 
-                {/* Club Affiliations Table */}
-                {fee && parseFloat(fee) > 0 && (
-                    <div className="border-t border-gray-100 pt-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <h4 className="text-sm font-semibold text-gray-900">Club Affiliations</h4>
-                            <div className="flex gap-1.5 text-xs">
-                                {(['ALL', 'PENDING_REVIEW', 'ACTIVE', 'UNPAID', 'EXPIRED'] as const).map(f => (
-                                    <button
-                                        key={f}
-                                        onClick={() => setActiveFilter(f)}
-                                        className={`px-2 py-1 rounded-md transition-colors ${activeFilter === f ? 'bg-indigo-100 text-indigo-700 font-medium' : 'text-gray-500 hover:bg-gray-100'}`}
-                                    >
-                                        {f === 'ALL' ? 'All' : f === 'PENDING_REVIEW' ? 'Pending' : f.charAt(0) + f.slice(1).toLowerCase()}
-                                        {counts[f] > 0 && <span className="ml-1 text-[10px]">({counts[f]})</span>}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {isLoading ? (
-                            <div className="py-8 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>
-                        ) : filteredClubs.length === 0 ? (
-                            <div className="py-8 text-center text-gray-400 text-sm">No clubs found</div>
-                        ) : (
-                            <div className="space-y-2">
-                                {filteredClubs.map((club: any) => {
-                                    const status = club.affiliation?.status || 'UNPAID'
-                                    const isPending = status === 'PENDING_REVIEW'
-                                    return (
-                                        <div key={club.id} className="flex items-center justify-between p-3 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
-                                            <div className="flex items-center gap-3 min-w-0">
-                                                <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                                                    <Building2 className="w-4 h-4 text-gray-400" />
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <p className="text-sm font-medium text-gray-900 truncate">{club.name}</p>
-                                                    <p className="text-xs text-gray-500">{club.masterName} · {club.memberCount} members</p>
-                                                </div>
-                                            </div>
-
-                                            <div className="flex items-center gap-2 flex-shrink-0">
-                                                {/* Expiry */}
-                                                {club.affiliation?.expiresAt && status === 'ACTIVE' && (
-                                                    <span className="text-xs text-gray-400 hidden sm:inline">
-                                                        Exp {new Date(club.affiliation.expiresAt).toLocaleDateString()}
-                                                    </span>
-                                                )}
-
-                                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusBadge(status)}`}>
-                                                    {statusLabel(status)}
-                                                </span>
-
-                                                {/* Review Proof */}
-                                                {isPending && club.affiliation?.proofImageUrl && (
-                                                    <div className="flex items-center gap-1">
-                                                        <button
-                                                            onClick={() => setViewingProof(club.affiliation.proofImageUrl)}
-                                                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md"
-                                                            title="View proof"
-                                                        >
-                                                            <Eye className="w-4 h-4" />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleApprove(club.affiliation.id)}
-                                                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-md"
-                                                            title="Approve"
-                                                        >
-                                                            <CheckCircle className="w-4 h-4" />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleReject(club.affiliation.id)}
-                                                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-md"
-                                                            title="Reject"
-                                                        >
-                                                            <XCircle className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                        )}
-                    </div>
-                )}
+                {/* Hidden file input for QR uploads */}
+                <input ref={qrInputRef} type="file" accept="image/*" onChange={handleQrUpload} className="hidden" />
             </div>
 
-            {/* Proof Image Lightbox */}
-            {viewingProof && (
+            {/* QR Code Lightbox */}
+            {viewingQr && (
                 <div
                     className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
-                    onClick={() => setViewingProof(null)}
+                    onClick={() => setViewingQr(null)}
                 >
-                    <div className="relative max-w-lg w-full max-h-[80vh] bg-white rounded-2xl overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+                    <div className="relative max-w-sm w-full bg-white rounded-2xl overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
                         <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-                            <h3 className="text-sm font-semibold text-gray-900">Proof of Payment</h3>
-                            <button onClick={() => setViewingProof(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+                            <h3 className="text-sm font-semibold text-gray-900">Payment QR Code</h3>
+                            <button onClick={() => setViewingQr(null)} className="text-gray-400 hover:text-gray-600">✕</button>
                         </div>
-                        <div className="relative w-full h-[60vh]">
-                            <Image src={viewingProof} alt="Proof of payment" fill className="object-contain" unoptimized />
+                        <div className="relative w-full aspect-square p-4">
+                            <Image src={viewingQr} alt="Payment QR Code" fill className="object-contain p-4" unoptimized />
                         </div>
                     </div>
                 </div>

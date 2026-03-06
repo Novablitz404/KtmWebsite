@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { useTenant } from '@/app/providers/TenantProvider'
 import { toast } from 'sonner'
-import { Camera, ArrowRight, ArrowLeft, CheckCircle, Loader2, Ruler, Weight, Users, Building2, Award, Calendar, ImageIcon, Globe, MapPin, Phone } from 'lucide-react'
+import { Camera, ArrowRight, ArrowLeft, CheckCircle, Loader2, Ruler, Weight, Users, Building2, Award, Calendar, ImageIcon, Globe, MapPin, Phone, CreditCard, Upload, Download, QrCode, Banknote, ChevronRight } from 'lucide-react'
 import Image from 'next/image'
 import GlobalDropdown from '@/components/GlobalDropdown'
 import GlobalCalendar from '@/components/GlobalCalendar'
@@ -14,7 +14,7 @@ import { format } from 'date-fns'
 import { motion } from 'framer-motion'
 import { COUNTRIES } from '@/lib/countries'
 
-type OnboardingStep = 'profile' | 'details'
+type OnboardingStep = 'profile' | 'details' | 'payment'
 
 const BELT_OPTIONS = [
     'White', 'Yellow', 'Orange', 'Green', 'Purple',
@@ -97,6 +97,17 @@ export default function CompleteProfilePage() {
     const [clubPhone, setClubPhone] = useState('')
     const clubLogoInputRef = useRef<HTMLInputElement>(null)
 
+    // Payment step state
+    const [paymentConfig, setPaymentConfig] = useState<any>(null)
+    const [paymentFee, setPaymentFee] = useState(0)
+    const [paymentOrgName, setPaymentOrgName] = useState('')
+    const [isLoadingPaymentConfig, setIsLoadingPaymentConfig] = useState(false)
+    const [paymentSelectedMethod, setPaymentSelectedMethod] = useState<any>(null)
+    const [paymentStep, setPaymentStep] = useState<1 | 2 | 3>(1)
+    const [proofFile, setProofFile] = useState<File | null>(null)
+    const [proofPreview, setProofPreview] = useState<string | null>(null)
+    const proofInputRef = useRef<HTMLInputElement>(null)
+
     // Organizer-specific
     const [orgName, setOrgName] = useState('')
     const [orgLogoFile, setOrgLogoFile] = useState<File | null>(null)
@@ -148,6 +159,27 @@ export default function CompleteProfilePage() {
                 .catch(() => { })
         }
     }, [role, isKtm])
+
+    // Fetch payment config when organization is selected
+    useEffect(() => {
+        if (role === 'CLUB_MASTER' && organizationId) {
+            setIsLoadingPaymentConfig(true)
+            fetch(`/api/organizations/${organizationId}/payment-config`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.hasFee) {
+                        setPaymentConfig(data.paymentConfig)
+                        setPaymentFee(data.fee)
+                        setPaymentOrgName(data.organizationName)
+                    } else {
+                        setPaymentConfig(null)
+                        setPaymentFee(0)
+                    }
+                })
+                .catch(() => { })
+                .finally(() => setIsLoadingPaymentConfig(false))
+        }
+    }, [role, organizationId])
 
     const filteredClubs = clubs.filter(c =>
         c.name.toLowerCase().includes(clubSearch.toLowerCase())
@@ -266,6 +298,7 @@ export default function CompleteProfilePage() {
                 if (gender) submitData.append('gender', gender)
                 if (country.trim()) submitData.append('country', country.trim())
                 if (clubLogoFile) submitData.append('clubLogo', clubLogoFile)
+                if (proofFile) submitData.append('proofImage', proofFile)
             } else if (role === 'ORGANIZER') {
                 submitData.append('orgName', orgName)
                 submitData.append('establishedDate', establishedDate)
@@ -317,11 +350,13 @@ export default function CompleteProfilePage() {
         const isClubMaster = role === 'CLUB_MASTER'
         const isOrganizer = role === 'ORGANIZER'
 
+        const hasPayment = isClubMaster && paymentConfig && paymentFee > 0
         const steps = isClubMaster
             ? [
                 { label: 'Account Created', done: true },
-                { label: 'Your Profile', done: step === 'details', active: step === 'profile' },
-                { label: 'Club Details', done: false, active: step === 'details' },
+                { label: 'Your Profile', done: step === 'details' || step === 'payment', active: step === 'profile' },
+                { label: 'Club Details', done: step === 'payment', active: step === 'details' },
+                ...(hasPayment ? [{ label: 'Affiliation Payment', done: false, active: step === 'payment' }] : []),
                 { label: 'Dashboard Access', done: false },
             ]
             : isOrganizer
@@ -672,23 +707,352 @@ export default function CompleteProfilePage() {
                                 )}
 
                                 <div className="pt-4">
-                                    <button
-                                        type="submit"
-                                        className={`w-full h-12 text-white font-bold text-lg rounded-lg shadow-lg transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${isKtm ? 'bg-red-600 hover:bg-red-700 shadow-red-500/20' : ''}`}
-                                        style={!isKtm ? { backgroundColor: tenant.primaryColor } : undefined}
-                                        disabled={isSubmitting}
-                                    >
-                                        {isSubmitting ? (
-                                            <Loader2 className="w-5 h-5 animate-spin" />
-                                        ) : (
-                                            <>Complete Profile <ArrowRight className="w-5 h-5" /></>
-                                        )}
-                                    </button>
+                                    {paymentConfig && paymentFee > 0 ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const errors: Record<string, boolean> = {}
+                                                if (!newClubName) errors.clubName = true
+                                                if (isKtm && !organizationId) errors.organizationId = true
+                                                if (!clubLogoFile && !clubLogoPreview) errors.clubLogo = true
+                                                if (!clubAddress.trim()) errors.clubAddress = true
+                                                if (!clubPhone.trim()) errors.clubPhone = true
+                                                if (Object.keys(errors).length > 0) {
+                                                    setFieldErrors(errors)
+                                                    return
+                                                }
+                                                setPaymentStep(paymentConfig.paymentMethods?.length > 1 ? 1 : 2)
+                                                setPaymentSelectedMethod(paymentConfig.paymentMethods?.length === 1 ? paymentConfig.paymentMethods[0] : null)
+                                                setStep('payment')
+                                            }}
+                                            className={`w-full h-12 text-white font-bold text-lg rounded-lg shadow-lg transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 ${isKtm ? 'bg-red-600 hover:bg-red-700 shadow-red-500/20' : ''}`}
+                                            style={!isKtm ? { backgroundColor: tenant.primaryColor } : undefined}
+                                        >
+                                            Next: Affiliation Payment <ArrowRight className="w-5 h-5" />
+                                        </button>
+                                    ) : (
+                                        <button
+                                            type="submit"
+                                            className={`w-full h-12 text-white font-bold text-lg rounded-lg shadow-lg transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${isKtm ? 'bg-red-600 hover:bg-red-700 shadow-red-500/20' : ''}`}
+                                            style={!isKtm ? { backgroundColor: tenant.primaryColor } : undefined}
+                                            disabled={isSubmitting}
+                                        >
+                                            {isSubmitting ? (
+                                                <Loader2 className="w-5 h-5 animate-spin" />
+                                            ) : (
+                                                <>Complete Profile <ArrowRight className="w-5 h-5" /></>
+                                            )}
+                                        </button>
+                                    )}
                                     <p className="text-center text-xs text-gray-400 mt-4">
                                         By clicking complete, you agree to our Terms of Service and Privacy Policy.
                                     </p>
                                 </div>
                             </form>
+                        </motion.div>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    // ======================================
+    // CLUB MASTER — Step 3: Affiliation Payment
+    // ======================================
+    if (role === 'CLUB_MASTER' && step === 'payment') {
+        const methods = paymentConfig?.paymentMethods || []
+        const activeMethod = paymentSelectedMethod || (methods.length === 1 ? methods[0] : null)
+
+        const handleProofChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+            const file = e.target.files?.[0]
+            if (file) {
+                setProofFile(file)
+                const reader = new FileReader()
+                reader.onloadend = () => setProofPreview(reader.result as string)
+                reader.readAsDataURL(file)
+            }
+        }
+
+        const handleDownloadQR = async (url: string, label: string) => {
+            try {
+                const response = await fetch(url)
+                const blob = await response.blob()
+                const blobUrl = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = blobUrl
+                a.download = `${label.replace(/\s+/g, '_')}_QR.png`
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+                URL.revokeObjectURL(blobUrl)
+                toast.success('QR code downloaded!')
+            } catch {
+                toast.error('Failed to download QR code')
+            }
+        }
+
+        const paymentStepLabels = ['Payment Method', 'Payment Details', 'Upload Proof']
+
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+                <div className="w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px] mb-8 mt-8 md:my-0">
+                    {renderSidebar()}
+
+                    <div className="md:w-7/12 p-6 md:p-10 flex flex-col justify-start overflow-y-auto max-h-[85vh] md:max-h-none">
+                        <motion.div
+                            key="cm-step-3"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                        >
+                            <button
+                                type="button"
+                                onClick={() => setStep('details')}
+                                className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-4"
+                            >
+                                <ArrowLeft className="h-4 w-4" /> Back to Club Details
+                            </button>
+
+                            <h2 className="text-2xl font-bold text-gray-900 mb-2">Affiliation Payment</h2>
+                            <p className="text-sm text-gray-500 mb-6">
+                                ₱{paymentFee.toLocaleString()} annual fee to {paymentOrgName}
+                            </p>
+
+                            {/* Payment Step Indicator */}
+                            <div className="flex items-center gap-1 mb-6">
+                                {paymentStepLabels.map((label, i) => {
+                                    const sNum = (i + 1) as 1 | 2 | 3
+                                    const isCurrent = paymentStep === sNum
+                                    const isDone = paymentStep > sNum
+                                    return (
+                                        <div key={i} className="flex items-center gap-1 flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all ${isCurrent ? (isKtm ? 'bg-red-600' : '') + ' text-white' :
+                                                        isDone ? 'bg-green-500 text-white' :
+                                                            'bg-gray-100 text-gray-400'
+                                                    }`} style={isCurrent && !isKtm ? { backgroundColor: tenant.primaryColor } : undefined}>
+                                                    {isDone ? '✓' : sNum}
+                                                </div>
+                                                <span className={`text-xs font-medium hidden sm:block ${isCurrent ? 'text-gray-900' : 'text-gray-400'}`}>
+                                                    {label}
+                                                </span>
+                                            </div>
+                                            {i < paymentStepLabels.length - 1 && (
+                                                <div className={`h-px flex-1 mx-1 ${isDone ? 'bg-green-300' : 'bg-gray-200'}`} />
+                                            )}
+                                        </div>
+                                    )
+                                })}
+                            </div>
+
+                            {/* Sub-step 1: Choose Payment Method */}
+                            {paymentStep === 1 && (
+                                <div className="space-y-3">
+                                    <p className="text-sm font-medium text-gray-700">Select a payment method</p>
+                                    {methods.map((pm: any) => (
+                                        <button
+                                            key={pm.id}
+                                            type="button"
+                                            onClick={() => {
+                                                setPaymentSelectedMethod(pm)
+                                                setPaymentStep(2)
+                                            }}
+                                            className="w-full p-4 border border-gray-200 rounded-xl hover:border-red-300 hover:bg-red-50/30 transition-all text-left flex items-center gap-4 group"
+                                        >
+                                            {pm.qrCodeUrl ? (
+                                                <div className="w-12 h-12 rounded-lg bg-gray-100 border flex items-center justify-center flex-shrink-0 overflow-hidden relative">
+                                                    <Image src={pm.qrCodeUrl} alt="" fill className="object-contain" unoptimized />
+                                                </div>
+                                            ) : (
+                                                <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                                                    <Banknote className="w-6 h-6 text-gray-400" />
+                                                </div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-semibold text-gray-900">{pm.label || pm.bankName}</p>
+                                                {pm.accountName && <p className="text-xs text-gray-500">{pm.accountName}</p>}
+                                                {pm.accountNo && <p className="text-xs text-gray-400 font-mono">{pm.accountNo}</p>}
+                                            </div>
+                                            <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-red-500 transition-colors" />
+                                        </button>
+                                    ))}
+
+                                    {paymentConfig?.instructions && (
+                                        <div className="bg-amber-50 p-3 rounded-lg text-sm text-amber-800 border border-amber-100">
+                                            <p className="font-medium mb-1">Instructions:</p>
+                                            <p className="whitespace-pre-wrap">{paymentConfig.instructions}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Sub-step 2: Payment Details + QR */}
+                            {paymentStep === 2 && activeMethod && (
+                                <div className="space-y-5">
+                                    <div className="flex items-center gap-3 p-3 bg-red-50 rounded-xl border border-red-100">
+                                        <div className="w-10 h-10 rounded-lg bg-white border flex items-center justify-center flex-shrink-0">
+                                            {activeMethod.qrCodeUrl ? (
+                                                <QrCode className="w-5 h-5 text-red-600" />
+                                            ) : (
+                                                <Banknote className="w-5 h-5 text-red-600" />
+                                            )}
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-semibold text-gray-900">{activeMethod.label || activeMethod.bankName}</p>
+                                            <p className="text-xs text-gray-500">Send ₱{paymentFee.toLocaleString()} to this account</p>
+                                        </div>
+                                    </div>
+
+                                    {activeMethod.qrCodeUrl && (
+                                        <div className="text-center space-y-3">
+                                            <p className="text-sm font-medium text-gray-700">Scan QR Code to Pay</p>
+                                            <div className="relative mx-auto w-56 h-56 rounded-xl overflow-hidden border border-gray-200 bg-white">
+                                                <Image src={activeMethod.qrCodeUrl} alt="Payment QR Code" fill className="object-contain p-2" unoptimized />
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDownloadQR(activeMethod.qrCodeUrl!, activeMethod.label || activeMethod.bankName)}
+                                                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
+                                            >
+                                                <Download className="w-4 h-4" />
+                                                Download QR Code
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {activeMethod.bankName && (
+                                        <div className="bg-gray-50 p-4 rounded-xl space-y-2 text-sm">
+                                            <p className="font-medium text-gray-700">Bank Transfer Details</p>
+                                            <div className="space-y-2 text-gray-600">
+                                                <div className="flex justify-between">
+                                                    <span>Bank</span>
+                                                    <span className="font-medium text-gray-900">{activeMethod.bankName}</span>
+                                                </div>
+                                                {activeMethod.accountNo && (
+                                                    <div className="flex justify-between">
+                                                        <span>Account No.</span>
+                                                        <span className="font-mono font-medium text-gray-900">{activeMethod.accountNo}</span>
+                                                    </div>
+                                                )}
+                                                {activeMethod.accountName && (
+                                                    <div className="flex justify-between">
+                                                        <span>Account Name</span>
+                                                        <span className="font-medium text-gray-900">{activeMethod.accountName}</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex justify-between pt-2 border-t border-gray-200">
+                                                    <span className="font-medium">Amount</span>
+                                                    <span className="font-bold" style={{ color: isKtm ? '#DC2626' : tenant.primaryColor }}>₱{paymentFee.toLocaleString()}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {paymentConfig?.instructions && (
+                                        <div className="bg-amber-50 p-3 rounded-lg text-sm text-amber-800 border border-amber-100">
+                                            <p className="font-medium mb-1">Instructions:</p>
+                                            <p className="whitespace-pre-wrap">{paymentConfig.instructions}</p>
+                                        </div>
+                                    )}
+
+                                    <div className="flex gap-3">
+                                        {methods.length > 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setPaymentStep(1)}
+                                                className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+                                            >
+                                                <ArrowLeft className="w-4 h-4" /> Back
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={() => setPaymentStep(3)}
+                                            className={`flex-1 px-4 py-2.5 text-white text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 ${isKtm ? 'bg-red-600 hover:bg-red-700' : ''}`}
+                                            style={!isKtm ? { backgroundColor: tenant.primaryColor } : undefined}
+                                        >
+                                            I&apos;ve Paid <ArrowRight className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Sub-step 3: Upload Proof */}
+                            {paymentStep === 3 && (
+                                <div className="space-y-5">
+                                    <div className="text-center">
+                                        <div className="w-14 h-14 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                                            <Upload className="w-7 h-7 text-green-600" />
+                                        </div>
+                                        <p className="text-sm font-medium text-gray-900">Upload Proof of Payment</p>
+                                        <p className="text-xs text-gray-500 mt-1">Upload a screenshot or photo of your payment receipt</p>
+                                    </div>
+
+                                    {proofPreview ? (
+                                        <div className="relative rounded-xl overflow-hidden border border-gray-200">
+                                            <div className="relative w-full h-48">
+                                                <Image src={proofPreview} alt="Proof of payment" fill className="object-contain" unoptimized />
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => proofInputRef.current?.click()}
+                                                className="absolute bottom-2 right-2 p-1.5 bg-white/90 rounded-lg shadow text-xs text-gray-600 hover:bg-white"
+                                            >
+                                                Change
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={() => proofInputRef.current?.click()}
+                                            className="w-full h-40 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center gap-2 hover:border-red-400 hover:bg-red-50/30 transition-all cursor-pointer group"
+                                        >
+                                            <Upload className="w-6 h-6 text-gray-400 group-hover:text-red-500" />
+                                            <span className="text-sm text-gray-500">Click to upload receipt</span>
+                                            <span className="text-xs text-gray-400">PNG, JPG up to 5MB</span>
+                                        </button>
+                                    )}
+
+                                    <input
+                                        ref={proofInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleProofChange}
+                                        className="hidden"
+                                    />
+
+                                    <div className="flex gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => setPaymentStep(2)}
+                                            className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+                                        >
+                                            <ArrowLeft className="w-4 h-4" /> Back
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                if (!proofFile) {
+                                                    toast.error('Please upload proof of payment')
+                                                    return
+                                                }
+                                                handleSubmit(e as any)
+                                            }}
+                                            disabled={!proofFile || isSubmitting}
+                                            className={`flex-1 px-4 py-3 text-white font-medium rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${isKtm ? 'bg-green-600 hover:bg-green-700' : 'bg-green-600 hover:bg-green-700'}`}
+                                        >
+                                            {isSubmitting ? (
+                                                <><Loader2 className="w-4 h-4 animate-spin" /> Submitting...</>
+                                            ) : (
+                                                <><CheckCircle className="w-4 h-4" /> Complete Profile</>
+                                            )}
+                                        </button>
+                                    </div>
+
+                                    <p className="text-center text-xs text-gray-400">
+                                        Your proof will be reviewed by {paymentOrgName}. Your club will be activated once approved.
+                                    </p>
+                                </div>
+                            )}
                         </motion.div>
                     </div>
                 </div>

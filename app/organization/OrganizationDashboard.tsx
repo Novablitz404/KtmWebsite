@@ -152,6 +152,7 @@ export default function OrganizationDashboard({
                                         {/* Pending Approvals Widget */}
                                         <PendingApprovalsWidget
                                             pendingClubs={(dashboardData.allClubs || []).filter((c: any) => c?.status === 'PENDING')}
+                                            pendingAffiliations={(dashboardData.allClubs || []).filter((c: any) => c?.affiliationStatus === 'PENDING_REVIEW')}
                                         />
                                     </div>
 
