@@ -30,24 +30,25 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ exists: false, needsPasswordSetup: false })
         }
 
-        // Check if this user has ever signed in via Supabase Auth
-        // A migrated user will have last_sign_in_at = NULL (never signed in with password)
+        // Check if this user has a Supabase Auth account
         const supabase = createClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
             process.env.SUPABASE_SERVICE_ROLE_KEY!
         )
 
-        const { data: authUsers } = await supabase.auth.admin.listUsers()
-        const authUser = authUsers?.users?.find(
-            u => u.email?.toLowerCase() === email.trim().toLowerCase()
-        )
+        // Since User.id = Supabase Auth UUID, use getUserById for O(1) lookup
+        // This works at any scale (1000, 10000+ users) — no pagination needed
+        const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(user.id)
+
+        const hasAuthAccount = !!authUser?.user && !authError
 
         // Only flag as needing password setup if:
-        // 1. No auth user exists (migrated from another system), OR
-        // 2. Auth user exists but has NEVER signed in
-        const needsPasswordSetup = !authUser || !authUser.last_sign_in_at
+        // The user exists in our DB but has NO Supabase Auth account at all
+        // (i.e. truly a migrated user who was never created in Supabase Auth)
+        // If they DO have an auth account but entered wrong password, this should NOT trigger.
+        const needsPasswordSetup = !hasAuthAccount
 
-        console.log(`[check-email] email="${email.trim()}" exists=${!!user} needsPasswordSetup=${needsPasswordSetup}`)
+        console.log(`[check-email] email="${email.trim()}" dbUser=${!!user} authUser=${hasAuthAccount} needsPasswordSetup=${needsPasswordSetup}`)
 
         return NextResponse.json({ exists: !!user, needsPasswordSetup })
     } catch (err) {
