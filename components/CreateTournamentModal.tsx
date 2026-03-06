@@ -33,6 +33,7 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
     const [registrationStart, setRegistrationStart] = useState<Date | undefined>(undefined)
     const [registrationEnd, setRegistrationEnd] = useState<Date | undefined>(undefined)
     const [selectedTier, setSelectedTier] = useState('J-2')
+    const [dateTBA, setDateTBA] = useState(false)
 
     // Time States
     const [startTime, setStartTime] = useState('08:00')
@@ -368,26 +369,48 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     {/* Tournament Date + Time */}
                                     <div className="space-y-2">
-                                        <GlobalCalendar
-                                            label="Tournament Date *"
-                                            value={startDate}
-                                            onChange={(date) => {
-                                                setStartDate(date)
-                                                const input = document.getElementById('startDate') as HTMLInputElement
-                                                if (input) input.value = format(date, 'yyyy-MM-dd')
+                                        <div className={dateTBA ? 'opacity-40 pointer-events-none' : ''}>
+                                            <GlobalCalendar
+                                                label="Tournament Date *"
+                                                value={startDate}
+                                                onChange={(date) => {
+                                                    setStartDate(date)
+                                                    const input = document.getElementById('startDate') as HTMLInputElement
+                                                    if (input) input.value = format(date, 'yyyy-MM-dd')
+                                                }}
+                                                placeholder={dateTBA ? 'TBA' : 'Select date...'}
+                                                className="w-full"
+                                                fullWidth
+                                            />
+                                            <div className="mt-2">
+                                                <GlobalTimePicker
+                                                    label="Start Time"
+                                                    value={startTime}
+                                                    onChange={setStartTime}
+                                                    name="startTime"
+                                                    fullWidth
+                                                />
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setDateTBA(!dateTBA)
+                                                if (!dateTBA) {
+                                                    setStartDate(undefined)
+                                                    const input = document.getElementById('startDate') as HTMLInputElement
+                                                    if (input) input.value = '2099-12-31'
+                                                } else {
+                                                    const input = document.getElementById('startDate') as HTMLInputElement
+                                                    if (input) input.value = ''
+                                                }
                                             }}
-                                            placeholder="Select date..."
-                                            className="w-full"
-                                            fullWidth
-                                        />
+                                            className={`w-full text-xs font-bold py-1.5 rounded-lg transition-colors ${dateTBA ? 'bg-amber-100 text-amber-700 border border-amber-200 hover:bg-amber-200' : 'bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100'}`}
+                                        >
+                                            {dateTBA ? '✕ Remove TBA' : 'Set as TBA'}
+                                        </button>
                                         <input type="hidden" name="startDate" id="startDate" required />
-                                        <GlobalTimePicker
-                                            label="Start Time"
-                                            value={startTime}
-                                            onChange={setStartTime}
-                                            name="startTime"
-                                            fullWidth
-                                        />
+                                        <input type="hidden" name="dateTBA" value={dateTBA ? 'true' : 'false'} />
                                     </div>
 
                                     {/* Registration Opens + Time */}

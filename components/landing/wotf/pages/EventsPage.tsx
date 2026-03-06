@@ -15,6 +15,8 @@ interface EventData {
     status: 'open' | 'upcoming';
     tags: string[];
     link?: string;
+    tier?: string;
+    dateTBA?: boolean;
 }
 
 interface WOTFEventsPageProps {

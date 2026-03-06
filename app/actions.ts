@@ -58,6 +58,9 @@ export async function createTournament(formData: FormData) {
     const xenditSecretKeyRaw = formData.get('xenditSecretKey') as string | null
     const xenditSecretKey = xenditEnabled && xenditSecretKeyRaw ? encrypt(xenditSecretKeyRaw) : null
 
+    // Date TBA
+    const dateTBA = formData.get('dateTBA') === 'true'
+
     if (!name || !startDateStr) {
         return { error: 'Tournament name and date are required' }
     }
@@ -126,6 +129,7 @@ export async function createTournament(formData: FormData) {
             categoryPricing,
             xenditEnabled,
             xenditSecretKey,
+            dateTBA,
         },
     })
 

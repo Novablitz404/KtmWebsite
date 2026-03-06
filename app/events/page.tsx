@@ -43,6 +43,8 @@ export default async function EventsPage() {
                     venue: true,
                     headerImageUrl: true,
                     status: true,
+                    tier: true,
+                    dateTBA: true,
                     categories: {
                         select: { type: true }
                     }
@@ -79,6 +81,8 @@ export default async function EventsPage() {
                 image: t.headerImageUrl || 'bg-gradient-to-br from-spanish-red to-orange-600',
                 status: t.status === 'UPCOMING' ? 'upcoming' as const : 'open' as const,
                 tags: [...new Set(t.categories.map(c => c.type))],
+                tier: t.tier || 'J-2',
+                dateTBA: t.dateTBA || false,
                 link: `/tournament/${t.id}`,
             })),
             ...seminars.map(s => ({

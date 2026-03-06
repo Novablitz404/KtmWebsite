@@ -85,6 +85,7 @@ model Tournament {
   guidelinesText    String? @db.Text // Custom guidelines content
   status            String    @default("UPCOMING") // UPCOMING, ONGOING, COMPLETED, CANCELLED, RESCHEDULED
   tier              String    @default("J-2") // J-1, J-2, J-3, J-4
+  dateTBA           Boolean   @default(false) // True if date not yet decided
 
   // Pricing
   showPricing       Boolean   @default(false) // Toggle pricing visibility for public/athletes

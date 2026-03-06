@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Sparkles, ShieldAlert, Split, Merge, Trophy, Clock, Check, AlertCircle } from 'lucide-react'
+import { X, Sparkles, ShieldAlert, Split, Merge, Trophy, Clock, Check, AlertCircle, Search } from 'lucide-react'
 import { initiateSmartProposal, forceExecuteSmartAction } from '@/app/actions'
 import { toast } from 'sonner'
 
@@ -15,6 +15,7 @@ const ITEMS_PER_PAGE = 10
 
 export default function SmartAlertsModal({ isOpen, onClose, alerts }: SmartAlertsModalProps) {
     const [page, setPage] = useState(1)
+    const [searchQuery, setSearchQuery] = useState('')
 
     if (!isOpen) return null
 
@@ -38,8 +39,19 @@ export default function SmartAlertsModal({ isOpen, onClose, alerts }: SmartAlert
         })
     )
 
-    const totalPages = Math.ceil(allAlerts.length / ITEMS_PER_PAGE)
-    const currentAlerts = allAlerts.slice(
+    // Filter by search query across all alerts (before pagination)
+    const q = searchQuery.toLowerCase().trim()
+    const filteredAlerts = q
+        ? allAlerts.filter((a: any) =>
+            a.tournamentName?.toLowerCase().includes(q) ||
+            a.categoryName?.toLowerCase().includes(q) ||
+            a.message?.toLowerCase().includes(q) ||
+            a.type?.toLowerCase().includes(q)
+        )
+        : allAlerts
+
+    const totalPages = Math.ceil(filteredAlerts.length / ITEMS_PER_PAGE)
+    const currentAlerts = filteredAlerts.slice(
         (page - 1) * ITEMS_PER_PAGE,
         page * ITEMS_PER_PAGE
     )
@@ -55,7 +67,7 @@ export default function SmartAlertsModal({ isOpen, onClose, alerts }: SmartAlert
                     <div>
                         <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
                             Optimization Suggestions
-                            {hasAlerts && <span className="bg-indigo-100 text-indigo-700 text-sm px-2.5 py-0.5 rounded-full font-bold">{allAlerts.length}</span>}
+                            {hasAlerts && <span className="bg-indigo-100 text-indigo-700 text-sm px-2.5 py-0.5 rounded-full font-bold">{filteredAlerts.length}</span>}
                         </h2>
                         <p className="text-gray-500 mt-1">Review AI-driven recommendations to improve tournament quality.</p>
                     </div>
@@ -66,6 +78,25 @@ export default function SmartAlertsModal({ isOpen, onClose, alerts }: SmartAlert
                         <X size={24} />
                     </button>
                 </div>
+
+                {/* Search Bar */}
+                {hasAlerts && (
+                    <div className="px-8 py-3 border-b border-gray-100 bg-white flex-shrink-0">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                            <input
+                                type="text"
+                                placeholder="Search suggestions by tournament, category, or type..."
+                                value={searchQuery}
+                                onChange={(e) => {
+                                    setSearchQuery(e.target.value)
+                                    setPage(1)
+                                }}
+                                className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all"
+                            />
+                        </div>
+                    </div>
+                )}
 
                 {/* Content */}
                 <div className="flex-1 overflow-auto bg-gray-50 flex flex-col">

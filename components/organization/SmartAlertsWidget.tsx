@@ -23,7 +23,7 @@ export default function SmartAlertsWidget() {
     const allFlattenedAlerts = orgAlerts?.flatMap((group: any) =>
         group.alerts.map((alert: any) => ({ ...alert, tournamentId: group.tournamentId }))
     ) || []
-    const displayedAlerts = allFlattenedAlerts.slice(0, 2)
+    const displayedAlerts = allFlattenedAlerts.slice(0, 3)
 
     return (
         <>

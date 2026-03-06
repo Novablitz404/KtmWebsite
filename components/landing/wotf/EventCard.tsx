@@ -16,6 +16,8 @@ interface EventCardProps {
     price?: string;
     tags: string[];
     link?: string;
+    tier?: string;
+    dateTBA?: boolean;
 }
 
 function formatMonth(dateStr: string | Date) {
@@ -73,12 +75,21 @@ const EventCard = ({ event, index }: { event: EventCardProps; index: number }) =
             <div className="p-5 pb-0 flex items-start gap-4">
                 {/* Date Badge */}
                 <div className={`${palette.bgLight} rounded-xl p-3 text-center min-w-[64px] flex-shrink-0`}>
-                    <span className={`block text-xs font-black uppercase tracking-wider ${palette.accent}`}>
-                        {formatMonth(startDate)}
-                    </span>
-                    <span className="block text-3xl font-black text-gray-900 leading-none mt-0.5">
-                        {formatDay(startDate)}
-                    </span>
+                    {event.dateTBA ? (
+                        <>
+                            <span className={`block text-xs font-black uppercase tracking-wider ${palette.accent}`}>DATE</span>
+                            <span className="block text-2xl font-black text-gray-900 leading-none mt-0.5">TBA</span>
+                        </>
+                    ) : (
+                        <>
+                            <span className={`block text-xs font-black uppercase tracking-wider ${palette.accent}`}>
+                                {formatMonth(startDate)}
+                            </span>
+                            <span className="block text-3xl font-black text-gray-900 leading-none mt-0.5">
+                                {formatDay(startDate)}
+                            </span>
+                        </>
+                    )}
                 </div>
 
                 {/* Type Badge & Title */}
@@ -86,6 +97,11 @@ const EventCard = ({ event, index }: { event: EventCardProps; index: number }) =
                     <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider ${palette.accent}`}>
                         {isTournament ? <Trophy size={12} /> : <GraduationCap size={12} />}
                         {event.type}
+                        {event.tier && (
+                            <span className="ml-1 px-1.5 py-0.5 rounded bg-gray-900 text-white text-[9px] font-black tracking-wider">
+                                {event.tier}
+                            </span>
+                        )}
                     </span>
                     <h3 className="text-lg font-black text-gray-900 leading-snug mt-1 group-hover:text-congo-blue transition-colors line-clamp-2">
                         {event.title}
@@ -99,8 +115,9 @@ const EventCard = ({ event, index }: { event: EventCardProps; index: number }) =
                     <div className="flex items-center gap-2 text-sm text-gray-500 font-medium">
                         <Calendar size={14} className="text-gray-400 flex-shrink-0" />
                         <span>
-                            {formatFullDate(startDate)}
-                            {startDate.getTime() !== endDate.getTime() && ` — ${formatFullDate(endDate)}`}
+                            {event.dateTBA ? 'Date: To Be Announced' : (
+                                <>{formatFullDate(startDate)}{startDate.getTime() !== endDate.getTime() && ` — ${formatFullDate(endDate)}`}</>
+                            )}
                         </span>
                     </div>
                     {event.location && (
