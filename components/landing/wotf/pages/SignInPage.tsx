@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { createBrowserClient } from "@/lib/supabase/client";
+import { createImplicitClient } from "@/lib/supabase/implicit-client";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -97,7 +98,8 @@ export default function WOTFSignInPage() {
         setError("");
 
         try {
-            const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+            const implicitClient = createImplicitClient();
+            const { error: resetError } = await implicitClient.auth.resetPasswordForEmail(email, {
                 redirectTo: `${window.location.origin}/sign-in/reset-password`,
             });
 

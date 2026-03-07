@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import { createBrowserClient } from '@/lib/supabase/client'
+import { createImplicitClient } from '@/lib/supabase/implicit-client'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -87,7 +88,8 @@ export default function CustomSignInForm({ hideBranding = false }: CustomSignInF
         setError(null)
 
         try {
-            const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+            const implicitClient = createImplicitClient()
+            const { error: resetError } = await implicitClient.auth.resetPasswordForEmail(email, {
                 redirectTo: `${window.location.origin}/sign-in/reset-password`,
             })
 

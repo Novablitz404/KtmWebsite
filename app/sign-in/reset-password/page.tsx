@@ -1,15 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createBrowserClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { createImplicitClient } from '@/lib/supabase/implicit-client'
 import Image from 'next/image'
-import { Eye, EyeOff, Loader2, CheckCircle } from 'lucide-react'
+import { Eye, EyeOff, Loader2, CheckCircle, AlertTriangle } from 'lucide-react'
 import { useTenant } from '@/app/providers/TenantProvider'
 
 export default function ResetPasswordPage() {
-    const supabase = createBrowserClient()
-    const router = useRouter()
     const tenant = useTenant()
     const [password, setPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
@@ -17,10 +14,41 @@ export default function ResetPasswordPage() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState(false)
+    const [sessionReady, setSessionReady] = useState(false)
+    const [checkingSession, setCheckingSession] = useState(true)
 
     useEffect(() => {
-        // Supabase automatically picks up the recovery token from the URL hash
-        // when the user clicks the reset link. No manual token handling needed.
+        const supabase = createImplicitClient()
+
+        // Listen for the PASSWORD_RECOVERY event from the implicit flow
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'PASSWORD_RECOVERY' && session) {
+                setSessionReady(true)
+                setCheckingSession(false)
+            } else if (event === 'SIGNED_IN' && session) {
+                // Fallback: also handle if it comes through as SIGNED_IN
+                setSessionReady(true)
+                setCheckingSession(false)
+            }
+        })
+
+        // Also check if there's already a session (e.g. came via auth callback)
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) {
+                setSessionReady(true)
+                setCheckingSession(false)
+            }
+        })
+
+        // Timeout: if no session after 5 seconds, show error
+        const timeout = setTimeout(() => {
+            setCheckingSession(false)
+        }, 5000)
+
+        return () => {
+            subscription.unsubscribe()
+            clearTimeout(timeout)
+        }
     }, [])
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -40,6 +68,7 @@ export default function ResetPasswordPage() {
         setLoading(true)
 
         try {
+            const supabase = createImplicitClient()
             const { error: updateError } = await supabase.auth.updateUser({
                 password,
             })
@@ -70,6 +99,42 @@ export default function ResetPasswordPage() {
                     </div>
                     <h2 className="text-2xl font-bold text-gray-900 mb-2">Password Updated!</h2>
                     <p className="text-gray-500 text-sm">Redirecting you to the dashboard...</p>
+                </div>
+            </div>
+        )
+    }
+
+    // Still checking for recovery session
+    if (checkingSession) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+                <div className="w-full max-w-md text-center bg-white p-8 rounded-3xl shadow-xl border border-gray-100">
+                    <Loader2 className="w-8 h-8 text-gray-400 animate-spin mx-auto mb-4" />
+                    <p className="text-sm font-medium text-gray-500">Verifying your reset link...</p>
+                </div>
+            </div>
+        )
+    }
+
+    // No session found — link is invalid or expired
+    if (!sessionReady) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+                <div className="w-full max-w-md text-center bg-white p-8 rounded-3xl shadow-xl border border-gray-100">
+                    <div className="w-16 h-16 mx-auto mb-4 bg-amber-100 rounded-full flex items-center justify-center">
+                        <AlertTriangle className="w-8 h-8 text-amber-600" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Link Expired</h2>
+                    <p className="text-gray-500 text-sm mb-6">
+                        This password reset link has expired or is invalid.<br />
+                        Please request a new one from the sign-in page.
+                    </p>
+                    <a
+                        href="/sign-in"
+                        className="inline-flex items-center px-6 py-3 bg-gray-900 hover:bg-gray-800 text-white rounded-xl font-semibold text-sm transition-all"
+                    >
+                        Back to Sign In
+                    </a>
                 </div>
             </div>
         )
@@ -149,3 +214,4 @@ export default function ResetPasswordPage() {
         </div>
     )
 }
+

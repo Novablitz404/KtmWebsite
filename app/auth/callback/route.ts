@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
     const { searchParams, origin } = new URL(request.url)
     const code = searchParams.get('code')
     const role = searchParams.get('role')
+    const type = searchParams.get('type')
 
     if (code) {
         const cookieStore = await cookies()
@@ -36,6 +37,11 @@ export async function GET(request: NextRequest) {
         const { error } = await supabase.auth.exchangeCodeForSession(code)
 
         if (!error) {
+            // Password reset flow — redirect to the reset password page
+            if (type === 'recovery') {
+                return NextResponse.redirect(`${origin}/sign-in/reset-password`)
+            }
+
             // If a role was passed as a URL param, complete onboarding with that role
             if (role) {
                 try {

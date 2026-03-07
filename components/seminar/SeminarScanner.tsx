@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Camera, CameraOff, CheckCircle2, XCircle, Loader2, ScanLine, ChevronDown, Keyboard, RotateCcw } from 'lucide-react'
+import { Camera, CameraOff, CheckCircle2, XCircle, Loader2, ScanLine, ChevronDown, Keyboard, RotateCcw, Usb, Zap, History, Trash2 } from 'lucide-react'
 import { verifySeminarQRCode } from '@/app/seminars/actions'
 
 interface SeminarScannerProps {
@@ -26,6 +26,16 @@ type ScanResult = {
     error?: string
 }
 
+type ScanHistoryEntry = {
+    id: string
+    token: string
+    playerName?: string
+    clubName?: string | null
+    status: 'verified' | 'not_found' | 'error'
+    message?: string
+    scannedAt: Date
+}
+
 export default function SeminarScanner({ seminarId }: SeminarScannerProps) {
     const [cameras, setCameras] = useState<CameraDevice[]>([])
     const [selectedCamera, setSelectedCamera] = useState<string>('')
@@ -34,12 +44,18 @@ export default function SeminarScanner({ seminarId }: SeminarScannerProps) {
     const [result, setResult] = useState<ScanResult | null>(null)
     const [cameraError, setCameraError] = useState<string | null>(null)
     const [loadingCameras, setLoadingCameras] = useState(false)
-    const [mode, setMode] = useState<'camera' | 'manual'>('camera')
+    const [mode, setMode] = useState<'scanner' | 'camera' | 'manual'>('scanner')
     const [manualToken, setManualToken] = useState('')
     const [lastScannedToken, setLastScannedToken] = useState<string>('')
     const scannerRef = useRef<any>(null)
     const containerId = 'qr-scanner-container'
     const cooldownRef = useRef(false)
+
+    // USB Scanner state
+    const [scannerInput, setScannerInput] = useState('')
+    const [scanHistory, setScanHistory] = useState<ScanHistoryEntry[]>([])
+    const [scannerReady, setScannerReady] = useState(true)
+    const scannerInputRef = useRef<HTMLInputElement>(null)
 
     const requestCameraAccess = async () => {
         setLoadingCameras(true)
@@ -143,6 +159,51 @@ export default function SeminarScanner({ seminarId }: SeminarScannerProps) {
         setIsLoading(false)
     }
 
+    // USB Scanner handlers
+    const handleScannerKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            e.preventDefault()
+            const token = scannerInput.trim()
+            if (!token || !scannerReady) return
+
+            setScannerReady(false)
+            setScannerInput('')
+
+            const verification = await verifySeminarQRCode(token, seminarId) as ScanResult
+
+            const entry: ScanHistoryEntry = {
+                id: crypto.randomUUID(),
+                token,
+                playerName: verification.registration?.playerName,
+                clubName: verification.registration?.clubName,
+                status: verification.found ? 'verified' : 'not_found',
+                message: verification.error,
+                scannedAt: new Date(),
+            }
+            setScanHistory(prev => [entry, ...prev])
+            setResult(verification)
+
+            // Auto-clear result and re-focus after a brief delay
+            setTimeout(() => {
+                setResult(null)
+                setScannerReady(true)
+                scannerInputRef.current?.focus()
+            }, 2500)
+        }
+    }
+
+    const clearScanHistory = () => {
+        setScanHistory([])
+    }
+
+    // Keep scanner input focused when in scanner mode
+    useEffect(() => {
+        if (mode === 'scanner' && scannerReady) {
+            const timer = setTimeout(() => scannerInputRef.current?.focus(), 100)
+            return () => clearTimeout(timer)
+        }
+    }, [mode, scannerReady, result])
+
     useEffect(() => {
         return () => {
             if (scannerRef.current) {
@@ -177,8 +238,16 @@ export default function SeminarScanner({ seminarId }: SeminarScannerProps) {
             </div>
 
             {/* Mode Toggle */}
-            <div className="max-w-xs mb-6">
+            <div className="max-w-md mb-6">
                 <div className="flex bg-gray-100 rounded-xl p-1">
+                    <button
+                        onClick={() => { setMode('scanner'); stopScanning(); setResult(null) }}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all ${mode === 'scanner' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                    >
+                        <Usb className="w-4 h-4" />
+                        Scanner
+                    </button>
                     <button
                         onClick={() => { setMode('camera'); setResult(null) }}
                         className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all ${mode === 'camera' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
@@ -197,6 +266,202 @@ export default function SeminarScanner({ seminarId }: SeminarScannerProps) {
                     </button>
                 </div>
             </div>
+
+            {/* USB Scanner Mode */}
+            {mode === 'scanner' && (
+                <div className="flex flex-col lg:flex-row gap-6">
+                    {/* Left: Scanner Input */}
+                    <div className="flex-1">
+                        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+                            <div className="p-6">
+                                {/* Status Indicator */}
+                                <div className={`mb-6 p-5 rounded-2xl border-2 transition-all duration-300 ${!scannerReady
+                                        ? 'border-amber-300 bg-amber-50'
+                                        : result?.found
+                                            ? 'border-green-300 bg-green-50'
+                                            : result && !result.found
+                                                ? 'border-red-300 bg-red-50'
+                                                : 'border-dashed border-gray-200 bg-gray-50'
+                                    }`}>
+                                    <div className="flex items-center justify-center gap-3">
+                                        {!scannerReady ? (
+                                            <>
+                                                <Loader2 className="w-6 h-6 text-amber-500 animate-spin" />
+                                                <span className="text-sm font-bold text-amber-700">Verifying...</span>
+                                            </>
+                                        ) : result?.found ? (
+                                            <>
+                                                <CheckCircle2 className="w-6 h-6 text-green-600" />
+                                                <span className="text-sm font-bold text-green-700">Verified — {result.registration?.playerName}</span>
+                                            </>
+                                        ) : result && !result.found ? (
+                                            <>
+                                                <XCircle className="w-6 h-6 text-red-500" />
+                                                <span className="text-sm font-bold text-red-700">{result.error || 'Not found'}</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="relative">
+                                                    <Zap className="w-6 h-6 text-green-500" />
+                                                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-400 rounded-full animate-pulse" />
+                                                </div>
+                                                <span className="text-sm font-bold text-gray-600">Ready to Scan</span>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Hidden-ish input that captures USB scanner keystrokes */}
+                                <div className="relative">
+                                    <input
+                                        ref={scannerInputRef}
+                                        type="text"
+                                        value={scannerInput}
+                                        onChange={(e) => setScannerInput(e.target.value)}
+                                        onKeyDown={handleScannerKeyDown}
+                                        onBlur={() => {
+                                            // Re-focus if still in scanner mode
+                                            if (mode === 'scanner' && scannerReady) {
+                                                setTimeout(() => scannerInputRef.current?.focus(), 100)
+                                            }
+                                        }}
+                                        autoFocus
+                                        placeholder="Waiting for scanner input..."
+                                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent placeholder-gray-400 font-mono"
+                                    />
+                                    <Usb className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
+                                </div>
+
+                                <p className="text-xs text-gray-400 mt-3 text-center">
+                                    Connect your USB scanner and scan a QR code. It will auto-verify.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Scan History */}
+                        {scanHistory.length > 0 && (
+                            <div className="mt-4 bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+                                <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <History className="w-4 h-4 text-gray-400" />
+                                        <h3 className="text-sm font-bold text-gray-700">Scan History</h3>
+                                        <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                                            {scanHistory.length}
+                                        </span>
+                                    </div>
+                                    <button
+                                        onClick={clearScanHistory}
+                                        className="text-xs font-semibold text-gray-400 hover:text-red-500 flex items-center gap-1 transition-colors"
+                                    >
+                                        <Trash2 className="w-3 h-3" />
+                                        Clear
+                                    </button>
+                                </div>
+                                <div className="divide-y divide-gray-50 max-h-[320px] overflow-y-auto">
+                                    {scanHistory.map((entry) => (
+                                        <div key={entry.id} className="px-6 py-3 flex items-center gap-3">
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${entry.status === 'verified' ? 'bg-green-100' : 'bg-red-100'
+                                                }`}>
+                                                {entry.status === 'verified'
+                                                    ? <CheckCircle2 className="w-4 h-4 text-green-600" />
+                                                    : <XCircle className="w-4 h-4 text-red-600" />
+                                                }
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-semibold text-gray-900 truncate">
+                                                    {entry.playerName || 'Unknown'}
+                                                </p>
+                                                <p className="text-xs text-gray-400">
+                                                    {entry.clubName || (entry.status === 'not_found' ? entry.message : 'No club')}
+                                                </p>
+                                            </div>
+                                            <p className="text-[10px] font-medium text-gray-300 flex-shrink-0">
+                                                {entry.scannedAt.toLocaleTimeString(undefined, {
+                                                    hour: '2-digit', minute: '2-digit', second: '2-digit'
+                                                })}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Right: Result Panel */}
+                    <div className="w-full lg:w-[380px] flex-shrink-0">
+                        {result ? (
+                            <div className={`rounded-3xl border shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${result.found ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+                                }`}>
+                                <div className="p-6">
+                                    {result.found && result.registration ? (
+                                        <div className="space-y-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+                                                    <CheckCircle2 className="w-7 h-7 text-green-600" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-lg font-black text-green-900">Verified</h3>
+                                                    <p className="text-xs font-medium text-green-600">Registration confirmed</p>
+                                                </div>
+                                            </div>
+                                            <div className="bg-white/80 rounded-2xl p-4 space-y-3 border border-green-100">
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Athlete</p>
+                                                        <p className="text-base font-bold text-gray-900">{result.registration.playerName}</p>
+                                                    </div>
+                                                    {result.registration.belt && (
+                                                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${getBeltStyle(result.registration.belt).bg} ${getBeltStyle(result.registration.belt).text}`}>
+                                                            {result.registration.belt}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {result.registration.clubName && (
+                                                    <div>
+                                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Club</p>
+                                                        <p className="text-sm font-semibold text-gray-700">{result.registration.clubName}</p>
+                                                    </div>
+                                                )}
+                                                <div className="flex items-center gap-4">
+                                                    <div>
+                                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</p>
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold ${result.registration.status === 'APPROVED'
+                                                                ? 'bg-green-100 text-green-700'
+                                                                : result.registration.status === 'PENDING'
+                                                                    ? 'bg-amber-100 text-amber-700'
+                                                                    : 'bg-red-100 text-red-700'
+                                                            }`}>
+                                                            {result.registration.status}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                                                <XCircle className="w-7 h-7 text-red-600" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-black text-red-900">Not Found</h3>
+                                                <p className="text-sm text-red-600">{result.error}</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8 flex flex-col items-center justify-center min-h-[200px] text-center">
+                                <div className="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mb-3">
+                                    <Usb className="w-7 h-7 text-gray-300" />
+                                </div>
+                                <p className="text-sm font-semibold text-gray-400">Scan a QR code to verify</p>
+                                <p className="text-xs text-gray-300 mt-1">Result will appear here</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Camera Mode — side-by-side layout */}
             {mode === 'camera' && (
