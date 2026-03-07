@@ -70,11 +70,16 @@ export const PromotionPassedEmail = ({
                         ) : (
                             <Section style={imageSection}>
                                 <Img
-                                    src="https://ktmsports.com/KTMLogo.png"
-                                    width="75"
-                                    height="75"
-                                    alt="KTM Logo"
+                                    src="https://www.wotf-ph.com/wotf/logo_image.png"
+                                    width="80"
+                                    alt="WOTF Logo"
                                     style={logo}
+                                />
+                                <Img
+                                    src="https://www.wotf-ph.com/wotf/wotf_logo_word.png"
+                                    width="80"
+                                    alt="WOTF Philippines"
+                                    style={{ margin: '12px auto 0' }}
                                 />
                             </Section>
                         )}
@@ -118,6 +123,19 @@ export const PromotionPassedEmail = ({
                                 <strong>The Board of Examiners</strong><br />
                                 {organizationName}
                             </Text>
+                            <Hr style={hr} />
+                            <Text style={{ ...footerText, fontSize: '12px', color: '#9ca3af', textAlign: 'center' as const, margin: '16px 0 0' }}>
+                                © {new Date().getFullYear()} WOTF Philippines. All rights reserved.
+                            </Text>
+                            <Text style={{ fontSize: '11px', color: '#d1d5db', textAlign: 'center' as const, margin: '6px 0 2px' }}>
+                                Powered by
+                            </Text>
+                            <Img
+                                src="https://www.wotf-ph.com/ktmnav.png"
+                                width="50"
+                                alt="KTM"
+                                style={{ margin: '0 auto', opacity: 0.5 }}
+                            />
                         </Section>
                     </Section>
                 </Container>
@@ -162,11 +180,10 @@ const bannerImage = {
 }
 
 const imageSection = {
-    backgroundColor: '#dc2626', // Red-600 fallback
-    padding: '40px 0',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    padding: '30px 0',
+    textAlign: 'center' as const,
+    borderBottom: '1px solid #eee',
 }
 
 const logo = {

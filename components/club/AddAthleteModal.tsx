@@ -8,6 +8,7 @@ import { searchClubMembers, getUpcomingTournaments, registerForTournament, findP
 import { getUpcomingSeminars, registerForSeminar } from '@/app/seminars/actions'
 import { getUpcomingPromotions, registerForPromotion } from '@/app/promotions/actions'
 import { calculateAge } from '@/lib/placement'
+import { useQueryClient } from '@tanstack/react-query'
 
 interface AddAthleteModalProps {
     isOpen: boolean
@@ -62,6 +63,7 @@ const BELT_OPTIONS = ['White', 'Yellow', 'Orange', 'Green', 'Purple', 'Blue', 'R
 
 export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, defaultType = 'TOURNAMENT' }: AddAthleteModalProps) {
     useScrollLock(isOpen)
+    const queryClient = useQueryClient()
 
     // Member Search State
     const [searchQuery, setSearchQuery] = useState('')
@@ -243,6 +245,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                 if (res.error) toast.error(res.error)
                 else {
                     toast.success('Athlete registered for tournament')
+                    queryClient.invalidateQueries({ queryKey: ['club-home', clubId] })
                     onClose()
                 }
             } else if (activeTab === 'SEMINAR') {
@@ -263,6 +266,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                 if (res.error) toast.error(res.error)
                 else {
                     toast.success('Athlete registered for seminar')
+                    queryClient.invalidateQueries({ queryKey: ['club-home', clubId] })
                     onClose()
                 }
             } else if (activeTab === 'PROMOTION') {
@@ -288,6 +292,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                 if (res.error) toast.error(res.error)
                 else {
                     toast.success('Athlete registered for promotion test')
+                    queryClient.invalidateQueries({ queryKey: ['club-home', clubId] })
                     onClose()
                 }
             }

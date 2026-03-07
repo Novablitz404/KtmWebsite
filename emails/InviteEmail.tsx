@@ -33,10 +33,16 @@ export const InviteEmail = ({
                     {/* Header Image (Optional, default WOTF logo or org banner) */}
                     <Section style={headerSection}>
                         <Img
-                            src="https://hztcqufowdpsswwubzog.supabase.co/storage/v1/object/public/logos/wotf_logo_black.png"
-                            width="80"
+                            src="https://www.wotf-ph.com/wotf/logo_image.png"
+                            width="60"
                             alt="WOTF Logo"
                             style={logo}
+                        />
+                        <Img
+                            src="https://www.wotf-ph.com/wotf/wotf_logo_word.png"
+                            width="160"
+                            alt="WOTF Philippines"
+                            style={{ margin: '12px auto 0' }}
                         />
                     </Section>
 
@@ -73,11 +79,17 @@ export const InviteEmail = ({
                     {/* Footer */}
                     <Section style={footer}>
                         <Text style={footerText}>
-                            © {new Date().getFullYear()} {organizationName}. All rights reserved.
+                            © {new Date().getFullYear()} WOTF Philippines. All rights reserved.
                         </Text>
-                        <Text style={footerText}>
-                            Powered by WOTF Sports Platform
+                        <Text style={{ ...footerText, margin: '0' }}>
+                            Powered by
                         </Text>
+                        <Img
+                            src="https://www.wotf-ph.com/ktmnav.png"
+                            width="50"
+                            alt="KTM"
+                            style={{ margin: '4px auto 0', opacity: 0.5 }}
+                        />
                     </Section>
                 </Container>
             </Body>
