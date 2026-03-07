@@ -23,6 +23,7 @@ import { Toaster } from 'sonner'
 import AuthLoadingWrapper from '@/components/AuthLoadingWrapper'
 import QueryProvider from '@/app/providers/QueryProvider'
 import PageTransition from '@/components/PageTransition'
+import RecoveryRedirect from '@/components/RecoveryRedirect'
 import { TenantProvider } from '@/app/providers/TenantProvider'
 import { getTenant } from '@/lib/tenant'
 import { getEventConfig } from '@/lib/event-config'
@@ -84,6 +85,7 @@ export default async function RootLayout({
           <QueryProvider>
             <TenantProvider tenant={tenant}>
               <Toaster position="top-center" richColors />
+              <RecoveryRedirect />
               {isEventPage ? (
                 // Event pages: no header, no auth wrapper, no page transition
                 children
