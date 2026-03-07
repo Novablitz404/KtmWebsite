@@ -79,7 +79,7 @@ export default function PublicTournamentView(props: PublicTournamentViewProps) {
 
     // Pagination for Athletes
     const [currentPage, setCurrentPage] = useState(1)
-    const itemsPerPage = 50
+    const itemsPerPage = 28
     const totalPages = Math.ceil(uniqueAthletes.length / itemsPerPage)
     const displayedAthletes = uniqueAthletes.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
@@ -261,32 +261,10 @@ export default function PublicTournamentView(props: PublicTournamentViewProps) {
 
                     {/* Athletes Grid */}
                     <section>
-                        <div className="flex justify-between items-end mb-6">
+                        <div className="mb-6">
                             <h3 className="text-xl font-bold text-gray-900">
                                 Registered Athletes
                             </h3>
-                            {/* Pagination Controls */}
-                            {totalPages > 1 && (
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                        disabled={currentPage === 1}
-                                        className="px-3 py-1 text-sm font-medium rounded-md text-gray-600 bg-white border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
-                                    >
-                                        Prev
-                                    </button>
-                                    <span className="px-2 py-1 text-sm text-gray-500 self-center">
-                                        {currentPage} / {totalPages}
-                                    </span>
-                                    <button
-                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                        disabled={currentPage === totalPages}
-                                        className="px-3 py-1 text-sm font-medium rounded-md text-gray-600 bg-white border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
-                                    >
-                                        Next
-                                    </button>
-                                </div>
-                            )}
                         </div>
 
                         {uniqueAthletes.length === 0 ? (
@@ -319,6 +297,11 @@ export default function PublicTournamentView(props: PublicTournamentViewProps) {
                                                         Poomsae
                                                     </span>
                                                 )}
+                                                {athlete.eventTypes.includes('KYUKPA') && (
+                                                    <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wide bg-orange-600 text-white shadow-sm">
+                                                        Kyukpa
+                                                    </span>
+                                                )}
                                             </div>
 
                                             {/* Avatar */}
@@ -341,10 +324,15 @@ export default function PublicTournamentView(props: PublicTournamentViewProps) {
                                                     <div className="absolute -bottom-1.5 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
                                                         <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border shadow-sm ${athlete.belt === 'Black' ? 'bg-black text-white border-gray-800' :
                                                             athlete.belt === 'Red' ? 'bg-red-600 text-white border-red-700' :
-                                                                athlete.belt === 'Brown' ? 'bg-amber-800 text-white border-amber-900' :
-                                                                    athlete.belt === 'Blue' ? 'bg-blue-600 text-white border-blue-700' :
-                                                                        athlete.belt === 'Yellow' ? 'bg-yellow-400 text-yellow-900 border-yellow-500' :
-                                                                            'bg-white text-gray-700 border-gray-200'
+                                                                athlete.belt === 'Maroon' ? 'bg-rose-900 text-white border-rose-950' :
+                                                                    athlete.belt === 'Brown' ? 'bg-amber-800 text-white border-amber-900' :
+                                                                        athlete.belt === 'Blue' ? 'bg-blue-600 text-white border-blue-700' :
+                                                                            athlete.belt === 'Purple' ? 'bg-purple-600 text-white border-purple-700' :
+                                                                                athlete.belt === 'Green' ? 'bg-green-600 text-white border-green-700' :
+                                                                                    athlete.belt === 'Orange' ? 'bg-orange-500 text-white border-orange-600' :
+                                                                                        athlete.belt === 'Yellow' ? 'bg-yellow-400 text-yellow-900 border-yellow-500' :
+                                                                                            athlete.belt === 'White' ? 'bg-white text-gray-700 border-gray-300' :
+                                                                                                'bg-gray-100 text-gray-700 border-gray-200'
                                                             }`}>
                                                             {athlete.belt}
                                                         </span>
@@ -373,6 +361,29 @@ export default function PublicTournamentView(props: PublicTournamentViewProps) {
                                         </div>
                                     )
                                 })}
+                            </div>
+                        )}
+
+                        {/* Pagination Controls */}
+                        {totalPages > 1 && (
+                            <div className="flex justify-center items-center gap-2 mt-6">
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                    className="px-4 py-2 text-sm font-medium rounded-lg text-gray-600 bg-white border border-gray-300 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                                >
+                                    Prev
+                                </button>
+                                <span className="px-3 py-1 text-sm text-gray-500">
+                                    {currentPage} / {totalPages}
+                                </span>
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="px-4 py-2 text-sm font-medium rounded-lg text-gray-600 bg-white border border-gray-300 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                                >
+                                    Next
+                                </button>
                             </div>
                         )}
                     </section>

@@ -130,7 +130,7 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
         }
     })
 
-    // Fetch players - use select for nested relations - LIMIT TO 30
+    // Fetch players - use select for nested relations
     const playersFetch = await prisma.player.findMany({
         where: {
             category: {
@@ -152,8 +152,7 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
             category: {
                 name: 'asc'
             }
-        },
-        take: 30
+        }
     })
 
     // Type assertion or cleaner casting for the component props
