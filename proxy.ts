@@ -25,10 +25,12 @@ const PUBLIC_PREFIXES = [
     '/api/clubs',
     '/api/v1/onboarding',
     '/api/event',
+    '/api/cron',
     '/tournaments',
     '/tournament/',
     '/rankings',
     '/seminars',
+    '/promotions/',
     '/event/',
 ]
 
