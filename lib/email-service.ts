@@ -18,7 +18,7 @@ export async function sendEmail({
 
     try {
         const data = await resend.emails.send({
-            from: 'KTM Sports <noreply@ktmsports.com>',
+            from: 'World Olympics Taekwondo Federation Philippines <noreply@wotf-ph.com>',
             to: [to],
             subject: subject,
             react: reactData,
