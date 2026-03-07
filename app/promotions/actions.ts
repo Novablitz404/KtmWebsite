@@ -7,7 +7,7 @@ import { getNextBelt, canManagePromotion } from '@/lib/belt'
 
 export async function updateRegistrationStatus(registrationId: string, status: string) {
     const user = await getAuthUser()
-    if (!user) return { error: 'Unauthorized' }
+    if (!user || !user.clerkId) return { error: 'Unauthorized' }
 
     const registration = await prisma.promotionTestRegistration.findUnique({
         where: { id: registrationId },
@@ -18,7 +18,7 @@ export async function updateRegistrationStatus(registrationId: string, status: s
 
     if (!registration) return { error: 'Registration not found' }
 
-    const authorized = await canManagePromotion(user.id, registration.promotionTest.organizationId)
+    const authorized = await canManagePromotion(user.clerkId, registration.promotionTest.organizationId)
     if (!authorized) return { error: 'Unauthorized' }
 
     await prisma.promotionTestRegistration.update({
@@ -47,7 +47,7 @@ export async function updateRegistrationStatus(registrationId: string, status: s
 
 export async function updateRegistrationPaymentStatus(registrationId: string, paymentStatus: string) {
     const user = await getAuthUser()
-    if (!user) return { error: 'Unauthorized' }
+    if (!user || !user.clerkId) return { error: 'Unauthorized' }
 
     const registration = await prisma.promotionTestRegistration.findUnique({
         where: { id: registrationId },
@@ -58,7 +58,7 @@ export async function updateRegistrationPaymentStatus(registrationId: string, pa
 
     if (!registration) return { error: 'Registration not found' }
 
-    const authorized = await canManagePromotion(user.id, registration.promotionTest.organizationId)
+    const authorized = await canManagePromotion(user.clerkId, registration.promotionTest.organizationId)
     if (!authorized) return { error: 'Unauthorized' }
 
     await prisma.promotionTestRegistration.update({
@@ -72,7 +72,7 @@ export async function updateRegistrationPaymentStatus(registrationId: string, pa
 
 export async function bulkUpdateRegistrations(registrationIds: string[], status: string) {
     const user = await getAuthUser()
-    if (!user) return { error: 'Unauthorized' }
+    if (!user || !user.clerkId) return { error: 'Unauthorized' }
 
     if (registrationIds.length === 0) return { success: true }
 
@@ -83,7 +83,7 @@ export async function bulkUpdateRegistrations(registrationIds: string[], status:
 
     if (!firstReg) return { error: 'Registration not found' }
 
-    const authorized = await canManagePromotion(user.id, firstReg.promotionTest.organizationId)
+    const authorized = await canManagePromotion(user.clerkId, firstReg.promotionTest.organizationId)
     if (!authorized) return { error: 'Unauthorized' }
 
     await prisma.promotionTestRegistration.updateMany({
@@ -117,7 +117,7 @@ export async function bulkUpdateRegistrations(registrationIds: string[], status:
 
 export async function toggleJump(registrationId: string) {
     const user = await getAuthUser()
-    if (!user) return { error: 'Unauthorized' }
+    if (!user || !user.clerkId) return { error: 'Unauthorized' }
 
     const registration = await prisma.promotionTestRegistration.findUnique({
         where: { id: registrationId },
@@ -128,7 +128,7 @@ export async function toggleJump(registrationId: string) {
 
     if (!registration) return { error: 'Registration not found' }
 
-    const authorized = await canManagePromotion(user.id, registration.promotionTest.organizationId)
+    const authorized = await canManagePromotion(user.clerkId, registration.promotionTest.organizationId)
     if (!authorized) return { error: 'Unauthorized' }
 
     const updated = await prisma.promotionTestRegistration.update({
@@ -142,7 +142,7 @@ export async function toggleJump(registrationId: string) {
 
 export async function deletePromotionRegistration(registrationId: string) {
     const user = await getAuthUser()
-    if (!user) return { error: 'Unauthorized' }
+    if (!user || !user.clerkId) return { error: 'Unauthorized' }
 
     const registration = await prisma.promotionTestRegistration.findUnique({
         where: { id: registrationId },
@@ -151,7 +151,7 @@ export async function deletePromotionRegistration(registrationId: string) {
 
     if (!registration) return { error: 'Registration not found' }
 
-    const authorized = await canManagePromotion(user.id, registration.promotionTest.organizationId)
+    const authorized = await canManagePromotion(user.clerkId, registration.promotionTest.organizationId)
     if (!authorized) return { error: 'Unauthorized' }
 
     await prisma.promotionTestRegistration.delete({
