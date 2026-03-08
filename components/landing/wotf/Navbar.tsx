@@ -15,6 +15,7 @@ interface NavbarProps {
 const Navbar = ({ variant = 'default', animate: shouldAnimate = false }: NavbarProps) => {
     const [isScrolled, setIsScrolled] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [openMobileGroups, setOpenMobileGroups] = useState<Record<string, boolean>>({});
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const tenantParam = searchParams.get('tenant');
@@ -35,10 +36,17 @@ const Navbar = ({ variant = 'default', animate: shouldAnimate = false }: NavbarP
 
     const isDark = true;
 
-    const navLinks = [
+    const navItems = [
         { name: 'Events/Camps', href: '/events' },
-        { name: 'Membership', href: '/membership' },
         { name: 'Rankings', href: '/rankings' },
+        {
+            name: 'Clubs & Members',
+            children: [
+                { name: 'Membership', href: '/membership' },
+                { name: 'Club Locator', href: '/clubs' },
+                { name: 'Club Affiliation', href: '/affiliation' },
+            ]
+        },
         { name: 'About', href: '/about' },
     ];
 
@@ -74,16 +82,37 @@ const Navbar = ({ variant = 'default', animate: shouldAnimate = false }: NavbarP
                 </Link>
 
                 {/* Desktop Navigation */}
-                <div className="hidden md:flex items-center gap-8">
-                    {navLinks.map((link) => (
-                        <Link
-                            key={link.name}
-                            href={`${link.href}${qs}`}
-                            className={`text-sm font-bold uppercase tracking-wider hover:text-dashing-yellow transition-colors ${isDark ? 'text-african-turquoise' : 'text-white'
-                                }`}
-                        >
-                            {link.name}
-                        </Link>
+                <div className="hidden md:flex items-center gap-4 lg:gap-6">
+                    {navItems.map((item) => (
+                        item.children ? (
+                            <div key={item.name} className="relative group py-2">
+                                <button className={`flex items-center text-sm font-bold uppercase tracking-wider hover:text-dashing-yellow transition-colors ${isDark ? 'text-african-turquoise' : 'text-white'}`}>
+                                    {item.name}
+                                </button>
+                                <div className="absolute top-[100%] right-0 mt-0 w-48 bg-white border border-gray-100 shadow-xl rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 translate-y-2 group-hover:translate-y-0 overflow-hidden before:absolute before:-top-4 before:left-0 before:w-full before:h-4">
+                                    <div className="py-2 flex flex-col">
+                                        {item.children.map((child) => (
+                                            <Link
+                                                key={child.name}
+                                                href={`${child.href}${qs}`}
+                                                className="px-4 py-2.5 text-sm font-bold uppercase tracking-wider text-gray-700 hover:bg-african-turquoise/10 hover:text-african-turquoise transition-colors"
+                                            >
+                                                {child.name}
+                                            </Link>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <Link
+                                key={item.name}
+                                href={`${item.href}${qs}`}
+                                className={`text-sm font-bold uppercase tracking-wider hover:text-dashing-yellow transition-colors ${isDark ? 'text-african-turquoise' : 'text-white'
+                                    }`}
+                            >
+                                {item.name}
+                            </Link>
+                        )
                     ))}
                 </div>
 
@@ -118,17 +147,48 @@ const Navbar = ({ variant = 'default', animate: shouldAnimate = false }: NavbarP
 
             {/* Mobile Menu Overlay */}
             {isMobileMenuOpen && (
-                <div className="absolute top-full left-0 w-full bg-white shadow-lg p-6 flex flex-col gap-4 md:hidden">
-                    {navLinks.map((link) => (
-                        <Link
-                            key={link.name}
-                            href={`${link.href}${qs}`}
-                            className="text-black font-bold uppercase text-lg hover:text-congo-blue"
-                            onClick={() => setIsMobileMenuOpen(false)}
-                        >
-                            {link.name}
-                        </Link>
+                <div className="absolute top-full left-0 w-full bg-white shadow-lg p-6 flex flex-col gap-4 md:hidden max-h-[calc(100vh-70px)] overflow-y-auto">
+                    {navItems.map((item) => (
+                        item.children ? (
+                            <div key={item.name} className="flex flex-col gap-3">
+                                <button
+                                    className="flex items-center justify-between text-black font-bold uppercase text-lg hover:text-congo-blue w-full text-left"
+                                    onClick={() => setOpenMobileGroups(prev => ({ ...prev, [item.name]: !prev[item.name] }))}
+                                >
+                                    {item.name}
+                                    <svg className={`w-4 h-4 transition-transform duration-200 ${openMobileGroups[item.name] ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </button>
+                                {openMobileGroups[item.name] && (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        className="pl-4 flex flex-col gap-3 border-l-2 border-gray-100 ml-1 overflow-hidden"
+                                    >
+                                        {item.children.map(child => (
+                                            <Link
+                                                key={child.name}
+                                                href={`${child.href}${qs}`}
+                                                className="text-black font-bold uppercase text-lg hover:text-congo-blue relative before:absolute before:-left-[18px] before:top-1/2 before:-translate-y-1/2 before:w-2 before:h-0.5 before:bg-gray-200"
+                                                onClick={() => setIsMobileMenuOpen(false)}
+                                            >
+                                                {child.name}
+                                            </Link>
+                                        ))}
+                                    </motion.div>
+                                )}
+                            </div>
+                        ) : (
+                            <Link
+                                key={item.name}
+                                href={`${item.href}${qs}`}
+                                className="text-black font-bold uppercase text-lg hover:text-congo-blue"
+                                onClick={() => setIsMobileMenuOpen(false)}
+                            >
+                                {item.name}
+                            </Link>
+                        )
                     ))}
+                    <div className="h-px bg-gray-100 my-2"></div>
                     <Link
                         href={`/sign-in${qs}`}
                         className="text-black font-bold uppercase text-lg hover:text-congo-blue"
