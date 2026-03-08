@@ -335,6 +335,7 @@ model Organization {
   affiliationPaymentMethods Json? // Array of { id, label, bankName, accountNo, accountName, qrCodeUrl }
 
   defaultBeltFees Json? // e.g. {"whiteToPurple": 600, "blueToMaroon": 700, "brown": 800}
+  feeDistributions Json? // e.g. { "affiliation": [{ name: "Platform", amount: 100 }, { name: "Rebate", amount: 400 }] }
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

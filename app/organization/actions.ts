@@ -2064,7 +2064,7 @@ export async function getOrganizationFinancials() {
 
     const dbUser = await prisma.user.findUnique({
         where: { id: user.id },
-        include: { organization: { select: { id: true, defaultBeltFees: true, name: true, logoUrl: true, address: true, contactPhone: true, contactEmail: true, chairman: true, affiliationFee: true } } }
+        include: { organization: { select: { id: true, defaultBeltFees: true, feeDistributions: true, name: true, logoUrl: true, address: true, contactPhone: true, contactEmail: true, chairman: true, affiliationFee: true } } }
     })
 
     if (!dbUser?.organization) return null
@@ -2138,6 +2138,24 @@ export async function getOrganizationFinancials() {
 
     // Build per-event financial breakdown
 
+    const dbDistributions = (dbUser.organization.feeDistributions || {}) as Record<string, { name: string; amount: number }[]>
+
+    // Helper to calculate net and buckets for a single event sum
+    function computeDistribution(eventType: string, grossAmount: number, pax: number) {
+        const rules = dbDistributions[eventType] || []
+        let totalDeductions = 0
+        const distributionBreakdown: Record<string, number> = {}
+
+        rules.forEach(rule => {
+            const deduction = rule.amount * pax
+            distributionBreakdown[rule.name] = (distributionBreakdown[rule.name] || 0) + deduction
+            totalDeductions += deduction
+        })
+
+        const net = Math.max(0, grossAmount - totalDeductions)
+        return { net, deductions: distributionBreakdown, totalDeductions }
+    }
+
     // --- Promotion Tests ---
     const WHITE_TO_PURPLE_BELTS = ['white', 'yellow', 'orange', 'green', 'purple']
     const BLUE_TO_MAROON_BELTS = ['blue', 'maroon', 'red']
@@ -2173,15 +2191,21 @@ export async function getOrganizationFinancials() {
                 unpaidCount++
             }
 
+            const regStats = isPaid ? computeDistribution('promotion', beltFee, 1) : { net: 0, totalDeductions: 0 }
+
             return {
                 id: r.id,
                 playerName: r.playerName,
                 clubName: r.clubName || 'Independent',
                 status: r.paymentStatus,
                 amountExpected: beltFee,
-                amountPaid: isPaid ? beltFee : 0
+                amountPaid: isPaid ? beltFee : 0,
+                deduction: regStats.totalDeductions,
+                net: regStats.net
             }
         })
+
+        const stats = computeDistribution('promotion', totalCollected, paidCount)
 
         return {
             id: pt.id,
@@ -2195,6 +2219,8 @@ export async function getOrganizationFinancials() {
             unpaidCount,
             totalCollected,
             totalExpected,
+            netRevenue: stats.net,
+            deductions: stats.deductions,
             registrations: mappedRegistrations
         }
     })
@@ -2205,14 +2231,23 @@ export async function getOrganizationFinancials() {
         const approvedRegs = s.registrations.filter(r => r.status === 'APPROVED')
         const totalRegs = s.registrations.length
 
-        const mappedRegistrations = s.registrations.map(r => ({
-            id: r.id,
-            playerName: r.playerName,
-            clubName: r.clubName || 'Independent',
-            status: r.status === 'APPROVED' ? 'PAID' : 'UNPAID', // For seminars, APPROVED = PAID
-            amountExpected: fee,
-            amountPaid: r.status === 'APPROVED' ? fee : 0
-        }))
+        const mappedRegistrations = s.registrations.map(r => {
+            const isPaid = r.status === 'APPROVED'
+            const regStats = isPaid ? computeDistribution('seminar', fee, 1) : { net: 0, totalDeductions: 0 }
+
+            return {
+                id: r.id,
+                playerName: r.playerName,
+                clubName: r.clubName || 'Independent',
+                status: isPaid ? 'PAID' : 'UNPAID',
+                amountExpected: fee,
+                amountPaid: isPaid ? fee : 0,
+                deduction: regStats.totalDeductions,
+                net: regStats.net
+            }
+        })
+
+        const stats = computeDistribution('seminar', approvedRegs.length * fee, approvedRegs.length)
 
         return {
             id: s.id,
@@ -2226,6 +2261,8 @@ export async function getOrganizationFinancials() {
             unpaidCount: totalRegs - approvedRegs.length,
             totalCollected: approvedRegs.length * fee,
             totalExpected: totalRegs * fee,
+            netRevenue: stats.net,
+            deductions: stats.deductions,
             registrations: mappedRegistrations
         }
     })
@@ -2272,16 +2309,22 @@ export async function getOrganizationFinancials() {
                     totalCollected += playerFee
                 }
 
+                const regStats = isPaid ? computeDistribution('tournament', playerFee, 1) : { net: 0, totalDeductions: 0 }
+
                 mappedRegistrations.push({
                     id: player.id,
-                    playerName: (player as any).name || 'Player', // Actually need to fix the select query because name wasn't queried
+                    playerName: (player as any).name || 'Player',
                     clubName: (player as any).club?.name || 'Independent',
                     status: isPaid ? 'PAID' : 'UNPAID',
                     amountExpected: playerFee,
-                    amountPaid: isPaid ? playerFee : 0
+                    amountPaid: isPaid ? playerFee : 0,
+                    deduction: regStats.totalDeductions,
+                    net: regStats.net
                 })
             }
         }
+
+        const stats = computeDistribution('tournament', totalCollected, paidCount)
 
         return {
             id: t.id,
@@ -2295,6 +2338,8 @@ export async function getOrganizationFinancials() {
             unpaidCount: totalRegs - paidCount,
             totalCollected,
             totalExpected,
+            netRevenue: stats.net,
+            deductions: stats.deductions,
             registrations: mappedRegistrations
         }
     })
@@ -2310,27 +2355,35 @@ export async function getOrganizationFinancials() {
     })
 
     const affiliationRevenue = affiliations.reduce((sum, a) => sum + (a.amountPaid || 0), 0)
-    const affiliationItems = affiliations.map(a => ({
-        id: a.id,
-        type: 'affiliation' as const,
-        name: `${a.club.name} — Affiliation`,
-        date: (a.paidAt || a.createdAt).toISOString(),
-        status: a.status,
-        fee: a.amountPaid || 0,
-        totalRegistrations: 1,
-        paidCount: 1,
-        unpaidCount: 0,
-        totalCollected: a.amountPaid || 0,
-        totalExpected: a.amountPaid || 0,
-        registrations: [{
+    const affiliationItems = affiliations.map(a => {
+        const amt = a.amountPaid || 0
+        const stats = computeDistribution('affiliation', amt, 1)
+
+        return {
             id: a.id,
-            playerName: a.club.name,
-            clubName: a.club.name,
+            type: 'affiliation' as const,
+            name: `${a.club.name} — Affiliation`,
+            date: a.paidAt?.toISOString() || a.createdAt.toISOString(),
             status: 'PAID',
-            amountExpected: a.amountPaid || 0,
-            amountPaid: a.amountPaid || 0,
-        }]
-    }))
+            totalRegistrations: 1,
+            paidCount: 1,
+            unpaidCount: 0,
+            totalCollected: amt,
+            totalExpected: amt,
+            netRevenue: stats.net,
+            deductions: stats.deductions,
+            registrations: [{
+                id: a.id,
+                playerName: a.club.name,
+                clubName: a.club.name,
+                status: 'PAID',
+                amountExpected: amt,
+                amountPaid: amt,
+                deduction: stats.totalDeductions,
+                net: stats.net
+            }]
+        }
+    })
 
     // Pending affiliations (not yet paid)
     const pendingAffiliations = await prisma.clubAffiliation.findMany({
@@ -2352,6 +2405,19 @@ export async function getOrganizationFinancials() {
 
     // Collection rate
     const collectionRate = totalRevenue > 0 ? Math.round((totalCollected / totalRevenue) * 100) : 0
+
+    const totalNetRevenue = allItems.reduce((sum, e) => sum + (e.netRevenue || 0), 0)
+    const totalDeductions = totalCollected - totalNetRevenue
+
+    // Aggregate deductions by bucket name across all items
+    const aggregatedDeductions: Record<string, number> = {}
+    allItems.forEach(item => {
+        if (item.deductions) {
+            Object.entries(item.deductions).forEach(([bucketName, amount]) => {
+                aggregatedDeductions[bucketName] = (aggregatedDeductions[bucketName] || 0) + (amount as number)
+            })
+        }
+    })
 
     // Revenue by event type
     const revenueByType = {
@@ -2425,6 +2491,9 @@ export async function getOrganizationFinancials() {
             totalRevenue,
             totalCollected,
             totalPending,
+            totalNetRevenue,
+            totalDeductions,
+            aggregatedDeductions,
             totalRegistrations,
             affiliationRevenue,
             collectionRate,
@@ -2433,12 +2502,41 @@ export async function getOrganizationFinancials() {
         events: allItems,
         monthlyData,
         revenueByType,
+        distributions: dbDistributions,
         yoy: {
             thisYear: thisYearCollected,
             lastYear: lastYearCollected,
             changePercent: yoyChange,
             currentYear,
         },
+    }
+}
+
+// ----------------------------------------------------
+// FEE DISTRIBUTION RULES SERVER ACTION
+// ----------------------------------------------------
+export async function updateFeeDistributions(configData: Record<string, { name: string; amount: number }[]>) {
+    const user = await getAuthUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return { error: 'No organization found' }
+    if (!['ORGANIZER', 'MANAGER', 'ADMIN'].includes(dbUser.role)) return { error: 'Unauthorized' }
+
+    try {
+        await prisma.organization.update({
+            where: { id: dbUser.organization.id },
+            data: { feeDistributions: configData }
+        })
+
+        revalidatePath('/organization')
+        return { success: true }
+    } catch (e: any) {
+        return { error: e.message || 'Failed to update rules' }
     }
 }
 

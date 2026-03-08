@@ -6,6 +6,7 @@ import { DollarSign, TrendingUp, TrendingDown, Clock, Users, Award, GraduationCa
 import { useTenant } from '@/app/providers/TenantProvider'
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import { generateFinancialPDF, generateEventPDF } from '@/lib/generateFinancialPDF'
+import DistributionRulesView from './DistributionRulesView'
 
 type FinancialData = NonNullable<Awaited<ReturnType<typeof getOrganizationFinancials>>>
 type EventItem = FinancialData['events'][0]
@@ -22,13 +23,22 @@ function formatDate(dateStr: string) {
 
 // ─── Event Details Modal ─────────────────────────────────────────
 function EventDetailsModal({ event, onClose, primaryColor, onExportPDF, isExporting }: {
-    event: EventItem,
+    event: EventItem & { deductions?: Record<string, number> },
     onClose: () => void,
     primaryColor: string,
     onExportPDF: () => void,
     isExporting: boolean
 }) {
     const [search, setSearch] = useState('')
+
+    const deductionsBreakdown = useMemo(() => {
+        if (!event.deductions) return []
+        return Object.entries(event.deductions).filter(([_, amount]) => (amount as number) > 0)
+    }, [event.deductions])
+
+    const totalDeductionsRaw = useMemo(() => {
+        return deductionsBreakdown.reduce((sum, [_, amt]) => sum + (amt as number), 0)
+    }, [deductionsBreakdown])
 
     const filteredRegs = useMemo(() => {
         if (!search.trim()) return event.registrations
@@ -78,7 +88,30 @@ function EventDetailsModal({ event, onClose, primaryColor, onExportPDF, isExport
                     </div>
                 </div>
 
-                {/* Search */}
+                {/* Summary Ribbon */}
+                <div className="grid grid-cols-3 divide-x divide-gray-100 border-b border-gray-100">
+                    <div className="p-4 text-center">
+                        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Gross Collected</p>
+                        <p className="text-lg font-black text-gray-900">{formatCurrency(event.totalCollected)}</p>
+                    </div>
+                    <div className="p-4 text-center">
+                        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Total Deductions</p>
+                        <p className="text-lg font-black text-red-600">-{formatCurrency(totalDeductionsRaw)}</p>
+                        {deductionsBreakdown.length > 0 && (
+                            <div className="mt-2 flex flex-wrap justify-center gap-2">
+                                {deductionsBreakdown.map(([name, amount]) => (
+                                    <span key={name} className="text-[9px] px-1.5 py-0.5 bg-red-50 text-red-600 rounded border border-red-100 font-medium whitespace-nowrap">
+                                        {name}: {formatCurrency(amount as number)}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    <div className="p-4 text-center">
+                        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Net Revenue</p>
+                        <p className="text-lg font-black text-emerald-600">{formatCurrency(event.netRevenue)}</p>
+                    </div>
+                </div>
                 {event.registrations.length > 3 && (
                     <div className="px-6 py-3 border-b border-gray-100">
                         <div className="relative">
@@ -110,8 +143,9 @@ function EventDetailsModal({ event, onClose, primaryColor, onExportPDF, isExport
                                         <th className="px-6 py-4">Player</th>
                                         <th className="px-6 py-4">Club</th>
                                         <th className="px-6 py-4 text-center">Status</th>
-                                        <th className="px-6 py-4 text-right">Expected</th>
-                                        <th className="px-6 py-4 text-right">Paid</th>
+                                        <th className="px-6 py-4 text-right">Gross</th>
+                                        <th className="px-6 py-4 text-right text-red-500">Ded.</th>
+                                        <th className="px-6 py-4 text-right">Net</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
@@ -124,16 +158,22 @@ function EventDetailsModal({ event, onClose, primaryColor, onExportPDF, isExport
                                                     {reg.status}
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4 text-right text-gray-600">{formatCurrency(reg.amountExpected)}</td>
-                                            <td className="px-6 py-4 text-right font-medium text-gray-900">{formatCurrency(reg.amountPaid)}</td>
+                                            <td className="px-6 py-4 text-right text-gray-600">{formatCurrency(reg.amountPaid)}</td>
+                                            <td className="px-6 py-4 text-right text-red-500">{formatCurrency((reg as any).deduction || 0)}</td>
+                                            <td className="px-6 py-4 text-right font-medium text-gray-900">{formatCurrency((reg as any).net || 0)}</td>
                                         </tr>
                                     ))}
                                 </tbody>
                                 <tfoot className="bg-gray-50 border-t border-gray-200 font-bold text-gray-900">
                                     <tr>
                                         <td colSpan={3} className="px-6 py-4 text-right text-gray-500 uppercase text-xs tracking-wider">Totals</td>
-                                        <td className="px-6 py-4 text-right">{formatCurrency(event.totalExpected)}</td>
-                                        <td className="px-6 py-4 text-right text-emerald-600">{formatCurrency(event.totalCollected)}</td>
+                                        <td className="px-6 py-4 text-right">{formatCurrency(event.totalCollected)}</td>
+                                        <td className="px-6 py-4 text-right text-red-600">-{formatCurrency(totalDeductionsRaw)}</td>
+                                        <td className="px-6 py-4 text-right text-emerald-600">{formatCurrency(event.netRevenue)}</td>
+                                    </tr>
+                                    <tr className="bg-emerald-50/30">
+                                        <td colSpan={4} className="px-6 py-3 text-right text-gray-600 font-semibold italic text-xs">Estimated Organization Net Revenue</td>
+                                        <td className="px-6 py-3 text-right text-emerald-700 font-black">{formatCurrency(event.netRevenue)}</td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -352,6 +392,7 @@ function CollectionRateRing({ rate }: { rate: number }) {
 export default function OrganizationFinancialsView() {
     const tenant = useTenant()
     const primaryColor = tenant.slug === 'ktm' ? '#DC2626' : (tenant.primaryColor || '#DC2626')
+    const [activeTab, setActiveTab] = useState<'overview' | 'rules'>('overview')
     const [filter, setFilter] = useState<'all' | 'tournament' | 'promotion' | 'seminar' | 'affiliation'>('all')
     const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
@@ -403,10 +444,10 @@ export default function OrganizationFinancialsView() {
     // ───── Loading skeleton ─────
     if (isLoading) {
         const skeletonCards = [
-            { label: 'Collected', icon: DollarSign, color: 'bg-emerald-50 text-emerald-600', borderColor: 'border-emerald-100' },
-            { label: 'Total Expected', icon: TrendingUp, color: 'bg-blue-50 text-blue-600', borderColor: 'border-blue-100' },
+            { label: 'Net Revenue', icon: DollarSign, color: 'bg-indigo-50 text-indigo-600', borderColor: 'border-indigo-100' },
+            { label: 'Gross Collected', icon: TrendingUp, color: 'bg-emerald-50 text-emerald-600', borderColor: 'border-emerald-100' },
+            { label: 'Total Deductions', icon: TrendingDown, color: 'bg-red-50 text-red-600', borderColor: 'border-red-100' },
             { label: 'Pending', icon: Clock, color: 'bg-amber-50 text-amber-600', borderColor: 'border-amber-100' },
-            { label: 'Registrations', icon: Users, color: 'bg-purple-50 text-purple-600', borderColor: 'border-purple-100' },
             { label: 'Collection Rate', icon: Percent, color: 'bg-teal-50 text-teal-600', borderColor: 'border-teal-100' },
         ]
 
@@ -493,19 +534,27 @@ export default function OrganizationFinancialsView() {
 
     const summaryCards = [
         {
-            label: 'Collected',
-            value: formatCurrency(summary.totalCollected),
+            label: 'Net Revenue',
+            value: formatCurrency(summary.totalNetRevenue),
             icon: DollarSign,
+            color: 'bg-indigo-50 text-indigo-600',
+            borderColor: 'border-indigo-100',
+            extra: null as React.ReactNode,
+        },
+        {
+            label: 'Gross Collected',
+            value: formatCurrency(summary.totalCollected),
+            icon: TrendingUp,
             color: 'bg-emerald-50 text-emerald-600',
             borderColor: 'border-emerald-100',
             extra: null as React.ReactNode,
         },
         {
-            label: 'Total Expected',
-            value: formatCurrency(summary.totalRevenue),
-            icon: TrendingUp,
-            color: 'bg-blue-50 text-blue-600',
-            borderColor: 'border-blue-100',
+            label: 'Total Deductions',
+            value: formatCurrency(summary.totalDeductions),
+            icon: TrendingDown,
+            color: 'bg-red-50 text-red-600',
+            borderColor: 'border-red-100',
             extra: null as React.ReactNode,
         },
         {
@@ -516,16 +565,6 @@ export default function OrganizationFinancialsView() {
             borderColor: 'border-amber-100',
             extra: summary.freeEventsCount > 0 ? (
                 <span className="text-[10px] text-gray-400 mt-0.5">{summary.freeEventsCount} free event{summary.freeEventsCount > 1 ? 's' : ''}</span>
-            ) : null,
-        },
-        {
-            label: 'Registrations',
-            value: summary.totalRegistrations.toLocaleString(),
-            icon: Users,
-            color: 'bg-purple-50 text-purple-600',
-            borderColor: 'border-purple-100',
-            extra: summary.affiliationRevenue > 0 ? (
-                <span className="text-[10px] text-gray-400 mt-0.5">+{formatCurrency(summary.affiliationRevenue)} affiliations</span>
             ) : null,
         },
         {
@@ -540,200 +579,208 @@ export default function OrganizationFinancialsView() {
 
     return (
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 overflow-y-auto h-[calc(100vh-5rem)] pb-24 md:pb-6">
-            {/* Header with Download */}
-            <div className="flex items-center justify-between">
-                <div />
-                <button
-                    onClick={handleDownloadReport}
-                    disabled={isGeneratingPDF}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 shadow-sm transition-all hover:shadow-md disabled:opacity-50"
-                >
-                    <Download size={16} />
-                    {isGeneratingPDF ? 'Generating PDF...' : 'Download Report'}
-                </button>
-            </div>
-
-            {/* Summary Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                {summaryCards.map((card, i) => {
-                    const Icon = card.icon
-                    const isCollectionRate = card.label === 'Collection Rate'
-                    return (
-                        <div key={i} className={`bg-white rounded-xl border ${card.borderColor} p-5 shadow-sm ${i === 0 ? 'col-span-2 lg:col-span-1' : ''}`}>
-                            <div className="flex items-center gap-3 mb-3">
-                                <div className={`p-2 rounded-lg ${card.color}`}>
-                                    <Icon size={18} />
-                                </div>
-                                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{card.label}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <div className="flex flex-col">
-                                    <p className="text-2xl font-black text-gray-900">{card.value}</p>
-                                    {card.extra && !isCollectionRate && card.extra}
-                                </div>
-                                {isCollectionRate && card.extra}
-                            </div>
-                        </div>
-                    )
-                })}
-            </div>
-
-            {/* YoY Banner */}
-            <YoYBanner yoy={yoy} />
-
-            {/* Charts Section — Bar + Donut */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
-                <div className="lg:col-span-2 h-full">
-                    <BarChart data={monthlyData} primaryColor={primaryColor} />
+            {/* Header with Tabs and Download */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                <div className="flex bg-gray-100 p-1 rounded-lg self-start">
+                    <button
+                        onClick={() => setActiveTab('overview')}
+                        className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${activeTab === 'overview' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Overview
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('rules')}
+                        className={`px-4 py-2 text-sm font-semibold rounded-md transition-all flex items-center gap-2 ${activeTab === 'rules' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Distribution Rules
+                    </button>
                 </div>
-                <div className="lg:col-span-1 h-full">
-                    <DonutChart data={donutData} primaryColor={primaryColor} />
-                </div>
-            </div>
-
-            {/* Events Table */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                    <h3 className="font-bold text-gray-900 text-lg">Event Breakdown</h3>
-                    <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-                        {(['all', 'tournament', 'promotion', 'seminar', 'affiliation'] as const).map(f => (
-                            <button
-                                key={f}
-                                onClick={() => setFilter(f)}
-                                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${filter === f
-                                    ? 'bg-white text-gray-900 shadow-sm'
-                                    : 'text-gray-500 hover:text-gray-700'
-                                    }`}
-                            >
-                                {f === 'all' ? 'All' : f === 'tournament' ? 'Tournaments' : f === 'promotion' ? 'Promotions' : f === 'seminar' ? 'Seminars' : 'Affiliations'}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                {filteredEvents.length === 0 ? (
-                    <div className="p-12 text-center text-gray-400 text-sm">
-                        No events found for this filter.
-                    </div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-100">
-                                    <th className="px-6 py-3">Event</th>
-                                    <th className="px-6 py-3">Date</th>
-                                    <th className="px-6 py-3 text-center">Regs</th>
-                                    <th className="px-6 py-3 text-center">Paid</th>
-                                    <th className="px-6 py-3 text-center">Unpaid</th>
-                                    <th className="px-6 py-3 text-right">Collected</th>
-                                    <th className="px-6 py-3 text-center hidden sm:table-cell">Rate</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-50">
-                                {paginatedEvents.map((event) => {
-                                    const rate = event.totalExpected > 0 ? Math.round((event.totalCollected / event.totalExpected) * 100) : (event.totalCollected > 0 ? 100 : 0)
-                                    const rateColor = rate >= 80 ? 'bg-emerald-500' : rate >= 50 ? 'bg-amber-500' : 'bg-red-500'
-                                    return (
-                                        <tr
-                                            key={event.id}
-                                            onClick={() => setSelectedEvent(event)}
-                                            className="hover:bg-gray-50 transition-colors cursor-pointer"
-                                        >
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`p-2 rounded-lg ${event.type === 'tournament' ? 'bg-red-50' : event.type === 'promotion' ? 'bg-blue-50' : event.type === 'affiliation' ? 'bg-violet-50' : 'bg-amber-50'}`}>
-                                                        {event.type === 'tournament'
-                                                            ? <Trophy size={16} className="text-red-500" />
-                                                            : event.type === 'promotion'
-                                                                ? <Award size={16} className="text-blue-500" />
-                                                                : event.type === 'affiliation'
-                                                                    ? <Building2 size={16} className="text-violet-500" />
-                                                                    : <GraduationCap size={16} className="text-amber-500" />
-                                                        }
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-semibold text-gray-900 truncate max-w-[200px]">{event.name}</p>
-                                                        <p className="text-xs text-gray-400 capitalize">{event.type === 'tournament' ? 'Tournament' : event.type === 'promotion' ? 'Belt Test' : event.type === 'affiliation' ? 'Club Affiliation' : 'Seminar'}</p>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{formatDate(event.date)}</td>
-                                            <td className="px-6 py-4 text-center text-gray-600">{event.totalRegistrations}</td>
-                                            <td className="px-6 py-4 text-center">
-                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">
-                                                    {event.paidCount}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-center">
-                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700">
-                                                    {event.unpaidCount}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-right font-bold text-gray-900">{event.totalCollected > 0 ? formatCurrency(event.totalCollected) : '—'}</td>
-                                            <td className="px-6 py-4 text-center hidden sm:table-cell">
-                                                <div className="flex items-center gap-2 justify-center">
-                                                    <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                                        <div className={`h-full rounded-full transition-all duration-500 ${rateColor}`} style={{ width: `${Math.min(rate, 100)}%` }} />
-                                                    </div>
-                                                    <span className="text-[10px] text-gray-500 font-semibold w-8">{rate}%</span>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )
-                                })}
-                            </tbody>
-
-                            {/* Totals row */}
-                            <tfoot>
-                                <tr className="bg-gray-50 border-t border-gray-200">
-                                    <td colSpan={2} className="px-6 py-3 font-bold text-gray-900 text-right">Totals</td>
-                                    <td className="px-6 py-3 text-center font-bold text-gray-900">{filteredEvents.reduce((s, e) => s + e.totalRegistrations, 0)}</td>
-                                    <td className="px-6 py-3 text-center font-bold text-emerald-700">{filteredEvents.reduce((s, e) => s + e.paidCount, 0)}</td>
-                                    <td className="px-6 py-3 text-center font-bold text-amber-700">{filteredEvents.reduce((s, e) => s + e.unpaidCount, 0)}</td>
-                                    <td className="px-6 py-3 text-right font-black text-gray-900">{formatCurrency(filteredEvents.reduce((s, e) => s + e.totalCollected, 0))}</td>
-                                    <td className="px-6 py-3 hidden sm:table-cell" />
-                                </tr>
-                            </tfoot>
-                        </table>
-
-                        {eventTotalPages > 1 && (
-                            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-                                <span className="text-xs text-gray-500">
-                                    Showing {((eventPage - 1) * EVENTS_PER_PAGE) + 1}–{Math.min(eventPage * EVENTS_PER_PAGE, filteredEvents.length)} of {filteredEvents.length}
-                                </span>
-                                <div className="flex items-center gap-1">
-                                    <button
-                                        onClick={() => setEventPage(p => Math.max(1, p - 1))}
-                                        disabled={eventPage <= 1}
-                                        className="px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                    >
-                                        Prev
-                                    </button>
-                                    <span className="text-xs font-semibold text-gray-700 px-2">
-                                        {eventPage} / {eventTotalPages}
-                                    </span>
-                                    <button
-                                        onClick={() => setEventPage(p => Math.min(eventTotalPages, p + 1))}
-                                        disabled={eventPage >= eventTotalPages}
-                                        className="px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                    >
-                                        Next
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                {activeTab === 'overview' && (
+                    <button
+                        onClick={handleDownloadReport}
+                        disabled={isGeneratingPDF}
+                        className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 shadow-sm transition-all hover:shadow-md disabled:opacity-50"
+                    >
+                        <Download size={16} />
+                        {isGeneratingPDF ? 'Generating PDF...' : 'Download Report'}
+                    </button>
                 )}
             </div>
 
-            {selectedEvent && (
-                <EventDetailsModal
-                    event={selectedEvent}
-                    onClose={() => setSelectedEvent(null)}
+            {activeTab === 'rules' ? (
+                <DistributionRulesView
+                    initialDistributions={data.distributions || {}}
                     primaryColor={primaryColor}
-                    onExportPDF={() => handleEventPDF(selectedEvent)}
-                    isExporting={isGeneratingPDF}
                 />
+            ) : (
+                <>
+                    {/* Summary Cards */}
+                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                        {summaryCards.map((card, i) => {
+                            const Icon = card.icon
+                            const isCollectionRate = card.label === 'Collection Rate'
+                            return (
+                                <div key={i} className={`bg-white rounded-xl border ${card.borderColor} p-5 shadow-sm ${i === 0 ? 'col-span-2 lg:col-span-1' : ''}`}>
+                                    <div className="flex items-center gap-3 mb-3">
+                                        <div className={`p-2 rounded-lg ${card.color}`}>
+                                            <Icon size={18} />
+                                        </div>
+                                        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{card.label}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex flex-col">
+                                            <p className="text-2xl font-black text-gray-900">{card.value}</p>
+                                            {card.extra && !isCollectionRate && card.extra}
+                                        </div>
+                                        {isCollectionRate && card.extra}
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+
+                    {/* YoY Banner */}
+                    <YoYBanner yoy={yoy} />
+
+                    {/* Charts Section — Bar + Donut */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+                        <div className="lg:col-span-2 h-full">
+                            <BarChart data={monthlyData} primaryColor={primaryColor} />
+                        </div>
+                        <div className="lg:col-span-1 h-full">
+                            <DonutChart data={donutData} primaryColor={primaryColor} />
+                        </div>
+                    </div>
+
+                    {/* Events Table */}
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        <div className="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                            <h3 className="font-bold text-gray-900 text-lg">Event Breakdown</h3>
+                            <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+                                {(['all', 'tournament', 'promotion', 'seminar', 'affiliation'] as const).map(f => (
+                                    <button
+                                        key={f}
+                                        onClick={() => setFilter(f)}
+                                        className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${filter === f
+                                            ? 'bg-white text-gray-900 shadow-sm'
+                                            : 'text-gray-500 hover:text-gray-700'
+                                            }`}
+                                    >
+                                        {f === 'all' ? 'All' : f === 'tournament' ? 'Tournaments' : f === 'promotion' ? 'Promotions' : f === 'seminar' ? 'Seminars' : 'Affiliations'}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {filteredEvents.length === 0 ? (
+                            <div className="p-12 text-center text-gray-400 text-sm">
+                                No events found for this filter.
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-100">
+                                            <th className="px-6 py-3">Event</th>
+                                            <th className="px-6 py-3">Date</th>
+                                            <th className="px-6 py-3 text-center">Regs</th>
+                                            <th className="px-6 py-3 text-right">Gross</th>
+                                            <th className="px-6 py-3 text-right">Deductions</th>
+                                            <th className="px-6 py-3 text-right">Net Revenue</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                        {paginatedEvents.map((event) => {
+                                            const gross = event.totalCollected || 0
+                                            const net = event.netRevenue || 0
+                                            const deductions = gross - net
+
+                                            return (
+                                                <tr
+                                                    key={event.id}
+                                                    onClick={() => setSelectedEvent(event)}
+                                                    className="hover:bg-gray-50 transition-colors cursor-pointer"
+                                                >
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`p-2 rounded-lg ${event.type === 'tournament' ? 'bg-red-50' : event.type === 'promotion' ? 'bg-blue-50' : event.type === 'affiliation' ? 'bg-violet-50' : 'bg-amber-50'}`}>
+                                                                {event.type === 'tournament'
+                                                                    ? <Trophy size={16} className="text-red-500" />
+                                                                    : event.type === 'promotion'
+                                                                        ? <Award size={16} className="text-blue-500" />
+                                                                        : event.type === 'affiliation'
+                                                                            ? <Building2 size={16} className="text-violet-500" />
+                                                                            : <GraduationCap size={16} className="text-amber-500" />
+                                                                }
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-semibold text-gray-900 truncate max-w-[200px]">{event.name}</p>
+                                                                <p className="text-xs text-gray-400 capitalize">{event.type === 'tournament' ? 'Tournament' : event.type === 'promotion' ? 'Belt Test' : event.type === 'affiliation' ? 'Club Affiliation' : 'Seminar'}</p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{formatDate(event.date)}</td>
+                                                    <td className="px-6 py-4 text-center text-gray-600">{event.totalRegistrations}</td>
+                                                    <td className="px-6 py-4 text-right font-medium text-gray-900">{gross > 0 ? formatCurrency(gross) : '—'}</td>
+                                                    <td className="px-6 py-4 text-right font-medium text-red-600">{deductions > 0 ? `-${formatCurrency(deductions)}` : '—'}</td>
+                                                    <td className="px-6 py-4 text-right font-black text-emerald-600">{net > 0 ? formatCurrency(net) : '—'}</td>
+                                                </tr>
+                                            )
+                                        })}
+                                    </tbody>
+
+                                    {/* Totals row */}
+                                    <tfoot>
+                                        <tr className="bg-gray-50 border-t border-gray-200">
+                                            <td colSpan={2} className="px-6 py-3 font-bold text-gray-900 text-right">Totals</td>
+                                            <td className="px-6 py-3 text-center font-bold text-gray-900">{filteredEvents.reduce((s, e) => s + e.totalRegistrations, 0)}</td>
+                                            <td className="px-6 py-3 text-right font-bold text-gray-900">{formatCurrency(filteredEvents.reduce((s, e) => s + (e.totalCollected || 0), 0))}</td>
+                                            <td className="px-6 py-3 text-right font-bold text-red-600">-{formatCurrency(filteredEvents.reduce((s, e) => s + ((e.totalCollected || 0) - (e.netRevenue || 0)), 0))}</td>
+                                            <td className="px-6 py-3 text-right font-black text-emerald-700">{formatCurrency(filteredEvents.reduce((s, e) => s + (e.netRevenue || 0), 0))}</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+
+                                {eventTotalPages > 1 && (
+                                    <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                                        <span className="text-xs text-gray-500">
+                                            Showing {((eventPage - 1) * EVENTS_PER_PAGE) + 1}–{Math.min(eventPage * EVENTS_PER_PAGE, filteredEvents.length)} of {filteredEvents.length}
+                                        </span>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                onClick={() => setEventPage(p => Math.max(1, p - 1))}
+                                                disabled={eventPage <= 1}
+                                                className="px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                            >
+                                                Prev
+                                            </button>
+                                            <span className="text-xs font-semibold text-gray-700 px-2">
+                                                {eventPage} / {eventTotalPages}
+                                            </span>
+                                            <button
+                                                onClick={() => setEventPage(p => Math.min(eventTotalPages, p + 1))}
+                                                disabled={eventPage >= eventTotalPages}
+                                                className="px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                            >
+                                                Next
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {selectedEvent && (
+                        <EventDetailsModal
+                            event={selectedEvent}
+                            onClose={() => setSelectedEvent(null)}
+                            primaryColor={primaryColor}
+                            onExportPDF={() => handleEventPDF(selectedEvent)}
+                            isExporting={isGeneratingPDF}
+                        />
+                    )}
+                </>
             )}
         </div>
     )

@@ -16,6 +16,9 @@ interface OrgInfo {
 interface FinancialSummary {
     totalRevenue: number
     totalCollected: number
+    totalNetRevenue: number
+    totalDeductions: number
+    aggregatedDeductions: Record<string, number>
     totalPending: number
     totalRegistrations: number
     affiliationRevenue: number
@@ -33,7 +36,9 @@ interface EventItem {
     unpaidCount: number
     totalCollected: number
     totalExpected: number
-    registrations: { id: string; playerName: string; clubName: string; status: string; amountExpected: number; amountPaid: number }[]
+    netRevenue: number
+    deductions: Record<string, number>
+    registrations: { id: string; playerName: string; clubName: string; status: string; amountExpected: number; amountPaid: number; deduction?: number; net?: number }[]
 }
 
 interface MonthlyData {
@@ -150,9 +155,25 @@ export async function generateFinancialPDF(data: FinancialReportData, primaryCol
 
         // Org name
         doc.setFont('helvetica', 'bold')
-        doc.setFontSize(18)
+        const titleAreaWidth = 50 // Reserve space for right-aligned title/dates
+        const availableNameWidth = (pageW - margin - titleAreaWidth) - headerLeft
+
+        let orgFontSize = 18
+        doc.setFontSize(orgFontSize)
+
+        // If name is very long, shrink font slightly
+        if (doc.getTextWidth(data.organization.name) > availableNameWidth) {
+            orgFontSize = 15
+            doc.setFontSize(orgFontSize)
+        }
+
+        const splitOrgName = doc.splitTextToSize(data.organization.name, availableNameWidth)
         doc.setTextColor(...COLORS.white)
-        doc.text(data.organization.name, headerLeft, 17)
+        doc.text(splitOrgName, headerLeft, 17)
+
+        // Adjust Y for contact details if name wraps
+        const nameLines = Array.isArray(splitOrgName) ? splitOrgName.length : 1
+        const contactYOffset = (nameLines - 1) * (orgFontSize * 0.35) // Rough estimate for line height impact
 
         // Contact details
         doc.setFont('helvetica', 'normal')
@@ -166,16 +187,16 @@ export async function generateFinancialPDF(data: FinancialReportData, primaryCol
         if (contactParts.length > 0) {
             // Split into 2 lines if needed
             const line1 = contactParts.slice(0, 2).join('  •  ')
-            doc.text(line1, headerLeft, 24)
+            doc.text(line1, headerLeft, 25 + contactYOffset)
             if (contactParts.length > 2) {
-                doc.text(contactParts.slice(2).join('  •  '), headerLeft, 29)
+                doc.text(contactParts.slice(2).join('  •  '), headerLeft, 30 + contactYOffset)
             }
         }
 
         if (data.organization.chairman) {
             doc.setFontSize(7)
             doc.setTextColor(160, 170, 180)
-            doc.text('Chairman: ' + data.organization.chairman, headerLeft, 36)
+            doc.text('Chairman: ' + data.organization.chairman, headerLeft, 37 + contactYOffset)
         }
 
         // Report title - right aligned
@@ -246,10 +267,10 @@ export async function generateFinancialPDF(data: FinancialReportData, primaryCol
     const cardW = (contentW - 9) / 4
     const cardH = 22
     const cards = [
-        { label: 'COLLECTED', value: fmt(data.summary.totalCollected), bg: COLORS.accent },
-        { label: 'TOTAL EXPECTED', value: fmt(data.summary.totalRevenue), bg: [59, 130, 246] as [number, number, number] },
+        { label: 'NET REVENUE', value: fmt(data.summary.totalNetRevenue), bg: [79, 70, 229] as [number, number, number] }, // indigo-600
+        { label: 'GROSS COLLECTED', value: fmt(data.summary.totalCollected), bg: COLORS.accent },
+        { label: 'TOTAL DEDUCTIONS', value: fmt(data.summary.totalDeductions), bg: COLORS.danger },
         { label: 'PENDING', value: fmt(data.summary.totalPending), bg: COLORS.warning },
-        { label: 'COLLECTION RATE', value: data.summary.collectionRate + '%', bg: data.summary.collectionRate >= 80 ? COLORS.accent : data.summary.collectionRate >= 50 ? COLORS.warning : COLORS.danger },
     ]
 
     cards.forEach((card, i) => {
@@ -389,7 +410,38 @@ export async function generateFinancialPDF(data: FinancialReportData, primaryCol
         doc.setTextColor(...COLORS.muted)
         doc.text(`${pct}%`, x + 7, y + 14)
     })
-    y += 20
+    y += 22
+
+    // ══════════════════════════════════════════════════════════════
+    // 3b. DEDUCTION BREAKDOWN
+    // ══════════════════════════════════════════════════════════════
+    const deductionEntries = Object.entries(data.summary.aggregatedDeductions || {}).filter(([_, v]) => v > 0)
+
+    if (deductionEntries.length > 0) {
+        sectionTitle('Deductions Breakdown')
+
+        const dedColW = contentW / Math.max(deductionEntries.length, 1)
+        deductionEntries.forEach(([name, value], i) => {
+            const x = margin + i * dedColW
+
+            // Icon Placeholder color
+            doc.setFillColor(239, 68, 68) // red-500
+            doc.roundedRect(x + 2, y, 6, 6, 1, 1, 'F')
+
+            // Label
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(7)
+            doc.setTextColor(...COLORS.secondary)
+            doc.text(name, x + 10, y + 4)
+
+            // Value
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(9)
+            doc.setTextColor(...COLORS.danger)
+            doc.text(fmt(value), x + 10, y + 9)
+        })
+        y += 22
+    }
 
     // ══════════════════════════════════════════════════════════════
     // 4. MONTHLY REVENUE TABLE
@@ -458,33 +510,32 @@ export async function generateFinancialPDF(data: FinancialReportData, primaryCol
     checkPage(40)
 
     const eventRows = data.events.map(e => {
-        const rate = e.totalExpected > 0 ? Math.round((e.totalCollected / e.totalExpected) * 100) : (e.totalCollected > 0 ? 100 : 0)
+        const gross = e.totalCollected || 0
+        const net = e.netRevenue || 0
+        const deductions = gross - net
+
         return [
             e.name,
             capitalize(e.type),
             fmtDate(e.date),
             String(e.totalRegistrations),
-            String(e.paidCount),
-            String(e.unpaidCount),
-            fmt(e.totalExpected),
-            fmt(e.totalCollected),
-            rate + '%',
+            fmt(gross),
+            fmt(deductions),
+            fmt(net),
         ]
     })
 
     autoTable(doc, {
         startY: y,
         margin: { left: margin, right: margin },
-        head: [['Event Name', 'Type', 'Date', 'Regs', 'Paid', 'Unpaid', 'Expected', 'Collected', 'Rate']],
+        head: [['Event Name', 'Type', 'Date', 'Regs', 'Gross', 'Deductions', 'Net Revenue']],
         body: eventRows,
         foot: [[
             'TOTALS', '', '',
             String(data.events.reduce((s, e) => s + e.totalRegistrations, 0)),
-            String(data.events.reduce((s, e) => s + e.paidCount, 0)),
-            String(data.events.reduce((s, e) => s + e.unpaidCount, 0)),
-            fmt(data.events.reduce((s, e) => s + e.totalExpected, 0)),
-            fmt(data.events.reduce((s, e) => s + e.totalCollected, 0)),
-            (data.summary.collectionRate + '%'),
+            fmt(data.events.reduce((s, e) => s + (e.totalCollected || 0), 0)),
+            fmt(data.events.reduce((s, e) => s + ((e.totalCollected || 0) - (e.netRevenue || 0)), 0)),
+            fmt(data.events.reduce((s, e) => s + (e.netRevenue || 0), 0)),
         ]],
         theme: 'grid',
         headStyles: {
@@ -513,15 +564,13 @@ export async function generateFinancialPDF(data: FinancialReportData, primaryCol
         },
         alternateRowStyles: { fillColor: [248, 250, 252] },
         columnStyles: {
-            0: { cellWidth: 38 },
+            0: { cellWidth: 40 },
             1: { cellWidth: 18 },
             2: { cellWidth: 22 },
             3: { halign: 'center', cellWidth: 12 },
-            4: { halign: 'center', cellWidth: 12 },
-            5: { halign: 'center', cellWidth: 12 },
-            6: { halign: 'right', cellWidth: 22 },
-            7: { halign: 'right', cellWidth: 22 },
-            8: { halign: 'center', cellWidth: 14 },
+            4: { halign: 'right', cellWidth: 25 },
+            5: { halign: 'right', cellWidth: 25 },
+            6: { halign: 'right', cellWidth: 25, fontStyle: 'bold' },
         },
         didParseCell: (hookData: any) => {
             // Color the Rate column based on value
@@ -566,19 +615,32 @@ export async function generateFinancialPDF(data: FinancialReportData, primaryCol
             doc.setTextColor(...COLORS.secondary)
             const eventMeta = `${capitalize(event.type)} • ${fmtDate(event.date)} • ${event.totalRegistrations} regs • ${fmt(event.totalCollected)} collected`
             doc.text(eventMeta, pageW - margin - 4, y + 7, { align: 'right' })
-            y += 13
+            y += 12
+
+            // Add deductions breakdown if exists
+            const activeDeductions = Object.entries(event.deductions || {}).filter(([_, val]) => val > 0)
+            if (activeDeductions.length > 0) {
+                doc.setFontSize(6.5)
+                doc.setFont('helvetica', 'italic')
+                doc.setTextColor(...COLORS.danger)
+                const dedStr = 'Deductions Applied: ' + activeDeductions.map(([n, v]) => `${n} (${fmt(v)})`).join(', ')
+                doc.text(dedStr, margin + 4, y)
+                y += 4
+            }
+            y += 2
 
             autoTable(doc, {
                 startY: y,
                 margin: { left: margin + 2, right: margin + 2 },
-                head: [['#', 'Player / Clubs', 'Club', 'Status', 'Expected', 'Paid']],
+                head: [['#', 'Player / Clubs', 'Club', 'Status', 'Gross', 'Ded.', 'Net']],
                 body: event.registrations.map((r, idx) => [
                     String(idx + 1),
                     r.playerName,
                     r.clubName,
                     r.status,
-                    fmt(r.amountExpected),
                     fmt(r.amountPaid),
+                    fmt(r.deduction || 0),
+                    fmt(r.net || 0),
                 ]),
                 theme: 'striped',
                 headStyles: {
@@ -601,7 +663,8 @@ export async function generateFinancialPDF(data: FinancialReportData, primaryCol
                     0: { cellWidth: 8, halign: 'center' },
                     3: { halign: 'center' },
                     4: { halign: 'right' },
-                    5: { halign: 'right' },
+                    5: { halign: 'right', textColor: COLORS.danger },
+                    6: { halign: 'right', fontStyle: 'bold' },
                 },
                 didParseCell: (hookData: any) => {
                     if (hookData.section === 'body' && hookData.column.index === 3) {
@@ -671,25 +734,44 @@ export async function generateEventPDF(event: EventItem, org: OrgInfo) {
         } catch { }
     }
 
+    // Org/Event Info
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(14)
+    const eventTitleAreaW = 50
+    const availEventNameW = (pageW - margin - eventTitleAreaW) - headerLeft
+
+    let eventNameFontSize = 14
+    doc.setFontSize(eventNameFontSize)
+
+    if (doc.getTextWidth(event.name) > availEventNameW) {
+        eventNameFontSize = 12
+        doc.setFontSize(eventNameFontSize)
+    }
+
+    const splitEventName = doc.splitTextToSize(event.name, availEventNameW)
     doc.setTextColor(...COLORS.white)
-    doc.text(event.name, headerLeft, 14)
+    doc.text(splitEventName, headerLeft, 14)
+
+    const eventNameLines = Array.isArray(splitEventName) ? splitEventName.length : 1
+    const eventMetaYOffset = (eventNameLines - 1) * (eventNameFontSize * 0.35)
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
     doc.setTextColor(200, 210, 220)
-    doc.text(`${capitalize(event.type)} • ${fmtDate(event.date)} • ${event.totalRegistrations} Registrations`, headerLeft, 21)
-    doc.text(org.name, headerLeft, 27)
+    doc.text(`${capitalize(event.type)} • ${fmtDate(event.date)} • ${event.totalRegistrations} Registrations`, headerLeft, 21 + eventMetaYOffset)
+    doc.text(org.name, headerLeft, 27 + eventMetaYOffset)
 
     y = 40
 
     // Summary row
+    const gross = event.totalCollected || 0
+    const net = event.netRevenue || 0
+    const deductions = gross - net
+
     const cardData = [
-        { label: 'EXPECTED', value: fmt(event.totalExpected) },
-        { label: 'COLLECTED', value: fmt(event.totalCollected) },
-        { label: 'PAID', value: String(event.paidCount) },
-        { label: 'UNPAID', value: String(event.unpaidCount) },
+        { label: 'GROSS COLLECTED', value: fmt(gross) },
+        { label: 'DEDUCTIONS', value: fmt(deductions) },
+        { label: 'NET REVENUE', value: fmt(net) },
+        { label: 'REGISTRATIONS', value: String(event.totalRegistrations) },
     ]
     const eventCardW = (contentW - 9) / 4
     cardData.forEach((c, i) => {
@@ -705,26 +787,49 @@ export async function generateEventPDF(event: EventItem, org: OrgInfo) {
         doc.setTextColor(...COLORS.text)
         doc.text(c.value, x + 4, y + 13)
     })
-    y += 22
+    y += 20
+
+    // Deductions breakdown list
+    const activeDeductions = Object.entries(event.deductions || {}).filter(([_, val]) => val > 0)
+    if (activeDeductions.length > 0) {
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(7)
+        doc.setTextColor(...COLORS.danger)
+        doc.text('Deduction Breakdown:', margin, y)
+        y += 4
+
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(7)
+        doc.setTextColor(...COLORS.secondary)
+        const dedLines = activeDeductions.map(([name, amount]) => `${name}: ${fmt(amount)}`).join('  •  ')
+        doc.text(dedLines, margin, y)
+        y += 6
+    } else {
+        y += 2
+    }
 
     // Registrations table
     autoTable(doc, {
         startY: y,
         margin: { left: margin, right: margin },
-        head: [['#', 'Player Name', 'Club', 'Status', 'Expected', 'Paid']],
-        body: event.registrations.map((r, idx) => [
-            String(idx + 1),
-            r.playerName,
-            r.clubName,
-            r.status,
-            fmt(r.amountExpected),
-            fmt(r.amountPaid),
-        ]),
+        head: [['#', 'Player Name', 'Club', 'Status', 'Gross', 'Ded.', 'Net']],
+        body: event.registrations.map((r, idx) => {
+            return [
+                String(idx + 1),
+                r.playerName,
+                r.clubName,
+                r.status,
+                fmt(r.amountPaid),
+                fmt(r.deduction || 0),
+                fmt(r.net || 0),
+            ]
+        }),
         foot: [[
             '', 'TOTALS', '',
-            `${event.paidCount}/${event.totalRegistrations}`,
-            fmt(event.totalExpected),
-            fmt(event.totalCollected),
+            String(event.totalRegistrations),
+            fmt(gross),
+            fmt(gross - net),
+            fmt(net),
         ]],
         theme: 'grid',
         headStyles: {
@@ -756,8 +861,9 @@ export async function generateEventPDF(event: EventItem, org: OrgInfo) {
             0: { cellWidth: 10, halign: 'center' },
             1: { cellWidth: 45 },
             3: { halign: 'center', cellWidth: 18 },
-            4: { halign: 'right', cellWidth: 24 },
-            5: { halign: 'right', cellWidth: 24 },
+            4: { halign: 'right', cellWidth: 20 },
+            5: { halign: 'right', cellWidth: 20 },
+            6: { halign: 'right', cellWidth: 20 },
         },
         didParseCell: (hookData: any) => {
             if (hookData.section === 'body' && hookData.column.index === 3) {
