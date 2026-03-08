@@ -5,6 +5,7 @@ import { X, Search, Edit2, Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import GlobalDropdown from '@/components/GlobalDropdown'
 import { getClubMembersForOrg, updateClubMemberAsOrg } from '@/app/organization/actions'
+import { calculateAge } from '@/lib/placement'
 
 interface Member {
     id: string
@@ -14,6 +15,7 @@ interface Member {
     gender: string | null
     weight: number | null
     height: number | null
+    birthDate: Date | string | null
     imageUrl: string | null
 }
 
@@ -171,7 +173,13 @@ export default function ClubMembersModal({ clubId, clubName, isOpen, onClose }: 
                                             <td className="p-4 text-sm text-gray-600">
                                                 <div>{member.gender || '-'}</div>
                                                 <div className="text-xs text-gray-400">
-                                                    {member.weight ? `${member.weight}kg` : '-'} • {member.height ? `${member.height}cm` : '-'}
+                                                    {(() => {
+                                                        const age = member.birthDate ? calculateAge(member.birthDate) : null
+                                                        const isHeightBased = age !== null && age <= 11
+
+                                                        if (isHeightBased) return member.height ? `${member.height}cm` : '-'
+                                                        return member.weight ? `${member.weight}kg` : '-'
+                                                    })()}
                                                 </div>
                                             </td>
                                             <td className="p-4 text-right">
@@ -205,66 +213,92 @@ export default function ClubMembersModal({ clubId, clubName, isOpen, onClose }: 
                         </div>
 
                         <form onSubmit={handleSave} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                                <input
-                                    type="text"
-                                    value={editingMember.name || ''}
-                                    onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
-                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
-                                />
-                            </div>
+                            {(() => {
+                                const age = editingMember.birthDate ? calculateAge(editingMember.birthDate) : null
+                                const isHeightBased = age !== null && age <= 11
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Belt Rank</label>
-                                <GlobalDropdown
-                                    value={editingMember.belt || 'White'}
-                                    onChange={(val) => setEditingMember({ ...editingMember, belt: val })}
-                                    options={[
-                                        'White',
-                                        'Yellow', 'Orange',
-                                        'Green', 'Purple',
-                                        'Blue', 'Maroon',
-                                        'Red', 'Brown',
-                                        'Black'
-                                    ]}
-                                    name="belt"
-                                    fullWidth
-                                />
-                            </div>
+                                return (
+                                    <>
+                                        {/* Age Badge */}
+                                        {age !== null && (
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Age</span>
+                                                <span className="text-xs font-bold text-gray-700 bg-gray-100 px-2 py-1 rounded">
+                                                    {age}
+                                                </span>
+                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isHeightBased ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'}`}>
+                                                    {isHeightBased ? 'Height-based' : 'Weight-based'}
+                                                </span>
+                                            </div>
+                                        )}
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
-                                    <GlobalDropdown
-                                        value={editingMember.gender || 'Male'}
-                                        onChange={(val) => setEditingMember({ ...editingMember, gender: val })}
-                                        options={['Male', 'Female']}
-                                        name="gender"
-                                        fullWidth
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Weight (kg)</label>
-                                    <input
-                                        type="number"
-                                        step="0.1"
-                                        value={editingMember.weight || ''}
-                                        onChange={(e) => setEditingMember({ ...editingMember, weight: parseFloat(e.target.value) })}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
-                                    />
-                                </div>
-                            </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                                            <input
+                                                type="text"
+                                                value={editingMember.name || ''}
+                                                onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
+                                            />
+                                        </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Height (cm)</label>
-                                <input
-                                    type="number"
-                                    value={editingMember.height || ''}
-                                    onChange={(e) => setEditingMember({ ...editingMember, height: parseFloat(e.target.value) })}
-                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
-                                />
-                            </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Belt Rank</label>
+                                            <GlobalDropdown
+                                                value={editingMember.belt || 'White'}
+                                                onChange={(val) => setEditingMember({ ...editingMember, belt: val })}
+                                                options={[
+                                                    'White',
+                                                    'Yellow', 'Orange',
+                                                    'Green', 'Purple',
+                                                    'Blue', 'Maroon',
+                                                    'Red', 'Brown',
+                                                    'Black'
+                                                ]}
+                                                name="belt"
+                                                fullWidth
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                                                <GlobalDropdown
+                                                    value={editingMember.gender || 'Male'}
+                                                    onChange={(val) => setEditingMember({ ...editingMember, gender: val })}
+                                                    options={['Male', 'Female']}
+                                                    name="gender"
+                                                    fullWidth
+                                                />
+                                            </div>
+                                            {!isHeightBased && (
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">Weight (kg)</label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.1"
+                                                        value={editingMember.weight || ''}
+                                                        onChange={(e) => setEditingMember({ ...editingMember, weight: parseFloat(e.target.value) })}
+                                                        className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {isHeightBased && (
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Height (cm)</label>
+                                                <input
+                                                    type="number"
+                                                    value={editingMember.height || ''}
+                                                    onChange={(e) => setEditingMember({ ...editingMember, height: parseFloat(e.target.value) })}
+                                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
+                                                />
+                                            </div>
+                                        )}
+                                    </>
+                                )
+                            })()}
 
                             <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
                                 <button

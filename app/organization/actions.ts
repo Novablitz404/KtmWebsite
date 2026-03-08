@@ -2064,7 +2064,7 @@ export async function getOrganizationFinancials() {
 
     const dbUser = await prisma.user.findUnique({
         where: { id: user.id },
-        include: { organization: true }
+        include: { organization: { select: { id: true, defaultBeltFees: true, name: true, logoUrl: true, address: true, contactPhone: true, contactEmail: true, chairman: true, affiliationFee: true } } }
     })
 
     if (!dbUser?.organization) return null
@@ -2139,20 +2139,49 @@ export async function getOrganizationFinancials() {
     // Build per-event financial breakdown
 
     // --- Promotion Tests ---
-    const promotionBreakdown = promotionTests.map(pt => {
-        const fee = pt.fee || 0
-        const totalRegs = pt.registrations.length
-        const paidCount = pt.registrations.filter(r => r.paymentStatus === 'PAID').length
-        const unpaidCount = pt.registrations.filter(r => r.paymentStatus === 'UNPAID').length
+    const WHITE_TO_PURPLE_BELTS = ['white', 'yellow', 'orange', 'green', 'purple']
+    const BLUE_TO_MAROON_BELTS = ['blue', 'maroon', 'red']
 
-        const mappedRegistrations = pt.registrations.map(r => ({
-            id: r.id,
-            playerName: r.playerName,
-            clubName: r.clubName || 'Independent',
-            status: r.paymentStatus,
-            amountExpected: fee,
-            amountPaid: r.paymentStatus === 'PAID' ? fee : 0
-        }))
+    function getPromoFee(belt: string | null | undefined, beltFees: any, baseFee: number) {
+        if (!belt) return baseFee
+        const b = belt.toLowerCase()
+        if (WHITE_TO_PURPLE_BELTS.includes(b)) return Number(beltFees.whiteToPurple) || baseFee
+        if (BLUE_TO_MAROON_BELTS.includes(b)) return Number(beltFees.blueToMaroon) || baseFee
+        if (b === 'brown') return Number(beltFees.brown) || baseFee
+        return baseFee
+    }
+
+    const promotionBreakdown = promotionTests.map(pt => {
+        const baseFee = pt.fee || 0
+        const beltFees = (dbUser.organization?.defaultBeltFees || {}) as Record<string, number>
+        const totalRegs = pt.registrations.length
+
+        let totalExpected = 0
+        let totalCollected = 0
+        let paidCount = 0
+        let unpaidCount = 0
+
+        const mappedRegistrations = pt.registrations.map(r => {
+            const beltFee = getPromoFee(r.currentBelt, beltFees, baseFee)
+            const isPaid = r.paymentStatus === 'PAID'
+
+            totalExpected += beltFee
+            if (isPaid) {
+                totalCollected += beltFee
+                paidCount++
+            } else {
+                unpaidCount++
+            }
+
+            return {
+                id: r.id,
+                playerName: r.playerName,
+                clubName: r.clubName || 'Independent',
+                status: r.paymentStatus,
+                amountExpected: beltFee,
+                amountPaid: isPaid ? beltFee : 0
+            }
+        })
 
         return {
             id: pt.id,
@@ -2160,12 +2189,12 @@ export async function getOrganizationFinancials() {
             name: pt.name,
             date: pt.testDate.toISOString(),
             status: pt.status,
-            fee,
+            fee: baseFee,
             totalRegistrations: totalRegs,
             paidCount,
             unpaidCount,
-            totalCollected: paidCount * fee,
-            totalExpected: totalRegs * fee,
+            totalCollected,
+            totalExpected,
             registrations: mappedRegistrations
         }
     })
@@ -2345,7 +2374,7 @@ export async function getOrganizationFinancials() {
     const monthlyData: { month: string; tournaments: number; promotions: number; seminars: number; affiliations: number }[] = []
     for (let i = 11; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-        const monthKey = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+        const monthKey = d.toLocaleDateString('en-US', { month: 'short' })
         const year = d.getFullYear()
         const month = d.getMonth()
 

@@ -69,7 +69,7 @@ interface FinancialReportData {
 
 // ─── Helpers ─────────────────────────────────────────────────────
 function fmt(amount: number): string {
-    return '₱' + amount.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+    return 'PHP ' + amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }
 
 function fmtDate(dateStr: string): string {
@@ -420,11 +420,14 @@ export async function generateFinancialPDF(data: FinancialReportData, primaryCol
             fontStyle: 'bold',
             fontSize: 7.5,
             cellPadding: 3,
+            halign: 'center',
+            valign: 'middle',
         },
         bodyStyles: {
             fontSize: 7.5,
             textColor: COLORS.text,
             cellPadding: 2.5,
+            valign: 'middle',
         },
         footStyles: {
             fillColor: COLORS.light,
@@ -432,6 +435,8 @@ export async function generateFinancialPDF(data: FinancialReportData, primaryCol
             fontStyle: 'bold',
             fontSize: 7.5,
             cellPadding: 3,
+            halign: 'right',
+            valign: 'middle',
         },
         alternateRowStyles: { fillColor: [248, 250, 252] },
         columnStyles: {
@@ -488,11 +493,14 @@ export async function generateFinancialPDF(data: FinancialReportData, primaryCol
             fontStyle: 'bold',
             fontSize: 7,
             cellPadding: 2.5,
+            halign: 'center',
+            valign: 'middle',
         },
         bodyStyles: {
             fontSize: 7,
             textColor: COLORS.text,
             cellPadding: 2,
+            valign: 'middle',
         },
         footStyles: {
             fillColor: COLORS.light,
@@ -500,6 +508,8 @@ export async function generateFinancialPDF(data: FinancialReportData, primaryCol
             fontStyle: 'bold',
             fontSize: 7,
             cellPadding: 2.5,
+            halign: 'right',
+            valign: 'middle',
         },
         alternateRowStyles: { fillColor: [248, 250, 252] },
         columnStyles: {
@@ -577,11 +587,14 @@ export async function generateFinancialPDF(data: FinancialReportData, primaryCol
                     fontStyle: 'bold',
                     fontSize: 6.5,
                     cellPadding: 2,
+                    halign: 'center',
+                    valign: 'middle',
                 },
                 bodyStyles: {
                     fontSize: 6.5,
                     textColor: COLORS.text,
                     cellPadding: 1.8,
+                    valign: 'middle',
                 },
                 alternateRowStyles: { fillColor: [248, 250, 252] },
                 columnStyles: {
@@ -720,11 +733,14 @@ export async function generateEventPDF(event: EventItem, org: OrgInfo) {
             fontStyle: 'bold',
             fontSize: 8,
             cellPadding: 3,
+            halign: 'center',
+            valign: 'middle',
         },
         bodyStyles: {
             fontSize: 7.5,
             textColor: COLORS.text,
             cellPadding: 2.5,
+            valign: 'middle',
         },
         footStyles: {
             fillColor: COLORS.light,
@@ -732,6 +748,8 @@ export async function generateEventPDF(event: EventItem, org: OrgInfo) {
             fontStyle: 'bold',
             fontSize: 7.5,
             cellPadding: 3,
+            halign: 'right',
+            valign: 'middle',
         },
         alternateRowStyles: { fillColor: [248, 250, 252] },
         columnStyles: {

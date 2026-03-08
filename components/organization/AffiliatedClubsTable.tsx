@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import Image from 'next/image'
 import { toast } from 'sonner'
 import { approveAffiliationProof, rejectAffiliationProof, manuallyActivateAffiliation, getClubMembersForOrg, createMemberForClub } from '@/app/organization/actions'
+import { calculateAge } from '@/lib/placement'
 import {
     Check, X, Building2, Users, Phone, Mail, MapPin,
     Calendar, Shield, ShieldCheck, ShieldAlert, ShieldX,
@@ -108,83 +109,108 @@ function AddMemberForm({ clubId, clubName, onSuccess, onCancel }: {
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="sm:col-span-2">
-                    <label className={labelClass}>Name *</label>
-                    <input
-                        type="text"
-                        value={form.name}
-                        onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                        className={inputClass}
-                        placeholder="Full name"
-                        required
-                    />
-                </div>
-                <div className="sm:col-span-2">
-                    <label className={labelClass}>Email</label>
-                    <input
-                        type="email"
-                        value={form.email}
-                        onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                        className={inputClass}
-                        placeholder="Optional"
-                    />
-                </div>
-                <div>
-                    <label className={labelClass}>Gender</label>
-                    <select
-                        value={form.gender}
-                        onChange={e => setForm(f => ({ ...f, gender: e.target.value }))}
-                        className={inputClass}
-                    >
-                        <option value="">Select</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                    </select>
-                </div>
-                <div>
-                    <label className={labelClass}>Belt</label>
-                    <select
-                        value={form.belt}
-                        onChange={e => setForm(f => ({ ...f, belt: e.target.value }))}
-                        className={inputClass}
-                    >
-                        <option value="">Select</option>
-                        {BELT_OPTIONS.map(b => <option key={b} value={b}>{b}</option>)}
-                    </select>
-                </div>
-                <div>
-                    <label className={labelClass}>Weight (kg)</label>
-                    <input
-                        type="number"
-                        step="0.1"
-                        value={form.weight}
-                        onChange={e => setForm(f => ({ ...f, weight: e.target.value }))}
-                        className={inputClass}
-                        placeholder="e.g. 55"
-                    />
-                </div>
-                <div>
-                    <label className={labelClass}>Height (cm)</label>
-                    <input
-                        type="number"
-                        step="0.1"
-                        value={form.height}
-                        onChange={e => setForm(f => ({ ...f, height: e.target.value }))}
-                        className={inputClass}
-                        placeholder="e.g. 165"
-                    />
-                </div>
-                <div className="sm:col-span-2">
-                    <label className={labelClass}>Birth Date</label>
-                    <input
-                        type="date"
-                        value={form.birthDate}
-                        onChange={e => setForm(f => ({ ...f, birthDate: e.target.value }))}
-                        className={inputClass}
-                    />
-                </div>
-            </div>
+            {(() => {
+                const age = form.birthDate ? calculateAge(form.birthDate) : null
+                const isHeightBased = age !== null && age <= 11
+
+                return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {age !== null && (
+                            <div className="sm:col-span-2 flex items-center gap-2 mb-1">
+                                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Age</span>
+                                <span className="text-xs font-bold text-gray-700 bg-gray-100 px-2 py-1 rounded">
+                                    {age}
+                                </span>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isHeightBased ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'}`}>
+                                    {isHeightBased ? 'Height-based' : 'Weight-based'}
+                                </span>
+                            </div>
+                        )}
+                        <div className="sm:col-span-2">
+                            <label className={labelClass}>Name *</label>
+                            <input
+                                type="text"
+                                value={form.name}
+                                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                                className={inputClass}
+                                placeholder="Full name"
+                                required
+                            />
+                        </div>
+                        <div className="sm:col-span-2">
+                            <label className={labelClass}>Email</label>
+                            <input
+                                type="email"
+                                value={form.email}
+                                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                                className={inputClass}
+                                placeholder="Optional"
+                            />
+                        </div>
+                        <div>
+                            <label className={labelClass}>Gender</label>
+                            <select
+                                value={form.gender}
+                                onChange={e => setForm(f => ({ ...f, gender: e.target.value }))}
+                                className={inputClass}
+                            >
+                                <option value="">Select</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className={labelClass}>Belt</label>
+                            <select
+                                value={form.belt}
+                                onChange={e => setForm(f => ({ ...f, belt: e.target.value }))}
+                                className={inputClass}
+                            >
+                                <option value="">Select</option>
+                                {BELT_OPTIONS.map(b => <option key={b} value={b}>{b}</option>)}
+                            </select>
+                        </div>
+                        <div className="sm:col-span-2">
+                            <label className={labelClass}>Birth Date</label>
+                            <input
+                                type="date"
+                                value={form.birthDate}
+                                onChange={e => {
+                                    const val = e.target.value
+                                    setForm(f => ({ ...f, birthDate: val }))
+                                }}
+                                className={inputClass}
+                            />
+                        </div>
+                        {!isHeightBased && (
+                            <div className="sm:col-span-2">
+                                <label className={labelClass}>Weight (kg)</label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    value={form.weight}
+                                    onChange={e => setForm(f => ({ ...f, weight: e.target.value }))}
+                                    className={inputClass}
+                                    placeholder="e.g. 55"
+                                />
+                            </div>
+                        )}
+                        {isHeightBased && (
+                            <div className="sm:col-span-2">
+                                <label className={labelClass}>Height (cm)</label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    value={form.height}
+                                    onChange={e => setForm(f => ({ ...f, height: e.target.value }))}
+                                    className={inputClass}
+                                    placeholder="e.g. 165"
+                                />
+                            </div>
+                        )}
+                    </div>
+                )
+            })()}
 
             <div className="flex items-center gap-2 pt-2">
                 <button
@@ -203,7 +229,7 @@ function AddMemberForm({ clubId, clubName, onSuccess, onCancel }: {
                     Cancel
                 </button>
             </div>
-        </form>
+        </form >
     )
 }
 
@@ -550,13 +576,15 @@ function ClubDetailModal({ club, onClose }: { club: ClubData, onClose: () => voi
                                                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Athlete</th>
                                                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Belt</th>
                                                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Gender</th>
-                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Weight</th>
                                                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Age</th>
+                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Measurement</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-50">
                                                 {paginatedMembers.map(m => {
-                                                    const age = m.birthDate ? Math.floor((Date.now() - new Date(m.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : null
+                                                    const age = m.birthDate ? calculateAge(m.birthDate) : null
+                                                    const isHeightBased = age !== null && age <= 11
+
                                                     return (
                                                         <tr key={m.id} className="hover:bg-gray-50 transition-colors">
                                                             <td className="px-4 py-3">
@@ -587,10 +615,16 @@ function ClubDetailModal({ club, onClose }: { club: ClubData, onClose: () => voi
                                                                 {m.gender || <span className="text-gray-300">—</span>}
                                                             </td>
                                                             <td className="px-4 py-3 text-center text-xs text-gray-600 hidden sm:table-cell">
-                                                                {m.weight ? `${m.weight}kg` : <span className="text-gray-300">—</span>}
+                                                                {age !== null ? (
+                                                                    <span className="font-medium text-gray-900">{age} <span className="text-gray-400 font-normal">y/o</span></span>
+                                                                ) : <span className="text-gray-300">—</span>}
                                                             </td>
                                                             <td className="px-4 py-3 text-center text-xs text-gray-600 hidden sm:table-cell">
-                                                                {age !== null ? `${age}y` : <span className="text-gray-300">—</span>}
+                                                                {isHeightBased ? (
+                                                                    m.height ? <span className="text-blue-600 font-medium">{m.height}cm</span> : <span className="text-gray-300">—</span>
+                                                                ) : (
+                                                                    m.weight ? <span className="text-amber-600 font-medium">{m.weight}kg</span> : <span className="text-gray-300">—</span>
+                                                                )}
                                                             </td>
                                                         </tr>
                                                     )

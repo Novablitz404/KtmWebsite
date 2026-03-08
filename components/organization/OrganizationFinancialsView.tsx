@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getOrganizationFinancials } from '@/app/organization/actions'
 import { DollarSign, TrendingUp, TrendingDown, Clock, Users, Award, GraduationCap, Trophy, X, Search, Download, ArrowUpRight, ArrowDownRight, Building2, Percent } from 'lucide-react'
 import { useTenant } from '@/app/providers/TenantProvider'
-import { useMemo, useState, useRef, useCallback } from 'react'
+import { useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import { generateFinancialPDF, generateEventPDF } from '@/lib/generateFinancialPDF'
 
 type FinancialData = NonNullable<Awaited<ReturnType<typeof getOrganizationFinancials>>>
@@ -172,11 +172,11 @@ function DonutChart({ data, primaryColor }: {
     const gradientParts = segments.map(s => `${s.color} ${s.start}% ${s.start + s.pct}%`).join(', ')
 
     return (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-            <h3 className="font-bold text-gray-900 text-lg mb-5">Revenue Distribution</h3>
-            <div className="flex items-center gap-6">
+        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm h-full flex flex-col">
+            <h3 className="font-bold text-gray-900 text-lg mb-6 flex-shrink-0">Revenue Distribution</h3>
+            <div className="flex flex-col items-center justify-center gap-6 flex-1">
                 {/* Donut */}
-                <div className="relative w-36 h-36 flex-shrink-0">
+                <div className="relative w-40 h-40 flex-shrink-0">
                     <div
                         className="w-full h-full rounded-full"
                         style={{ background: `conic-gradient(${gradientParts})` }}
@@ -189,7 +189,7 @@ function DonutChart({ data, primaryColor }: {
                     </div>
                 </div>
                 {/* Legend */}
-                <div className="flex flex-col gap-2.5 flex-1 min-w-0">
+                <div className="w-full flex justify-center flex-wrap gap-4 mt-auto">
                     {segments.map(s => (
                         <div key={s.label} className="flex items-center gap-2.5">
                             <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: s.color }} />
@@ -197,7 +197,7 @@ function DonutChart({ data, primaryColor }: {
                                 <span className="text-xs font-medium text-gray-600 truncate">{s.label}</span>
                                 <div className="flex items-center gap-2 ml-2 flex-shrink-0">
                                     <span className="text-xs font-bold text-gray-900">{formatCurrency(s.value)}</span>
-                                    <span className="text-[10px] text-gray-400">{Math.round(s.pct)}%</span>
+                                    <span className="text-[10px] text-gray-400">({Math.round(s.pct)}%)</span>
                                 </div>
                             </div>
                         </div>
@@ -215,90 +215,70 @@ function BarChart({ data, primaryColor }: {
 }) {
     const maxValue = Math.max(...data.map(d => d.tournaments + d.promotions + d.seminars + d.affiliations), 1)
 
+    // Generate y-axis labels
+    const yAxisLabels = Array.from({ length: 5 }, (_, i) => {
+        const val = maxValue * (i / 4)
+        return val >= 1000 ? `₱${(val / 1000).toFixed(val % 1000 === 0 ? 0 : 1)}k` : `₱${Math.round(val)}`
+    }).reverse()
+
     return (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm h-full flex flex-col">
             <div className="flex items-center justify-between mb-6">
                 <h3 className="font-bold text-gray-900 text-lg">Monthly Revenue</h3>
-                <div className="flex items-center gap-3 text-xs font-medium flex-wrap">
-                    <div className="flex items-center gap-1.5">
-                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: primaryColor }} />
-                        <span className="text-gray-500">Tournaments</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                        <div className="w-3 h-3 rounded-sm bg-blue-500" />
-                        <span className="text-gray-500">Promotions</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                        <div className="w-3 h-3 rounded-sm bg-amber-400" />
-                        <span className="text-gray-500">Seminars</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                        <div className="w-3 h-3 rounded-sm bg-violet-500" />
-                        <span className="text-gray-500">Affiliations</span>
-                    </div>
-                </div>
             </div>
 
-            <div className="flex items-end gap-1.5 h-52">
-                {data.map((d, i) => {
-                    const total = d.tournaments + d.promotions + d.seminars + d.affiliations
-                    const tourneyHeight = total > 0 ? (d.tournaments / maxValue) * 100 : 0
-                    const promoHeight = total > 0 ? (d.promotions / maxValue) * 100 : 0
-                    const semHeight = total > 0 ? (d.seminars / maxValue) * 100 : 0
-                    const affHeight = total > 0 ? (d.affiliations / maxValue) * 100 : 0
-                    const hasData = total > 0
+            <div className="flex gap-4 flex-1 min-h-[220px]">
+                {/* Y-Axis */}
+                <div className="flex flex-col justify-between items-end text-[10px] text-gray-400 font-medium py-1 w-10 shrink-0 pb-6">
+                    {yAxisLabels.map((lbl, i) => (
+                        <span key={i} className="leading-none transform">{lbl}</span>
+                    ))}
+                </div>
 
-                    return (
-                        <div key={i} className="flex-1 flex flex-col items-center gap-1 h-full group relative">
-                            {/* Tooltip */}
-                            {hasData && (
-                                <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2.5 py-1.5 rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none shadow-lg">
-                                    <div>T: {formatCurrency(d.tournaments)}</div>
-                                    <div>P: {formatCurrency(d.promotions)}</div>
-                                    <div>S: {formatCurrency(d.seminars)}</div>
-                                    <div>A: {formatCurrency(d.affiliations)}</div>
-                                    <div className="border-t border-gray-700 mt-0.5 pt-0.5 font-bold">{formatCurrency(total)}</div>
+                {/* Bars Area */}
+                <div className="flex-1 relative">
+                    {/* Grid lines */}
+                    <div className="absolute inset-x-0 inset-y-0 flex flex-col justify-between pointer-events-none pb-6">
+                        {[0, 1, 2, 3, 4].map((i) => (
+                            <div key={i} className="w-full border-b border-gray-100/50 border-dashed" />
+                        ))}
+                    </div>
+
+                    {/* Bars */}
+                    <div className="absolute inset-x-0 inset-y-0 flex items-end gap-1.5 pb-6">
+                        {data.map((d, i) => {
+                            const total = d.tournaments + d.promotions + d.seminars + d.affiliations
+                            const barHeight = total > 0 ? (total / maxValue) * 100 : 0
+                            const hasData = total > 0
+
+                            return (
+                                <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1 h-full group relative z-10">
+                                    {/* Tooltip */}
+                                    {hasData && (
+                                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2.5 py-1.5 rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none shadow-lg font-bold">
+                                            {formatCurrency(total)}
+                                        </div>
+                                    )}
+
+                                    {/* Bar Container */}
+                                    <div className="w-full flex items-end justify-center pb-1 h-[calc(100%-1.25rem)]">
+                                        <div
+                                            className="w-[90%] rounded-t-sm transition-all duration-500 ease-out hover:opacity-80"
+                                            style={{
+                                                height: `${Math.max(barHeight, hasData ? 4 : 0)}%`,
+                                                backgroundColor: primaryColor,
+                                                minHeight: hasData ? '3px' : '0px'
+                                            }}
+                                        />
+                                    </div>
+
+                                    {/* Month label */}
+                                    <span className="text-[10px] text-gray-400 font-medium leading-none absolute -bottom-5 text-center w-full">{d.month}</span>
                                 </div>
-                            )}
-
-                            {/* Bars Container */}
-                            <div className="flex-1 w-full flex items-end justify-center gap-0.5">
-                                <div
-                                    className="w-[22%] rounded-t-sm transition-all duration-500 ease-out hover:opacity-80"
-                                    style={{
-                                        height: `${Math.max(tourneyHeight, hasData && d.tournaments > 0 ? 4 : 0)}%`,
-                                        backgroundColor: primaryColor,
-                                        minHeight: d.tournaments > 0 ? '3px' : '0px'
-                                    }}
-                                />
-                                <div
-                                    className="w-[22%] rounded-t-sm bg-blue-500 transition-all duration-500 ease-out hover:opacity-80"
-                                    style={{
-                                        height: `${Math.max(promoHeight, hasData && d.promotions > 0 ? 4 : 0)}%`,
-                                        minHeight: d.promotions > 0 ? '3px' : '0px'
-                                    }}
-                                />
-                                <div
-                                    className="w-[22%] rounded-t-sm bg-amber-400 transition-all duration-500 ease-out hover:opacity-80"
-                                    style={{
-                                        height: `${Math.max(semHeight, hasData && d.seminars > 0 ? 4 : 0)}%`,
-                                        minHeight: d.seminars > 0 ? '3px' : '0px'
-                                    }}
-                                />
-                                <div
-                                    className="w-[22%] rounded-t-sm bg-violet-500 transition-all duration-500 ease-out hover:opacity-80"
-                                    style={{
-                                        height: `${Math.max(affHeight, hasData && d.affiliations > 0 ? 4 : 0)}%`,
-                                        minHeight: d.affiliations > 0 ? '3px' : '0px'
-                                    }}
-                                />
-                            </div>
-
-                            {/* Month label */}
-                            <span className="text-[10px] text-gray-400 font-medium leading-none">{d.month}</span>
-                        </div>
-                    )
-                })}
+                            )
+                        })}
+                    </div>
+                </div>
             </div>
         </div>
     )
@@ -375,6 +355,7 @@ export default function OrganizationFinancialsView() {
     const [filter, setFilter] = useState<'all' | 'tournament' | 'promotion' | 'seminar' | 'affiliation'>('all')
     const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
+    const [eventPage, setEventPage] = useState(1)
 
     const { data, isLoading } = useQuery({
         queryKey: ['organization-financials'],
@@ -407,6 +388,17 @@ export default function OrganizationFinancialsView() {
         if (filter === 'all') return data.events
         return data.events.filter(e => e.type === filter)
     }, [data?.events, filter])
+
+    useEffect(() => {
+        setEventPage(1)
+    }, [filter])
+
+    const EVENTS_PER_PAGE = 10
+    const eventTotalPages = Math.ceil(filteredEvents.length / EVENTS_PER_PAGE)
+    const paginatedEvents = filteredEvents.slice(
+        (eventPage - 1) * EVENTS_PER_PAGE,
+        eventPage * EVENTS_PER_PAGE
+    )
 
     // ───── Loading skeleton ─────
     if (isLoading) {
@@ -590,11 +582,11 @@ export default function OrganizationFinancialsView() {
             <YoYBanner yoy={yoy} />
 
             {/* Charts Section — Bar + Donut */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+                <div className="lg:col-span-2 h-full">
                     <BarChart data={monthlyData} primaryColor={primaryColor} />
                 </div>
-                <div className="lg:col-span-1">
+                <div className="lg:col-span-1 h-full">
                     <DonutChart data={donutData} primaryColor={primaryColor} />
                 </div>
             </div>
@@ -638,7 +630,7 @@ export default function OrganizationFinancialsView() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
-                                {filteredEvents.map((event) => {
+                                {paginatedEvents.map((event) => {
                                     const rate = event.totalExpected > 0 ? Math.round((event.totalCollected / event.totalExpected) * 100) : (event.totalCollected > 0 ? 100 : 0)
                                     const rateColor = rate >= 80 ? 'bg-emerald-500' : rate >= 50 ? 'bg-amber-500' : 'bg-red-500'
                                     return (
@@ -703,6 +695,33 @@ export default function OrganizationFinancialsView() {
                                 </tr>
                             </tfoot>
                         </table>
+
+                        {eventTotalPages > 1 && (
+                            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                                <span className="text-xs text-gray-500">
+                                    Showing {((eventPage - 1) * EVENTS_PER_PAGE) + 1}–{Math.min(eventPage * EVENTS_PER_PAGE, filteredEvents.length)} of {filteredEvents.length}
+                                </span>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={() => setEventPage(p => Math.max(1, p - 1))}
+                                        disabled={eventPage <= 1}
+                                        className="px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                    >
+                                        Prev
+                                    </button>
+                                    <span className="text-xs font-semibold text-gray-700 px-2">
+                                        {eventPage} / {eventTotalPages}
+                                    </span>
+                                    <button
+                                        onClick={() => setEventPage(p => Math.min(eventTotalPages, p + 1))}
+                                        disabled={eventPage >= eventTotalPages}
+                                        className="px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
