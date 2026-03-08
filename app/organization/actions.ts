@@ -1791,6 +1791,78 @@ export async function getClubMembersForOrg(clubId: string) {
     return { success: true, members }
 }
 
+export async function createMemberForClub(clubId: string, input: {
+    name: string
+    email?: string
+    gender?: string
+    belt?: string
+    weight?: number
+    height?: number
+    birthDate?: string
+    athleteNumber?: string
+}) {
+    const user = await getAuthUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return { error: 'No organization found' }
+    if (!['ORGANIZER', 'MANAGER', 'ADMIN'].includes(dbUser.role)) {
+        return { error: 'Only organizers can add members to clubs' }
+    }
+
+    // Verify club belongs to this org
+    const club = await prisma.club.findUnique({ where: { id: clubId } })
+    if (!club || club.organizationId !== dbUser.organization.id) {
+        return { error: 'Club not found or unauthorized' }
+    }
+
+    // Check duplicate email
+    if (input.email) {
+        const existing = await prisma.user.findUnique({ where: { email: input.email } })
+        if (existing) return { error: 'A user with this email already exists' }
+    }
+
+    try {
+        // Generate unique 5-digit ID
+        let newId = Math.floor(10000 + Math.random() * 90000).toString()
+        let idExists = await prisma.user.findUnique({ where: { id: newId } })
+        while (idExists) {
+            newId = Math.floor(10000 + Math.random() * 90000).toString()
+            idExists = await prisma.user.findUnique({ where: { id: newId } })
+        }
+
+        const memberEmail = input.email || `noemail-${newId}@member.ktm`
+
+        const newMember = await prisma.user.create({
+            data: {
+                id: newId,
+                clerkId: null,
+                email: memberEmail,
+                name: input.name,
+                role: 'ATHLETE',
+                clubName: club.name,
+                gender: input.gender || null,
+                belt: input.belt || null,
+                weight: input.weight ? parseFloat(String(input.weight)) : null,
+                height: input.height ? parseFloat(String(input.height)) : null,
+                birthDate: input.birthDate ? new Date(input.birthDate) : null,
+                athleteNumber: input.athleteNumber || null,
+            }
+        })
+
+        revalidatePath('/organization')
+
+        return { success: true, member: newMember }
+    } catch (error: any) {
+        console.error('Error creating member for club:', error)
+        return { error: error.message || 'Failed to create member' }
+    }
+}
+
 export async function updateClubMemberAsOrg(userId: string, data: {
     name?: string,
     belt?: string,
@@ -2201,15 +2273,76 @@ export async function getOrganizationFinancials() {
     const allEvents = [...tournamentBreakdown, ...promotionBreakdown, ...seminarBreakdown]
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
-    // Aggregated totals
-    const totalRevenue = allEvents.reduce((sum, e) => sum + e.totalExpected, 0)
-    const totalCollected = allEvents.reduce((sum, e) => sum + e.totalCollected, 0)
+    // --- Club Affiliation Revenue ---
+    const affiliations = await prisma.clubAffiliation.findMany({
+        where: { organizationId: orgId, paymentStatus: 'PAID' },
+        include: { club: { select: { name: true } } },
+        orderBy: { paidAt: 'desc' }
+    })
+
+    const affiliationRevenue = affiliations.reduce((sum, a) => sum + (a.amountPaid || 0), 0)
+    const affiliationItems = affiliations.map(a => ({
+        id: a.id,
+        type: 'affiliation' as const,
+        name: `${a.club.name} — Affiliation`,
+        date: (a.paidAt || a.createdAt).toISOString(),
+        status: a.status,
+        fee: a.amountPaid || 0,
+        totalRegistrations: 1,
+        paidCount: 1,
+        unpaidCount: 0,
+        totalCollected: a.amountPaid || 0,
+        totalExpected: a.amountPaid || 0,
+        registrations: [{
+            id: a.id,
+            playerName: a.club.name,
+            clubName: a.club.name,
+            status: 'PAID',
+            amountExpected: a.amountPaid || 0,
+            amountPaid: a.amountPaid || 0,
+        }]
+    }))
+
+    // Pending affiliations (not yet paid)
+    const pendingAffiliations = await prisma.clubAffiliation.findMany({
+        where: { organizationId: orgId, paymentStatus: { not: 'PAID' } },
+    })
+    const pendingAffiliationRevenue = pendingAffiliations.length * (dbUser.organization.affiliationFee || 0)
+
+    // Combine all events + affiliations
+    const allItems = [...allEvents, ...affiliationItems]
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+    // Aggregated totals (events only for expected/collected)
+    const eventTotalExpected = allEvents.reduce((sum, e) => sum + e.totalExpected, 0)
+    const eventTotalCollected = allEvents.reduce((sum, e) => sum + e.totalCollected, 0)
+    const totalRevenue = eventTotalExpected + affiliationRevenue + pendingAffiliationRevenue
+    const totalCollected = eventTotalCollected + affiliationRevenue
     const totalPending = totalRevenue - totalCollected
     const totalRegistrations = allEvents.reduce((sum, e) => sum + e.totalRegistrations, 0)
 
-    // Monthly revenue data for bar chart (last 12 months)
-    const monthlyData: { month: string; tournaments: number; promotions: number; seminars: number }[] = []
+    // Collection rate
+    const collectionRate = totalRevenue > 0 ? Math.round((totalCollected / totalRevenue) * 100) : 0
+
+    // Revenue by event type
+    const revenueByType = {
+        tournaments: tournamentBreakdown.reduce((sum, e) => sum + e.totalCollected, 0),
+        promotions: promotionBreakdown.reduce((sum, e) => sum + e.totalCollected, 0),
+        seminars: seminarBreakdown.reduce((sum, e) => sum + e.totalCollected, 0),
+        affiliations: affiliationRevenue,
+    }
+
+    // YoY comparison
     const now = new Date()
+    const currentYear = now.getFullYear()
+    const thisYearEvents = allItems.filter(e => new Date(e.date).getFullYear() === currentYear)
+    const lastYearEvents = allItems.filter(e => new Date(e.date).getFullYear() === currentYear - 1)
+    const thisYearCollected = thisYearEvents.reduce((sum, e) => sum + e.totalCollected, 0)
+    const lastYearCollected = lastYearEvents.reduce((sum, e) => sum + e.totalCollected, 0)
+    const yoyChange = lastYearCollected > 0 ? Math.round(((thisYearCollected - lastYearCollected) / lastYearCollected) * 100) : (thisYearCollected > 0 ? 100 : 0)
+
+    // Monthly revenue data for bar chart (last 12 months)
+    const monthlyData: { month: string; tournaments: number; promotions: number; seminars: number; affiliations: number }[] = []
     for (let i = 11; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
         const monthKey = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
@@ -2237,13 +2370,46 @@ export async function getOrganizationFinancials() {
             })
             .reduce((sum, e) => sum + e.totalCollected, 0)
 
-        monthlyData.push({ month: monthKey, tournaments: tournamentRevenue, promotions: promoRevenue, seminars: semRevenue })
+        const affRevenue = affiliations
+            .filter(a => {
+                const ad = new Date((a.paidAt || a.createdAt))
+                return ad.getFullYear() === year && ad.getMonth() === month
+            })
+            .reduce((sum, a) => sum + (a.amountPaid || 0), 0)
+
+        monthlyData.push({ month: monthKey, tournaments: tournamentRevenue, promotions: promoRevenue, seminars: semRevenue, affiliations: affRevenue })
     }
 
+    // Free events count
+    const freeEventsCount = allEvents.filter(e => e.totalExpected === 0).length
+
     return {
-        summary: { totalRevenue, totalCollected, totalPending, totalRegistrations },
-        events: allEvents,
+        organization: {
+            name: dbUser.organization.name,
+            logoUrl: dbUser.organization.logoUrl,
+            address: dbUser.organization.address,
+            contactPhone: dbUser.organization.contactPhone,
+            contactEmail: dbUser.organization.contactEmail,
+            chairman: dbUser.organization.chairman,
+        },
+        summary: {
+            totalRevenue,
+            totalCollected,
+            totalPending,
+            totalRegistrations,
+            affiliationRevenue,
+            collectionRate,
+            freeEventsCount,
+        },
+        events: allItems,
         monthlyData,
+        revenueByType,
+        yoy: {
+            thisYear: thisYearCollected,
+            lastYear: lastYearCollected,
+            changePercent: yoyChange,
+            currentYear,
+        },
     }
 }
 

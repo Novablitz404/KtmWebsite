@@ -6,6 +6,7 @@ import { format } from 'date-fns'
 import { X, Calendar, MapPin, DollarSign, Image as ImageIcon, Check } from 'lucide-react'
 import { createPromotionTest } from '@/app/organization/actions'
 import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
 import ImageCropperModal from '@/components/ImageCropperModal'
 import GlobalCalendar from '@/components/GlobalCalendar'
 import GlobalTimePicker from '@/components/GlobalTimePicker'
@@ -17,6 +18,7 @@ interface CreatePromotionModalProps {
 
 export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotionModalProps) {
     const router = useRouter()
+    const queryClient = useQueryClient()
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [imagePreview, setImagePreview] = useState<string | null>(null)
 
@@ -80,6 +82,7 @@ export default function CreatePromotionModal({ isOpen, onClose }: CreatePromotio
             toast.error(result.error)
         } else {
             toast.success('Promotion test created!')
+            queryClient.invalidateQueries({ queryKey: ['organization-events-data'] })
             onClose()
             setImagePreview(null)
             setCroppedImageBlob(null)

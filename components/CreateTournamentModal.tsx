@@ -4,12 +4,12 @@ import { Fragment, useState, useRef } from 'react'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
 import { createTournament } from '@/app/actions'
-import { X, Image as ImageIcon, Check } from 'lucide-react'
+import { X, Image as ImageIcon, Check, Loader2 } from 'lucide-react'
 import GlobalDropdown from './GlobalDropdown'
 import GlobalCalendar from './GlobalCalendar'
 import GlobalTimePicker from './GlobalTimePicker'
 import ImageCropperModal from './ImageCropperModal'
-import ActionLoadingOverlay from './ActionLoadingOverlay'
+
 import { useQueryClient } from '@tanstack/react-query'
 
 interface CreateTournamentModalProps {
@@ -24,7 +24,6 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
     const queryClient = useQueryClient()
 
     // Form State
-    const [loadingMessage, setLoadingMessage] = useState('Creating tournament...')
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [error, setError] = useState('')
     const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -99,22 +98,6 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
         setIsSubmitting(true)
         setError('')
 
-        // Cycle through loading messages
-        const messages = [
-            'Validating inputs...',
-            'Setting up tournament structure...',
-            'Generating categories from template...',
-            'Applying Kyorugi & Poomsae rules...',
-            'Finalizing setup...'
-        ]
-        let msgIndex = 0
-        setLoadingMessage(messages[0])
-
-        const interval = setInterval(() => {
-            msgIndex = (msgIndex + 1) % messages.length
-            setLoadingMessage(messages[msgIndex])
-        }, 2000)
-
         // Append cropped image
         if (croppedImageBlob) {
             formData.delete('headerImage')
@@ -123,18 +106,14 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
 
         try {
             const result = await createTournament(formData)
-            clearInterval(interval)
 
             if (result?.error) {
                 setError(result.error)
             } else {
-                setLoadingMessage('Tournament created! Redirecting...')
-                // No need to reset form or state since we are redirecting
                 if (result.id) {
-                    // Invalidate queries to ensure fresh data on return
                     queryClient.invalidateQueries({ queryKey: ['organizer-tournaments'] })
                     queryClient.invalidateQueries({ queryKey: ['organization-dashboard'] })
-
+                    queryClient.invalidateQueries({ queryKey: ['organization-events-data'] })
                     router.push(`/tournament/${result.id}`)
                 } else {
                     router.refresh()
@@ -142,7 +121,6 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                 }
             }
         } catch {
-            clearInterval(interval)
             setError('Failed to create tournament. Please try again.')
         } finally {
             setIsSubmitting(false)
@@ -153,11 +131,7 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
 
     return (
         <div className="fixed inset-0 z-50 overflow-y-auto">
-            <ActionLoadingOverlay
-                isLoading={isSubmitting}
-                title="Creating Tournament"
-                message={loadingMessage}
-            />
+
 
             {/* Backdrop */}
             <div
@@ -703,7 +677,12 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                     disabled={isSubmitting}
                                     className="bg-red-600 hover:bg-red-700 text-white font-bold px-8 py-2.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-red-200"
                                 >
-                                    {isSubmitting ? 'Creating...' : 'Create Tournament'}
+                                    {isSubmitting ? (
+                                        <span className="flex items-center gap-2">
+                                            <Loader2 size={16} className="animate-spin" />
+                                            Creating Tournament...
+                                        </span>
+                                    ) : 'Create Tournament'}
                                 </button>
                             </div>
                         </form>

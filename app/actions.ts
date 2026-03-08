@@ -2078,6 +2078,33 @@ export async function searchClubMembers(clubName: string, query: string) {
     return members
 }
 
+export async function searchAllAthletes(query: string) {
+    if (!query || query.length < 2) return []
+
+    const members = await prisma.user.findMany({
+        where: {
+            role: { in: ['ATHLETE', 'ASSISTANT_CLUB_MASTER', 'CLUB_MASTER'] },
+            OR: [
+                { name: { contains: query, mode: 'insensitive' } },
+                { email: { contains: query, mode: 'insensitive' } }
+            ]
+        },
+        select: {
+            id: true,
+            name: true,
+            email: true,
+            belt: true,
+            gender: true,
+            weight: true,
+            height: true,
+            birthDate: true,
+            clubName: true,
+        },
+        take: 10
+    })
+    return members
+}
+
 export async function fetchClubMembers(clubName: string, page: number, pageSize: number, search?: string) {
     const skip = (page - 1) * pageSize
 

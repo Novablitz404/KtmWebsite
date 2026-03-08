@@ -6,6 +6,7 @@ import CategoryManager from './CategoryManager'
 import BracketList from './BracketList'
 import PlayerRegistration from './PlayerRegistration'
 import TournamentManagers from './TournamentManagers'
+import TournamentOverview from './TournamentOverview'
 import { getTournamentPlayers, updateTournamentGuidelines } from '@/app/actions'
 import DashboardDataExport from './DashboardDataExport'
 import TournamentSettings from './TournamentSettings'
@@ -52,8 +53,8 @@ interface TournamentTabsProps {
 
 export default function TournamentTabs({ tournament, players, pendingManagerInvites = [], publicView = false, totalPlayersCount = 0, userRole }: TournamentTabsProps) {
     const searchParams = useSearchParams()
-    const [activeTab, setActiveTab] = useState<'categories' | 'brackets' | 'athletes' | 'managers' | 'settings'>(
-        publicView ? 'athletes' : 'categories'
+    const [activeTab, setActiveTab] = useState<'overview' | 'categories' | 'brackets' | 'athletes' | 'managers' | 'settings'>(
+        publicView ? 'athletes' : 'overview'
     )
     const [playersList, setPlayersList] = useState<PlayerWithCategory[]>(players)
     const [isSidebarOpen, setSidebarOpen] = useState(false)
@@ -116,6 +117,7 @@ export default function TournamentTabs({ tournament, players, pendingManagerInvi
     }, [activeTab, tournament.id, supabaseUrl, supabaseKey])
 
     let tabs = [
+        { id: 'overview', label: 'Overview', icon: LayoutDashboard },
         { id: 'categories', label: 'Categories', icon: ClipboardList },
         { id: 'brackets', label: 'Matches', icon: Trophy },
         { id: 'athletes', label: 'Athletes', icon: Users },
@@ -208,6 +210,16 @@ export default function TournamentTabs({ tournament, players, pendingManagerInvi
                 </div>
 
                 <div className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">
+                    {activeTab === 'overview' && !publicView && (
+                        <div className="w-full">
+                            <TournamentOverview
+                                tournament={tournament}
+                                players={playersList as any}
+                                totalPlayersCount={totalPlayersCount || playersList.length}
+                            />
+                        </div>
+                    )}
+
                     {activeTab === 'categories' && !publicView && (
                         <div className="w-full animate-in fade-in duration-300">
                             <CategoryManager

@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import ParticipantsTable from '@/app/promotions/[id]/ParticipantsTable'
 import PromotionSettings from '@/components/promotion/PromotionSettings'
+import PromotionRegisterForm from '@/components/promotion/PromotionRegisterForm'
 
 type ExtendedPromotionTest = PromotionTest & {
     registrations: PromotionTestRegistration[]
@@ -318,6 +319,10 @@ export default function PromotionTabs({ promotionTest, userRole, defaultBeltFees
                                     Copy Examiner Link
                                 </button>
                             </div>
+                            <PromotionRegisterForm
+                                promotionTestId={promotionTest.id}
+                                onRegistered={() => router.refresh()}
+                            />
                             <ParticipantsTable registrations={promotionTest.registrations as any} />
                         </div>
                     )}
