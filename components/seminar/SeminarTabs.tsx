@@ -7,7 +7,8 @@ import Link from 'next/link'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import SeminarParticipants from './SeminarParticipants'
 import SeminarSettings from './SeminarSettings'
-import SeminarScanner from './SeminarScanner'
+import EventCheckIn from '../EventCheckIn'
+import { seminarCheckIn, searchSeminarRegistrationsForCheckIn, getSeminarCheckInStats, getCheckedInSeminarRegistrations } from '@/app/seminars/actions'
 
 type ExtendedSeminar = Seminar & {
     registrations: SeminarRegistration[]
@@ -255,7 +256,17 @@ export default function SeminarTabs({ seminar, userRole }: SeminarTabsProps) {
                     )}
 
                     {activeTab === 'check-in' && (
-                        <SeminarScanner seminarId={seminar.id} />
+                        <div className="w-full animate-in fade-in duration-300">
+                            <EventCheckIn
+                                eventId={seminar.id}
+                                eventName={seminar.name}
+                                eventType="seminar"
+                                onCheckIn={seminarCheckIn}
+                                onSearch={searchSeminarRegistrationsForCheckIn}
+                                onGetStats={getSeminarCheckInStats}
+                                onGetCheckedIn={getCheckedInSeminarRegistrations}
+                            />
+                        </div>
                     )}
 
                     {activeTab === 'settings' && (

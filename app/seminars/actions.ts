@@ -3,6 +3,9 @@
 import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
+import { sendEmail } from '@/lib/email-service'
+import RegistrationApprovedEmail from '@/emails/RegistrationApprovedEmail'
+import QRCode from 'qrcode'
 
 export async function approveSeminarRegistration(ids: string[]) {
     try {
@@ -18,6 +21,12 @@ export async function approveSeminarRegistration(ids: string[]) {
         }
 
         revalidatePath('/club')
+
+        // Send approval emails (fire-and-forget)
+        for (const id of ids) {
+            sendSeminarApprovalEmail(id).catch(e => console.error('Seminar email failed:', e))
+        }
+
         return { success: true, count: ids.length }
     } catch (error) {
         console.error('Failed to approve seminar registrations:', error)
@@ -183,5 +192,220 @@ export async function verifySeminarQRCode(token: string, seminarId: string) {
     } catch (error) {
         console.error('QR verification error:', error)
         return { found: false, error: 'Failed to verify QR code.' }
+    }
+}
+
+// ============================================
+// SEMINAR CHECK-IN
+// ============================================
+
+export async function seminarCheckIn(registrationId: string, seminarId: string) {
+    try {
+        const registration = await prisma.seminarRegistration.findUnique({
+            where: { id: registrationId },
+            include: {
+                seminar: { select: { id: true, name: true } }
+            }
+        })
+
+        if (!registration) {
+            return { success: false, error: 'Registration not found.', status: 'NOT_FOUND' }
+        }
+
+        if (registration.seminarId !== seminarId) {
+            return { success: false, error: `This belongs to a different seminar: "${registration.seminar.name}".`, status: 'WRONG_SEMINAR' }
+        }
+
+        if (registration.status !== 'APPROVED') {
+            return {
+                success: false,
+                error: 'Registration has not been approved yet.',
+                status: 'NOT_APPROVED',
+                player: { name: registration.playerName, club: registration.clubName }
+            }
+        }
+
+        if (registration.checkedIn) {
+            return {
+                success: true,
+                alreadyCheckedIn: true,
+                status: 'ALREADY_CHECKED_IN',
+                player: {
+                    id: registration.id,
+                    name: registration.playerName,
+                    club: registration.clubName,
+                    checkedInAt: registration.checkedInAt
+                }
+            }
+        }
+
+        await prisma.seminarRegistration.update({
+            where: { id: registrationId },
+            data: { checkedIn: true, checkedInAt: new Date() }
+        })
+
+        revalidatePath(`/seminars/${seminarId}`)
+
+        return {
+            success: true,
+            status: 'CHECKED_IN',
+            player: {
+                id: registration.id,
+                name: registration.playerName,
+                club: registration.clubName,
+                belt: registration.belt,
+                checkedInAt: new Date()
+            }
+        }
+    } catch (error) {
+        console.error('Seminar check-in error:', error)
+        return { success: false, error: 'Check-in failed.', status: 'ERROR' }
+    }
+}
+
+export async function getSeminarCheckInStats(seminarId: string) {
+    try {
+        const [total, checkedIn] = await Promise.all([
+            prisma.seminarRegistration.count({
+                where: { seminarId, status: 'APPROVED' }
+            }),
+            prisma.seminarRegistration.count({
+                where: { seminarId, status: 'APPROVED', checkedIn: true }
+            })
+        ])
+        return { total, checkedIn }
+    } catch (error) {
+        console.error('Failed to get seminar check-in stats:', error)
+        return { total: 0, checkedIn: 0 }
+    }
+}
+
+export async function searchSeminarRegistrationsForCheckIn(seminarId: string, query: string) {
+    try {
+        const registrations = await prisma.seminarRegistration.findMany({
+            where: {
+                seminarId,
+                status: 'APPROVED',
+                OR: [
+                    { playerName: { contains: query, mode: 'insensitive' } },
+                    { id: { contains: query } }
+                ]
+            },
+            take: 10
+        })
+
+        return registrations.map(r => ({
+            id: r.id,
+            name: r.playerName,
+            club: r.clubName,
+            belt: r.belt,
+            checkedIn: r.checkedIn,
+            checkedInAt: r.checkedInAt
+        }))
+    } catch (error) {
+        console.error('Seminar check-in search error:', error)
+        return []
+    }
+}
+
+export async function getCheckedInSeminarRegistrations(seminarId: string) {
+    try {
+        const registrations = await prisma.seminarRegistration.findMany({
+            where: { seminarId, checkedIn: true },
+            orderBy: { checkedInAt: 'desc' }
+        })
+
+        return registrations.map(r => ({
+            id: r.id,
+            name: r.playerName,
+            club: r.clubName || null,
+            belt: r.belt || null,
+            checkedInAt: r.checkedInAt
+        }))
+    } catch (error) {
+        console.error('Failed to get checked-in seminar registrations:', error)
+        return []
+    }
+}
+
+// ============================================
+// SEMINAR APPROVAL EMAIL HELPER
+// ============================================
+
+async function sendSeminarApprovalEmail(registrationId: string) {
+    const reg = await prisma.seminarRegistration.findUnique({
+        where: { id: registrationId },
+        include: { seminar: { select: { name: true } } }
+    })
+
+    if (!reg || !reg.playerId) return
+
+    // Look up the user's email
+    const user = await prisma.user.findUnique({
+        where: { id: reg.playerId },
+        select: { email: true }
+    })
+
+    if (!user?.email || user.email.includes('@member.ktm')) return
+
+    const qrCodeDataUrl = await QRCode.toDataURL(reg.id, {
+        width: 200,
+        margin: 2,
+        color: { dark: '#1e1b4b', light: '#ffffff' }
+    })
+
+    await sendEmail({
+        to: user.email,
+        subject: `Registration Approved — ${reg.seminar.name}`,
+        reactData: RegistrationApprovedEmail({
+            athleteName: reg.playerName,
+            eventName: reg.seminar.name,
+            eventType: 'Seminar',
+            registrationId: reg.id,
+            qrCodeDataUrl
+        }) as React.ReactElement
+    })
+}
+
+export async function resendSeminarRegistrationEmail(registrationId: string) {
+    try {
+        await sendSeminarApprovalEmail(registrationId)
+        return { success: true }
+    } catch (error) {
+        console.error('Resend seminar email error:', error)
+        return { error: 'Failed to resend email.' }
+    }
+}
+
+export async function generateSeminarQRCode(registrationId: string) {
+    try {
+        const reg = await prisma.seminarRegistration.findUnique({
+            where: { id: registrationId },
+            include: { seminar: { select: { name: true } } }
+        })
+
+        if (!reg) return { error: 'Registration not found.' }
+        if (reg.status !== 'APPROVED') return { error: 'Registration is not approved.' }
+
+        const qrDataUrl = await QRCode.toDataURL(reg.id, {
+            width: 300,
+            margin: 2,
+            color: { dark: '#1e1b4b', light: '#ffffff' }
+        })
+
+        return {
+            success: true,
+            qrDataUrl,
+            player: {
+                name: reg.playerName,
+                belt: reg.belt || null,
+                event: reg.seminar?.name || null,
+                club: reg.clubName || null,
+                id: reg.id
+            }
+        }
+    } catch (error) {
+        console.error('Generate seminar QR error:', error)
+        return { error: 'Failed to generate QR code.' }
     }
 }

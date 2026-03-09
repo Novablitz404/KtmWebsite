@@ -34,6 +34,7 @@ const PUBLIC_PREFIXES = [
     '/seminars',
     '/promotions/',
     '/event/',
+    '/qr/',
 ]
 
 function isPublicRoute(pathname: string): boolean {

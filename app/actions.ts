@@ -12,6 +12,9 @@ import { BracketMatchSpec, generateSingleEliminationBracket } from '@/lib/bracke
 import { deriveSkillLevel, extractBeltFromCategoryName } from '@/lib/skill-logic'
 import { toTitleCase } from '@/lib/utils'
 import { encrypt } from '@/lib/encryption'
+import { sendEmail } from '@/lib/email-service'
+import RegistrationApprovedEmail from '@/emails/RegistrationApprovedEmail'
+import QRCode from 'qrcode'
 
 
 export async function fetchClubRegistrationData(clubId: string) {
@@ -1459,6 +1462,12 @@ export async function approveRegistrations(players: { id: string, skillLevel: st
         }
 
         revalidatePath('/club')
+
+        // Send approval emails (fire-and-forget, don't block the response)
+        for (const player of players) {
+            sendApprovalEmailForPlayer(player.id).catch(e => console.error('Email send failed:', e))
+        }
+
         return { success: true, count: players.length }
     } catch (error) {
         console.error('Approval error:', error)
@@ -3395,3 +3404,261 @@ export async function registerForSeminar(formData: FormData) {
         return { error: 'Failed to create registration record.' }
     }
 }
+
+// ============================================
+// TOURNAMENT CHECK-IN
+// ============================================
+
+export async function tournamentCheckIn(playerId: string, tournamentId: string) {
+    try {
+        const player = await prisma.player.findUnique({
+            where: { id: playerId },
+            include: {
+                category: {
+                    include: { tournament: { select: { id: true, name: true } } }
+                },
+                club: { select: { name: true } },
+                user: { select: { name: true, email: true } }
+            }
+        })
+
+        if (!player) {
+            return { success: false, error: 'Player not found.', status: 'NOT_FOUND' }
+        }
+
+        if (player.category?.tournament?.id !== tournamentId) {
+            return { success: false, error: 'Player is not registered for this tournament.', status: 'WRONG_TOURNAMENT' }
+        }
+
+        if (player.registrationStatus !== 'APPROVED') {
+            return {
+                success: false,
+                error: 'Registration has not been approved yet.',
+                status: 'NOT_APPROVED',
+                player: { name: player.name, category: player.category?.name }
+            }
+        }
+
+        if (player.paymentStatus !== 'PAID') {
+            return {
+                success: false,
+                error: 'Payment has not been completed.',
+                status: 'NOT_PAID',
+                player: { name: player.name, category: player.category?.name }
+            }
+        }
+
+        if (player.checkedIn) {
+            return {
+                success: true,
+                alreadyCheckedIn: true,
+                status: 'ALREADY_CHECKED_IN',
+                player: {
+                    id: player.id,
+                    name: player.name,
+                    category: player.category?.name,
+                    club: player.club?.name,
+                    checkedInAt: player.checkedInAt
+                }
+            }
+        }
+
+        // Mark as checked in
+        await prisma.player.update({
+            where: { id: playerId },
+            data: { checkedIn: true, checkedInAt: new Date() }
+        })
+
+        revalidatePath(`/tournament/${tournamentId}`)
+
+        return {
+            success: true,
+            status: 'CHECKED_IN',
+            player: {
+                id: player.id,
+                name: player.name,
+                category: player.category?.name,
+                club: player.club?.name,
+                type: player.category?.type,
+                checkedInAt: new Date()
+            }
+        }
+    } catch (error) {
+        console.error('Tournament check-in error:', error)
+        return { success: false, error: 'Check-in failed. Please try again.', status: 'ERROR' }
+    }
+}
+
+export async function getTournamentCheckInStats(tournamentId: string) {
+    try {
+        const [total, checkedIn] = await Promise.all([
+            prisma.player.count({
+                where: {
+                    category: { tournamentId },
+                    registrationStatus: 'APPROVED'
+                }
+            }),
+            prisma.player.count({
+                where: {
+                    category: { tournamentId },
+                    registrationStatus: 'APPROVED',
+                    checkedIn: true
+                }
+            })
+        ])
+
+        return { total, checkedIn }
+    } catch (error) {
+        console.error('Failed to get check-in stats:', error)
+        return { total: 0, checkedIn: 0 }
+    }
+}
+
+export async function searchPlayersForCheckIn(tournamentId: string, query: string) {
+    try {
+        const players = await prisma.player.findMany({
+            where: {
+                category: { tournamentId },
+                registrationStatus: 'APPROVED',
+                OR: [
+                    { name: { contains: query, mode: 'insensitive' } },
+                    { id: { contains: query } }
+                ]
+            },
+            include: {
+                category: { select: { name: true, type: true } },
+                club: { select: { name: true } }
+            },
+            take: 10
+        })
+
+        return players.map(p => ({
+            id: p.id,
+            name: p.name,
+            category: p.category?.name,
+            type: p.category?.type,
+            club: p.club?.name,
+            checkedIn: p.checkedIn,
+            checkedInAt: p.checkedInAt,
+            paymentStatus: p.paymentStatus
+        }))
+    } catch (error) {
+        console.error('Search for check-in error:', error)
+        return []
+    }
+}
+
+export async function getCheckedInPlayers(tournamentId: string) {
+    try {
+        const players = await prisma.player.findMany({
+            where: {
+                category: { tournamentId },
+                checkedIn: true
+            },
+            include: {
+                category: { select: { name: true, type: true } },
+                club: { select: { name: true } }
+            },
+            orderBy: { checkedInAt: 'desc' }
+        })
+
+        return players.map(p => ({
+            id: p.id,
+            name: p.name,
+            category: p.category?.name || null,
+            type: p.category?.type || null,
+            club: p.club?.name || null,
+            checkedInAt: p.checkedInAt
+        }))
+    } catch (error) {
+        console.error('Failed to get checked-in players:', error)
+        return []
+    }
+}
+
+// ============================================
+// APPROVAL EMAIL HELPERS
+// ============================================
+
+async function sendApprovalEmailForPlayer(playerId: string) {
+    const player = await prisma.player.findUnique({
+        where: { id: playerId },
+        include: {
+            category: { include: { tournament: { select: { name: true } } } },
+            user: { select: { email: true } }
+        }
+    })
+
+    if (!player || !player.user?.email) return
+    // Skip ghost accounts
+    if (player.user.email.includes('@member.ktm')) return
+
+    const qrCodeDataUrl = await QRCode.toDataURL(player.id, {
+        width: 200,
+        margin: 2,
+        color: { dark: '#1e1b4b', light: '#ffffff' }
+    })
+
+    await sendEmail({
+        to: player.user.email,
+        subject: `Registration Approved — ${player.category?.tournament?.name || 'Tournament'}`,
+        reactData: RegistrationApprovedEmail({
+            athleteName: player.name,
+            eventName: player.category?.tournament?.name || 'Tournament',
+            eventType: 'Tournament',
+            categoryName: player.category?.name,
+            registrationId: player.id,
+            qrCodeDataUrl
+        }) as React.ReactElement
+    })
+}
+
+export async function resendRegistrationEmail(playerId: string) {
+    try {
+        await sendApprovalEmailForPlayer(playerId)
+        return { success: true }
+    } catch (error) {
+        console.error('Resend email error:', error)
+        return { error: 'Failed to resend email.' }
+    }
+}
+
+export async function generatePlayerQRCode(playerId: string) {
+    try {
+        const player = await prisma.player.findUnique({
+            where: { id: playerId },
+            include: {
+                category: {
+                    select: { name: true, type: true, tournament: { select: { name: true } } }
+                },
+                club: { select: { name: true } }
+            }
+        })
+
+        if (!player) return { error: 'Player not found.' }
+        if (player.registrationStatus !== 'APPROVED') return { error: 'Player is not approved.' }
+
+        const qrDataUrl = await QRCode.toDataURL(player.id, {
+            width: 300,
+            margin: 2,
+            color: { dark: '#1e1b4b', light: '#ffffff' }
+        })
+
+        return {
+            success: true,
+            qrDataUrl,
+            player: {
+                name: player.name,
+                category: player.category?.name || null,
+                type: player.category?.type || null,
+                event: player.category?.tournament?.name || null,
+                club: player.club?.name || null,
+                id: player.id
+            }
+        }
+    } catch (error) {
+        console.error('Generate QR error:', error)
+        return { error: 'Failed to generate QR code.' }
+    }
+}
+

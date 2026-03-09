@@ -12,6 +12,8 @@ import DashboardDataExport from './DashboardDataExport'
 import TournamentSettings from './TournamentSettings'
 import TournamentStatusActions from './TournamentStatusActions'
 import DeleteTournamentButton from './DeleteTournamentButton'
+import EventCheckIn from './EventCheckIn'
+import { tournamentCheckIn, searchPlayersForCheckIn, getTournamentCheckInStats, getCheckedInPlayers } from '@/app/actions'
 import {
     LayoutDashboard,
     ClipboardList,
@@ -25,7 +27,8 @@ import {
     Calendar,
     MapPin,
     Loader2,
-    Save
+    Save,
+    ScanLine
 } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -53,7 +56,7 @@ interface TournamentTabsProps {
 
 export default function TournamentTabs({ tournament, players, pendingManagerInvites = [], publicView = false, totalPlayersCount = 0, userRole }: TournamentTabsProps) {
     const searchParams = useSearchParams()
-    const [activeTab, setActiveTab] = useState<'overview' | 'categories' | 'brackets' | 'athletes' | 'managers' | 'settings'>(
+    const [activeTab, setActiveTab] = useState<'overview' | 'categories' | 'brackets' | 'athletes' | 'checkin' | 'managers' | 'settings'>(
         publicView ? 'athletes' : 'overview'
     )
     const [playersList, setPlayersList] = useState<PlayerWithCategory[]>(players)
@@ -121,6 +124,7 @@ export default function TournamentTabs({ tournament, players, pendingManagerInvi
         { id: 'categories', label: 'Categories', icon: ClipboardList },
         { id: 'brackets', label: 'Matches', icon: Trophy },
         { id: 'athletes', label: 'Athletes', icon: Users },
+        { id: 'checkin', label: 'Check-in', icon: ScanLine },
         { id: 'managers', label: 'Managers', icon: UserCog },
         { id: 'settings', label: 'Settings', icon: Settings },
     ] as const
@@ -254,6 +258,20 @@ export default function TournamentTabs({ tournament, players, pendingManagerInvi
                                 players={playersList}
                                 totalCount={totalPlayersCount || playersList.length}
                                 readOnly={publicView}
+                            />
+                        </div>
+                    )}
+
+                    {activeTab === 'checkin' && !publicView && (
+                        <div className="w-full animate-in fade-in duration-300">
+                            <EventCheckIn
+                                eventId={tournament.id}
+                                eventName={tournament.name}
+                                eventType="tournament"
+                                onCheckIn={tournamentCheckIn}
+                                onSearch={searchPlayersForCheckIn}
+                                onGetStats={getTournamentCheckInStats}
+                                onGetCheckedIn={getCheckedInPlayers}
                             />
                         </div>
                     )}

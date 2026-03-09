@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useEffect, use } from 'react'
-import { Upload, X, Home, Settings, ClipboardList, Users, Bell, Trophy, Medal, Clock, Search, Calendar, Zap, ChevronLeft, ChevronRight, Loader2, Camera } from 'lucide-react'
+import { Upload, X, Home, Settings, ClipboardList, Users, Bell, Trophy, Medal, Clock, Search, Calendar, Zap, ChevronLeft, ChevronRight, Loader2, Camera, Download } from 'lucide-react'
 import Link from 'next/link'
-import { approveRegistrations, unapproveRegistration, deleteRegistration, updatePlayerDetails, bulkUnapproveRegistrations, bulkDeleteRegistrations, fetchClubDashboardData, removeMemberFromClub, updateClubMember, getClubSmartProposals, getClubAffiliationData } from '@/app/actions'
+import { approveRegistrations, unapproveRegistration, deleteRegistration, updatePlayerDetails, bulkUnapproveRegistrations, bulkDeleteRegistrations, fetchClubDashboardData, removeMemberFromClub, updateClubMember, getClubSmartProposals, getClubAffiliationData, generatePlayerQRCode } from '@/app/actions'
 import { uploadMemberAvatar } from '@/app/club/actions'
 import { updateRegistrationStatus, deletePromotionRegistration } from '@/app/promotions/actions'
-import { approveSeminarRegistration, unapproveSeminarRegistration, deleteSeminarRegistration, updateSeminarRegistrationStatus, updateSeminarParticipantDetails } from '@/app/seminars/actions'
+import { approveSeminarRegistration, unapproveSeminarRegistration, deleteSeminarRegistration, updateSeminarRegistrationStatus, updateSeminarParticipantDetails, generateSeminarQRCode } from '@/app/seminars/actions'
 
 import GlobalDropdown from '@/components/GlobalDropdown'
 import { calculateAge } from '@/lib/placement'
@@ -608,6 +608,104 @@ export default function ClubDashboard({
             toast.error('Failed to delete registration')
         } finally {
             setSubmitting(false)
+        }
+    }
+
+    // --- QR Code Download ---
+    const handleDownloadQR = async (type: 'tournament' | 'seminar', id: string) => {
+        try {
+            toast.loading('Generating QR code...', { id: 'qr-gen' })
+            const result = type === 'tournament'
+                ? await generatePlayerQRCode(id)
+                : await generateSeminarQRCode(id)
+
+            if ('error' in result && result.error) {
+                toast.error(result.error, { id: 'qr-gen' })
+                return
+            }
+
+            if (!('success' in result) || !result.success || !result.qrDataUrl || !result.player) {
+                toast.error('Failed to generate QR code', { id: 'qr-gen' })
+                return
+            }
+
+            // HD canvas (2x resolution for crisp output)
+            const scale = 2
+            const canvas = document.createElement('canvas')
+            const ctx = canvas.getContext('2d')!
+            const w = 400, h = 520
+            canvas.width = w * scale
+            canvas.height = h * scale
+            ctx.scale(scale, scale)
+
+            // White card background
+            ctx.fillStyle = '#ffffff'
+            ctx.fillRect(0, 0, w, h)
+
+            // Header bar
+            ctx.fillStyle = '#1e1b4b'
+            ctx.fillRect(0, 0, w, 56)
+            ctx.fillStyle = '#ffffff'
+            ctx.font = 'bold 14px system-ui, sans-serif'
+            ctx.textAlign = 'center'
+            ctx.fillText('CHECK-IN QR CODE', w / 2, 36)
+
+            // QR code image
+            const qrImg = new Image()
+            qrImg.crossOrigin = 'anonymous'
+            await new Promise<void>((resolve) => {
+                qrImg.onload = () => resolve()
+                qrImg.src = result.qrDataUrl!
+            })
+            const qrSize = 240
+            ctx.imageSmoothingEnabled = false
+            ctx.drawImage(qrImg, (w - qrSize) / 2, 76, qrSize, qrSize)
+            ctx.imageSmoothingEnabled = true
+
+            // Player info
+            const p = result.player
+            ctx.fillStyle = '#111827'
+            ctx.font = 'bold 20px system-ui, sans-serif'
+            ctx.textAlign = 'center'
+            ctx.fillText(p.name || 'Unknown', w / 2, 350)
+
+            ctx.fillStyle = '#6b7280'
+            ctx.font = '13px system-ui, sans-serif'
+            if (p.event) ctx.fillText(p.event, w / 2, 378)
+
+            const details = [('category' in p ? p.category : null) || ('belt' in p ? p.belt : null), p.club].filter(Boolean).join(' \u2022 ')
+            if (details) {
+                ctx.fillStyle = '#9ca3af'
+                ctx.font = '12px system-ui, sans-serif'
+                ctx.fillText(details, w / 2, 400)
+            }
+
+            // ID footer
+            ctx.fillStyle = '#d1d5db'
+            ctx.font = '10px monospace'
+            ctx.fillText(`ID: ${p.id}`, w / 2, 430)
+
+            // Footer bar
+            ctx.fillStyle = '#f3f4f6'
+            ctx.fillRect(0, h - 44, w, 44)
+            ctx.fillStyle = '#9ca3af'
+            ctx.font = '10px system-ui, sans-serif'
+            ctx.fillText('Scan this code at the event check-in station', w / 2, h - 18)
+
+            // Border
+            ctx.strokeStyle = '#e5e7eb'
+            ctx.lineWidth = 1
+            ctx.strokeRect(0, 0, w, h)
+
+            // Download
+            const link = document.createElement('a')
+            link.download = `QR-${(p.name || 'athlete').replace(/\s+/g, '-')}.png`
+            link.href = canvas.toDataURL('image/png')
+            link.click()
+
+            toast.success('QR code downloaded!', { id: 'qr-gen' })
+        } catch {
+            toast.error('Failed to download QR code', { id: 'qr-gen' })
         }
     }
 
@@ -1304,6 +1402,18 @@ export default function ClubDashboard({
                                                                                                 </svg>
                                                                                                 Edit
                                                                                             </button>
+                                                                                            {!isPending && (
+                                                                                                <button
+                                                                                                    onClick={() => {
+                                                                                                        handleDownloadQR('tournament', player.id)
+                                                                                                        setActionMenuOpen(null)
+                                                                                                    }}
+                                                                                                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-indigo-600 hover:bg-indigo-50 flex items-center gap-2"
+                                                                                                >
+                                                                                                    <Download className="w-4 h-4" />
+                                                                                                    Download QR
+                                                                                                </button>
+                                                                                            )}
                                                                                             <div className="border-t border-gray-100 my-1" />
                                                                                             <button
                                                                                                 onClick={() => {
@@ -1499,6 +1609,18 @@ export default function ClubDashboard({
                                                                                                 </svg>
                                                                                                 Edit Details
                                                                                             </button>
+                                                                                            {!isPending && (
+                                                                                                <button
+                                                                                                    onClick={() => {
+                                                                                                        handleDownloadQR('seminar', seminar.id)
+                                                                                                        setActionMenuOpen(null)
+                                                                                                    }}
+                                                                                                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-indigo-600 hover:bg-indigo-50 flex items-center gap-2"
+                                                                                                >
+                                                                                                    <Download className="w-4 h-4" />
+                                                                                                    Download QR
+                                                                                                </button>
+                                                                                            )}
                                                                                             <div className="border-t border-gray-100 my-1" />
                                                                                             <button
                                                                                                 onClick={() => {
