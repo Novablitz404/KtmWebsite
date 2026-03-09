@@ -1652,8 +1652,8 @@ export default function ClubDashboard({
                                                 {categoryName}
                                             </span>
                                             <span className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full ${isPoomsae ? 'bg-purple-50 text-purple-600' :
-                                                    isKyukpa ? 'bg-orange-50 text-orange-600' :
-                                                        isHeightBased ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'
+                                                isKyukpa ? 'bg-orange-50 text-orange-600' :
+                                                    isHeightBased ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'
                                                 }`}>
                                                 {isPoomsae ? 'Poomsae' : isKyukpa ? 'Kyukpa' : isHeightBased ? 'Height-based' : 'Weight-based'}
                                             </span>
@@ -1817,7 +1817,7 @@ export default function ClubDashboard({
                             return (
                                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setEditingMember(null)} />
-                                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
 
                                         {/* Header */}
                                         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -1859,7 +1859,7 @@ export default function ClubDashboard({
                                                     gender: formData.get('gender')
                                                 })
                                             }}
-                                            className="px-6 py-5 space-y-5"
+                                            className="px-6 py-5 space-y-5 overflow-y-auto"
                                         >
                                             {/* Profile Picture */}
                                             <div className="flex justify-center">
