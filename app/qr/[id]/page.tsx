@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, use } from 'react'
 import { generatePlayerQRCode } from '@/app/actions'
 import { generateSeminarQRCode } from '@/app/seminars/actions'
 import { Download, Loader2, QrCode, AlertTriangle } from 'lucide-react'
 
-export default function QRCardPage({ params }: { params: { id: string } }) {
-    const { id } = params
+export default function QRCardPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = use(params)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)

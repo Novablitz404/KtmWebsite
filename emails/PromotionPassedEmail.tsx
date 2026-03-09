@@ -19,6 +19,7 @@ interface PromotionPassedEmailProps {
     beltName: string
     clubName: string
     organizationName: string
+    promotionTestName?: string
     emailBannerUrl?: string | null
     dashboardUrl: string
 }
@@ -45,6 +46,7 @@ export const PromotionPassedEmail = ({
     beltName = 'Black',
     clubName = 'Your Club',
     organizationName = 'World Olympic Taekwondo Federation - Philippines (WOTF)',
+    promotionTestName = 'Promotion Test',
     emailBannerUrl = null,
     dashboardUrl = 'https://ktmsports.com/athlete',
 }: PromotionPassedEmailProps) => {
@@ -88,7 +90,7 @@ export const PromotionPassedEmail = ({
                             <Heading style={h2}>Congratulations!</Heading>
 
                             <Text style={mainText}>
-                                On behalf of the {organizationName}, we are pleased to inform you that you have successfully met the requirements of the Katma Imav Promotion Test.
+                                On behalf of the {organizationName}, we are pleased to inform you that you have successfully met the requirements of the {promotionTestName}.
                             </Text>
 
                             <Text style={mainText}>

@@ -66,6 +66,7 @@ export async function examinerUpdateStatus(registrationId: string, status: strin
                         beltName: nextBelt,
                         clubName: user.clubName || 'Your Club',
                         organizationName: orgName,
+                        promotionTestName: promotionTest?.name || 'Promotion Test',
                         emailBannerUrl: orgBannerUrl,
                         dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://ktmsports.com'}/athlete?tab=achievements`
                     })

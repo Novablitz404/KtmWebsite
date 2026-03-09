@@ -2,15 +2,26 @@ import { Html, Head, Body, Container, Section, Text, Heading, Hr, Img, Link } fr
 
 /**
  * Approval email sent when a tournament/seminar registration is approved.
- * Includes a QR code for event check-in and a download link.
+ * Supports multiple registrations (e.g., kyorugi + poomsae) in a single email.
  */
+
+interface Registration {
+    registrationId: string
+    categoryName?: string
+    eventType: 'Tournament' | 'Seminar'
+    qrCodeDataUrl: string
+}
+
 interface RegistrationApprovedEmailProps {
     athleteName: string
     eventName: string
-    eventType: 'Tournament' | 'Seminar'
+    /** Single registration (backward compat) */
+    eventType?: 'Tournament' | 'Seminar'
     categoryName?: string
-    registrationId: string
-    qrCodeDataUrl: string // Base64 data URL of the QR code image
+    registrationId?: string
+    qrCodeDataUrl?: string
+    /** Multiple registrations — takes priority if provided */
+    registrations?: Registration[]
 }
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.wotf-ph.com'
@@ -19,11 +30,22 @@ export default function RegistrationApprovedEmail({
     athleteName = 'John Doe',
     eventName = 'KTM Championship 2026',
     eventType = 'Tournament',
-    categoryName = 'Cadet Male Novice -33kg',
+    categoryName,
     registrationId = '00123',
     qrCodeDataUrl = '',
+    registrations,
 }: RegistrationApprovedEmailProps) {
-    const downloadUrl = `${appUrl}/qr/${registrationId}`
+    // Build a normalized list — either from the array or from the single props
+    const items: Registration[] = registrations && registrations.length > 0
+        ? registrations
+        : [{
+            registrationId: registrationId!,
+            categoryName,
+            eventType: eventType!,
+            qrCodeDataUrl: qrCodeDataUrl!,
+        }]
+
+    const hasMultiple = items.length > 1
 
     return (
         <Html>
@@ -46,58 +68,60 @@ export default function RegistrationApprovedEmail({
                             Hi <strong>{athleteName}</strong>,
                         </Text>
                         <Text style={{ color: '#475569', fontSize: '14px', lineHeight: '1.6' }}>
-                            Your registration for <strong>{eventName}</strong> has been approved!
-                            Please present the QR code below during check-in at the event.
+                            Your {hasMultiple ? `${items.length} registrations` : 'registration'} for <strong>{eventName}</strong> {hasMultiple ? 'have' : 'has'} been approved!
+                            {hasMultiple
+                                ? ' Each registration has its own QR code — please present the correct one during check-in.'
+                                : ' Please present the QR code below during check-in at the event.'
+                            }
                         </Text>
 
-                        {/* QR Card */}
-                        <Section style={{ textAlign: 'center' as const, margin: '24px 0', backgroundColor: '#fafafa', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0' }}>
-                            {qrCodeDataUrl && (
-                                <Img
-                                    src={qrCodeDataUrl}
-                                    width={200}
-                                    height={200}
-                                    alt="Check-in QR Code"
-                                    style={{ margin: '0 auto', borderRadius: '8px' }}
-                                />
-                            )}
-                            <Text style={{ color: '#111827', fontSize: '18px', fontWeight: 700, marginTop: '16px', marginBottom: '4px' }}>
-                                {athleteName}
-                            </Text>
-                            <Text style={{ color: '#6b7280', fontSize: '13px', margin: '0 0 4px' }}>
-                                {eventName}
-                            </Text>
-                            {categoryName && (
-                                <Text style={{ color: '#9ca3af', fontSize: '12px', margin: '0' }}>
-                                    {categoryName}
+                        {/* QR Cards */}
+                        {items.map((item, idx) => (
+                            <Section key={idx} style={{ textAlign: 'center' as const, margin: '24px 0', backgroundColor: '#fafafa', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0' }}>
+                                {hasMultiple && (
+                                    <Text style={{ color: '#6366f1', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '1.5px', margin: '0 0 12px' }}>
+                                        {item.eventType === 'Tournament' ? '🥋' : '📚'} {item.categoryName || item.eventType} — QR {idx + 1} of {items.length}
+                                    </Text>
+                                )}
+                                {item.qrCodeDataUrl && (
+                                    <Img
+                                        src={item.qrCodeDataUrl}
+                                        width={200}
+                                        height={200}
+                                        alt={`Check-in QR Code${hasMultiple ? ` #${idx + 1}` : ''}`}
+                                        style={{ margin: '0 auto', borderRadius: '8px' }}
+                                    />
+                                )}
+                                <Text style={{ color: '#111827', fontSize: '16px', fontWeight: 700, marginTop: '12px', marginBottom: '2px' }}>
+                                    {athleteName}
                                 </Text>
-                            )}
-                            <Text style={{ color: '#d1d5db', fontSize: '10px', fontFamily: 'monospace', marginTop: '8px' }}>
-                                ID: {registrationId}
-                            </Text>
-                        </Section>
-
-                        {/* Download Button */}
-                        <Section style={{ textAlign: 'center' as const, margin: '8px 0 24px' }}>
-                            <Link
-                                href={downloadUrl}
-                                style={{
-                                    display: 'inline-block',
-                                    backgroundColor: '#0f172a',
-                                    color: '#ffffff',
-                                    padding: '14px 32px',
-                                    borderRadius: '10px',
-                                    fontSize: '14px',
-                                    fontWeight: 700,
-                                    textDecoration: 'none',
-                                }}
-                            >
-                                📥 Download QR Card
-                            </Link>
-                            <Text style={{ color: '#94a3b8', fontSize: '11px', marginTop: '8px' }}>
-                                Download a high-resolution QR card you can save or print
-                            </Text>
-                        </Section>
+                                {item.categoryName && (
+                                    <Text style={{ color: '#6b7280', fontSize: '13px', margin: '0 0 4px' }}>
+                                        {item.categoryName}
+                                    </Text>
+                                )}
+                                <Text style={{ color: '#d1d5db', fontSize: '10px', fontFamily: 'monospace', marginTop: '6px' }}>
+                                    ID: {item.registrationId}
+                                </Text>
+                                {/* Download Button for this registration */}
+                                <Link
+                                    href={`${appUrl}/qr/${item.registrationId}`}
+                                    style={{
+                                        display: 'inline-block',
+                                        backgroundColor: '#0f172a',
+                                        color: '#ffffff',
+                                        padding: '10px 24px',
+                                        borderRadius: '8px',
+                                        fontSize: '12px',
+                                        fontWeight: 700,
+                                        textDecoration: 'none',
+                                        marginTop: '12px',
+                                    }}
+                                >
+                                    📥 Download This QR Card
+                                </Link>
+                            </Section>
+                        ))}
 
                         <Hr style={{ borderColor: '#e2e8f0', margin: '24px 0' }} />
 
@@ -116,23 +140,23 @@ export default function RegistrationApprovedEmail({
                                     <td style={{ color: '#94a3b8', padding: '6px 0' }}>Event</td>
                                     <td style={{ color: '#1e293b', fontWeight: 600, padding: '6px 0', textAlign: 'right' as const }}>{eventName}</td>
                                 </tr>
-                                <tr>
-                                    <td style={{ color: '#94a3b8', padding: '6px 0' }}>Type</td>
-                                    <td style={{ color: '#1e293b', fontWeight: 600, padding: '6px 0', textAlign: 'right' as const }}>{eventType}</td>
-                                </tr>
-                                {categoryName && (
-                                    <tr>
-                                        <td style={{ color: '#94a3b8', padding: '6px 0' }}>Category</td>
-                                        <td style={{ color: '#1e293b', fontWeight: 600, padding: '6px 0', textAlign: 'right' as const }}>{categoryName}</td>
+                                {items.map((item, idx) => (
+                                    <tr key={idx}>
+                                        <td style={{ color: '#94a3b8', padding: '6px 0' }}>{hasMultiple ? `Category ${idx + 1}` : 'Category'}</td>
+                                        <td style={{ color: '#1e293b', fontWeight: 600, padding: '6px 0', textAlign: 'right' as const }}>
+                                            {item.categoryName || item.eventType}
+                                        </td>
                                     </tr>
-                                )}
+                                ))}
                             </tbody>
                         </table>
 
                         <Hr style={{ borderColor: '#e2e8f0', margin: '24px 0' }} />
 
                         <Text style={{ color: '#475569', fontSize: '13px', lineHeight: '1.6', backgroundColor: '#fffbeb', padding: '12px 16px', borderRadius: '8px', border: '1px solid #fde68a' }}>
-                            💡 <strong>Tip:</strong> Save this email or download the QR card above. You&apos;ll need it for check-in at the event venue.
+                            💡 <strong>Tip:</strong> {hasMultiple
+                                ? 'You have separate QR codes for each category. Make sure to present the correct one during check-in.'
+                                : 'Save this email or download the QR card above. You\'ll need it for check-in at the event venue.'}
                         </Text>
                     </Section>
 
@@ -141,6 +165,15 @@ export default function RegistrationApprovedEmail({
                         <Text style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>
                             © {new Date().getFullYear()} World Olympics Taekwondo Federation Philippines
                         </Text>
+                        <Text style={{ fontSize: '11px', color: '#d1d5db', textAlign: 'center' as const, margin: '8px 0 2px' }}>
+                            Powered by
+                        </Text>
+                        <Img
+                            src="https://www.wotf-ph.com/ktmnav.png"
+                            width="50"
+                            alt="KTM"
+                            style={{ margin: '0 auto', opacity: 0.5 }}
+                        />
                     </Section>
                 </Container>
             </Body>

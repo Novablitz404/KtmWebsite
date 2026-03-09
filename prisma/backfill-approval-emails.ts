@@ -2,6 +2,8 @@
  * Backfill script: Send approval emails with QR codes to all existing approved
  * tournament players and seminar registrations.
  *
+ * Groups multiple registrations per email into a single email (e.g. kyorugi + poomsae).
+ *
  * Usage:
  *   npx tsx prisma/backfill-approval-emails.ts              # Full run
  *   npx tsx prisma/backfill-approval-emails.ts --dry-run    # Preview only
@@ -20,7 +22,7 @@ const DRY_RUN = process.argv.includes('--dry-run')
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-async function sendEmail(to: string, subject: string, reactElement: React.ReactElement) {
+async function sendEmailHtml(to: string, subject: string, reactElement: React.ReactElement) {
     const html = await render(reactElement)
     return resend.emails.send({
         from: 'World Olympics Taekwondo Federation Philippines <noreply@wotf-ph.com>',
@@ -28,6 +30,17 @@ async function sendEmail(to: string, subject: string, reactElement: React.ReactE
         subject,
         html,
     })
+}
+
+interface PlayerGroup {
+    email: string
+    athleteName: string
+    eventName: string
+    registrations: {
+        id: string
+        categoryName?: string
+        eventType: 'Tournament' | 'Seminar'
+    }[]
 }
 
 async function main() {
@@ -50,51 +63,74 @@ async function main() {
         }
     })
 
-    console.log(`📋 Found ${players.length} approved tournament players with real emails`)
-
-    let tournamentSent = 0
-    let tournamentSkipped = 0
-    let tournamentFailed = 0
-
+    // Group by email + tournament
+    const groupMap = new Map<string, PlayerGroup>()
     for (const player of players) {
         const email = player.user?.email
-        if (!email) { tournamentSkipped++; continue }
-
+        if (!email) continue
         const eventName = player.category?.tournament?.name || 'Tournament'
+        const key = `${email}::${eventName}`
+
+        if (!groupMap.has(key)) {
+            groupMap.set(key, {
+                email,
+                athleteName: player.name,
+                eventName,
+                registrations: []
+            })
+        }
+        groupMap.get(key)!.registrations.push({
+            id: player.id,
+            categoryName: player.category?.name,
+            eventType: 'Tournament'
+        })
+    }
+
+    const groups = Array.from(groupMap.values())
+    const totalRegs = players.length
+    console.log(`📋 Found ${totalRegs} approved tournament registrations → ${groups.length} unique emails`)
+
+    let sent = 0
+    let failed = 0
+
+    for (const group of groups) {
+        const regCount = group.registrations.length
 
         if (DRY_RUN) {
-            console.log(`  [DRY] Would send to ${email} — ${player.name} (${eventName})`)
-            tournamentSent++
+            const categories = group.registrations.map(r => r.categoryName || 'N/A').join(', ')
+            console.log(`  [DRY] ${group.email} — ${group.athleteName} (${group.eventName}) [${regCount} reg${regCount > 1 ? 's' : ''}: ${categories}]`)
+            sent++
             continue
         }
 
         try {
-            const qrCodeDataUrl = await QRCode.toDataURL(player.id, {
-                width: 200, margin: 2,
-                color: { dark: '#1e1b4b', light: '#ffffff' }
-            })
+            // Generate QR codes for all registrations
+            const regs = await Promise.all(group.registrations.map(async (r) => ({
+                registrationId: r.id,
+                categoryName: r.categoryName,
+                eventType: r.eventType as 'Tournament' | 'Seminar',
+                qrCodeDataUrl: await QRCode.toDataURL(r.id, {
+                    width: 200, margin: 2,
+                    color: { dark: '#1e1b4b', light: '#ffffff' }
+                })
+            })))
 
-            await sendEmail(
-                email,
-                `Registration Approved — ${eventName}`,
+            await sendEmailHtml(
+                group.email,
+                `Registration Approved — ${group.eventName}${regCount > 1 ? ` (${regCount} categories)` : ''}`,
                 RegistrationApprovedEmail({
-                    athleteName: player.name,
-                    eventName,
-                    eventType: 'Tournament',
-                    categoryName: player.category?.name,
-                    registrationId: player.id,
-                    qrCodeDataUrl
+                    athleteName: group.athleteName,
+                    eventName: group.eventName,
+                    registrations: regs,
                 }) as React.ReactElement
             )
 
-            tournamentSent++
-            console.log(`  ✅ [${tournamentSent}/${players.length}] ${player.name} → ${email}`)
-
-            // Rate limit: 2 emails/sec
+            sent++
+            console.log(`  ✅ [${sent}/${groups.length}] ${group.athleteName} → ${group.email} (${regCount} QR${regCount > 1 ? 's' : ''})`)
             await sleep(500)
         } catch (err: any) {
-            tournamentFailed++
-            console.error(`  ❌ Failed: ${player.name} (${email}): ${err.message}`)
+            failed++
+            console.error(`  ❌ Failed: ${group.athleteName} (${group.email}): ${err.message}`)
         }
     }
 
@@ -109,7 +145,7 @@ async function main() {
         }
     })
 
-    // Filter to real emails only
+    // Filter to real emails
     const seminarWithEmails: Array<typeof seminars[number] & { userEmail: string }> = []
     for (const reg of seminars) {
         if (!reg.playerId) continue
@@ -131,7 +167,7 @@ async function main() {
         const eventName = reg.seminar?.name || 'Seminar'
 
         if (DRY_RUN) {
-            console.log(`  [DRY] Would send to ${reg.userEmail} — ${reg.playerName} (${eventName})`)
+            console.log(`  [DRY] ${reg.userEmail} — ${reg.playerName} (${eventName})`)
             seminarSent++
             continue
         }
@@ -142,7 +178,7 @@ async function main() {
                 color: { dark: '#1e1b4b', light: '#ffffff' }
             })
 
-            await sendEmail(
+            await sendEmailHtml(
                 reg.userEmail,
                 `Registration Approved — ${eventName}`,
                 RegistrationApprovedEmail({
@@ -150,7 +186,7 @@ async function main() {
                     eventName,
                     eventType: 'Seminar',
                     registrationId: reg.id,
-                    qrCodeDataUrl
+                    qrCodeDataUrl,
                 }) as React.ReactElement
             )
 
@@ -167,9 +203,9 @@ async function main() {
     console.log(`\n${'='.repeat(60)}`)
     console.log(`  📊 Summary`)
     console.log(`${'='.repeat(60)}`)
-    console.log(`  Tournaments: ${tournamentSent} sent, ${tournamentSkipped} skipped, ${tournamentFailed} failed`)
-    console.log(`  Seminars:    ${seminarSent} sent, ${seminarFailed} failed`)
-    console.log(`  Total:       ${tournamentSent + seminarSent} emails ${DRY_RUN ? '(would be)' : ''} sent`)
+    console.log(`  Tournament: ${sent} emails (from ${totalRegs} registrations), ${failed} failed`)
+    console.log(`  Seminars:   ${seminarSent} emails, ${seminarFailed} failed`)
+    console.log(`  Total:      ${sent + seminarSent} emails ${DRY_RUN ? '(would be)' : ''} sent`)
     console.log(`${'='.repeat(60)}\n`)
 
     await prisma.$disconnect()
