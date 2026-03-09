@@ -27,13 +27,13 @@ Includes Kyorugi, Poomsae, and Kyukpa regulations.
 *   **Cadet/Junior/Senior:** Weight-based (Olympics/Standard)
 
 **Poomsae Rules:**
-*   Colored Belt: Yellow (T2), Blue (T4), Red (T6), Brown (T8)
+*   Colored Belt: Yellow/Orange (T2), Green/Purple (T4), Blue/Red (T6), Maroon/Brown (T8)
 *   Black Belt: Varies by Division (See below)
 
 **Kyukpa (Breaking) Rules:**
 *   Format: Single Elimination
 *   Divisions: Grade School, Cadet, Junior, Senior
-*   Categories: Per Belt (Yellow, Blue, Red, Brown, Black) - Male/Female`
+*   Categories: Per Belt (Yellow, Orange, Green, Purple, Blue, Red, Maroon, Brown, Black) - Male/Female`
         }
     })
 
@@ -96,11 +96,15 @@ Includes Kyorugi, Poomsae, and Kyukpa regulations.
         { name: 'Kyorugi - Under 73kg', min: 67, max: 73 }, { name: 'Kyorugi - Over 73kg', min: 73, max: 999 },
     ]
 
-    // 3. Poomsae Forms (Colored Belt - same for all divisions)
+    // 3. Poomsae Forms (Colored Belt - new 9-belt system, split belts share same form)
     const coloredBeltForms = [
         { belt: 'Yellow', form: 'Taegeuk 2' },
-        { belt: 'Blue', form: 'Taegeuk 4' },
+        { belt: 'Orange', form: 'Taegeuk 2' },
+        { belt: 'Green', form: 'Taegeuk 4' },
+        { belt: 'Purple', form: 'Taegeuk 4' },
+        { belt: 'Blue', form: 'Taegeuk 6' },
         { belt: 'Red', form: 'Taegeuk 6' },
+        { belt: 'Maroon', form: 'Taegeuk 8' },
         { belt: 'Brown', form: 'Taegeuk 8' },
     ]
 
@@ -155,7 +159,7 @@ Includes Kyorugi, Poomsae, and Kyukpa regulations.
 
 
     // 5. Kyukpa Belts
-    const kyukpaBelts = ['Yellow', 'Blue', 'Red', 'Brown', 'Black']
+    const kyukpaBelts = ['Yellow', 'Orange', 'Green', 'Purple', 'Blue', 'Red', 'Maroon', 'Brown', 'Black']
 
     // Helper to create Kyukpa categories for a division
     async function createKyukpaCategories(divisionId: string, orderStart: number) {

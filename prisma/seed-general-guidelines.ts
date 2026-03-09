@@ -57,15 +57,15 @@ Includes Kyorugi, Poomsae, and Kyukpa regulations.
         { name: `${prefix} - Middle`, min: 63, max: 68 }, { name: `${prefix} - Heavy`, min: 68, max: 999 },
     ]
 
-    // 2. Poomsae Belts
-    const coloredBelts = ['Yellow', 'Blue', 'Red', 'Brown']
+    // 2. Poomsae Belts (new 9-belt system)
+    const coloredBelts = ['Yellow', 'Orange', 'Green', 'Purple', 'Blue', 'Red', 'Maroon', 'Brown']
     const blackBelt = 'Black'
 
     // 3. Kyukpa Divisions (New)
     // Grade School (9-11), Cadet (12-14), Junior (15-17), Under 30 (18-30)
     // Categories: Male / Female per Belt
     // Note: User didn't specify belts, so we will generate for standard belts (Yellow, Blue, Red, Brown, Black)
-    const kyukpaBelts = ['Yellow', 'Blue', 'Red', 'Brown', 'Black']
+    const kyukpaBelts = ['Yellow', 'Orange', 'Green', 'Purple', 'Blue', 'Red', 'Maroon', 'Brown', 'Black']
 
     let order = 1
 

@@ -1147,7 +1147,7 @@ export default function ClubDashboard({
                                                                     >
                                                                         {tab === 'ALL' ? `All ${registrationType === 'TOURNAMENT' ? allRegistrations.length : registrationType === 'PROMOTION' ? rawPromotions.length : rawSeminars.length}` :
                                                                             tab === 'PENDING' ? `Pending ${registrationType === 'TOURNAMENT' ? pendingPlayers.length : registrationType === 'PROMOTION' ? rawPromotions.filter(p => p.status === 'PENDING').length : rawSeminars.filter(p => p.status === 'PENDING').length}` :
-                                                                                `Done ${registrationType === 'TOURNAMENT' ? approvedPlayers.length : registrationType === 'PROMOTION' ? rawPromotions.filter(p => p.status === 'APPROVED').length : rawSeminars.filter(p => p.status === 'APPROVED').length}`}
+                                                                                `Done ${registrationType === 'TOURNAMENT' ? filteredApprovedPlayers.length : registrationType === 'PROMOTION' ? rawPromotions.filter(p => p.status === 'APPROVED').length : rawSeminars.filter(p => p.status === 'APPROVED').length}`}
                                                                     </button>
                                                                 ))}
                                                             </div>
@@ -1623,6 +1623,9 @@ export default function ClubDashboard({
                         editingPlayer && (() => {
                             const categoryName = editingPlayer.category?.name || ''
                             const isHeightBased = /supertoddler|toddler|grade\s*school/i.test(categoryName)
+                            const categoryType = /poomsae/i.test(categoryName) ? 'POOMSAE' : /kyukpa/i.test(categoryName) ? 'KYUKPA' : 'KYORUGI'
+                            const isPoomsae = categoryType === 'POOMSAE'
+                            const isKyukpa = categoryType === 'KYUKPA'
                             return (
                                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setEditingPlayer(null)} />
@@ -1648,8 +1651,11 @@ export default function ClubDashboard({
                                             <span className="text-xs font-bold text-red-600 bg-red-50 px-2.5 py-1 rounded-lg border border-red-100">
                                                 {categoryName}
                                             </span>
-                                            <span className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full ${isHeightBased ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'}`}>
-                                                {isHeightBased ? 'Height-based' : 'Weight-based'}
+                                            <span className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full ${isPoomsae ? 'bg-purple-50 text-purple-600' :
+                                                    isKyukpa ? 'bg-orange-50 text-orange-600' :
+                                                        isHeightBased ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'
+                                                }`}>
+                                                {isPoomsae ? 'Poomsae' : isKyukpa ? 'Kyukpa' : isHeightBased ? 'Height-based' : 'Weight-based'}
                                             </span>
                                         </div>
 
@@ -1663,8 +1669,8 @@ export default function ClubDashboard({
                                                     height: Number(formData.get('height')) || 0,
                                                     belt: formData.get('belt') as string,
                                                     skillLevel: formData.get('skillLevel') as string,
-                                                    teamId: formData.get('teamId') as string,
-                                                    poomsaeType: formData.get('poomsaeType') as string
+                                                    teamId: isPoomsae ? formData.get('teamId') as string : undefined,
+                                                    poomsaeType: isPoomsae ? formData.get('poomsaeType') as string : undefined
                                                 })
                                             }}
                                             className="px-6 py-5 space-y-5"
@@ -1688,7 +1694,7 @@ export default function ClubDashboard({
                                                     <GlobalDropdown
                                                         value={editingPlayer.belt || 'White'}
                                                         onChange={(val) => setEditingPlayer({ ...editingPlayer, belt: val })}
-                                                        options={['White', 'Yellow', 'Blue', 'Red', 'Brown', 'Black']}
+                                                        options={['White', 'Yellow', 'Orange', 'Green', 'Purple', 'Blue', 'Red', 'Maroon', 'Brown', 'Black']}
                                                         fullWidth
                                                     />
                                                     <input type="hidden" name="belt" value={editingPlayer.belt || 'White'} />
@@ -1698,68 +1704,78 @@ export default function ClubDashboard({
                                                     <GlobalDropdown
                                                         value={editingPlayer.skillLevel || 'Novice'}
                                                         onChange={(val) => setEditingPlayer({ ...editingPlayer, skillLevel: val })}
-                                                        options={['Novice', 'Advance']}
+                                                        options={['Novice', 'Intermediate', 'Advance']}
                                                         fullWidth
                                                     />
                                                     <input type="hidden" name="skillLevel" value={editingPlayer.skillLevel || 'Novice'} />
                                                 </div>
                                             </div>
 
-                                            {/* Smart Height or Weight */}
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-                                                    {isHeightBased ? 'Height (cm)' : 'Weight (kg)'}
-                                                </label>
-                                                {isHeightBased ? (
-                                                    <>
-                                                        <input
-                                                            type="number"
-                                                            name="height"
-                                                            step="0.1"
-                                                            defaultValue={editingPlayer.height || ''}
-                                                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium"
-                                                            placeholder="Enter height in cm"
-                                                        />
-                                                        <input type="hidden" name="weight" value={editingPlayer.weight || 0} />
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <input
-                                                            type="number"
-                                                            name="weight"
-                                                            step="0.1"
-                                                            defaultValue={editingPlayer.weight || ''}
-                                                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium"
-                                                            placeholder="Enter weight in kg"
-                                                        />
-                                                        <input type="hidden" name="height" value={editingPlayer.height || 0} />
-                                                    </>
-                                                )}
-                                            </div>
+                                            {/* Smart Height or Weight (Kyorugi only — Kyukpa/Poomsae don't use it for placement) */}
+                                            {!isKyukpa && (
+                                                <div>
+                                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                                                        {isHeightBased ? 'Height (cm)' : 'Weight (kg)'}
+                                                    </label>
+                                                    {isHeightBased ? (
+                                                        <>
+                                                            <input
+                                                                type="number"
+                                                                name="height"
+                                                                step="0.1"
+                                                                defaultValue={editingPlayer.height || ''}
+                                                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium"
+                                                                placeholder="Enter height in cm"
+                                                            />
+                                                            <input type="hidden" name="weight" value={editingPlayer.weight || 0} />
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <input
+                                                                type="number"
+                                                                name="weight"
+                                                                step="0.1"
+                                                                defaultValue={editingPlayer.weight || ''}
+                                                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium"
+                                                                placeholder="Enter weight in kg"
+                                                            />
+                                                            <input type="hidden" name="height" value={editingPlayer.height || 0} />
+                                                        </>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {isKyukpa && (
+                                                <>
+                                                    <input type="hidden" name="weight" value={editingPlayer.weight || 0} />
+                                                    <input type="hidden" name="height" value={editingPlayer.height || 0} />
+                                                </>
+                                            )}
 
-                                            {/* Poomsae Event Type & Team ID */}
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Poomsae Type</label>
-                                                    <GlobalDropdown
-                                                        value={editingPlayer.poomsaeType || 'INDIVIDUAL'}
-                                                        onChange={(val) => setEditingPlayer({ ...editingPlayer, poomsaeType: val })}
-                                                        options={['INDIVIDUAL', 'PAIR', 'TEAM']}
-                                                        fullWidth
-                                                    />
-                                                    <input type="hidden" name="poomsaeType" value={editingPlayer.poomsaeType || 'INDIVIDUAL'} />
+                                            {/* Poomsae Event Type & Team ID — Only for POOMSAE */}
+                                            {isPoomsae && (
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Poomsae Type</label>
+                                                        <GlobalDropdown
+                                                            value={editingPlayer.poomsaeType || 'INDIVIDUAL'}
+                                                            onChange={(val) => setEditingPlayer({ ...editingPlayer, poomsaeType: val })}
+                                                            options={['INDIVIDUAL', 'PAIR', 'TEAM']}
+                                                            fullWidth
+                                                        />
+                                                        <input type="hidden" name="poomsaeType" value={editingPlayer.poomsaeType || 'INDIVIDUAL'} />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Team ID</label>
+                                                        <input
+                                                            type="text"
+                                                            name="teamId"
+                                                            defaultValue={editingPlayer.teamId || ''}
+                                                            placeholder="e.g. 1, A"
+                                                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium"
+                                                        />
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Team ID</label>
-                                                    <input
-                                                        type="text"
-                                                        name="teamId"
-                                                        defaultValue={editingPlayer.teamId || ''}
-                                                        placeholder="e.g. 1, A"
-                                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium"
-                                                    />
-                                                </div>
-                                            </div>
+                                            )}
 
                                             {/* Actions */}
                                             <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
