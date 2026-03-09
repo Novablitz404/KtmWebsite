@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { getAuthUser } from '@/lib/supabase/server'
+import { toTitleCase } from '@/lib/utils'
 import { createClient } from '@supabase/supabase-js'
 import { getNextBelt } from '@/lib/belt'
 import { countryToCode } from '@/lib/countries'
@@ -1676,7 +1677,7 @@ export async function registerForPromotionTest(promotionTestId: string) {
         data: {
             promotionTestId,
             playerId: dbUser.id,
-            playerName: dbUser.name || 'Unknown',
+            playerName: toTitleCase(dbUser.name || 'Unknown'),
             clubName: dbUser.clubName || dbUser.club?.name,
             currentBelt: dbUser.belt || 'White',
             targetBelt: getNextBelt(dbUser.belt || 'White'), // Calculated automatically
@@ -1732,7 +1733,7 @@ export async function registerForSeminar(seminarId: string) {
         data: {
             seminarId,
             playerId: dbUser.id,
-            playerName: dbUser.name || 'Unknown',
+            playerName: toTitleCase(dbUser.name || 'Unknown'),
             clubName: dbUser.clubName || dbUser.club?.name,
             belt: dbUser.belt || 'White',
             age: age,
@@ -1842,7 +1843,7 @@ export async function createMemberForClub(clubId: string, input: {
                 id: newId,
                 clerkId: null,
                 email: memberEmail,
-                name: input.name,
+                name: toTitleCase(input.name),
                 role: 'ATHLETE',
                 clubName: club.name,
                 gender: input.gender || null,
@@ -1908,7 +1909,7 @@ export async function updateClubMemberAsOrg(userId: string, data: {
     await prisma.user.update({
         where: { id: userId },
         data: {
-            name: data.name || undefined,
+            name: data.name ? toTitleCase(data.name) : undefined,
             belt: data.belt || undefined,
             gender: data.gender || undefined,
             weight: data.weight || undefined,

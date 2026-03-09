@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { toTitleCase } from '@/lib/utils'
 
 // Generate a random 5-digit ID
 function generateUserId(): string {
@@ -77,7 +78,7 @@ export async function createClubMember(input: CreateClubMemberInput) {
                 id: newId,
                 clerkId: null, // No Clerk ID yet
                 email: memberEmail,
-                name: input.name,
+                name: toTitleCase(input.name),
                 role: 'ATHLETE',
                 clubName: clubName,
                 gender: input.gender || null,

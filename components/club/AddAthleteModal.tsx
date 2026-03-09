@@ -178,7 +178,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
 
         const timer = setTimeout(detectCategory, 500)
         return () => clearTimeout(timer)
-    }, [selectedTournament, selectedMember, weight, height, belt, poomsaeType])
+    }, [selectedTournament, selectedMember, weight, height, belt, poomsaeType, eventType])
 
     // Member Search Debounce
     useEffect(() => {

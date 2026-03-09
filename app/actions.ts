@@ -395,7 +395,7 @@ export async function createPlayer(formData: FormData) {
     await prisma.player.create({
         data: {
             id: playerId,
-            name,
+            name: toTitleCase(name),
             gender: gender || 'Male',
             belt: belt || 'Black',
             // @ts-ignore: Prisma types delay
@@ -1558,7 +1558,7 @@ export async function registerForTournamentAuto(input: RegisterAutoInput) {
         await prisma.player.create({
             data: {
                 id: playerId,
-                name,
+                name: toTitleCase(name),
                 gender,
                 belt,
                 weight,
@@ -1798,7 +1798,7 @@ export async function updatePlayerDetails({ playerId, name, height, weight, belt
         await prisma.player.update({
             where: { id: playerId },
             data: {
-                ...(name !== undefined && { name }),
+                ...(name !== undefined && { name: toTitleCase(name) }),
                 ...(height !== undefined && { height }),
                 ...(weight !== undefined && { weight }),
                 ...(belt !== undefined && { belt }),
@@ -3381,7 +3381,7 @@ export async function registerForSeminar(formData: FormData) {
             data: {
                 seminarId,
                 playerId,
-                playerName: dbUser.name || 'Unknown',
+                playerName: toTitleCase(dbUser.name || 'Unknown'),
                 clubName: dbUser.clubName,
                 belt: dbUser.belt,
                 status: 'PENDING'
