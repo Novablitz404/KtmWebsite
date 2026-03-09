@@ -323,6 +323,7 @@ model Organization {
   promotionTests      PromotionTest[]
   seminars            Seminar[]
   clubAffiliations    ClubAffiliation[]
+  platformInvoices    PlatformInvoice[]
 
   // Affiliation
   affiliationFee Float? // Annual fee in PHP, e.g. 5000.00
@@ -343,6 +344,33 @@ model Organization {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// Platform-level configuration (singleton — one row)
+model PlatformConfig {
+  id          String   @id @default("platform")
+  platformFee Float    @default(0) // Fee per approved+paid registration across all event types
+  bankName      String?
+  accountName   String?
+  accountNumber String?
+  companyName   String?
+  companyAddress String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// B2B Platform Tracking for monthly feature
+model PlatformInvoice {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  billingMonth   String       // e.g., "March 2026"
+  amountDue      Float
+  status         String       @default("UNPAID") // UNPAID, PAID
+  sentAt         DateTime     @default(now())
+  paidAt         DateTime?
+  
+  @@unique([organizationId, billingMonth])
 }
 
 // Co-Organizer Invite (for inviting new users to become co-organizers)

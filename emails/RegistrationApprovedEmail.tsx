@@ -22,6 +22,8 @@ interface RegistrationApprovedEmailProps {
     qrCodeDataUrl?: string
     /** Multiple registrations — takes priority if provided */
     registrations?: Registration[]
+    /** Organization email banner URL */
+    emailBannerUrl?: string
 }
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.wotf-ph.com'
@@ -34,6 +36,7 @@ export default function RegistrationApprovedEmail({
     registrationId = '00123',
     qrCodeDataUrl = '',
     registrations,
+    emailBannerUrl,
 }: RegistrationApprovedEmailProps) {
     // Build a normalized list — either from the array or from the single props
     const items: Registration[] = registrations && registrations.length > 0
@@ -53,7 +56,17 @@ export default function RegistrationApprovedEmail({
             <Body style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', backgroundColor: '#f3f4f6', margin: 0, padding: 0 }}>
                 <Container style={{ maxWidth: '580px', margin: '0 auto', padding: '20px' }}>
                     {/* Header */}
-                    <Section style={{ backgroundColor: '#0f172a', borderRadius: '16px 16px 0 0', padding: '32px 24px', textAlign: 'center' as const }}>
+                    {emailBannerUrl && (
+                        <Section style={{ borderRadius: '16px 16px 0 0', overflow: 'hidden' }}>
+                            <Img
+                                src={emailBannerUrl}
+                                width="580"
+                                alt={eventName}
+                                style={{ width: '100%', display: 'block' }}
+                            />
+                        </Section>
+                    )}
+                    <Section style={{ backgroundColor: '#0f172a', borderRadius: emailBannerUrl ? '0' : '16px 16px 0 0', padding: '32px 24px', textAlign: 'center' as const }}>
                         <Heading style={{ color: '#ffffff', fontSize: '24px', fontWeight: 800, margin: 0 }}>
                             Registration Approved ✅
                         </Heading>

@@ -335,7 +335,7 @@ export async function getCheckedInSeminarRegistrations(seminarId: string) {
 async function sendSeminarApprovalEmail(registrationId: string) {
     const reg = await prisma.seminarRegistration.findUnique({
         where: { id: registrationId },
-        include: { seminar: { select: { name: true } } }
+        include: { seminar: { select: { name: true, organization: { select: { emailBannerUrl: true } } } } }
     })
 
     if (!reg || !reg.playerId) return
@@ -354,6 +354,8 @@ async function sendSeminarApprovalEmail(registrationId: string) {
         color: { dark: '#1e1b4b', light: '#ffffff' }
     })
 
+    const emailBannerUrl = (reg.seminar as any)?.organization?.emailBannerUrl || undefined
+
     await sendEmail({
         to: user.email,
         subject: `Registration Approved — ${reg.seminar.name}`,
@@ -362,7 +364,8 @@ async function sendSeminarApprovalEmail(registrationId: string) {
             eventName: reg.seminar.name,
             eventType: 'Seminar',
             registrationId: reg.id,
-            qrCodeDataUrl
+            qrCodeDataUrl,
+            emailBannerUrl
         }) as React.ReactElement
     })
 }

@@ -183,3 +183,42 @@ export async function fetchGuidelineDetails(id: string) {
 
     return template
 }
+
+export async function fetchAdminUserDetails(id: string) {
+    await checkAdmin()
+
+    if (!id) return null
+
+    const [user, clubs] = await Promise.all([
+        prisma.user.findUnique({
+            where: { id },
+            include: {
+                players: {
+                    include: {
+                        category: {
+                            include: {
+                                tournament: {
+                                    select: { id: true, name: true, startDate: true, status: true }
+                                }
+                            }
+                        },
+                        poomsaeMatches: {
+                            select: { id: true, category: true, round: true, rank: true, totalScore: true }
+                        }
+                    },
+                    orderBy: { createdAt: 'desc' }
+                },
+                createdTournaments: {
+                    select: { id: true, name: true, startDate: true, status: true },
+                    orderBy: { startDate: 'desc' }
+                }
+            }
+        }),
+        prisma.club.findMany({
+            select: { name: true },
+            orderBy: { name: 'asc' }
+        })
+    ])
+
+    return { user, clubs: clubs.map((c: any) => c.name) }
+}

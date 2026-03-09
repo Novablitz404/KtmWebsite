@@ -36,6 +36,7 @@ interface PlayerGroup {
     email: string
     athleteName: string
     eventName: string
+    emailBannerUrl?: string
     registrations: {
         id: string
         categoryName?: string
@@ -58,7 +59,7 @@ async function main() {
             }
         },
         include: {
-            category: { include: { tournament: { select: { name: true } } } },
+            category: { include: { tournament: { select: { name: true, organizer: { select: { organization: { select: { emailBannerUrl: true } } } } } } } },
             user: { select: { email: true } }
         }
     })
@@ -76,6 +77,7 @@ async function main() {
                 email,
                 athleteName: player.name,
                 eventName,
+                emailBannerUrl: (player.category?.tournament as any)?.organizer?.organization?.emailBannerUrl || undefined,
                 registrations: []
             })
         }
@@ -122,6 +124,7 @@ async function main() {
                     athleteName: group.athleteName,
                     eventName: group.eventName,
                     registrations: regs,
+                    emailBannerUrl: group.emailBannerUrl,
                 }) as React.ReactElement
             )
 
@@ -141,7 +144,7 @@ async function main() {
             playerId: { not: null }
         },
         include: {
-            seminar: { select: { name: true } }
+            seminar: { select: { name: true, organization: { select: { emailBannerUrl: true } } } }
         }
     })
 
@@ -187,6 +190,7 @@ async function main() {
                     eventType: 'Seminar',
                     registrationId: reg.id,
                     qrCodeDataUrl,
+                    emailBannerUrl: (reg.seminar as any)?.organization?.emailBannerUrl || undefined,
                 }) as React.ReactElement
             )
 

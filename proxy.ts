@@ -6,6 +6,7 @@ const PUBLIC_ROUTES = new Set([
     '/',
     '/sign-in',
     '/sign-up',
+    '/admin-sign-in',
     '/about',
     '/membership',
     '/clubs',

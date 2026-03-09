@@ -10,12 +10,13 @@ import {
     Settings,
     LogOut,
     Shield,
-    FileText
+    FileText,
+    DollarSign
 } from 'lucide-react'
 
 interface AdminSidebarProps {
-    activeView: 'home' | 'users' | 'events' | 'api-keys' | 'guidelines' | 'settings'
-    onNavigate: (view: 'home' | 'users' | 'events' | 'api-keys' | 'guidelines' | 'settings') => void
+    activeView: 'home' | 'users' | 'events' | 'financials' | 'api-keys' | 'guidelines' | 'settings'
+    onNavigate: (view: 'home' | 'users' | 'events' | 'financials' | 'api-keys' | 'guidelines' | 'settings') => void
     userName?: string | null
 }
 
@@ -23,6 +24,7 @@ const navItems = [
     { id: 'home', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'users', label: 'Users', icon: Users },
     { id: 'events', label: 'Events', icon: Calendar },
+    { id: 'financials', label: 'Financials', icon: DollarSign },
     { id: 'guidelines', label: 'Guidelines', icon: FileText },
     { id: 'api-keys', label: 'API Keys', icon: Key },
 ] as const

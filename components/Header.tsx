@@ -42,7 +42,7 @@ export default function Header() {
     }, [])
 
     if (!isLoaded) return null
-    if (pathname?.startsWith('/sign-in') || pathname?.startsWith('/sign-up') || pathname?.startsWith('/onboarding')) return null
+    if (pathname?.startsWith('/sign-in') || pathname?.startsWith('/sign-up') || pathname?.startsWith('/onboarding') || pathname?.startsWith('/admin-sign-in')) return null
     if (user) return null
     if (isMobilePWA) return null
 
@@ -84,8 +84,10 @@ export default function Header() {
                                 {[
                                     { href: '/', label: 'Home' },
                                     { href: '/about', label: 'About' },
-                                    { href: '/events', label: 'Events' },
-                                    { href: '/rankings', label: 'Rankings' },
+                                    ...(!tenant.isKtmAdmin ? [
+                                        { href: '/events', label: 'Events' },
+                                        { href: '/rankings', label: 'Rankings' },
+                                    ] : []),
                                 ].map(link => (
                                     <Link
                                         key={link.href}
@@ -121,6 +123,7 @@ function MobilePublicMenu({ scrolled, isHomePage }: { scrolled: boolean; isHomeP
     const menuRef = useRef<HTMLDivElement>(null)
     const pathname = usePathname()
     const { user, isLoaded } = useUser()
+    const tenant = useTenant()
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -155,8 +158,10 @@ function MobilePublicMenu({ scrolled, isHomePage }: { scrolled: boolean; isHomeP
                     {[
                         { href: '/', label: 'Home' },
                         { href: '/about', label: 'About' },
-                        { href: '/events', label: 'Events' },
-                        { href: '/rankings', label: 'Rankings' },
+                        ...(!tenant.isKtmAdmin ? [
+                            { href: '/events', label: 'Events' },
+                            { href: '/rankings', label: 'Rankings' },
+                        ] : []),
                     ].map(link => (
                         <Link
                             key={link.href}

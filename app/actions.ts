@@ -3584,7 +3584,7 @@ async function sendApprovalEmailForPlayer(playerId: string) {
     const player = await prisma.player.findUnique({
         where: { id: playerId },
         include: {
-            category: { include: { tournament: { select: { name: true } } } },
+            category: { include: { tournament: { select: { name: true, organizer: { select: { organization: { select: { emailBannerUrl: true } } } } } } } },
             user: { select: { email: true } }
         }
     })
@@ -3599,6 +3599,8 @@ async function sendApprovalEmailForPlayer(playerId: string) {
         color: { dark: '#1e1b4b', light: '#ffffff' }
     })
 
+    const emailBannerUrl = (player.category?.tournament as any)?.organizer?.organization?.emailBannerUrl || undefined
+
     await sendEmail({
         to: player.user.email,
         subject: `Registration Approved — ${player.category?.tournament?.name || 'Tournament'}`,
@@ -3608,7 +3610,8 @@ async function sendApprovalEmailForPlayer(playerId: string) {
             eventType: 'Tournament',
             categoryName: player.category?.name,
             registrationId: player.id,
-            qrCodeDataUrl
+            qrCodeDataUrl,
+            emailBannerUrl
         }) as React.ReactElement
     })
 }

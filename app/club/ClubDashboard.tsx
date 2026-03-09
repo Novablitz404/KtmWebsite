@@ -662,28 +662,36 @@ export default function ClubDashboard({
             ctx.drawImage(qrImg, (w - qrSize) / 2, 76, qrSize, qrSize)
             ctx.imageSmoothingEnabled = true
 
+            const maxTextWidth = w - 40 // 20px padding on each side
+
+            // Helper to auto-shrink font if text is too wide
+            const fillTextFit = (text: string, x: number, y: number, font: string, maxW: number) => {
+                ctx.font = font
+                if (ctx.measureText(text).width > maxW) {
+                    ctx.fillText(text, x, y, maxW)
+                } else {
+                    ctx.fillText(text, x, y)
+                }
+            }
+
             // Player info
             const p = result.player
             ctx.fillStyle = '#111827'
-            ctx.font = 'bold 20px system-ui, sans-serif'
             ctx.textAlign = 'center'
-            ctx.fillText(p.name || 'Unknown', w / 2, 350)
+            fillTextFit(p.name || 'Unknown', w / 2, 350, 'bold 20px system-ui, sans-serif', maxTextWidth)
 
             ctx.fillStyle = '#6b7280'
-            ctx.font = '13px system-ui, sans-serif'
-            if (p.event) ctx.fillText(p.event, w / 2, 378)
+            if (p.event) fillTextFit(p.event, w / 2, 378, '13px system-ui, sans-serif', maxTextWidth)
 
             const details = [('category' in p ? p.category : null) || ('belt' in p ? p.belt : null), p.club].filter(Boolean).join(' \u2022 ')
             if (details) {
                 ctx.fillStyle = '#9ca3af'
-                ctx.font = '12px system-ui, sans-serif'
-                ctx.fillText(details, w / 2, 400)
+                fillTextFit(details, w / 2, 400, '12px system-ui, sans-serif', maxTextWidth)
             }
 
             // ID footer
             ctx.fillStyle = '#d1d5db'
-            ctx.font = '10px monospace'
-            ctx.fillText(`ID: ${p.id}`, w / 2, 430)
+            fillTextFit(`ID: ${p.id}`, w / 2, 430, '10px monospace', maxTextWidth)
 
             // Footer bar
             ctx.fillStyle = '#f3f4f6'

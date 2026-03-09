@@ -10,6 +10,7 @@ import AdminEventsView from '@/components/admin/AdminEventsView'
 import AdminApiKeysView from '@/components/admin/AdminApiKeysView'
 import AdminSettingsView from '@/components/admin/AdminSettingsView'
 import AdminGuidelinesView from '@/components/admin/AdminGuidelinesView'
+import AdminFinancialsView from '@/components/admin/AdminFinancialsView'
 
 interface AdminDashboardProps {
     user: {
@@ -24,7 +25,7 @@ interface AdminDashboardProps {
     usersForKeys: any[]
 }
 
-type ViewType = 'home' | 'users' | 'events' | 'api-keys' | 'guidelines' | 'settings'
+type ViewType = 'home' | 'users' | 'events' | 'financials' | 'api-keys' | 'guidelines' | 'settings'
 
 export default function AdminDashboard({
     user,
@@ -40,7 +41,6 @@ export default function AdminDashboard({
     const [activeView, setActiveView] = useState<ViewType>(initialView)
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-    const [searchQuery, setSearchQuery] = useState('')
 
     // Sync URL with active view
     useEffect(() => {
@@ -55,6 +55,7 @@ export default function AdminDashboard({
             case 'home': return 'Dashboard'
             case 'users': return 'User Management'
             case 'events': return 'Events'
+            case 'financials': return 'Platform Financials'
             case 'api-keys': return 'API Keys'
             case 'guidelines': return 'Guideline Templates'
             case 'settings': return 'Settings'
@@ -67,9 +68,11 @@ export default function AdminDashboard({
             case 'home':
                 return <AdminHomeView stats={stats} pendingOrganizations={pendingOrganizations} />
             case 'users':
-                return <AdminUsersView searchQuery={searchQuery} />
+                return <AdminUsersView />
             case 'events':
                 return <AdminEventsView />
+            case 'financials':
+                return <AdminFinancialsView />
             case 'api-keys':
                 return <AdminApiKeysView users={usersForKeys} />
             case 'guidelines':
@@ -91,7 +94,6 @@ export default function AdminDashboard({
                     onNavigate={(view) => {
                         setActiveView(view)
                         setIsSidebarOpen(false)
-                        setSearchQuery('')
                     }}
                     userName={user.name}
                 />
@@ -102,17 +104,14 @@ export default function AdminDashboard({
                 <AdminTopBar
                     userName={user.name || 'Admin'}
                     userImageUrl={user.imageUrl || undefined}
-                    searchQuery={(activeView === 'users' || activeView === 'events') ? searchQuery : undefined}
-                    onSearchChange={setSearchQuery}
-                    searchPlaceholder={activeView === 'users' ? "Search users..." : "Search events..."}
                     title={getTitle()}
                     onSettingsClick={() => setActiveView('settings')}
                     onMenuClick={() => setIsSidebarOpen(true)}
                 />
 
-                <main className={`flex-1 flex flex-col min-h-0 overflow-hidden ${['users', 'events', 'api-keys', 'guidelines'].includes(activeView) ? 'bg-gray-50' : 'p-4 md:p-6 lg:p-8 overflow-y-auto'
+                <main className={`flex-1 flex flex-col min-h-0 overflow-hidden ${['users', 'events', 'financials', 'api-keys', 'guidelines'].includes(activeView) ? 'bg-gray-50' : 'p-4 md:p-6 lg:p-8 overflow-y-auto'
                     }`}>
-                    {['users', 'events', 'api-keys', 'guidelines'].includes(activeView) ? (
+                    {['users', 'events', 'financials', 'api-keys', 'guidelines'].includes(activeView) ? (
                         <div className="h-full w-full">
                             {renderView()}
                         </div>

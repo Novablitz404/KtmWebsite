@@ -1,15 +1,311 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { MoreHorizontal, Shield, Award, Trash2, X, AlertTriangle, Search, ChevronLeft, ChevronRight } from 'lucide-react'
+import { MoreHorizontal, Shield, Award, Trash2, X, AlertTriangle, Search, ChevronLeft, ChevronRight, Eye } from 'lucide-react'
 import { toast } from 'sonner'
-import { promoteToOrganizer, promoteToClubMaster, deleteUser, toggleAthleteVerification } from '@/app/admin/actions'
+import { deleteUser } from '@/app/admin/actions'
 import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchAdminUsers } from '@/app/admin/fetch'
 import AdminTableSkeleton from '@/components/admin/AdminTableSkeleton'
 
 import TableRowsSkeleton from '@/components/admin/TableRowsSkeleton'
+import GlobalDropdown from '@/components/GlobalDropdown'
+import GlobalCalendar from '@/components/GlobalCalendar'
+import { COUNTRIES } from '@/lib/countries'
+
+// ... existing code ...
+
+function UserActionButtons({
+    userId,
+    userName,
+    onRefresh
+}: {
+    userId: string,
+    userName: string,
+    onRefresh: () => void
+}) {
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+    const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
+    const [isLoading, setIsLoading] = useState(false)
+
+    // Details state
+    const [userDetails, setUserDetails] = useState<any>(null)
+    const [availableClubs, setAvailableClubs] = useState<string[]>([])
+    const [isFetchingDetails, setIsFetchingDetails] = useState(false)
+    const [isEditing, setIsEditing] = useState(false)
+    const [editForm, setEditForm] = useState<any>({})
+
+    const handleDeleteUser = async () => {
+        setIsLoading(true)
+        const formData = new FormData()
+        formData.append('userId', userId)
+        try {
+            await deleteUser(formData)
+            toast.success(`${userName} has been deleted`)
+            onRefresh()
+            setIsDeleteModalOpen(false)
+        } catch (error: any) {
+            toast.error(error?.message || 'Failed to delete user')
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    const handleOpenDetails = async () => {
+        setIsDetailsModalOpen(true)
+        setIsFetchingDetails(true)
+        try {
+            const { fetchAdminUserDetails } = await import('@/app/admin/fetch')
+            const data = await fetchAdminUserDetails(userId)
+            setUserDetails(data?.user)
+            setAvailableClubs(data?.clubs || [])
+            setEditForm({
+                birthDate: data?.user?.birthDate ? new Date(data.user.birthDate).toISOString().split('T')[0] : '',
+                weight: data?.user?.weight || '',
+                height: data?.user?.height || '',
+                belt: data?.user?.belt || '',
+                gender: data?.user?.gender || '',
+                clubName: data?.user?.clubName || '',
+                athleteNumber: data?.user?.athleteNumber || '',
+                country: data?.user?.country || '',
+            })
+        } catch (error) {
+            toast.error('Failed to load user details')
+        } finally {
+            setIsFetchingDetails(false)
+        }
+    }
+
+    const handleSaveDetails = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setIsLoading(true)
+        try {
+            const { updateAdminUserDetails } = await import('@/app/admin/actions')
+            await updateAdminUserDetails(userId, editForm)
+            toast.success('User details updated')
+            setIsEditing(false)
+            onRefresh()
+            // Re-fetch to update local state cleanly
+            const { fetchAdminUserDetails } = await import('@/app/admin/fetch')
+            const data = await fetchAdminUserDetails(userId)
+            setUserDetails(data?.user)
+            setAvailableClubs(data?.clubs || [])
+        } catch (error) {
+            toast.error('Failed to update details')
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    return (
+        <div className="flex items-center justify-end gap-2">
+            <button
+                onClick={handleOpenDetails}
+                className="p-2 bg-gray-50 text-gray-500 rounded-lg hover:bg-gray-100 hover:text-blue-600 transition-colors"
+                title="View/Edit Details"
+            >
+                <Eye className="w-4 h-4" />
+            </button>
+            <button
+                onClick={() => setIsDeleteModalOpen(true)}
+                className="p-2 bg-gray-50 text-gray-500 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors"
+                title="Delete User"
+            >
+                <Trash2 className="w-4 h-4" />
+            </button>
+
+            {/* Details Modal */}
+            {isDetailsModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900">Profile Information</h3>
+                                <p className="text-xs text-gray-500 mt-0.5">Basic details and attributes.</p>
+                            </div>
+                            <button onClick={() => { setIsDetailsModalOpen(false); setIsEditing(false) }} className="p-1 rounded-full hover:bg-gray-200 text-gray-400">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6 flex-1 overflow-y-auto bg-white">
+                            {isFetchingDetails ? (
+                                <div className="py-12 flex justify-center items-center">
+                                    <div className="w-8 h-8 border-4 border-gray-100 border-t-red-600 rounded-full animate-spin" />
+                                </div>
+                            ) : userDetails ? (
+                                <div className="space-y-8 text-left">
+
+                                    {/* Edit or View Details Form */}
+                                    <form id="edit-user-form" onSubmit={handleSaveDetails} className="space-y-6">
+                                        <div className="flex justify-between items-start mb-6 pb-6 border-b border-gray-100">
+                                            <div className="flex items-center gap-4">
+                                                {userDetails.imageUrl ? (
+                                                    <img src={userDetails.imageUrl} alt={userName} className="w-16 h-16 rounded-full object-cover border-2 border-gray-100 shadow-sm" />
+                                                ) : (
+                                                    <div className="w-16 h-16 rounded-full bg-red-50 text-red-600 flex items-center justify-center text-xl font-bold border-2 border-red-100 shadow-sm">
+                                                        {userName.charAt(0).toUpperCase()}
+                                                    </div>
+                                                )}
+                                                <div>
+                                                    <h3 className="text-lg font-bold text-gray-900">{userName}</h3>
+                                                    {userDetails && (
+                                                        <p className="text-sm text-gray-500 mt-0.5">{userDetails.email} • {userDetails.role}</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            {!isEditing && (
+                                                <button type="button" onClick={() => setIsEditing(true)} className="text-sm text-blue-600 font-medium hover:underline">
+                                                    Edit Details
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-500 mb-1">Birth Date</label>
+                                                {isEditing ? (
+                                                    <GlobalCalendar
+                                                        value={editForm.birthDate}
+                                                        onChange={(date) => setEditForm({ ...editForm, birthDate: date.toISOString().split('T')[0] })}
+                                                        fullWidth
+                                                    />
+                                                ) : <p className="text-sm text-gray-900">{userDetails.birthDate ? new Date(userDetails.birthDate).toLocaleDateString() : 'Not set'}</p>}
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-500 mb-1">Gender</label>
+                                                {isEditing ? (
+                                                    <GlobalDropdown
+                                                        value={editForm.gender}
+                                                        options={[
+                                                            { label: 'Male', value: 'Male' },
+                                                            { label: 'Female', value: 'Female' }
+                                                        ]}
+                                                        onChange={(val) => setEditForm({ ...editForm, gender: val })}
+                                                        fullWidth
+                                                    />
+                                                ) : <p className="text-sm text-gray-900">{userDetails.gender || 'Not set'}</p>}
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-500 mb-1">Weight (kg)</label>
+                                                {isEditing ? (
+                                                    <input type="number" step="0.1" value={editForm.weight} onChange={e => setEditForm({ ...editForm, weight: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500/20 outline-none" />
+                                                ) : <p className="text-sm text-gray-900">{userDetails.weight || 'Not set'}</p>}
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-500 mb-1">Height (cm)</label>
+                                                {isEditing ? (
+                                                    <input type="number" step="0.1" value={editForm.height} onChange={e => setEditForm({ ...editForm, height: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500/20 outline-none" />
+                                                ) : <p className="text-sm text-gray-900">{userDetails.height || 'Not set'}</p>}
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-500 mb-1">Belt</label>
+                                                {isEditing ? (
+                                                    <GlobalDropdown
+                                                        value={editForm.belt}
+                                                        options={[
+                                                            'White', 'Yellow', 'Blue', 'Red', 'Brown', 'Black'
+                                                        ]}
+                                                        onChange={(val) => setEditForm({ ...editForm, belt: val })}
+                                                        fullWidth
+                                                    />
+                                                ) : <p className="text-sm text-gray-900">{userDetails.belt || 'Not set'}</p>}
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-500 mb-1">Club Name</label>
+                                                {isEditing ? (
+                                                    <GlobalDropdown
+                                                        value={editForm.clubName}
+                                                        options={[
+                                                            { label: 'Independent', value: 'Independent' },
+                                                            ...availableClubs.map(c => ({ label: c, value: c }))
+                                                        ]}
+                                                        searchable
+                                                        onChange={(val) => setEditForm({ ...editForm, clubName: val === 'Independent' ? '' : val })}
+                                                        fullWidth
+                                                    />
+                                                ) : <p className="text-sm text-gray-900">{userDetails.clubName || 'Independent'}</p>}
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-500 mb-1">Athlete Number</label>
+                                                {isEditing ? (
+                                                    <input type="text" value={editForm.athleteNumber} onChange={e => setEditForm({ ...editForm, athleteNumber: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500/20 outline-none" />
+                                                ) : <p className="text-sm text-gray-900">{userDetails.athleteNumber || 'Not assigned'}</p>}
+                                            </div>
+                                            <div className="z-[60]">
+                                                <label className="block text-xs font-semibold text-gray-500 mb-1">Country</label>
+                                                {isEditing ? (
+                                                    <GlobalDropdown
+                                                        value={editForm.country}
+                                                        options={COUNTRIES.map(c => ({ label: c, value: c }))}
+                                                        searchable
+                                                        onChange={(val) => setEditForm({ ...editForm, country: val })}
+                                                        fullWidth
+                                                    />
+                                                ) : <p className="text-sm text-gray-900">{userDetails.country || 'Not set'}</p>}
+                                            </div>
+                                        </div>
+                                    </form>
+
+
+                                </div>
+                            ) : (
+                                <p className="text-center text-red-500 py-8">Failed to fetch details</p>
+                            )}
+                        </div>
+                        <div className="p-4 border-t border-gray-100 bg-gray-50 flex gap-3 justify-end items-center">
+                            {isEditing ? (
+                                <>
+                                    <button onClick={() => { setIsEditing(false); setEditForm({}) }} disabled={isLoading} className="px-5 py-2 text-sm text-gray-600 hover:text-gray-900 font-medium disabled:opacity-50">
+                                        Cancel
+                                    </button>
+                                    <button type="submit" form="edit-user-form" disabled={isLoading} className="px-5 py-2 bg-red-600 text-white text-sm rounded-xl font-medium hover:bg-red-700 disabled:opacity-50 transition-colors shadow-sm">
+                                        {isLoading ? 'Saving...' : 'Save Changes'}
+                                    </button>
+                                </>
+                            ) : (
+                                <button onClick={() => setIsDetailsModalOpen(false)} className="px-5 py-2 bg-white border border-gray-200 text-sm text-gray-700 rounded-xl font-medium hover:bg-gray-50 shadow-sm transition-all">
+                                    Close
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Modal */}
+            {isDeleteModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-red-50">
+                            <div className="flex items-center gap-2">
+                                <AlertTriangle className="w-5 h-5 text-red-600" />
+                                <h3 className="text-lg font-bold text-red-900">Delete User</h3>
+                            </div>
+                            <button onClick={() => setIsDeleteModalOpen(false)} className="p-1 rounded-full hover:bg-red-100 text-red-400">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <p className="text-gray-700">Are you sure you want to delete <strong>{userName}</strong>?</p>
+                            <div className="flex gap-3">
+                                <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200">
+                                    Cancel
+                                </button>
+                                <button onClick={handleDeleteUser} disabled={isLoading} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 disabled:opacity-50">
+                                    {isLoading ? 'Deleting...' : 'Delete'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
+
 
 interface User {
     id: string
@@ -22,12 +318,12 @@ interface User {
 
 interface AdminUsersViewProps {
     initialUsers?: User[]
-    searchQuery: string
 }
 
 const PAGE_SIZE = 10
 
-export default function AdminUsersView({ initialUsers = [], searchQuery }: AdminUsersViewProps) {
+export default function AdminUsersView({ initialUsers = [] }: AdminUsersViewProps) {
+    const [searchQuery, setSearchQuery] = useState('')
     const [roleFilter, setRoleFilter] = useState('ALL')
     const [currentPage, setCurrentPage] = useState(1)
     const router = useRouter()
@@ -57,11 +353,21 @@ export default function AdminUsersView({ initialUsers = [], searchQuery }: Admin
             <div className="flex-1 flex flex-col min-h-0 sm:p-6 sm:max-w-[1920px] sm:mx-auto w-full">
 
                 {/* Filters Toolbar */}
-                <div className="flex justify-end mb-4 px-4 sm:px-0">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 px-4 sm:px-0">
+                    <div className="relative w-full sm:w-80 border-black/5">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Search users..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500/20 shadow-sm"
+                        />
+                    </div>
                     <select
                         value={roleFilter}
                         onChange={(e) => setRoleFilter(e.target.value)}
-                        className="bg-white border border-gray-200 text-gray-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-red-500/20 shadow-sm"
+                        className="bg-white border border-gray-200 text-gray-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-red-500/20 shadow-sm w-full sm:w-auto"
                     >
                         <option value="ALL">All Roles</option>
                         <option value="ATHLETE">Athletes</option>
@@ -120,11 +426,9 @@ export default function AdminUsersView({ initialUsers = [], searchQuery }: Admin
                                                 {user.clubName || '-'}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                <UserActionsDropdown
+                                                <UserActionButtons
                                                     userId={user.id}
-                                                    currentRole={user.role}
                                                     userName={user.name || 'User'}
-                                                    isVerified={user.isVerified}
                                                     onRefresh={handleRefresh}
                                                 />
                                             </td>
@@ -192,224 +496,4 @@ function RoleBadge({ role }: { role: string }) {
     )
 }
 
-function UserActionsDropdown({
-    userId,
-    currentRole,
-    userName,
-    isVerified,
-    onRefresh
-}: {
-    userId: string,
-    currentRole: string,
-    userName: string,
-    isVerified: boolean,
-    onRefresh: () => void
-}) {
-    const [isOpen, setIsOpen] = useState(false)
-    const [isClubModalOpen, setIsClubModalOpen] = useState(false)
-    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-    const [clubName, setClubName] = useState('')
-    const [isLoading, setIsLoading] = useState(false)
 
-    if (currentRole === 'ADMIN') return null
-
-    const handleToggleVerification = async () => {
-        setIsLoading(true)
-        const formData = new FormData()
-        formData.append('userId', userId)
-        try {
-            await toggleAthleteVerification(formData)
-            toast.success(isVerified ? 'Athlete unverified' : 'Athlete verified')
-            onRefresh()
-            setIsOpen(false)
-        } catch (error) {
-            toast.error('Failed to update verification status')
-        } finally {
-            setIsLoading(false)
-        }
-    }
-
-    const handlePromoteOrganizer = async () => {
-        setIsLoading(true)
-        const formData = new FormData()
-        formData.append('userId', userId)
-        try {
-            await promoteToOrganizer(formData)
-            toast.success('User promoted to Organizer')
-            onRefresh()
-            setIsOpen(false)
-        } catch (error) {
-            toast.error('Failed to promote user')
-        } finally {
-            setIsLoading(false)
-        }
-    }
-
-    const handlePromoteClubMaster = async (e: React.FormEvent) => {
-        e.preventDefault()
-        if (!clubName) return
-        setIsLoading(true)
-        const formData = new FormData()
-        formData.append('userId', userId)
-        formData.append('clubName', clubName)
-        try {
-            await promoteToClubMaster(formData)
-            toast.success('User promoted to Club Master')
-            onRefresh()
-            setIsClubModalOpen(false)
-            setClubName('')
-        } catch (error) {
-            toast.error('Failed to promote user')
-        } finally {
-            setIsLoading(false)
-        }
-    }
-
-    const handleDeleteUser = async () => {
-        setIsLoading(true)
-        const formData = new FormData()
-        formData.append('userId', userId)
-        try {
-            await deleteUser(formData)
-            toast.success(`${userName} has been deleted`)
-            onRefresh()
-            setIsDeleteModalOpen(false)
-        } catch (error: any) {
-            toast.error(error?.message || 'Failed to delete user')
-        } finally {
-            setIsLoading(false)
-        }
-    }
-
-    return (
-        <>
-            <div className="relative">
-                <button
-                    onClick={() => setIsOpen(!isOpen)}
-                    className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
-                >
-                    <MoreHorizontal className="w-5 h-5" />
-                </button>
-
-                {isOpen && (
-                    <>
-                        <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-                        <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-100 z-50 overflow-hidden">
-                            <div className="py-1">
-                                <div className="px-4 py-2 border-b border-gray-50 bg-gray-50/50">
-                                    <p className="text-xs font-medium text-gray-500 uppercase">Manage {userName.split(' ')[0]}</p>
-                                </div>
-
-                                {currentRole !== 'ORGANIZER' && currentRole !== 'MANAGER' && (
-                                    <button
-                                        onClick={handlePromoteOrganizer}
-                                        disabled={isLoading}
-                                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2"
-                                    >
-                                        <Shield className="w-4 h-4" />
-                                        Promote to Organizer
-                                    </button>
-                                )}
-
-                                {currentRole !== 'CLUB_MASTER' && (
-                                    <button
-                                        onClick={() => { setIsClubModalOpen(true); setIsOpen(false) }}
-                                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 flex items-center gap-2"
-                                    >
-                                        <Award className="w-4 h-4" />
-                                        Promote to Club Master
-                                    </button>
-                                )}
-
-                                <button
-                                    onClick={handleToggleVerification}
-                                    disabled={isLoading}
-                                    className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2"
-                                >
-                                    <Shield className={`w-4 h-4 ${isVerified ? 'text-blue-600 fill-blue-600' : ''}`} />
-                                    {isVerified ? 'Revoke Athlete License' : 'Grant Athlete License'}
-                                </button>
-
-                                <div className="border-t border-gray-100 my-1" />
-
-                                <button
-                                    onClick={() => { setIsDeleteModalOpen(true); setIsOpen(false) }}
-                                    className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                                >
-                                    <Trash2 className="w-4 h-4" />
-                                    Delete User
-                                </button>
-                            </div>
-                        </div>
-                    </>
-                )}
-            </div >
-
-            {/* Club Master Modal */}
-            {
-                isClubModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                                <h3 className="text-lg font-bold text-gray-900">Promote to Club Master</h3>
-                                <button onClick={() => setIsClubModalOpen(false)} className="p-1 rounded-full hover:bg-gray-200 text-gray-400">
-                                    <X className="w-5 h-5" />
-                                </button>
-                            </div>
-                            <form onSubmit={handlePromoteClubMaster} className="p-6 space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Club Name</label>
-                                    <input
-                                        type="text"
-                                        value={clubName}
-                                        onChange={(e) => setClubName(e.target.value)}
-                                        placeholder="e.g. Eagle Taekwondo Academy"
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
-                                    />
-                                </div>
-                                <div className="flex gap-3">
-                                    <button type="button" onClick={() => setIsClubModalOpen(false)} className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200">
-                                        Cancel
-                                    </button>
-                                    <button type="submit" disabled={isLoading || !clubName.trim()} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 disabled:opacity-50">
-                                        {isLoading ? 'Promoting...' : 'Confirm'}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )
-            }
-
-            {/* Delete Modal */}
-            {
-                isDeleteModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-red-50">
-                                <div className="flex items-center gap-2">
-                                    <AlertTriangle className="w-5 h-5 text-red-600" />
-                                    <h3 className="text-lg font-bold text-red-900">Delete User</h3>
-                                </div>
-                                <button onClick={() => setIsDeleteModalOpen(false)} className="p-1 rounded-full hover:bg-red-100 text-red-400">
-                                    <X className="w-5 h-5" />
-                                </button>
-                            </div>
-                            <div className="p-6 space-y-4">
-                                <p className="text-gray-700">Are you sure you want to delete <strong>{userName}</strong>?</p>
-                                <div className="flex gap-3">
-                                    <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200">
-                                        Cancel
-                                    </button>
-                                    <button onClick={handleDeleteUser} disabled={isLoading} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 disabled:opacity-50">
-                                        {isLoading ? 'Deleting...' : 'Delete'}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
-        </>
-    )
-}

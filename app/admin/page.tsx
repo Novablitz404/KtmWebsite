@@ -15,8 +15,11 @@ export default async function AdminPage() {
         return redirect('/')
     }
 
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
     // Parallel Data Fetching
-    const [stats, pendingOrgs, potentialOwners, approvedTournamentRegistrations, approvedSeminarRegistrations] = await Promise.all([
+    const [stats, pendingOrgs, potentialOwners, newUsersThisMonth, newTournamentRegs, newSeminarRegs, newPromotionRegs] = await Promise.all([
         // 1. Stats
         prisma.user.groupBy({
             by: ['role'],
@@ -38,14 +41,14 @@ export default async function AdminPage() {
             select: { id: true, name: true, email: true, role: true },
             orderBy: { name: 'asc' }
         }),
-        // 4. Count approved tournament registrations
-        prisma.player.count({
-            where: { registrationStatus: 'APPROVED' }
-        }),
-        // 5. Count approved seminar registrations
-        prisma.seminarRegistration.count({
-            where: { status: 'APPROVED' }
-        })
+        // 4. New Users This Month
+        prisma.user.count({ where: { createdAt: { gte: startOfMonth } } }),
+        // 5. New Tournament Registrations
+        prisma.player.count({ where: { createdAt: { gte: startOfMonth } } }),
+        // 6. New Seminar Registrations
+        prisma.seminarRegistration.count({ where: { createdAt: { gte: startOfMonth } } }),
+        // 7. New Promotion Test Registrations
+        prisma.promotionTestRegistration.count({ where: { createdAt: { gte: startOfMonth } } })
     ])
 
     // Process Stats
@@ -55,16 +58,11 @@ export default async function AdminPage() {
     }, {} as Record<string, number>)
     const totalUsers = Object.values(countByRole).reduce((a, b) => a + b, 0)
 
-    // Calculate Revenue (100 pesos per approved registration)
-    const FEE_PER_REGISTRATION = 100
-    const totalRevenue = (approvedTournamentRegistrations + approvedSeminarRegistrations) * FEE_PER_REGISTRATION
-
     const processedStats = {
         totalUsers,
         countByRole,
-        totalRevenue,
-        approvedTournamentRegistrations,
-        approvedSeminarRegistrations
+        newUsersThisMonth,
+        newRegistrationsThisMonth: newTournamentRegs + newSeminarRegs + newPromotionRegs
     }
 
     // Format Data for Client
