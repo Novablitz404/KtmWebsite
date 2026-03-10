@@ -59,6 +59,10 @@ export async function PUT(request: Request) {
             }
         })
 
+        // Cascade name change to all registration records
+        const { cascadeUserName } = await import('@/lib/cascadeUserName')
+        await cascadeUserName(user.id, name)
+
         return apiResponse(updatedUser)
 
     } catch (error) {

@@ -1345,6 +1345,10 @@ export async function updateProfile(formData: FormData) {
         }
     })
 
+    // Cascade name change to all registration records
+    const { cascadeUserName } = await import('@/lib/cascadeUserName')
+    await cascadeUserName(userId, name)
+
     // Upload image to Supabase Storage if provided
     if (imageFile && imageFile.size > 0) {
         try {
