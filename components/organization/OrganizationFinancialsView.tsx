@@ -7,6 +7,9 @@ import { useTenant } from '@/app/providers/TenantProvider'
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import { generateFinancialPDF, generateEventPDF } from '@/lib/generateFinancialPDF'
 import DistributionRulesView from './DistributionRulesView'
+import AdvancePaymentsView from './AdvancePaymentsView'
+import ExpensesView from './ExpensesView'
+import BalanceSheetView from './BalanceSheetView'
 
 type FinancialData = NonNullable<Awaited<ReturnType<typeof getOrganizationFinancials>>>
 type EventItem = FinancialData['events'][0]
@@ -392,7 +395,7 @@ function CollectionRateRing({ rate }: { rate: number }) {
 export default function OrganizationFinancialsView() {
     const tenant = useTenant()
     const primaryColor = tenant.slug === 'ktm' ? '#DC2626' : (tenant.primaryColor || '#DC2626')
-    const [activeTab, setActiveTab] = useState<'overview' | 'rules'>('overview')
+    const [activeTab, setActiveTab] = useState<'overview' | 'advances' | 'expenses' | 'balance' | 'rules'>('overview')
     const [filter, setFilter] = useState<'all' | 'tournament' | 'promotion' | 'seminar' | 'affiliation'>('all')
     const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null)
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
@@ -589,6 +592,24 @@ export default function OrganizationFinancialsView() {
                         Overview
                     </button>
                     <button
+                        onClick={() => setActiveTab('advances')}
+                        className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${activeTab === 'advances' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Advance Payments
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('expenses')}
+                        className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${activeTab === 'expenses' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Expenses
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('balance')}
+                        className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${activeTab === 'balance' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Balance Sheet
+                    </button>
+                    <button
                         onClick={() => setActiveTab('rules')}
                         className={`px-4 py-2 text-sm font-semibold rounded-md transition-all flex items-center gap-2 ${activeTab === 'rules' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
@@ -612,6 +633,12 @@ export default function OrganizationFinancialsView() {
                     initialDistributions={data.distributions || {}}
                     primaryColor={primaryColor}
                 />
+            ) : activeTab === 'advances' ? (
+                <AdvancePaymentsView primaryColor={primaryColor} />
+            ) : activeTab === 'expenses' ? (
+                <ExpensesView primaryColor={primaryColor} />
+            ) : activeTab === 'balance' ? (
+                <BalanceSheetView primaryColor={primaryColor} />
             ) : (
                 <>
                     {/* Summary Cards */}

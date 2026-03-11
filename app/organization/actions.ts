@@ -120,8 +120,10 @@ export async function getOrganizationDashboardData() {
         .slice(0, 5)
 
 
-    // Calculate Stats
-    const totalDirectMembers = affiliatedClubs.reduce((acc, club) => acc + (memberCountMap.get(club.name) || 0), 0)
+    // Calculate Stats — count all members of this org (all roles)
+    const totalDirectMembers = await prisma.user.count({
+        where: { organizationMemberId: orgId }
+    })
     const totalAffiliatedMembers = affiliatedOrgsMemberCounts.reduce((acc, item) => acc + item.count, 0)
 
     const affiliatedOrgsWithStats = affiliatedOrgs.map(org => {
@@ -891,6 +893,8 @@ export async function updateOrganizationSettings(formData: FormData) {
         const chairman = formData.get('chairman') as string | null
         const viceChairman = formData.get('viceChairman') as string | null
         const website = formData.get('website') as string | null
+        const athleteCardFeeStr = formData.get('athleteCardFee') as string | null
+        const athleteCardPaymentInstructions = formData.get('athleteCardPaymentInstructions') as string | null
 
         if (!organizationId) return { error: 'Organization ID is required' }
         if (!name) return { error: 'Organization Name is required' }
@@ -927,6 +931,12 @@ export async function updateOrganizationSettings(formData: FormData) {
         if (chairman !== null) updateData.chairman = chairman
         if (viceChairman !== null) updateData.viceChairman = viceChairman
         if (website !== null) updateData.website = website
+        if (athleteCardFeeStr !== null && athleteCardFeeStr.trim() !== '') {
+            updateData.athleteCardFee = parseFloat(athleteCardFeeStr)
+        } else if (athleteCardFeeStr === '') {
+            updateData.athleteCardFee = null
+        }
+        if (athleteCardPaymentInstructions !== null) updateData.athleteCardPaymentInstructions = athleteCardPaymentInstructions
 
         // Handle default belt fees
         const whiteToPurpleFeeStr = formData.get('whiteToPurpleFee') as string
@@ -1948,7 +1958,7 @@ async function generateAthleteNumber(country: string | null | undefined): Promis
         }
     }
 
-    return `${prefix}${String(nextNumber).padStart(5, '0')}`
+    return `${prefix}${String(nextNumber).padStart(7, '0')}`
 }
 
 export async function getOrganizationAthletes() {
@@ -1990,6 +2000,8 @@ export async function getOrganizationAthletes() {
             imageUrl: true,
             country: true,
             createdAt: true,
+            cardPaymentProofUrl: true,
+            cardPaymentStatus: true,
         },
         orderBy: { name: 'asc' }
     })
@@ -2029,8 +2041,17 @@ export async function toggleAthleteCardStatus(athleteId: string) {
     }
 
     if (!targetUser.isVerified) {
-        // Activate: generate athlete number
-        const athleteNumber = targetUser.athleteNumber || await generateAthleteNumber(targetUser.country)
+        // Activate: generate or renew athlete number
+        let athleteNumber: string
+        if (targetUser.athleteNumber) {
+            // Renewal: keep same suffix, update year
+            const parts = targetUser.athleteNumber.split('-')
+            const code = parts[0]
+            const suffix = parts[2]
+            athleteNumber = `${code}-${new Date().getFullYear()}-${suffix}`
+        } else {
+            athleteNumber = await generateAthleteNumber(targetUser.country)
+        }
         await prisma.user.update({
             where: { id: athleteId },
             data: {
@@ -2040,13 +2061,12 @@ export async function toggleAthleteCardStatus(athleteId: string) {
             }
         })
     } else {
-        // Deactivate: clear athlete number
+        // Deactivate: preserve athleteNumber for future renewal
         await prisma.user.update({
             where: { id: athleteId },
             data: {
                 isVerified: false,
-                athleteNumber: null,
-                createdAt: null,
+                // athleteNumber is preserved for renewal
             }
         })
     }
@@ -2779,4 +2799,350 @@ export async function manuallyActivateAffiliation(clubId: string) {
 
     revalidatePath('/organization')
     return { success: true }
+}
+
+// ============================================
+// ORGANIZATION EVENTS LIST (lightweight)
+// ============================================
+
+export async function getOrganizationEvents() {
+    const user = await getAuthUser()
+    if (!user) return []
+
+    const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: { organization: { select: { id: true } } }
+    })
+
+    if (!dbUser?.organization) return []
+
+    const orgId = dbUser.organization.id
+
+    const [tournaments, seminars, promotions] = await Promise.all([
+        prisma.tournament.findMany({
+            where: { organizerId: dbUser.id },
+            select: { id: true, name: true },
+            orderBy: { startDate: 'desc' }
+        }),
+        prisma.seminar.findMany({
+            where: { organizationId: orgId },
+            select: { id: true, name: true },
+            orderBy: { startDate: 'desc' }
+        }),
+        prisma.promotionTest.findMany({
+            where: { organizationId: orgId },
+            select: { id: true, name: true },
+            orderBy: { testDate: 'desc' }
+        }),
+    ])
+
+    return [
+        ...tournaments.map(t => ({ id: t.id, name: t.name, type: 'tournament' as const })),
+        ...seminars.map(s => ({ id: s.id, name: s.name, type: 'seminar' as const })),
+        ...promotions.map(p => ({ id: p.id, name: p.name, type: 'promotion' as const })),
+    ]
+}
+
+// ============================================
+// ADVANCE PAYMENT LEDGER ACTIONS
+// ============================================
+
+async function getOrgContext() {
+    const user = await getAuthUser()
+    if (!user) return null
+
+    const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: { organization: { select: { id: true } } }
+    })
+
+    if (!dbUser?.organization) return null
+    if (!['ORGANIZER', 'MANAGER', 'ADMIN'].includes(dbUser.role)) return null
+
+    return { userId: dbUser.id, orgId: dbUser.organization.id }
+}
+
+export async function getAdvancePayments() {
+    const ctx = await getOrgContext()
+    if (!ctx) return []
+
+    return prisma.advancePayment.findMany({
+        where: { organizationId: ctx.orgId },
+        orderBy: { paidAt: 'desc' }
+    })
+}
+
+export async function createAdvancePayment(data: {
+    payerName: string
+    clubName?: string
+    amount: number
+    eventType?: string
+    eventId?: string
+    eventName?: string
+    notes?: string
+    paidAt: string
+}) {
+    const ctx = await getOrgContext()
+    if (!ctx) return { error: 'Unauthorized' }
+
+    await prisma.advancePayment.create({
+        data: {
+            organizationId: ctx.orgId,
+            payerName: data.payerName,
+            clubName: data.clubName || null,
+            amount: data.amount,
+            eventType: data.eventType || null,
+            eventId: data.eventId || null,
+            eventName: data.eventName || null,
+            notes: data.notes || null,
+            paidAt: new Date(data.paidAt),
+            status: 'UNMATCHED'
+        }
+    })
+
+    revalidatePath('/organization')
+    return { success: true }
+}
+
+export async function updateAdvancePaymentStatus(id: string, status: 'MATCHED' | 'REFUNDED' | 'UNMATCHED') {
+    const ctx = await getOrgContext()
+    if (!ctx) return { error: 'Unauthorized' }
+
+    const payment = await prisma.advancePayment.findUnique({ where: { id } })
+    if (!payment || payment.organizationId !== ctx.orgId) return { error: 'Not found' }
+
+    await prisma.advancePayment.update({
+        where: { id },
+        data: {
+            status,
+            matchedAt: status === 'MATCHED' ? new Date() : null,
+        }
+    })
+
+    revalidatePath('/organization')
+    return { success: true }
+}
+
+export async function deleteAdvancePayment(id: string) {
+    const ctx = await getOrgContext()
+    if (!ctx) return { error: 'Unauthorized' }
+
+    const payment = await prisma.advancePayment.findUnique({ where: { id } })
+    if (!payment || payment.organizationId !== ctx.orgId) return { error: 'Not found' }
+
+    await prisma.advancePayment.delete({ where: { id } })
+
+    revalidatePath('/organization')
+    return { success: true }
+}
+
+// ============================================
+// EXPENSE TRACKER ACTIONS
+// ============================================
+
+export async function getExpenses() {
+    const ctx = await getOrgContext()
+    if (!ctx) return []
+
+    return prisma.expense.findMany({
+        where: { organizationId: ctx.orgId },
+        orderBy: { date: 'desc' }
+    })
+}
+
+export async function createExpense(data: {
+    description: string
+    amount: number
+    category: string
+    date: string
+    receiptUrl?: string
+    eventType?: string
+    eventId?: string
+    eventName?: string
+}) {
+    const ctx = await getOrgContext()
+    if (!ctx) return { error: 'Unauthorized' }
+
+    await prisma.expense.create({
+        data: {
+            organizationId: ctx.orgId,
+            description: data.description,
+            amount: data.amount,
+            category: data.category,
+            date: new Date(data.date),
+            receiptUrl: data.receiptUrl || null,
+            eventType: data.eventType || null,
+            eventId: data.eventId || null,
+            eventName: data.eventName || null,
+        }
+    })
+
+    revalidatePath('/organization')
+    return { success: true }
+}
+
+export async function deleteExpense(id: string) {
+    const ctx = await getOrgContext()
+    if (!ctx) return { error: 'Unauthorized' }
+
+    const expense = await prisma.expense.findUnique({ where: { id } })
+    if (!expense || expense.organizationId !== ctx.orgId) return { error: 'Not found' }
+
+    await prisma.expense.delete({ where: { id } })
+
+    revalidatePath('/organization')
+    return { success: true }
+}
+
+// ============================================
+// BALANCE SHEET ACTION
+// ============================================
+
+export async function getBalanceSheet() {
+    const ctx = await getOrgContext()
+    if (!ctx) return null
+
+    const [financials, advancePayments, expenses] = await Promise.all([
+        getOrganizationFinancials(),
+        prisma.advancePayment.findMany({
+            where: { organizationId: ctx.orgId },
+            orderBy: { paidAt: 'desc' }
+        }),
+        prisma.expense.findMany({
+            where: { organizationId: ctx.orgId },
+            orderBy: { date: 'desc' }
+        }),
+    ])
+
+    if (!financials) return null
+
+    // Revenue breakdown
+    const totalRevenue = financials.summary.totalCollected
+
+    // Advance payments breakdown
+    const unmatchedPayments = advancePayments.filter(p => p.status === 'UNMATCHED')
+    const matchedPayments = advancePayments.filter(p => p.status === 'MATCHED')
+    const totalUnmatched = unmatchedPayments.reduce((s, p) => s + p.amount, 0)
+    const totalMatched = matchedPayments.reduce((s, p) => s + p.amount, 0)
+
+    // Expense breakdown by category
+    const expensesByCategory: Record<string, number> = {}
+    let totalExpenses = 0
+    expenses.forEach(e => {
+        expensesByCategory[e.category] = (expensesByCategory[e.category] || 0) + e.amount
+        totalExpenses += e.amount
+    })
+
+    // Net position: Revenue - Expenses
+    const netPosition = totalRevenue - totalExpenses
+
+    return {
+        revenue: {
+            total: totalRevenue,
+            byType: financials.revenueByType,
+            netRevenue: financials.summary.totalNetRevenue,
+            deductions: financials.summary.totalDeductions,
+        },
+        advancePayments: {
+            totalUnmatched,
+            totalMatched,
+            unmatchedCount: unmatchedPayments.length,
+            matchedCount: matchedPayments.length,
+        },
+        expenses: {
+            total: totalExpenses,
+            byCategory: expensesByCategory,
+            items: expenses,
+        },
+        netPosition,
+    }
+}
+
+// ============================================
+// FEE MANAGEMENT ACTIONS
+// ============================================
+
+export async function updatePromotionTestFees(formData: FormData) {
+    try {
+        const organizationId = formData.get('organizationId') as string
+        if (!organizationId) return { error: 'Organization ID is required' }
+
+        const user = await getAuthUser()
+        if (!user) return { error: 'Unauthorized' }
+
+        const dbUser = await prisma.user.findUnique({
+            where: { id: user.id },
+            include: { organization: true }
+        })
+
+        if (!dbUser?.organization || (dbUser.organization.ownerId !== dbUser.id && dbUser.role !== 'ADMIN') || dbUser.organization.id !== organizationId) {
+            return { error: 'Unauthorized to edit these settings' }
+        }
+
+        const whiteToPurpleFeeStr = formData.get('whiteToPurpleFee') as string
+        const blueToMaroonFeeStr = formData.get('blueToMaroonFee') as string
+        const brownFeeStr = formData.get('brownFee') as string
+
+        const defaultBeltFees = {
+            whiteToPurple: whiteToPurpleFeeStr ? parseFloat(whiteToPurpleFeeStr) : null,
+            blueToMaroon: blueToMaroonFeeStr ? parseFloat(blueToMaroonFeeStr) : null,
+            brown: brownFeeStr ? parseFloat(brownFeeStr) : null
+        }
+
+        await prisma.organization.update({
+            where: { id: organizationId },
+            data: { defaultBeltFees }
+        })
+
+        return { success: true }
+    } catch (e) {
+        console.error('Failed to update promotion test fees:', e)
+        return { error: 'Failed to update promotion test fees' }
+    }
+}
+
+export async function updateAthleteCardFees(formData: FormData) {
+    try {
+        const organizationId = formData.get('organizationId') as string
+        if (!organizationId) return { error: 'Organization ID is required' }
+
+        const user = await getAuthUser()
+        if (!user) return { error: 'Unauthorized' }
+
+        const dbUser = await prisma.user.findUnique({
+            where: { id: user.id },
+            include: { organization: true }
+        })
+
+        if (!dbUser?.organization || (dbUser.organization.ownerId !== dbUser.id && dbUser.role !== 'ADMIN') || dbUser.organization.id !== organizationId) {
+            return { error: 'Unauthorized to edit these settings' }
+        }
+
+        const athleteCardFeeStr = formData.get('athleteCardFee') as string | null
+        const athleteCardPaymentInstructions = formData.get('athleteCardPaymentInstructions') as string | null
+        const athleteCardPaymentMethodsStr = formData.get('athleteCardPaymentMethods') as string | null
+
+        let defaultMethods = null
+        if (athleteCardPaymentMethodsStr) {
+            try {
+                defaultMethods = JSON.parse(athleteCardPaymentMethodsStr)
+            } catch (e) {
+                console.error('Failed to parse payment methods array')
+            }
+        }
+
+        await prisma.organization.update({
+            where: { id: organizationId },
+            data: {
+                athleteCardFee: athleteCardFeeStr ? parseFloat(athleteCardFeeStr) : null,
+                athleteCardPaymentInstructions: athleteCardPaymentInstructions || null,
+                athleteCardPaymentMethods: defaultMethods
+            }
+        })
+
+        return { success: true }
+    } catch (e) {
+        console.error('Failed to update athlete card fees:', e)
+        return { error: 'Failed to update athlete card fees' }
+    }
 }

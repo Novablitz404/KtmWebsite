@@ -71,13 +71,13 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // 4. Helper: generate unique 5-digit player ID
+        // 4. Helper: generate unique 9-digit player ID
         const usedIds = new Set<string>()
         const generatePlayerId = async (): Promise<string> => {
             let attempts = 0
             while (attempts < 100) {
-                const randomNum = Math.floor(Math.random() * 100000)
-                const id = randomNum.toString().padStart(5, '0')
+                const randomNum = Math.floor(Math.random() * 1000000000)
+                const id = randomNum.toString().padStart(9, '0')
                 if (usedIds.has(id)) { attempts++; continue }
                 const exists = await prisma.player.findUnique({ where: { id } })
                 if (!exists) { usedIds.add(id); return id }

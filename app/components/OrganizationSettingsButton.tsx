@@ -18,6 +18,8 @@ interface OrganizationSettingsButtonProps {
     chairman?: string | null
     viceChairman?: string | null
     defaultBeltFees?: any
+    athleteCardFee?: number | null
+    athleteCardPaymentInstructions?: string | null
     variant?: 'button' | 'icon'
     buttonText?: string
 }
@@ -34,6 +36,8 @@ export default function OrganizationSettingsButton({
     chairman,
     viceChairman,
     defaultBeltFees,
+    athleteCardFee,
+    athleteCardPaymentInstructions,
     variant = 'button',
     buttonText = 'Organization Settings'
 }: OrganizationSettingsButtonProps) {
@@ -283,51 +287,7 @@ export default function OrganizationSettingsButton({
                                 </div>
                             </div>
 
-                            {/* Promotion Test Default Fees */}
-                            <div className="pt-2 border-t border-gray-100">
-                                <label className="block text-sm font-medium text-gray-700 mb-3">Promotion Test Default Fees</label>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs text-gray-500 mb-1.5">White to Purple (₱)</label>
-                                        <input
-                                            type="number"
-                                            name="whiteToPurpleFee"
-                                            defaultValue={defaultBeltFees?.whiteToPurple || ''}
-                                            placeholder="e.g. 600"
-                                            min="0"
-                                            step="0.01"
-                                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-gray-50/50 focus:bg-white"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs text-gray-500 mb-1.5">Blue to Maroon (₱)</label>
-                                        <input
-                                            type="number"
-                                            name="blueToMaroonFee"
-                                            defaultValue={defaultBeltFees?.blueToMaroon || ''}
-                                            placeholder="e.g. 700"
-                                            min="0"
-                                            step="0.01"
-                                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-gray-50/50 focus:bg-white"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs text-gray-500 mb-1.5">Brown (₱)</label>
-                                        <input
-                                            type="number"
-                                            name="brownFee"
-                                            defaultValue={defaultBeltFees?.brown || ''}
-                                            placeholder="e.g. 800"
-                                            min="0"
-                                            step="0.01"
-                                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-gray-50/50 focus:bg-white"
-                                        />
-                                    </div>
-                                </div>
-                                <p className="text-xs text-gray-400 mt-2">Applied automatically to new promotion tests</p>
-                            </div>
-
-                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                            <div className="flex justify-end gap-3 pt-6 border-t border-gray-100">
                                 <button
                                     type="button"
                                     onClick={() => setShowSettings(false)}

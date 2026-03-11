@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Search, ShieldCheck, ShieldOff, IdCard, Users, ChevronLeft, ChevronRight, Eye, X } from 'lucide-react'
 import { getOrganizationAthletes, toggleAthleteCardStatus } from '@/app/organization/actions'
+import { approveAthleteCardPayment, rejectAthleteCardPayment } from '@/app/actions'
 import { toast } from 'sonner'
 import AthleteCard from '@/components/athlete/AthleteCard'
 
@@ -17,6 +18,8 @@ interface Athlete {
     imageUrl: string | null
     country: string | null
     createdAt: Date | null
+    cardPaymentProofUrl: string | null
+    cardPaymentStatus: string | null
 }
 
 const PAGE_SIZE = 10
@@ -25,10 +28,12 @@ export default function OrganizationAthletesView() {
     const [athletes, setAthletes] = useState<Athlete[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [search, setSearch] = useState('')
-    const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all')
+    const [filter, setFilter] = useState<'all' | 'active' | 'inactive' | 'pending'>('all')
     const [togglingId, setTogglingId] = useState<string | null>(null)
     const [page, setPage] = useState(1)
     const [selectedAthlete, setSelectedAthlete] = useState<Athlete | null>(null)
+    const [isApproving, setIsApproving] = useState(false)
+    const [isRejecting, setIsRejecting] = useState(false)
 
     useEffect(() => {
         loadAthletes()
@@ -74,6 +79,42 @@ export default function OrganizationAthletesView() {
         }
     }
 
+    async function handleApprovePayment(athleteId: string) {
+        setIsApproving(true)
+        try {
+            const result = await approveAthleteCardPayment(athleteId)
+            if (result?.error) {
+                toast.error(result.error)
+            } else {
+                toast.success('Card activated and payment approved')
+                await loadAthletes()
+                setSelectedAthlete(null)
+            }
+        } catch (error) {
+            toast.error('Failed to approve payment')
+        } finally {
+            setIsApproving(false)
+        }
+    }
+
+    async function handleRejectPayment(athleteId: string) {
+        setIsRejecting(true)
+        try {
+            const result = await rejectAthleteCardPayment(athleteId)
+            if (result?.error) {
+                toast.error(result.error)
+            } else {
+                toast.success('Payment rejected')
+                await loadAthletes()
+                setSelectedAthlete(null)
+            }
+        } catch (error) {
+            toast.error('Failed to reject payment')
+        } finally {
+            setIsRejecting(false)
+        }
+    }
+
     const filteredAthletes = athletes.filter(a => {
         const matchesSearch =
             !search ||
@@ -85,7 +126,8 @@ export default function OrganizationAthletesView() {
         const matchesFilter =
             filter === 'all' ||
             (filter === 'active' && a.isVerified) ||
-            (filter === 'inactive' && !a.isVerified)
+            (filter === 'inactive' && !a.isVerified && a.cardPaymentStatus !== 'PENDING_ACTIVATION') ||
+            (filter === 'pending' && a.cardPaymentStatus === 'PENDING_ACTIVATION')
 
         return matchesSearch && matchesFilter
     })
@@ -93,7 +135,8 @@ export default function OrganizationAthletesView() {
     const totalPages = Math.ceil(filteredAthletes.length / PAGE_SIZE)
     const paginatedAthletes = filteredAthletes.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
     const activeCount = athletes.filter(a => a.isVerified).length
-    const inactiveCount = athletes.filter(a => !a.isVerified).length
+    const inactiveCount = athletes.filter(a => !a.isVerified && a.cardPaymentStatus !== 'PENDING_ACTIVATION').length
+    const pendingCount = athletes.filter(a => a.cardPaymentStatus === 'PENDING_ACTIVATION').length
 
     return (
         <div className="flex flex-col h-[calc(100vh-80px)] px-4 sm:px-6 lg:px-8 py-6 gap-6">
@@ -138,8 +181,8 @@ export default function OrganizationAthletesView() {
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col flex-1 min-h-0">
                 {/* Filters & Search */}
                 <div className="px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center gap-3 justify-between flex-shrink-0">
-                    <div className="flex gap-2">
-                        {(['all', 'active', 'inactive'] as const).map((f) => (
+                    <div className="flex flex-wrap gap-2">
+                        {(['all', 'active', 'pending', 'inactive'] as const).map((f) => (
                             <button
                                 key={f}
                                 onClick={() => setFilter(f)}
@@ -148,7 +191,7 @@ export default function OrganizationAthletesView() {
                                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                     }`}
                             >
-                                {f === 'all' ? `All (${athletes.length})` : f === 'active' ? `Active (${activeCount})` : `Inactive (${inactiveCount})`}
+                                {f === 'all' ? `All (${athletes.length})` : f === 'active' ? `Active (${activeCount})` : f === 'pending' ? `Pending (${pendingCount})` : `Inactive (${inactiveCount})`}
                             </button>
                         ))}
                     </div>
@@ -250,6 +293,11 @@ export default function OrganizationAthletesView() {
                                                     <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
                                                     Active
                                                 </span>
+                                            ) : athlete.cardPaymentStatus === 'PENDING_ACTIVATION' ? (
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-100">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                                    Pending
+                                                </span>
                                             ) : (
                                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-500 border border-gray-200">
                                                     <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
@@ -259,14 +307,12 @@ export default function OrganizationAthletesView() {
                                         </td>
                                         <td className="px-5 py-3.5 text-center">
                                             <div className="flex items-center justify-center gap-2">
-                                                {athlete.isVerified && (
-                                                    <button
-                                                        onClick={() => setSelectedAthlete(athlete)}
-                                                        className="p-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all border border-gray-200"
-                                                    >
-                                                        <Eye className="w-4 h-4" />
-                                                    </button>
-                                                )}
+                                                <button
+                                                    onClick={() => setSelectedAthlete(athlete)}
+                                                    className="p-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all border border-gray-200"
+                                                >
+                                                    <Eye className="w-4 h-4" />
+                                                </button>
                                                 <button
                                                     onClick={() => handleToggle(athlete.id)}
                                                     disabled={togglingId === athlete.id}
@@ -361,27 +407,60 @@ export default function OrganizationAthletesView() {
                         </button>
 
                         {/* Card */}
-                        <AthleteCard
-                            name={selectedAthlete.name}
-                            athleteId={selectedAthlete.athleteNumber}
-                            imageUrl={selectedAthlete.imageUrl}
-                            createdAt={selectedAthlete.createdAt?.toString() || null}
-                            isVerified={selectedAthlete.isVerified}
-                        />
+                        {selectedAthlete.cardPaymentStatus !== 'PENDING_ACTIVATION' && (
+                            <AthleteCard
+                                name={selectedAthlete.name}
+                                athleteId={selectedAthlete.athleteNumber}
+                                imageUrl={selectedAthlete.imageUrl}
+                                createdAt={selectedAthlete.createdAt?.toString() || null}
+                                isVerified={selectedAthlete.isVerified}
+                                cardPaymentStatus={selectedAthlete.cardPaymentStatus}
+                            />
+                        )}
 
                         {/* Info Footer */}
-                        <div className="mt-3 bg-white/90 backdrop-blur rounded-xl p-4 flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-bold text-gray-900">{selectedAthlete.name || 'Unknown'}</p>
-                                <p className="text-xs text-gray-500">{selectedAthlete.clubName || 'No club'} • {selectedAthlete.belt || 'No belt'}</p>
+                        <div className="mt-3 bg-white/90 backdrop-blur rounded-xl p-4 flex flex-col gap-3">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-bold text-gray-900">{selectedAthlete.name || 'Unknown'}</p>
+                                    <p className="text-xs text-gray-500">{selectedAthlete.clubName || 'No club'} • {selectedAthlete.belt || 'No belt'}</p>
+                                </div>
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${selectedAthlete.isVerified
+                                    ? 'bg-green-50 text-green-700 border border-green-100'
+                                    : selectedAthlete.cardPaymentStatus === 'PENDING_ACTIVATION'
+                                        ? 'bg-amber-50 text-amber-700 border border-amber-100'
+                                        : 'bg-gray-100 text-gray-500 border border-gray-200'
+                                    }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${selectedAthlete.isVerified ? 'bg-green-500' : selectedAthlete.cardPaymentStatus === 'PENDING_ACTIVATION' ? 'bg-amber-500 animate-pulse' : 'bg-gray-400'}`} />
+                                    {selectedAthlete.isVerified ? 'Active' : selectedAthlete.cardPaymentStatus === 'PENDING_ACTIVATION' ? 'Pending Approval' : 'Inactive'}
+                                </span>
                             </div>
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${selectedAthlete.isVerified
-                                ? 'bg-green-50 text-green-700 border border-green-100'
-                                : 'bg-gray-100 text-gray-500 border border-gray-200'
-                                }`}>
-                                <span className={`w-1.5 h-1.5 rounded-full ${selectedAthlete.isVerified ? 'bg-green-500' : 'bg-gray-400'}`} />
-                                {selectedAthlete.isVerified ? 'Active' : 'Inactive'}
-                            </span>
+
+                            {/* Pending Activation Actions */}
+                            {selectedAthlete.cardPaymentStatus === 'PENDING_ACTIVATION' && selectedAthlete.cardPaymentProofUrl && (
+                                <div className="mt-2 border-t border-gray-100 pt-3">
+                                    <p className="text-xs font-bold text-gray-700 mb-2 uppercase tracking-wide">Payment Proof</p>
+                                    <div className="w-full bg-gray-50 rounded-lg overflow-hidden border border-gray-200 mb-3">
+                                        <img src={selectedAthlete.cardPaymentProofUrl} alt="Payment Proof" className="w-full h-auto object-contain max-h-60" />
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => handleRejectPayment(selectedAthlete.id)}
+                                            disabled={isRejecting || isApproving}
+                                            className="flex-1 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold transition-all disabled:opacity-50"
+                                        >
+                                            {isRejecting ? 'Rejecting...' : 'Reject'}
+                                        </button>
+                                        <button
+                                            onClick={() => handleApprovePayment(selectedAthlete.id)}
+                                            disabled={isRejecting || isApproving}
+                                            className="flex-1 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-bold transition-all disabled:opacity-50"
+                                        >
+                                            {isApproving ? 'Approving...' : 'Approve Payment'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

@@ -380,12 +380,12 @@ export async function createPlayer(formData: FormData) {
 
     if (!name || !categoryId) return
 
-    // Generate unique 5-digit player ID
+    // Generate unique 9-digit player ID
     const generatePlayerId = async (): Promise<string> => {
         let attempts = 0
         while (attempts < 100) {
-            const randomNum = Math.floor(Math.random() * 100000)
-            const id = randomNum.toString().padStart(5, '0')
+            const randomNum = Math.floor(Math.random() * 1000000000)
+            const id = randomNum.toString().padStart(9, '0')
             const exists = await prisma.player.findUnique({ where: { id } })
             if (!exists) return id
             attempts++
@@ -1185,12 +1185,12 @@ export async function completeOnboarding(formData: FormData) {
         return
     }
 
-    // Generate unique 5-digit ID
-    const generate5DigitId = async (): Promise<string> => {
+    // Generate unique 9-digit ID
+    const generate9DigitId = async (): Promise<string> => {
         let attempts = 0;
         while (attempts < 100) {
-            const randomNum = Math.floor(Math.random() * 100000);
-            const id = randomNum.toString().padStart(5, '0');
+            const randomNum = Math.floor(Math.random() * 1000000000);
+            const id = randomNum.toString().padStart(9, '0');
             const exists = await prisma.user.findUnique({ where: { id } });
             if (!exists) return id;
             attempts++;
@@ -1198,7 +1198,7 @@ export async function completeOnboarding(formData: FormData) {
         throw new Error('Could not generate unique ID after 100 attempts');
     };
 
-    const newUserId = await generate5DigitId();
+    const newUserId = await generate9DigitId();
 
     // ----------------------------------------------------
     // CHECK FOR INVITES & OVERRIDE ROLE IF APPLICABLE
@@ -1272,12 +1272,12 @@ export async function completeClubMasterOnboarding(formData: FormData) {
         throw new Error('A club with this name already exists. Please choose a different name.')
     }
 
-    // Generate unique 5-digit ID
-    const generate5DigitId = async (): Promise<string> => {
+    // Generate unique 9-digit ID
+    const generate9DigitId = async (): Promise<string> => {
         let attempts = 0;
         while (attempts < 100) {
-            const randomNum = Math.floor(Math.random() * 100000);
-            const id = randomNum.toString().padStart(5, '0');
+            const randomNum = Math.floor(Math.random() * 1000000000);
+            const id = randomNum.toString().padStart(9, '0');
             const exists = await prisma.user.findUnique({ where: { id } });
             if (!exists) return id;
             attempts++;
@@ -1285,7 +1285,7 @@ export async function completeClubMasterOnboarding(formData: FormData) {
         throw new Error('Could not generate unique ID after 100 attempts');
     };
 
-    const newUserId = await generate5DigitId();
+    const newUserId = await generate9DigitId();
 
     // Create the User record
     const dbUser = await prisma.user.create({
@@ -1383,12 +1383,12 @@ interface RegisterForTournamentInput {
 export async function registerForTournament(input: RegisterForTournamentInput) {
     const { categoryId, userId, name, gender, belt, weight, clubName, poomsaeType, teamId } = input
 
-    // Generate unique 5-digit player ID
+    // Generate unique 9-digit player ID
     const generatePlayerId = async (): Promise<string> => {
         let attempts = 0
         while (attempts < 100) {
-            const randomNum = Math.floor(Math.random() * 100000)
-            const id = randomNum.toString().padStart(5, '0')
+            const randomNum = Math.floor(Math.random() * 1000000000)
+            const id = randomNum.toString().padStart(9, '0')
             const exists = await prisma.player.findUnique({ where: { id } })
             if (!exists) return id
             attempts++
@@ -1494,12 +1494,12 @@ interface RegisterAutoInput {
 export async function registerForTournamentAuto(input: RegisterAutoInput) {
     const { tournamentId, userId, name, gender, belt, weight, clubName, division, categoryName } = input
 
-    // Generate unique 5-digit player ID
+    // Generate unique 9-digit player ID
     const generatePlayerId = async (): Promise<string> => {
         let attempts = 0
         while (attempts < 100) {
-            const randomNum = Math.floor(Math.random() * 100000)
-            const id = randomNum.toString().padStart(5, '0')
+            const randomNum = Math.floor(Math.random() * 1000000000)
+            const id = randomNum.toString().padStart(9, '0')
             const exists = await prisma.player.findUnique({ where: { id } })
             if (!exists) return id
             attempts++
@@ -2284,6 +2284,8 @@ export async function fetchAthleteDashboardData(clerkId: string, organizationId?
             athleteNumber: true,
             createdAt: true,
             isVerified: true,
+            cardPaymentStatus: true,
+            cardPaymentProofUrl: true,
         }
     })
 
@@ -2292,14 +2294,27 @@ export async function fetchAthleteDashboardData(clerkId: string, organizationId?
     // Fetch club info if user has a club
     let clubLogo: string | null = null
     let clubId: string | null = null
+    let athleteCardFee: number | null = null
+    let athleteCardPaymentInstructions: string | null = null
+    let athleteCardPaymentMethods: any = null
 
     if (dbUser.clubName) {
         const club = await prisma.club.findFirst({
             where: { name: { equals: dbUser.clubName, mode: 'insensitive' } },
-            select: { id: true, logoUrl: true }
+            select: { id: true, logoUrl: true, organizationId: true }
         })
         clubLogo = club?.logoUrl || null
         clubId = club?.id || null
+
+        if (club?.organizationId) {
+            const org = await prisma.organization.findUnique({
+                where: { id: club.organizationId },
+                select: { athleteCardFee: true, athleteCardPaymentInstructions: true, athleteCardPaymentMethods: true }
+            })
+            athleteCardFee = org?.athleteCardFee || null
+            athleteCardPaymentInstructions = org?.athleteCardPaymentInstructions || null
+            athleteCardPaymentMethods = org?.athleteCardPaymentMethods || null
+        }
     }
 
     // Fetch athlete registrations
@@ -2501,7 +2516,10 @@ export async function fetchAthleteDashboardData(clerkId: string, organizationId?
         seminarRegistrations,
         promotionRegistrations,
         clubUpcomingEvents,
-        globalRanking
+        globalRanking,
+        athleteCardFee,
+        athleteCardPaymentInstructions,
+        athleteCardPaymentMethods
     }
 }
 
@@ -3364,7 +3382,7 @@ export async function registerForSeminar(formData: FormData) {
 
         const newPlayer = await prisma.player.create({
             data: {
-                id: Math.floor(Math.random() * 100000).toString().padStart(5, '0'),
+                id: Math.floor(Math.random() * 1000000000).toString().padStart(9, '0'),
                 name: dbUser.name || 'Unknown',
                 userId: dbUser.id,
                 gender: dbUser.gender || 'Male',
@@ -3669,3 +3687,101 @@ export async function generatePlayerQRCode(playerId: string) {
     }
 }
 
+
+
+export async function submitAthleteCardPaymentProof(formData: FormData) {
+    const userId = formData.get('userId') as string
+    const proofFile = formData.get('proofImage') as File | null
+
+    if (!userId || !proofFile || proofFile.size === 0) {
+        return { error: 'Invalid submission data.' }
+    }
+
+    const authUser = await getAuthUser()
+    if (!authUser || authUser.id !== userId) {
+        return { error: 'Unauthorized.' }
+    }
+
+    try {
+        const bytes = await proofFile.arrayBuffer()
+        const buffer = Buffer.from(bytes)
+        const timestamp = Date.now()
+        const safeName = proofFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+        const filename = `activations/${userId}-${timestamp}-${safeName}`
+
+        const { error: uploadError } = await supabase.storage
+            .from('proof-of-payment')
+            .upload(filename, buffer, {
+                contentType: proofFile.type,
+                upsert: false
+            })
+
+        if (uploadError) throw uploadError
+
+        const { data: { publicUrl } } = supabase.storage
+            .from('proof-of-payment')
+            .getPublicUrl(filename)
+
+        await prisma.user.update({
+            where: { id: userId },
+            data: {
+                cardPaymentProofUrl: publicUrl,
+                cardPaymentStatus: 'PENDING_ACTIVATION'
+            }
+        })
+
+        revalidatePath('/athlete')
+        return { success: true }
+    } catch (error) {
+        console.error('Athlete card payment proof upload error:', error)
+        return { error: 'Failed to upload payment proof.' }
+    }
+}
+
+export async function approveAthleteCardPayment(userId: string) {
+    const authUser = await getAuthUser()
+    if (!authUser) return { error: 'Unauthorized' }
+
+    // Using existing permission model: Organizers or ADMIN can approve
+    // Usually, platform admin or organization owner handles this
+
+    try {
+        await prisma.user.update({
+            where: { id: userId },
+            data: {
+                isVerified: true,
+                cardPaymentStatus: 'APPROVED',
+                // Also update the createdAt to act as the start date of the 1-year validity
+                createdAt: new Date()
+            }
+        })
+
+        revalidatePath('/organization')
+        revalidatePath('/admin')
+        return { success: true }
+    } catch (error) {
+        console.error('Approve athlete card error:', error)
+        return { error: 'Failed to approve athlete card.' }
+    }
+}
+
+export async function rejectAthleteCardPayment(userId: string) {
+    const authUser = await getAuthUser()
+    if (!authUser) return { error: 'Unauthorized' }
+
+    try {
+        await prisma.user.update({
+            where: { id: userId },
+            data: {
+                cardPaymentStatus: 'REJECTED'
+            }
+        })
+
+        revalidatePath('/organization')
+        revalidatePath('/admin')
+        return { success: true }
+    } catch (error) {
+        console.error('Reject athlete card error:', error)
+        return { error: 'Failed to reject athlete card.' }
+    }
+}

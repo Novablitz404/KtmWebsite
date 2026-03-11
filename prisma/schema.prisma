@@ -153,7 +153,7 @@ model Category {
 // ============================================
 
 model User {
-  id      String @id // 5-digit random ID like "00123"
+  id      String @id // 9-digit random ID like "482937162"
   clerkId String? @unique
   email   String @unique
   role    String @default("ATHLETE") // ATHLETE, CLUB_MASTER, ASSISTANT_CLUB_MASTER, ORGANIZER, MANAGER
@@ -170,6 +170,10 @@ model User {
   isVerified    Boolean @default(false) // Athlete License Status
   athleteNumber String? // Kukkiwon No. (Black Belt) or Athlete Card No. (other belts)
   country       String? // Country of the athlete
+
+  // Manual Payment for Activation
+  cardPaymentProofUrl String? // Image URL for uploaded manual payment proof
+  cardPaymentStatus   String? // e.g. "PENDING_ACTIVATION", "APPROVED", "REJECTED"
 
   // Relations
   players      Player[]
@@ -203,7 +207,7 @@ model User {
 }
 
 model Player {
-  id       String  @id // 5-digit ID like "00123"
+  id       String  @id // 9-digit ID like "482937162"
   name     String
   gender   String  @default("Male")
   weight   Float?
@@ -258,6 +262,8 @@ model Club {
   students Player[]
   logoUrl  String?
   address  String?
+  latitude  Float?   // For accurate map pin placement
+  longitude Float?   // For accurate map pin placement
   phone    String?
 
   // Organization Relation
@@ -304,6 +310,11 @@ model Organization {
   contactPhone String?
   website      String?
 
+  // Athlete Card Activation Configuration
+  athleteCardFee Float?
+  athleteCardPaymentInstructions String?
+  athleteCardPaymentMethods Json? // NEW: Array of { label, accountName, accountNumber, qrCodeUrl }
+
   // Co-Organizers (many-to-many - users who can help manage this organization)
   coOrganizers User[] @relation("OrganizationCoOrganizers")
   coOrganizerInvites CoOrganizerInvite[]
@@ -341,6 +352,10 @@ model Organization {
 
   defaultBeltFees Json? // e.g. {"whiteToPurple": 600, "blueToMaroon": 700, "brown": 800}
   feeDistributions Json? // e.g. { "affiliation": [{ name: "Platform", amount: 100 }, { name: "Rebate", amount: 400 }] }
+
+  // Financial Management
+  advancePayments  AdvancePayment[]
+  expenses         Expense[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -895,4 +910,58 @@ model ClubAffiliation {
   @@unique([clubId, organizationId])
   @@index([status])
   @@index([expiresAt])
+}
+
+// ============================================
+// ADVANCE PAYMENT LEDGER
+// ============================================
+model AdvancePayment {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  payerName       String       // Who paid (athlete or club rep name)
+  clubName        String?      // Which club
+  amount          Float        // Amount received
+  eventType       String?      // "tournament" | "promotion" | "seminar" | null (general)
+  eventId         String?      // ID of the specific event (optional)
+  eventName       String?      // Snapshot of event name for display
+  notes           String?      @db.Text
+  proofImageUrl   String?      // Receipt upload
+
+  status          String       @default("UNMATCHED") // UNMATCHED, MATCHED, REFUNDED
+  matchedToId     String?      // Player/Registration ID once matched
+  matchedAt       DateTime?
+  paidAt          DateTime     // When payment was actually received
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizationId, status])
+  @@index([organizationId, paidAt])
+}
+
+// ============================================
+// ORGANIZATION EXPENSES
+// ============================================
+model Expense {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  description     String
+  amount          Float
+  category        String       // VENUE, EQUIPMENT, MEDALS, TRAVEL, FOOD, PRINTING, OFFICIALS, MISC
+  date            DateTime
+  receiptUrl      String?      // Optional uploaded receipt
+
+  eventType       String?      // Link to event type (optional)
+  eventId         String?      // Link to specific event (optional)
+  eventName       String?      // Snapshot for display
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizationId, date])
+  @@index([organizationId, category])
 }

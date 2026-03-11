@@ -1,15 +1,12 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { X, Edit2, Upload, Loader2, Plus, Trash2, QrCode, Eye } from 'lucide-react'
 import { toast } from 'sonner'
-import {
-    Settings, Upload, Loader2, XCircle,
-    Eye,
-    Banknote, QrCode, CreditCard, Plus, Trash2, Edit2, X
-} from 'lucide-react'
-import { getClubAffiliations, updateAffiliationSettings } from '@/app/organization/actions'
+import { useRouter } from 'next/navigation'
+import { updateAthleteCardFees } from '@/app/organization/actions'
 import { uploadQrCode } from '@/lib/supabase-storage'
+import Image from 'next/image'
 
 interface PaymentMethod {
     id: string
@@ -20,28 +17,33 @@ interface PaymentMethod {
     qrCodeUrl: string | null
 }
 
-interface OrganizationAffiliationManagerProps {
+interface AthleteCardFeesManagerProps {
     organizationId: string
+    athleteCardFee?: number | null
+    athleteCardPaymentMethods?: PaymentMethod[]
 }
 
-export default function OrganizationAffiliationManager({ organizationId }: OrganizationAffiliationManagerProps) {
-    const queryClient = useQueryClient()
+export default function AthleteCardFeesManager({
+    organizationId,
+    athleteCardFee,
+    athleteCardPaymentMethods = []
+}: AthleteCardFeesManagerProps) {
+    const router = useRouter()
     const qrInputRef = useRef<HTMLInputElement>(null)
 
-    const [isSaving, setIsSaving] = useState(false)
-    const [fee, setFee] = useState('')
-    const [paymentType, setPaymentType] = useState('manual')
-    const [instructions, setInstructions] = useState('')
-    const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
+    const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(athleteCardPaymentMethods)
 
     // Fee modal state
     const [feeModalOpen, setFeeModalOpen] = useState(false)
+    const [editingFee, setEditingFee] = useState(athleteCardFee?.toString() || '')
+
     // Payment method modal state
     const [methodModalOpen, setMethodModalOpen] = useState(false)
     const [editingMethod, setEditingMethod] = useState<PaymentMethod | null>(null)
 
     const [activeQrUploadId, setActiveQrUploadId] = useState<string | null>(null)
     const [isUploadingQr, setIsUploadingQr] = useState(false)
+    const [submitting, setSubmitting] = useState(false)
     const [viewingQr, setViewingQr] = useState<string | null>(null)
 
     // Scroll lock for all modals
@@ -56,48 +58,37 @@ export default function OrganizationAffiliationManager({ organizationId }: Organ
         }
     }, [feeModalOpen, methodModalOpen, viewingQr])
 
-    const { data } = useQuery({
-        queryKey: ['club-affiliations'],
-        queryFn: () => getClubAffiliations(),
-        staleTime: 1000 * 30,
-    })
+    // Helper: Save exactly these methods to backend
+    const saveMethodsToBackend = async (newMethods: PaymentMethod[]) => {
+        const formData = new FormData()
+        formData.append('organizationId', organizationId)
+        formData.append('athleteCardFee', (athleteCardFee || '').toString())
+        formData.append('athleteCardPaymentMethods', JSON.stringify(newMethods))
 
-    // Initialize state from fetch
-    useEffect(() => {
-        if (data && 'success' in data && data.success) {
-            setFee(data.orgFee?.toString() || '')
-            setPaymentType(data.paymentMethod || 'manual')
-            setInstructions((data as any).instructions || '')
-            const savedMethods = (data as any).paymentMethods || []
-            if (savedMethods.length > 0) {
-                setPaymentMethods(savedMethods)
-            }
-        }
-    }, [data])
-
-
-    const saveSettingsToBackend = async (newMethods: PaymentMethod[], newFee: string, newType: string, newInstructions: string) => {
-        const res = await updateAffiliationSettings({
-            affiliationFee: newFee ? parseFloat(newFee) : 0,
-            affiliationPaymentMethod: newType,
-            affiliationInstructions: newInstructions || null,
-            affiliationPaymentMethods: newMethods.length > 0 ? newMethods : null,
-        })
-        if ('error' in res) throw new Error(res.error)
-        return res
+        const result = await updateAthleteCardFees(formData)
+        if (result?.error) throw new Error(result.error)
+        return result
     }
 
-    const handleSavePrimarySettings = async () => {
-        setIsSaving(true)
+    const handleSaveFee = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setSubmitting(true)
         try {
-            await saveSettingsToBackend(paymentMethods, fee, paymentType, instructions)
-            toast.success('Affiliation settings saved')
-            queryClient.invalidateQueries({ queryKey: ['club-affiliations'] })
+            const formData = new FormData()
+            formData.append('organizationId', organizationId)
+            formData.append('athleteCardFee', editingFee)
+            formData.append('athleteCardPaymentMethods', JSON.stringify(paymentMethods))
+
+            const result = await updateAthleteCardFees(formData)
+            if (result?.error) throw new Error(result.error)
+
+            toast.success('Activation fee updated')
             setFeeModalOpen(false)
+            router.refresh()
         } catch {
-            toast.error('Failed to save settings')
+            toast.error('Failed to update fee')
         } finally {
-            setIsSaving(false)
+            setSubmitting(false)
         }
     }
 
@@ -121,7 +112,7 @@ export default function OrganizationAffiliationManager({ organizationId }: Organ
     const handleMethodSave = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!editingMethod) return
-        setIsSaving(true)
+        setSubmitting(true)
 
         const exists = paymentMethods.some(pm => pm.id === editingMethod.id)
         const updatedMethods = exists
@@ -129,41 +120,40 @@ export default function OrganizationAffiliationManager({ organizationId }: Organ
             : [...paymentMethods, editingMethod]
 
         try {
-            await saveSettingsToBackend(updatedMethods, fee, paymentType, instructions)
+            await saveMethodsToBackend(updatedMethods)
             setPaymentMethods(updatedMethods)
             toast.success('Payment account saved')
-            queryClient.invalidateQueries({ queryKey: ['club-affiliations'] })
             setMethodModalOpen(false)
+            router.refresh()
         } catch {
             toast.error('Failed to save account')
         } finally {
-            setIsSaving(false)
+            setSubmitting(false)
         }
     }
 
     const handleDeleteMethod = async (id: string) => {
         if (!confirm('Remove this payment account permanently?')) return
-        setIsSaving(true)
+        setSubmitting(true)
         const updatedMethods = paymentMethods.filter(pm => pm.id !== id)
         try {
-            await saveSettingsToBackend(updatedMethods, fee, paymentType, instructions)
+            await saveMethodsToBackend(updatedMethods)
             setPaymentMethods(updatedMethods)
             toast.success('Payment account removed')
-            queryClient.invalidateQueries({ queryKey: ['club-affiliations'] })
+            router.refresh()
         } catch {
             toast.error('Failed to remove account')
         } finally {
-            setIsSaving(false)
+            setSubmitting(false)
         }
     }
-
 
     const handleQrUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (!file || !activeQrUploadId || !editingMethod) return
         setIsUploadingQr(true)
         try {
-            const url = await uploadQrCode(`affiliation-qr-${activeQrUploadId}`, file)
+            const url = await uploadQrCode(`athletecard-qr-${activeQrUploadId}`, file)
             if (url) {
                 setEditingMethod({ ...editingMethod, qrCodeUrl: url })
                 toast.success('QR code uploaded')
@@ -176,16 +166,11 @@ export default function OrganizationAffiliationManager({ organizationId }: Organ
         }
     }
 
-    // Check if data has saved values to determine initial display state (from DB)
-    const savedFee = data && 'orgFee' in data ? data.orgFee : null
-    const savedPaymentType = data && 'paymentMethod' in data ? data.paymentMethod : null
-    const savedPaymentMethods: PaymentMethod[] = data && 'paymentMethods' in data ? (data as any).paymentMethods || [] : []
-
     return (
         <>
-            <div className="bg-white sm:rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-6">
+            <div className="bg-white sm:rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-                    <h3 className="text-sm font-semibold text-gray-900">Club Affiliation Settings</h3>
+                    <h3 className="text-sm font-semibold text-gray-900">Athlete Card Activation Settings</h3>
                     <button
                         onClick={() => setFeeModalOpen(true)}
                         className="group flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-900 rounded-lg transition-all text-xs font-medium border border-gray-200"
@@ -197,161 +182,126 @@ export default function OrganizationAffiliationManager({ organizationId }: Organ
 
                 <div className="p-6 space-y-4">
                     <div className="flex justify-between items-center pb-4 border-b border-gray-100">
-                        <span className="text-sm text-gray-500">Annual Fee</span>
+                        <span className="text-sm text-gray-500">Activation Fee</span>
                         <span className="text-sm font-semibold text-gray-900">
-                            {savedFee && savedFee > 0 ? `₱${savedFee.toLocaleString()}` : <span className="text-gray-300 font-medium tracking-wide text-xs">NOT SET</span>}
+                            {athleteCardFee ? `₱${athleteCardFee.toLocaleString()}` : <span className="text-gray-300 font-medium tracking-wide text-xs">NOT SET</span>}
                         </span>
                     </div>
 
-                    {((data as any)?.paymentMethod === 'manual' || savedPaymentType === 'manual') && (
-                        <div>
-                            <div className="flex items-center justify-between mb-3">
-                                <span className="text-sm text-gray-500">Linked Payment Accounts</span>
-                                <button
-                                    onClick={openAddMethod}
-                                    disabled={isSaving}
-                                    className="text-indigo-600 hover:bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50"
-                                >
-                                    <Plus className="w-3 h-3" />
-                                    Add Account
-                                </button>
-                            </div>
-
-                            {savedPaymentMethods.length > 0 ? (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                    {savedPaymentMethods.map((pm: PaymentMethod, i: number) => (
-                                        <div key={pm.id || i} className="bg-gray-50 border border-gray-100 rounded-lg p-3 flex flex-col justify-between relative group">
-
-                                            {/* Action Buttons Overlay */}
-                                            <div className="absolute top-2 right-2 flex items-center gap-1">
-                                                <button
-                                                    onClick={() => openEditMethod(pm)}
-                                                    disabled={isSaving}
-                                                    className="p-1.5 bg-white text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 border border-gray-200 shadow-sm rounded-md transition-colors disabled:opacity-50"
-                                                    title="Edit"
-                                                >
-                                                    <Edit2 className="w-3.5 h-3.5" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDeleteMethod(pm.id)}
-                                                    disabled={isSaving}
-                                                    className="p-1.5 bg-white text-gray-400 hover:text-red-600 hover:bg-red-50 border border-gray-200 shadow-sm rounded-md transition-colors disabled:opacity-50"
-                                                    title="Delete"
-                                                >
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
-                                            </div>
-
-                                            <div className="pr-16">
-                                                <p className="text-sm font-semibold text-gray-900 line-clamp-1">{pm.label || pm.bankName}</p>
-                                                <p className="text-xs text-gray-500 font-mono mt-0.5">{pm.accountNo}</p>
-                                            </div>
-                                            <div className="mt-3 pt-2 border-t border-gray-200/60 flex items-center justify-between">
-                                                <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">{pm.bankName}</span>
-                                                {pm.qrCodeUrl && (
-                                                    <span
-                                                        onClick={() => setViewingQr(pm.qrCodeUrl!)}
-                                                        className="text-[10px] cursor-pointer font-bold bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded flex items-center gap-1 hover:bg-indigo-100 transition-colors"
-                                                    >
-                                                        <QrCode className="w-3 h-3" /> QR
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="bg-gray-50 rounded-lg p-4 text-center border border-dashed border-gray-200">
-                                    <p className="text-sm text-gray-500 font-medium tracking-wide">NO PAYMENT ACCOUNTS ADDED</p>
-                                </div>
-                            )}
+                    <div>
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-sm text-gray-500">Linked Payment Accounts</span>
+                            <button
+                                onClick={openAddMethod}
+                                disabled={submitting}
+                                className="text-indigo-600 hover:bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                            >
+                                <Plus className="w-3 h-3" />
+                                Add Account
+                            </button>
                         </div>
-                    )}
+
+                        {paymentMethods.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {paymentMethods.map((pm, i) => (
+                                    <div key={pm.id || i} className="bg-gray-50 border border-gray-100 rounded-lg p-3 flex flex-col justify-between relative group">
+
+                                        {/* Action Buttons Overlay */}
+                                        <div className="absolute top-2 right-2 flex items-center gap-1">
+                                            <button
+                                                onClick={() => openEditMethod(pm)}
+                                                disabled={submitting}
+                                                className="p-1.5 bg-white text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 border border-gray-200 shadow-sm rounded-md transition-colors disabled:opacity-50"
+                                                title="Edit"
+                                            >
+                                                <Edit2 className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteMethod(pm.id)}
+                                                disabled={submitting}
+                                                className="p-1.5 bg-white text-gray-400 hover:text-red-600 hover:bg-red-50 border border-gray-200 shadow-sm rounded-md transition-colors disabled:opacity-50"
+                                                title="Delete"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+
+                                        <div className="pr-16">
+                                            <p className="text-sm font-semibold text-gray-900 line-clamp-1">{pm.label || pm.bankName}</p>
+                                            <p className="text-xs text-gray-500 font-mono mt-0.5">{pm.accountNo}</p>
+                                        </div>
+                                        <div className="mt-3 pt-2 border-t border-gray-200/60 flex items-center justify-between">
+                                            <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">{pm.bankName}</span>
+                                            {pm.qrCodeUrl && (
+                                                <span
+                                                    onClick={() => setViewingQr(pm.qrCodeUrl)}
+                                                    className="text-[10px] cursor-pointer font-bold bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded flex items-center gap-1 hover:bg-indigo-100 transition-colors"
+                                                >
+                                                    <QrCode className="w-3 h-3" /> QR
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="bg-gray-50 rounded-lg p-4 text-center border border-dashed border-gray-200">
+                                <p className="text-sm text-gray-500 font-medium tracking-wide">NO PAYMENT ACCOUNTS ADDED</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
             {/* Fee Edit Modal */}
             {feeModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !isSaving && setFeeModalOpen(false)} />
-                    <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 animate-in fade-in zoom-in-95 duration-200">
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !submitting && setFeeModalOpen(false)} />
+                    <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 animate-in fade-in zoom-in-95 duration-200">
                         <div className="flex justify-between items-start mb-6">
                             <div>
-                                <h3 className="text-xl font-bold text-gray-900">Club Affiliation Terms</h3>
-                                <p className="text-gray-500 text-sm mt-1">Configure the annual affiliation details</p>
+                                <h3 className="text-xl font-bold text-gray-900">Edit Fee</h3>
+                                <p className="text-gray-500 text-sm mt-1">Athlete card activation fee</p>
                             </div>
                             <button
-                                onClick={() => !isSaving && setFeeModalOpen(false)}
+                                onClick={() => !submitting && setFeeModalOpen(false)}
                                 className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors disabled:opacity-50"
                             >
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
 
-                        <div className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Annual Fee (₱)</label>
-                                    <input
-                                        type="number"
-                                        value={fee}
-                                        onChange={e => setFee(e.target.value)}
-                                        placeholder="e.g. 5000"
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Payment Type</label>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => setPaymentType('manual')}
-                                            className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition-all flex items-center justify-center gap-1.5 ${paymentType === 'manual' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
-                                        >
-                                            <Banknote className="w-3.5 h-3.5" /> Manual
-                                        </button>
-                                        <button
-                                            onClick={() => setPaymentType('xendit')}
-                                            className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition-all flex items-center justify-center gap-1.5 ${paymentType === 'xendit' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
-                                        >
-                                            <CreditCard className="w-3.5 h-3.5" /> Xendit
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Instructions */}
-                            <div className="pt-2">
-                                <label className="text-xs text-gray-500 mb-1 block">Payment Instructions (shown to all clubs)</label>
-                                <textarea
-                                    value={instructions}
-                                    onChange={e => setInstructions(e.target.value)}
-                                    rows={3}
-                                    placeholder="Optional notes for club masters..."
-                                    className="w-full px-3 py-3 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 resize-none bg-gray-50/50"
+                        <form onSubmit={handleSaveFee} className="space-y-6">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1.5">Activation Fee (₱)</label>
+                                <input
+                                    type="number"
+                                    value={editingFee}
+                                    onChange={e => setEditingFee(e.target.value)}
+                                    placeholder="e.g. 500"
+                                    min="0"
+                                    step="0.01"
+                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-gray-50/50 focus:bg-white"
                                 />
                             </div>
 
-                            <div className="pt-4 border-t border-gray-100 flex justify-end">
-                                <button
-                                    onClick={handleSavePrimarySettings}
-                                    disabled={isSaving}
-                                    className="w-full sm:w-auto px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
-                                >
-                                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Settings className="w-4 h-4" />}
-                                    Save
-                                </button>
-                            </div>
-                        </div>
-
+                            <button
+                                type="submit"
+                                disabled={submitting}
+                                className="w-full px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                                Save Fee
+                            </button>
+                        </form>
                     </div>
                 </div>
             )}
 
-
             {/* Add/Edit Payment Method Modal */}
             {methodModalOpen && editingMethod && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !isSaving && setMethodModalOpen(false)} />
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !submitting && setMethodModalOpen(false)} />
                     <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 animate-in fade-in zoom-in-95 duration-200">
                         <div className="flex justify-between items-start mb-6">
                             <div>
@@ -361,7 +311,7 @@ export default function OrganizationAffiliationManager({ organizationId }: Organ
                                 <p className="text-gray-500 text-sm mt-1">Provide the payment gateway details</p>
                             </div>
                             <button
-                                onClick={() => !isSaving && setMethodModalOpen(false)}
+                                onClick={() => !submitting && setMethodModalOpen(false)}
                                 className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors disabled:opacity-50"
                             >
                                 <X className="w-5 h-5" />
@@ -451,17 +401,17 @@ export default function OrganizationAffiliationManager({ organizationId }: Organ
                                 <button
                                     type="button"
                                     onClick={() => setMethodModalOpen(false)}
-                                    disabled={isSaving}
+                                    disabled={submitting}
                                     className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 border border-gray-200"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={isSaving}
+                                    disabled={submitting}
                                     className="px-6 py-2 rounded-xl text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-100 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                 >
-                                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                                    {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                                     Save
                                 </button>
                             </div>

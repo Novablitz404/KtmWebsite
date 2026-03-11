@@ -27,6 +27,7 @@ import RecoveryRedirect from '@/components/RecoveryRedirect'
 import { TenantProvider } from '@/app/providers/TenantProvider'
 import { getTenant } from '@/lib/tenant'
 import { getEventConfig } from '@/lib/event-config'
+import AiChatWidget from '@/components/AiChatWidget'
 
 export async function generateMetadata(): Promise<Metadata> {
   const tenant = await getTenant()
@@ -95,6 +96,7 @@ export default async function RootLayout({
                   <PageTransition>
                     {children}
                   </PageTransition>
+                  {tenant.slug !== 'ktm' && <AiChatWidget />}
                 </AuthLoadingWrapper>
               )}
             </TenantProvider>

@@ -44,6 +44,8 @@ export default async function ClubsPage() {
             phone: club.phone || 'Phone not provided',
             logoUrl: club.logoUrl,
             isActiveAffiliate,
+            latitude: club.latitude,
+            longitude: club.longitude,
         }
     })
 

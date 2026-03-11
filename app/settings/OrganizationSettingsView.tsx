@@ -6,6 +6,8 @@ import SettingsSubTabs from './SettingsSubTabs'
 import SecurityForm from './SecurityForm'
 import NetworkSettingsContent from './NetworkSettingsContent'
 import OrganizationAffiliationManager from '@/components/OrganizationAffiliationManager'
+import PromotionFeesManager from '@/app/components/PromotionFeesManager'
+import AthleteCardFeesManager from '@/app/components/AthleteCardFeesManager'
 
 interface OrganizationSettingsViewProps {
     dbUser: {
@@ -32,6 +34,9 @@ interface OrganizationSettingsViewProps {
         chairman: string | null
         viceChairman: string | null
         defaultBeltFees?: any
+        athleteCardFee?: number | null
+        athleteCardPaymentInstructions?: string | null
+        athleteCardPaymentMethods?: any
     }
     clerkImageUrl: string | undefined
 }
@@ -149,6 +154,8 @@ export default async function OrganizationSettingsView({ dbUser, organization, c
                                 chairman={organization.chairman}
                                 viceChairman={organization.viceChairman}
                                 defaultBeltFees={organization.defaultBeltFees}
+                                athleteCardFee={organization.athleteCardFee}
+                                athleteCardPaymentInstructions={organization.athleteCardPaymentInstructions}
                                 buttonText="Edit"
                             />
                         )}
@@ -219,10 +226,21 @@ export default async function OrganizationSettingsView({ dbUser, organization, c
                 </div>
             </div>
 
+        </div>
+    )
+
+    const feesContent = (
+        <div className="space-y-6">
             {/* Promotion Test Fees */}
             <div className="bg-white sm:rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
+                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
                     <h3 className="text-sm font-semibold text-gray-900">Promotion Test Default Fees</h3>
+                    {organization && (
+                        <PromotionFeesManager
+                            organizationId={organization.id}
+                            defaultBeltFees={organization.defaultBeltFees}
+                        />
+                    )}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
                     <div className="p-6 text-center">
@@ -258,6 +276,15 @@ export default async function OrganizationSettingsView({ dbUser, organization, c
                 </div>
             </div>
 
+            {/* Athlete Card Activation Setttings */}
+            {organization && (
+                <AthleteCardFeesManager
+                    organizationId={organization.id}
+                    athleteCardFee={organization.athleteCardFee}
+                    athleteCardPaymentMethods={organization.athleteCardPaymentMethods}
+                />
+            )}
+
             {/* Club Affiliation Fees */}
             <OrganizationAffiliationManager organizationId={organization.id} />
 
@@ -272,6 +299,7 @@ export default async function OrganizationSettingsView({ dbUser, organization, c
         <SettingsSubTabs
             profileContent={profileContent}
             organizationContent={organizationContent}
+            feesContent={feesContent}
             securityContent={<SecurityForm />}
             networkContent={<NetworkSettingsContent />}
         />

@@ -161,7 +161,7 @@ async function generateAthleteNumber(country: string | null | undefined): Promis
         }
     }
 
-    return `${prefix}${String(nextNumber).padStart(5, '0')}`
+    return `${prefix}${String(nextNumber).padStart(7, '0')}`
 }
 
 export async function toggleAthleteVerification(formData: FormData) {
@@ -183,8 +183,17 @@ export async function toggleAthleteVerification(formData: FormData) {
     if (!targetUser) throw new Error('User not found')
 
     if (!targetUser.isVerified) {
-        // Verifying: generate athlete number + set createdAt
-        const athleteNumber = targetUser.athleteNumber || await generateAthleteNumber(targetUser.country)
+        // Verifying: generate or renew athlete number
+        let athleteNumber: string
+        if (targetUser.athleteNumber) {
+            // Renewal: keep same suffix, update year
+            const parts = targetUser.athleteNumber.split('-')
+            const code = parts[0]
+            const suffix = parts[2]
+            athleteNumber = `${code}-${new Date().getFullYear()}-${suffix}`
+        } else {
+            athleteNumber = await generateAthleteNumber(targetUser.country)
+        }
 
         await prisma.user.update({
             where: { id: targetUserId },
@@ -195,13 +204,12 @@ export async function toggleAthleteVerification(formData: FormData) {
             }
         })
     } else {
-        // Un-verifying: clear athlete number + createdAt
+        // Un-verifying: preserve athleteNumber for future renewal
         await prisma.user.update({
             where: { id: targetUserId },
             data: {
                 isVerified: false,
-                athleteNumber: null,
-                createdAt: null,
+                // athleteNumber is preserved for renewal
             }
         })
     }
@@ -364,19 +372,25 @@ export async function getPlatformGrowth() {
     }).reverse()
 
     // Query data in parallel
-    const [users, tournaments, seminars, promotions] = await Promise.all([
-        prisma.user.findMany({ select: { createdAt: true }, where: { createdAt: { gte: months[0].date } } }),
+    const [authUsers, tournaments, seminars, promotions] = await Promise.all([
+        prisma.$queryRaw<{ created_at: Date }[]>`
+            SELECT au.created_at
+            FROM "User" u
+            JOIN auth.users au ON u."clerkId" = au.id::text
+            WHERE au.created_at >= ${months[0].date}
+        `,
         prisma.player.findMany({ select: { createdAt: true }, where: { createdAt: { gte: months[0].date } } }),
         prisma.seminarRegistration.findMany({ select: { createdAt: true }, where: { createdAt: { gte: months[0].date } } }),
         prisma.promotionTestRegistration.findMany({ select: { createdAt: true }, where: { createdAt: { gte: months[0].date } } })
     ])
 
     // Grouping helper
-    const groupByMonth = (items: { createdAt: Date | null }[]) => {
+    const groupByMonth = (items: { createdAt?: Date | null, created_at?: Date | null }[]) => {
         const counts = new Map(months.map(m => [m.label, 0]))
         items.forEach(item => {
-            if (!item.createdAt) return
-            const label = item.createdAt.toLocaleDateString('en-US', { month: 'short' })
+            const date = item.createdAt || item.created_at
+            if (!date) return
+            const label = new Date(date).toLocaleDateString('en-US', { month: 'short' })
             if (counts.has(label)) {
                 counts.set(label, counts.get(label)! + 1)
             }
@@ -384,7 +398,7 @@ export async function getPlatformGrowth() {
         return counts
     }
 
-    const userCounts = groupByMonth(users)
+    const userCounts = groupByMonth(authUsers)
     const tCounts = groupByMonth(tournaments)
     const sCounts = groupByMonth(seminars)
     const pCounts = groupByMonth(promotions)

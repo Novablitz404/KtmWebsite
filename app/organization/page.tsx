@@ -38,7 +38,10 @@ export default async function OrganizationPage() {
                     website: true,
                     chairman: true,
                     viceChairman: true,
-                    defaultBeltFees: true
+                    defaultBeltFees: true,
+                    athleteCardFee: true,
+                    athleteCardPaymentInstructions: true,
+                    athleteCardPaymentMethods: true
                 }
             }
         }

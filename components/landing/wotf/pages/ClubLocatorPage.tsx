@@ -16,6 +16,8 @@ interface ClubProps {
     phone: string
     logoUrl?: string | null
     isActiveAffiliate: boolean
+    latitude?: number | null
+    longitude?: number | null
 }
 
 interface ClubLocatorPageProps {
@@ -33,10 +35,14 @@ export default function ClubLocatorPage({ clubs, tenantName }: ClubLocatorPagePr
         club.masterName.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
-    // Generate Google Maps Embed URL
-    const getGoogleMapsUrl = (address: string) => {
-        const encoded = encodeURIComponent(address)
-        return `https://maps.google.com/maps?q=${encoded}&hl=es;z=14&output=embed`
+    // Generate Google Maps Embed URL — use exact coordinates when available, fallback to address search
+    const getGoogleMapsUrl = (club: ClubProps) => {
+        const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+        if (club.latitude && club.longitude) {
+            return `https://maps.google.com/maps?q=${club.latitude},${club.longitude}&z=17&ie=UTF8&iwloc=&output=embed`
+        }
+        const encoded = encodeURIComponent(club.address !== 'Address not provided' ? club.address : `${club.name} Taekwondo Philippines`)
+        return `https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${encoded}&zoom=15`
     }
 
     return (
@@ -98,15 +104,17 @@ export default function ClubLocatorPage({ clubs, tenantName }: ClubLocatorPagePr
                                             animate={{ opacity: 1, y: 0 }}
                                             exit={{ opacity: 0, scale: 0.95 }}
                                             transition={{ delay: index * 0.05 }}
-                                            onClick={() => setSelectedClub(club)}
-                                            className={`p-6 rounded-2xl border-2 transition-all cursor-pointer ${selectedClub?.id === club.id
-                                                ? 'border-african-turquoise bg-white shadow-md'
-                                                : 'border-transparent bg-white shadow-sm hover:shadow-md hover:border-african-turquoise/30'
+                                            onClick={() => club.isActiveAffiliate && setSelectedClub(club)}
+                                            className={`p-6 rounded-2xl border-2 transition-all ${!club.isActiveAffiliate
+                                                ? 'cursor-default bg-gray-50 border-gray-200'
+                                                : selectedClub?.id === club.id
+                                                    ? 'border-african-turquoise bg-white shadow-md cursor-pointer'
+                                                    : 'border-transparent bg-white shadow-sm hover:shadow-md hover:border-african-turquoise/30 cursor-pointer'
                                                 }`}
                                         >
                                             <div className="flex items-start gap-4">
                                                 {/* Logo */}
-                                                <div className="w-16 h-16 shrink-0 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden border border-gray-200">
+                                                <div className={`w-16 h-16 shrink-0 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden border border-gray-200 ${!club.isActiveAffiliate ? 'opacity-40 grayscale' : ''}`}>
                                                     {club.logoUrl ? (
                                                         <Image
                                                             src={club.logoUrl}
@@ -125,7 +133,7 @@ export default function ClubLocatorPage({ clubs, tenantName }: ClubLocatorPagePr
                                                 {/* Info */}
                                                 <div className="flex-1">
                                                     <div className="flex justify-between items-start mb-1">
-                                                        <h3 className="text-xl font-bold text-gray-900">{club.name}</h3>
+                                                        <h3 className={`text-xl font-bold ${!club.isActiveAffiliate ? 'text-gray-400' : 'text-gray-900'}`}>{club.name}</h3>
                                                         {club.isActiveAffiliate ? (
                                                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 text-green-700 text-xs font-semibold border border-green-200">
                                                                 <ShieldCheck size={14} /> Official
@@ -137,7 +145,7 @@ export default function ClubLocatorPage({ clubs, tenantName }: ClubLocatorPagePr
                                                         )}
                                                     </div>
 
-                                                    <div className="space-y-2 mt-3">
+                                                    <div className={`space-y-2 mt-3 ${!club.isActiveAffiliate ? 'opacity-40' : ''}`}>
                                                         <p className="flex items-start text-sm text-gray-600 gap-2">
                                                             <User className="w-4 h-4 shrink-0 text-gray-400 mt-0.5" />
                                                             <span>Instructor: <span className="font-semibold text-gray-900">{club.masterName}</span></span>
@@ -199,9 +207,21 @@ export default function ClubLocatorPage({ clubs, tenantName }: ClubLocatorPagePr
                                                 frameBorder="0"
                                                 style={{ border: 0 }}
                                                 referrerPolicy="no-referrer-when-downgrade"
-                                                src={getGoogleMapsUrl(selectedClub.address !== 'Address not provided' ? selectedClub.address : `${selectedClub.name} Taekwondo`)}
+                                                src={getGoogleMapsUrl(selectedClub)}
                                                 allowFullScreen
                                             ></iframe>
+                                            {/* Get Directions Button */}
+                                            <a
+                                                href={selectedClub.latitude && selectedClub.longitude
+                                                    ? `https://www.google.com/maps/dir/?api=1&destination=${selectedClub.latitude},${selectedClub.longitude}`
+                                                    : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(selectedClub.address)}`
+                                                }
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="absolute bottom-4 left-4 right-4 flex items-center justify-center gap-2 px-4 py-3 bg-african-turquoise text-white font-semibold rounded-xl shadow-lg hover:brightness-110 transition-all text-sm"
+                                            >
+                                                <ExternalLink size={16} /> Get Directions in Google Maps
+                                            </a>
                                         </div>
                                     </>
                                 ) : (

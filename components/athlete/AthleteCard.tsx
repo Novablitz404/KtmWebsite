@@ -10,6 +10,8 @@ interface AthleteCardProps {
     imageUrl?: string | null
     createdAt?: string | null
     isVerified?: boolean
+    cardPaymentStatus?: string | null
+    onActivateClick?: () => void
 }
 
 function formatValidityDate(createdAt: string): string {
@@ -22,7 +24,7 @@ function formatValidityDate(createdAt: string): string {
     })
 }
 
-export default function AthleteCard({ name, athleteId, imageUrl, createdAt, isVerified = false }: AthleteCardProps) {
+export default function AthleteCard({ name, athleteId, imageUrl, createdAt, isVerified = false, cardPaymentStatus, onActivateClick }: AthleteCardProps) {
     const fullName = (name || 'ATHLETE').toUpperCase()
     const validUntil = createdAt ? formatValidityDate(createdAt) : '—'
 
@@ -62,8 +64,8 @@ export default function AthleteCard({ name, athleteId, imageUrl, createdAt, isVe
         <div className="w-full">
             <div
                 className={`relative w-full overflow-hidden rounded-2xl transition-shadow duration-500 ${isVerified
-                        ? 'shadow-2xl shadow-gray-300/60 hover:shadow-[0_25px_60px_-10px_rgba(220,38,38,0.2)]'
-                        : 'shadow-lg shadow-gray-200/40'
+                    ? 'shadow-2xl shadow-gray-300/60 hover:shadow-[0_25px_60px_-10px_rgba(220,38,38,0.2)]'
+                    : 'shadow-lg shadow-gray-200/40'
                     }`}
                 style={{ aspectRatio: '4843 / 3443' }}
             >
@@ -143,12 +145,33 @@ export default function AthleteCard({ name, athleteId, imageUrl, createdAt, isVe
                 {/* Inactive Overlay — shown when NOT verified */}
                 {!isVerified && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/30 backdrop-blur-[1px]">
-                        <div className="bg-white/90 backdrop-blur-sm rounded-xl px-5 py-3 shadow-lg border border-gray-200 flex flex-col items-center gap-1.5">
-                            <ShieldCheck className="w-6 h-6 text-gray-400" />
-                            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Not Activated</p>
-                            <p className="text-[10px] text-gray-400 text-center max-w-[180px]">
-                                Contact your organization to activate your athlete card
-                            </p>
+                        <div className="bg-white/90 backdrop-blur-sm rounded-xl px-5 py-3 shadow-lg border border-gray-200 flex flex-col items-center gap-1.5 min-w-[200px]">
+                            {cardPaymentStatus === 'PENDING_ACTIVATION' ? (
+                                <>
+                                    <ShieldCheck className="w-6 h-6 text-amber-500" />
+                                    <p className="text-xs font-bold text-amber-600 uppercase tracking-wider">Pending Approval</p>
+                                    <p className="text-[10px] text-gray-500 text-center max-w-[180px]">
+                                        Your payment is under review
+                                    </p>
+                                </>
+                            ) : (
+                                <>
+                                    <ShieldCheck className="w-6 h-6 text-gray-400" />
+                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Not Activated</p>
+                                    {onActivateClick ? (
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); onActivateClick(); }}
+                                            className="mt-1 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-red-700 transition-colors pointer-events-auto"
+                                        >
+                                            Activate Card
+                                        </button>
+                                    ) : (
+                                        <p className="text-[10px] text-gray-400 text-center max-w-[180px]">
+                                            Contact your organization to activate your athlete card
+                                        </p>
+                                    )}
+                                </>
+                            )}
                         </div>
                     </div>
                 )}

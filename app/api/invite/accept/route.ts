@@ -58,12 +58,12 @@ export async function POST(req: Request) {
 
         const authUser = authData.user
 
-        // 3. Generate 5-digit ID for Prisma User
-        const generate5DigitId = async (): Promise<string> => {
+        // 3. Generate 9-digit ID for Prisma User
+        const generate9DigitId = async (): Promise<string> => {
             let attempts = 0
             while (attempts < 100) {
-                const randomNum = Math.floor(Math.random() * 100000)
-                const id = randomNum.toString().padStart(5, '0')
+                const randomNum = Math.floor(Math.random() * 1000000000)
+                const id = randomNum.toString().padStart(9, '0')
                 const exists = await prisma.user.findUnique({ where: { id } })
                 if (!exists) return id
                 attempts++
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
             throw new Error('Could not generate unique ID')
         }
 
-        const newUserId = await generate5DigitId()
+        const newUserId = await generate9DigitId()
 
         // 4. Handle Profile Picture Upload if exists
         let imageUrl = null

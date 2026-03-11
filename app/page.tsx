@@ -45,15 +45,12 @@ export default async function Home() {
           where: { organizationId: orgId, status: 'APPROVED' },
           select: { name: true }
         }),
-        // Count athletes across all org clubs
-        prisma.club.findMany({
-          where: { organizationId: orgId, status: 'APPROVED' },
-          select: { name: true }
-        }).then(async (orgClubs) => {
-          const clubNames = orgClubs.map(c => c.name)
-          return prisma.user.count({
-            where: { clubName: { in: clubNames }, role: 'ATHLETE' }
-          })
+        // Count all athletes who are members of this organization
+        prisma.user.count({
+          where: {
+            organizationMemberId: orgId,
+            role: 'ATHLETE'
+          }
         }),
         // Fetch upcoming tournaments by org owner
         org?.ownerId ? prisma.tournament.findMany({

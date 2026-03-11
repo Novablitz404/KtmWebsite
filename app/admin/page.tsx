@@ -41,8 +41,13 @@ export default async function AdminPage() {
             select: { id: true, name: true, email: true, role: true },
             orderBy: { name: 'asc' }
         }),
-        // 4. New Users This Month
-        prisma.user.count({ where: { createdAt: { gte: startOfMonth } } }),
+        // 4. New Users This Month (via Supabase auth.users since User.createdAt is only set on card generation)
+        prisma.$queryRaw<[{ count: bigint }]>`
+            SELECT COUNT(*)::bigint as count
+            FROM "User" u
+            JOIN auth.users au ON u."clerkId" = au.id::text
+            WHERE au.created_at >= ${startOfMonth}
+        `,
         // 5. New Tournament Registrations
         prisma.player.count({ where: { createdAt: { gte: startOfMonth } } }),
         // 6. New Seminar Registrations
@@ -61,7 +66,7 @@ export default async function AdminPage() {
     const processedStats = {
         totalUsers,
         countByRole,
-        newUsersThisMonth,
+        newUsersThisMonth: Number(newUsersThisMonth[0]?.count ?? 0),
         newRegistrationsThisMonth: newTournamentRegs + newSeminarRegs + newPromotionRegs
     }
 

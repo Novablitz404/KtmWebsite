@@ -5,6 +5,7 @@ import { useState } from 'react'
 interface SettingsSubTabsProps {
     profileContent: React.ReactNode
     organizationContent: React.ReactNode
+    feesContent?: React.ReactNode
     securityContent: React.ReactNode
     networkContent?: React.ReactNode
 }
@@ -12,19 +13,20 @@ interface SettingsSubTabsProps {
 const baseTabs = [
     { id: 'profile', label: 'Profile' },
     { id: 'organization', label: 'Organization' },
+    { id: 'fees', label: 'Fees' },
     { id: 'network', label: 'Network' },
     { id: 'security', label: 'Security' },
 ] as const
 
 type TabId = typeof baseTabs[number]['id']
 
-export default function SettingsSubTabs({ profileContent, organizationContent, securityContent, networkContent }: SettingsSubTabsProps) {
+export default function SettingsSubTabs({ profileContent, organizationContent, feesContent, securityContent, networkContent }: SettingsSubTabsProps) {
     const [activeTab, setActiveTab] = useState<TabId>('profile')
 
-    // Only show the Network tab if networkContent is provided
-    const tabs = networkContent
-        ? baseTabs
-        : baseTabs.filter(t => t.id !== 'network')
+    // Filter tabs based on what content is provided
+    let tabs = [...baseTabs]
+    if (!networkContent) tabs = tabs.filter(t => t.id !== 'network')
+    if (!feesContent) tabs = tabs.filter(t => t.id !== 'fees')
 
     return (
         <div className="space-y-6">
@@ -54,10 +56,11 @@ export default function SettingsSubTabs({ profileContent, organizationContent, s
 
             {/* Tab Content */}
             <div>
-                {activeTab === 'profile' && profileContent}
-                {activeTab === 'organization' && organizationContent}
-                {activeTab === 'network' && networkContent}
-                {activeTab === 'security' && securityContent}
+                {activeTab === 'profile' && <div key="profile">{profileContent}</div>}
+                {activeTab === 'organization' && <div key="organization">{organizationContent}</div>}
+                {activeTab === 'fees' && <div key="fees">{feesContent}</div>}
+                {activeTab === 'network' && <div key="network">{networkContent}</div>}
+                {activeTab === 'security' && <div key="security">{securityContent}</div>}
             </div>
         </div>
     )

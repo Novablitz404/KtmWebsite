@@ -3,16 +3,17 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Trophy, Medal, Calendar, ChevronRight, Zap, Clock, Mail, QrCode, X, ClipboardList } from 'lucide-react'
+import { Trophy, Medal, Calendar, ChevronRight, Zap, Clock, Mail, QrCode, X, ClipboardList, ShieldCheck, Copy, Check, Eye } from 'lucide-react'
 import Link from 'next/link'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { fetchAthleteDashboardData, unregisterFromTournament } from '@/app/actions'
+import { fetchAthleteDashboardData, unregisterFromTournament, submitAthleteCardPaymentProof } from '@/app/actions'
 import AthleteSidebar from '@/components/athlete/AthleteSidebar'
 import AthleteTopBar from '@/components/athlete/AthleteTopBar'
 import AthleteCard from '@/components/athlete/AthleteCard'
 import ProfileEditForm from '@/app/settings/ProfileEditForm'
 import AthleteProfileView from '@/app/settings/AthleteProfileView'
 import { QRCodeSVG } from 'qrcode.react'
+import { toast } from 'sonner'
 
 interface AthleteDashboardViewProps {
     clerkId: string
@@ -45,6 +46,26 @@ export default function AthleteDashboardView({
     const [achievementsPage, setAchievementsPage] = useState(1)
     const ACHIEVEMENTS_PER_PAGE = 10
 
+    // Activation Modal State
+    const [showActivationModal, setShowActivationModal] = useState(false)
+    const [activationProof, setActivationProof] = useState<File | null>(null)
+    const [isActivating, setIsActivating] = useState(false)
+    const [copiedNo, setCopiedNo] = useState<string | null>(null)
+    const [viewingPaymentQr, setViewingPaymentQr] = useState<string | null>(null)
+    const [viewingQr, setViewingQr] = useState<any>(null)
+
+    // Scroll lock for all modals
+    useEffect(() => {
+        if (showActivationModal || viewingQr || viewingPaymentQr) {
+            document.body.style.overflow = 'hidden'
+        } else {
+            document.body.style.overflow = 'unset'
+        }
+        return () => {
+            document.body.style.overflow = 'unset'
+        }
+    }, [showActivationModal, viewingQr, viewingPaymentQr])
+
     const queryClient = useQueryClient()
 
     const { data: dashboardData, isLoading } = useQuery({
@@ -71,7 +92,6 @@ export default function AthleteDashboardView({
     const registrations = data?.registrations || []
     const seminarRegs = (data as any)?.seminarRegistrations || []
     const promotionRegs = (data as any)?.promotionRegistrations || []
-    const [viewingQr, setViewingQr] = useState<any>(null)
 
     // Calculate stats (only if we have data)
     const now = new Date()
@@ -111,6 +131,34 @@ export default function AthleteDashboardView({
         } catch (e) {
             console.error(e)
             alert('Failed to unregister. Please try again.')
+        }
+    }
+
+    const handleActivationSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!dbUser?.id || !activationProof) return
+
+        setIsActivating(true)
+        try {
+            const formData = new FormData()
+            formData.append('userId', dbUser.id)
+            formData.append('proofImage', activationProof)
+
+            const result = await submitAthleteCardPaymentProof(formData)
+
+            if (result?.error) {
+                toast.error(result.error)
+            } else {
+                toast.success('Payment proof uploaded successfully. Pending approval.')
+                setShowActivationModal(false)
+                setActivationProof(null)
+                await queryClient.invalidateQueries({ queryKey: ['athlete-dashboard', clerkId] })
+            }
+        } catch (error) {
+            console.error(error)
+            toast.error('An error occurred while uploading payment proof')
+        } finally {
+            setIsActivating(false)
         }
     }
 
@@ -370,6 +418,8 @@ export default function AthleteDashboardView({
                                     imageUrl={imageUrl}
                                     createdAt={dbUser?.createdAt?.toString() || null}
                                     isVerified={dbUser?.isVerified || false}
+                                    cardPaymentStatus={dbUser?.cardPaymentStatus || null}
+                                    onActivateClick={() => setShowActivationModal(true)}
                                 />
 
                                 {/* Profile Info Grid */}
@@ -1281,9 +1331,9 @@ export default function AthleteDashboardView({
 
 
 
-                {/* QR Code Modal */}
+                {/* Seminar QR Code Modal */}
                 {viewingQr && (
-                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setViewingQr(null)}>
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[150] p-4" onClick={() => setViewingQr(null)}>
                         <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center" onClick={(e) => e.stopPropagation()}>
                             <div className="flex justify-end mb-2">
                                 <button onClick={() => setViewingQr(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
@@ -1297,13 +1347,166 @@ export default function AthleteDashboardView({
                                     <QRCodeSVG value={viewingQr.qrCodeToken} size={200} />
                                 </div>
                             </div>
-                            <p className="text-base font-bold text-gray-900">{viewingQr.playerName}</p>
-                            <p className="text-sm text-gray-500">{viewingQr.seminar?.name}</p>
                         </div>
                     </div>
                 )}
 
-            </main >
+                {/* Payment QR Lightbox Modal */}
+                {viewingPaymentQr && (
+                    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[150] p-4" onClick={() => setViewingPaymentQr(null)}>
+                        <div className="relative bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex justify-between items-center p-4 border-b border-gray-100">
+                                <h3 className="text-sm font-bold text-gray-900">Payment QR Code</h3>
+                                <button onClick={() => setViewingPaymentQr(null)} className="text-gray-400 hover:text-gray-600 transition-colors bg-gray-100 hover:bg-gray-200 rounded-full p-1.5">
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+                            <div className="flex justify-center p-6 bg-gray-50">
+                                <img src={viewingPaymentQr} alt="Large QR Code" className="w-full h-auto max-h-[60vh] object-contain rounded-lg border border-gray-200" />
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </main>
+
+            {/* Activation Modal */}
+            {showActivationModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden relative">
+                        <div className="flex justify-between items-center p-4 border-b border-gray-100">
+                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                <ShieldCheck className="w-5 h-5 text-red-600" />
+                                Activate Athlete Card
+                            </h3>
+                            <button
+                                onClick={() => { setShowActivationModal(false); setActivationProof(null); }}
+                                className="p-1 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-4 space-y-4 max-h-[80vh] overflow-y-auto custom-scrollbar">
+                            <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100 text-sm text-gray-700">
+                                <div className="flex justify-between items-center mb-2">
+                                    <p className="font-semibold text-blue-900">Manual Payment Required</p>
+                                    <span className="font-bold text-blue-900 bg-blue-100 px-2 py-0.5 rounded-full text-xs">
+                                        {data?.athleteCardFee ? `₱${data.athleteCardFee.toLocaleString()}` : 'Fee TBA'}
+                                    </span>
+                                </div>
+                                {data?.athleteCardPaymentInstructions ? (
+                                    <p className="whitespace-pre-wrap leading-relaxed bg-white/60 p-2.5 rounded border border-blue-100 mt-2">{data.athleteCardPaymentInstructions}</p>
+                                ) : (
+                                    <p>To activate your athlete card, please pay the activation fee directly to your organization and upload the proof of payment below.</p>
+                                )}
+                            </div>
+
+                            {data?.athleteCardPaymentMethods && data.athleteCardPaymentMethods.length > 0 && (
+                                <div className="space-y-3">
+                                    <h4 className="text-sm font-bold text-gray-900">Payment Methods</h4>
+                                    <div className="grid gap-3">
+                                        {data.athleteCardPaymentMethods.map((pm: any) => (
+                                            <div key={pm.id} className="bg-gray-50 border border-gray-200 rounded-xl p-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                                                {pm.qrCodeUrl && (
+                                                    <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 bg-white flex-shrink-0 group">
+                                                        <img src={pm.qrCodeUrl} alt="QR Code" className="w-full h-full object-contain" />
+                                                        <div
+                                                            className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-white"
+                                                            onClick={() => setViewingPaymentQr(pm.qrCodeUrl)}
+                                                        >
+                                                            <Eye size={20} />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <div className="flex-1 min-w-0 w-full">
+                                                    <p className="text-sm font-bold text-gray-900 truncate">{pm.label || pm.bankName}</p>
+                                                    <div className="mt-1 space-y-1.5 text-xs text-gray-600">
+                                                        <div className="flex justify-between items-center bg-white p-1.5 rounded border border-gray-100">
+                                                            <span className="text-gray-400 font-medium">Account No:</span>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-bold text-gray-800 font-mono text-[13px]">{pm.accountNo}</span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        navigator.clipboard.writeText(pm.accountNo)
+                                                                        setCopiedNo(pm.accountNo)
+                                                                        setTimeout(() => setCopiedNo(null), 2000)
+                                                                    }}
+                                                                    className="p-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded text-gray-500 hover:text-gray-700 transition-colors"
+                                                                    title="Copy Account Number"
+                                                                >
+                                                                    {copiedNo === pm.accountNo ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex justify-between px-1.5 pt-0.5">
+                                                            <span className="text-gray-400 font-medium">Account Name:</span>
+                                                            <span className="font-bold text-gray-800">{pm.accountName}</span>
+                                                        </div>
+                                                        {pm.label && pm.bankName && (
+                                                            <div className="flex justify-between px-1.5">
+                                                                <span className="text-gray-400 font-medium">Bank:</span>
+                                                                <span className="font-bold text-gray-800">{pm.bankName}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <form onSubmit={handleActivationSubmit} className="space-y-4 pt-4 border-t border-gray-100">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">Upload Proof of Payment</label>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={(e) => setActivationProof(e.target.files?.[0] || null)}
+                                        required
+                                        className="w-full text-sm text-gray-500
+                                          file:mr-4 file:py-2 file:px-4
+                                          file:rounded-full file:border-0
+                                          file:text-sm file:font-semibold
+                                          file:bg-red-50 file:text-red-700
+                                          hover:file:bg-red-100 transition-all cursor-pointer border border-gray-200 rounded-xl px-2 py-2"
+                                    />
+                                    {activationProof && (
+                                        <p className="mt-2 text-xs text-green-600 select-none">File selected: {activationProof.name}</p>
+                                    )}
+                                </div>
+
+                                <div className="pt-4 border-t border-gray-100 flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setShowActivationModal(false); setActivationProof(null); }}
+                                        className="flex-1 py-2.5 rounded-lg border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 flex items-center justify-center"
+                                        disabled={isActivating}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="flex-1 py-2.5 rounded-lg bg-red-600 text-white text-sm font-bold hover:bg-red-700 flex items-center justify-center gap-2"
+                                        disabled={!activationProof || isActivating}
+                                    >
+                                        {isActivating ? (
+                                            <>
+                                                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                </svg>
+                                                Uploading...
+                                            </>
+                                        ) : 'Submit Proof'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     )
 }
