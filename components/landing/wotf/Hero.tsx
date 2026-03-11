@@ -9,7 +9,7 @@ const Hero = () => {
             {/* Background Image with Overlay */}
             <div className="absolute inset-0">
                 <Image
-                    src="/wotf/hero1.png"
+                    src="/wotf/hero1.jpg"
                     alt="Hero Background"
                     fill
                     className="object-cover object-[25%_center] md:object-center"
@@ -20,7 +20,7 @@ const Hero = () => {
                 <div className="absolute inset-0 bg-gradient-to-t from-african-turquoise/80 via-transparent to-transparent"></div>
             </div>
 
-            {/* Content — CSS animations only, no framer-motion */}
+            {/* Content — CSS animations from globals.css */}
             <div className="relative z-10 h-full flex flex-col justify-center items-center text-center px-4">
                 <div className="-mt-24 sm:-mt-20 md:-mt-16 mb-4 sm:mb-6 md:mb-8 relative z-20 flex flex-col items-center md:gap-2 animate-hero-fade-in">
                     <div className="relative w-40 h-40 sm:w-44 sm:h-44 md:w-48 md:h-48 lg:w-56 lg:h-56">
@@ -29,6 +29,7 @@ const Hero = () => {
                             alt="WOTF Icon"
                             fill
                             className="object-contain"
+                            sizes="(max-width: 640px) 160px, (max-width: 768px) 176px, (max-width: 1024px) 192px, 224px"
                         />
                     </div>
                     <div className="relative h-16 w-64 sm:h-20 sm:w-72 md:h-20 md:w-80 lg:h-24 lg:w-96 mt-2">
@@ -37,6 +38,7 @@ const Hero = () => {
                             alt="WOTF Word"
                             fill
                             className="object-contain"
+                            sizes="(max-width: 640px) 256px, (max-width: 768px) 288px, (max-width: 1024px) 320px, 384px"
                         />
                     </div>
                 </div>
@@ -69,28 +71,6 @@ const Hero = () => {
                     <div className="w-1 h-2 bg-white rounded-full animate-bounce"></div>
                 </div>
             </div>
-
-            {/* CSS Keyframe Animations */}
-            <style dangerouslySetInnerHTML={{
-                __html: `
-                @keyframes heroFadeOnly {
-                    from { opacity: 0; transform: scale(0.95); }
-                    to { opacity: 1; transform: scale(1); }
-                }
-                @keyframes heroSlideUp {
-                    from { opacity: 0; transform: translateY(16px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
-                .animate-hero-fade-in {
-                    animation: heroFadeOnly 0.6s ease-out both;
-                }
-                .animate-hero-fade-in-delayed-1 {
-                    animation: heroSlideUp 0.5s ease-out 0.3s both;
-                }
-                .animate-hero-fade-in-delayed-2 {
-                    animation: heroSlideUp 0.5s ease-out 0.5s both;
-                }
-            `}} />
         </section>
     );
 };

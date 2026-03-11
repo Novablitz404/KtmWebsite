@@ -2,13 +2,9 @@
 
 import { ArrowRight, Shield, Globe, Trophy } from 'lucide-react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import MotionWrapper from './MotionWrapper';
 
-const AffiliationCTA = () => {
-    const searchParams = useSearchParams();
-    const tenantParam = searchParams.get('tenant');
-    const qs = tenantParam ? `?tenant=${tenantParam}` : '';
+const AffiliationCTA = ({ qs = '' }: { qs?: string }) => {
     return (
         <section className="relative py-16 md:py-24 overflow-hidden bg-congo-blue">
             {/* Background Pattern */}

@@ -30,7 +30,7 @@ const WelcomeSection = () => {
                                     alt="Master Moon Dae-Sung"
                                     fill
                                     className="object-cover object-top"
-                                    priority
+                                    sizes="(max-width: 1024px) 100vw, 45vw"
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
                             </div>
@@ -72,6 +72,7 @@ const WelcomeSection = () => {
                                     alt="Master Donnie"
                                     fill
                                     className="object-cover object-top"
+                                    sizes="(max-width: 1024px) 100vw, 45vw"
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
                             </div>

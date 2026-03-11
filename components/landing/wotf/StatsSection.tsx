@@ -1,16 +1,40 @@
 "use client";
 
 import { useEffect, useState, useRef } from 'react';
-import { useInView } from 'framer-motion';
 import MotionWrapper from './MotionWrapper';
 
 interface StatsSectionProps {
     stats?: { athletes: number; clubs: number; events: number };
 }
 
+// Native IntersectionObserver-based useInView hook (replaces framer-motion's)
+function useInView(ref: React.RefObject<HTMLElement | null>, options?: { once?: boolean; margin?: string }) {
+    const [isInView, setIsInView] = useState(false);
+
+    useEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    setIsInView(true);
+                    if (options?.once !== false) observer.disconnect();
+                }
+            },
+            { rootMargin: options?.margin || '0px' }
+        );
+
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [options?.once, options?.margin]);
+
+    return isInView;
+}
+
 const Counter = ({ value, duration = 2 }: { value: number, duration?: number }) => {
     const [count, setCount] = useState(0);
-    const ref = useRef(null);
+    const ref = useRef<HTMLSpanElement>(null);
     const isInView = useInView(ref, { once: true, margin: "-20px" });
 
     useEffect(() => {

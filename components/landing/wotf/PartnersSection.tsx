@@ -1,7 +1,6 @@
 "use client";
 
 import MotionWrapper from './MotionWrapper';
-
 import Image from 'next/image';
 
 const partners = [
@@ -29,19 +28,6 @@ const PartnerLogo = ({ partner }: { partner: typeof partners[0] }) => (
 const PartnersSection = () => {
     return (
         <section className="py-10 md:py-14 bg-[#f5f6fa] overflow-hidden">
-            <style dangerouslySetInnerHTML={{
-                __html: `
-                @keyframes marquee {
-                    0% { transform: translateX(0); }
-                    100% { transform: translateX(calc(-50% - 1rem)); } /* Adjust based on gap */
-                }
-                @media (min-width: 768px) {
-                    @keyframes marquee {
-                        0% { transform: translateX(0); }
-                        100% { transform: translateX(calc(-50% - 2rem)); } /* gap-16 is 4rem, need to shift properly */
-                    }
-                }
-            `}} />
             <div className="container mx-auto px-6">
                 <MotionWrapper className="text-center mb-10" direction="up">
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-[4px] mb-2">
@@ -59,8 +45,8 @@ const PartnersSection = () => {
                 <div className="absolute left-0 top-0 bottom-0 w-16 md:w-32 bg-gradient-to-r from-[#f5f6fa] to-transparent z-10 pointer-events-none" />
                 <div className="absolute right-0 top-0 bottom-0 w-16 md:w-32 bg-gradient-to-l from-[#f5f6fa] to-transparent z-10 pointer-events-none" />
 
-                {/* Using a single track that animates */}
-                <div className="flex w-max flex-nowrap items-center gap-8 md:gap-16 hover:[animation-play-state:paused]" style={{ animation: 'marquee 30s linear infinite' }}>
+                {/* Using marquee-track class from globals.css — reduced from 4x to 3x duplication */}
+                <div className="marquee-track flex w-max flex-nowrap items-center gap-8 md:gap-16 hover:[animation-play-state:paused]">
                     {/* First set */}
                     {partners.map((partner) => (
                         <PartnerLogo key={`a-${partner.id}`} partner={partner} />
@@ -69,13 +55,9 @@ const PartnersSection = () => {
                     {partners.map((partner) => (
                         <PartnerLogo key={`b-${partner.id}`} partner={partner} />
                     ))}
-                    {/* Third duplicate to ensure it fills wide screens */}
+                    {/* Third duplicate to fill wide screens */}
                     {partners.map((partner) => (
                         <PartnerLogo key={`c-${partner.id}`} partner={partner} />
-                    ))}
-                    {/* Fourth duplicate */}
-                    {partners.map((partner) => (
-                        <PartnerLogo key={`d-${partner.id}`} partner={partner} />
                     ))}
                 </div>
             </div>

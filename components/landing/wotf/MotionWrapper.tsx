@@ -1,7 +1,6 @@
 'use client';
 
-import { motion, useInView } from 'framer-motion';
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 
 interface MotionWrapperProps {
     children: React.ReactNode;
@@ -12,53 +11,46 @@ interface MotionWrapperProps {
 }
 
 const MotionWrapper = ({ children, className = '', delay = 0, direction = 'up', enableOnMobile = false }: MotionWrapperProps) => {
-    const ref = useRef(null);
-    const isInView = useInView(ref, { once: true, margin: "-100px" });
-    const [isMobile, setIsMobile] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+    const [visible, setVisible] = useState(false);
+    // Single matchMedia check — no resize listener
+    const isMobile = typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)').matches : false;
 
     useEffect(() => {
-        const checkMobile = () => window.innerWidth < 768;
-        setIsMobile(checkMobile());
+        const el = ref.current;
+        if (!el) return;
 
-        const handleResize = () => setIsMobile(checkMobile());
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
+        // On mobile, skip animation unless enableOnMobile is set
+        if (isMobile && !enableOnMobile) {
+            setVisible(true);
+            return;
+        }
 
-    const getVariants = () => {
-        const distance = 50;
-        const variants = {
-            hidden: {
-                opacity: 0,
-                y: direction === 'up' ? distance : direction === 'down' ? -distance : 0,
-                x: direction === 'left' ? distance : direction === 'right' ? -distance : 0,
-            },
-            visible: {
-                opacity: 1,
-                y: 0,
-                x: 0,
-                transition: {
-                    duration: 0.8,
-                    delay: delay,
-                    ease: "easeOut"
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    setVisible(true);
+                    observer.disconnect();
                 }
-            }
-        };
-        return variants as any;
-    };
+            },
+            { rootMargin: '-100px' }
+        );
+
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [isMobile, enableOnMobile]);
 
     const shouldAnimate = !isMobile || enableOnMobile;
+    const dirClass = `wotf-dir-${direction}`;
 
     return (
-        <motion.div
+        <div
             ref={ref}
-            variants={getVariants()}
-            initial={shouldAnimate ? "hidden" : "visible"}
-            animate={shouldAnimate ? (isInView ? "visible" : "hidden") : "visible"}
-            className={className}
+            className={`${shouldAnimate ? 'wotf-reveal' : ''} ${visible ? `wotf-visible ${dirClass}` : ''} ${className}`}
+            style={visible && delay > 0 ? { animationDelay: `${delay}s` } : undefined}
         >
             {children}
-        </motion.div>
+        </div>
     );
 };
 

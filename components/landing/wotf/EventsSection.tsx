@@ -3,10 +3,10 @@
 import { Calendar, MapPin, ArrowRight, Trophy, GraduationCap } from 'lucide-react';
 import MotionWrapper from './MotionWrapper';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 
 interface EventsSectionProps {
     events?: { id: string; name: string; type: string; date: string; venue: string | null }[];
+    qs?: string;
 }
 
 function formatMonth(dateStr: string) {
@@ -21,10 +21,7 @@ function formatFullDate(dateStr: string) {
     return new Date(dateStr).toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' });
 }
 
-const EventsSection = ({ events }: EventsSectionProps) => {
-    const searchParams = useSearchParams();
-    const tenantParam = searchParams.get('tenant');
-    const qs = tenantParam ? `?tenant=${tenantParam}` : '';
+const EventsSection = ({ events, qs = '' }: EventsSectionProps) => {
     const hasEvents = events && events.length > 0;
 
     return (

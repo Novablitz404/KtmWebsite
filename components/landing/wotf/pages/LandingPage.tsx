@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from 'next/navigation';
 import Navbar from "@/components/landing/wotf/Navbar";
 import Hero from "@/components/landing/wotf/Hero";
 import EventsSection from "@/components/landing/wotf/EventsSection";
@@ -15,15 +16,20 @@ interface WOTFLandingPageProps {
 }
 
 export default function WOTFLandingPage({ stats, upcomingEvents }: WOTFLandingPageProps) {
+    // Read search params once and pass qs string to children that need it
+    const searchParams = useSearchParams();
+    const tenantParam = searchParams.get('tenant');
+    const qs = tenantParam ? `?tenant=${tenantParam}` : '';
+
     return (
         <main className="min-h-screen bg-white">
-            <Navbar animate />
+            <Navbar animate qs={qs} />
             <Hero />
             <WelcomeSection />
             <StatsSection stats={stats} />
             <PartnersSection />
-            <EventsSection events={upcomingEvents} />
-            <AffiliationCTA />
+            <EventsSection events={upcomingEvents} qs={qs} />
+            <AffiliationCTA qs={qs} />
             <Footer />
         </main>
     );

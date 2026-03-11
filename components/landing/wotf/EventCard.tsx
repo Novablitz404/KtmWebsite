@@ -1,7 +1,6 @@
 "use client";
 
 import { MapPin, Calendar, Clock, ArrowRight, Trophy, GraduationCap } from 'lucide-react';
-import { motion } from 'framer-motion';
 import Link from 'next/link';
 
 interface EventCardProps {
@@ -48,11 +47,9 @@ const EventCard = ({ event, index }: { event: EventCardProps; index: number }) =
     const palette = olympicPalette[index % olympicPalette.length];
 
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: (index % 10) * 0.1 }}
-            className={`group relative bg-white rounded-2xl border ${palette.border} shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden h-full`}
+        <div
+            className={`wotf-card-enter group relative bg-white rounded-2xl border ${palette.border} shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden h-full`}
+            style={{ animationDelay: `${(index % 10) * 0.1}s` }}
         >
             {/* Banner Image Area */}
             <div className={`relative overflow-hidden ${event.image.startsWith('bg-') ? `h-48 ${event.image}` : ''}`}>
@@ -159,7 +156,7 @@ const EventCard = ({ event, index }: { event: EventCardProps; index: number }) =
                     )}
                 </div>
             </div>
-        </motion.div>
+        </div>
     );
 };
 

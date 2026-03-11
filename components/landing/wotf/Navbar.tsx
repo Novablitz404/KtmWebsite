@@ -3,23 +3,20 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
-import { motion } from 'framer-motion';
 
 interface NavbarProps {
     variant?: 'default' | 'dark';
     animate?: boolean;
+    qs?: string;
 }
 
-const Navbar = ({ variant = 'default', animate: shouldAnimate = false }: NavbarProps) => {
+const Navbar = ({ variant = 'default', animate: shouldAnimate = false, qs = '' }: NavbarProps) => {
     const [isScrolled, setIsScrolled] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [openMobileGroups, setOpenMobileGroups] = useState<Record<string, boolean>>({});
     const pathname = usePathname();
-    const searchParams = useSearchParams();
-    const tenantParam = searchParams.get('tenant');
-    const qs = tenantParam ? `?tenant=${tenantParam}` : '';
 
     useEffect(() => {
         const handleScroll = () => {
@@ -51,11 +48,8 @@ const Navbar = ({ variant = 'default', animate: shouldAnimate = false }: NavbarP
     ];
 
     return (
-        <motion.nav
-            initial={shouldAnimate ? { y: -100 } : false}
-            animate={shouldAnimate ? { y: 0 } : false}
-            transition={shouldAnimate ? { duration: 0.6, ease: "easeOut" } : undefined}
-            className={`fixed top-0 w-full z-[100] transition-all duration-300 ${isScrolled ? 'bg-white/80 backdrop-blur-md shadow-md py-2' : 'bg-white shadow-md py-2'
+        <nav
+            className={`fixed top-0 w-full z-[100] transition-all duration-300 ${shouldAnimate ? 'wotf-nav-slide-down' : ''} ${isScrolled ? 'bg-white/80 backdrop-blur-md shadow-md py-2' : 'bg-white shadow-md py-2'
                 }`}
         >
             <div className="container mx-auto px-3 md:px-6 flex justify-between items-center">
@@ -68,6 +62,7 @@ const Navbar = ({ variant = 'default', animate: shouldAnimate = false }: NavbarP
                             alt="WOTF Icon"
                             fill
                             className="object-contain drop-shadow-[0_0_6px_rgba(0,0,0,0.15)]"
+                            sizes="(max-width: 768px) 48px, 64px"
                         />
                     </div>
                     {/* Logo Word */}
@@ -77,6 +72,7 @@ const Navbar = ({ variant = 'default', animate: shouldAnimate = false }: NavbarP
                             alt="WOTF Word"
                             fill
                             className={`object-contain object-left drop-shadow-[0_0_6px_rgba(0,0,0,0.15)] ${!isDark && pathname !== '/' ? 'brightness-0 invert' : ''}`}
+                            sizes="(max-width: 768px) 128px, 192px"
                         />
                     </div>
                 </Link>
@@ -158,24 +154,18 @@ const Navbar = ({ variant = 'default', animate: shouldAnimate = false }: NavbarP
                                     {item.name}
                                     <svg className={`w-4 h-4 transition-transform duration-200 ${openMobileGroups[item.name] ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                                 </button>
-                                {openMobileGroups[item.name] && (
-                                    <motion.div
-                                        initial={{ opacity: 0, height: 0 }}
-                                        animate={{ opacity: 1, height: 'auto' }}
-                                        className="pl-4 flex flex-col gap-3 border-l-2 border-gray-100 ml-1 overflow-hidden"
-                                    >
-                                        {item.children.map(child => (
-                                            <Link
-                                                key={child.name}
-                                                href={`${child.href}${qs}`}
-                                                className="text-black font-bold uppercase text-lg hover:text-congo-blue relative before:absolute before:-left-[18px] before:top-1/2 before:-translate-y-1/2 before:w-2 before:h-0.5 before:bg-gray-200"
-                                                onClick={() => setIsMobileMenuOpen(false)}
-                                            >
-                                                {child.name}
-                                            </Link>
-                                        ))}
-                                    </motion.div>
-                                )}
+                                <div className={`wotf-accordion ${openMobileGroups[item.name] ? 'wotf-accordion-open' : ''} pl-4 flex flex-col gap-3 border-l-2 border-gray-100 ml-1`}>
+                                    {item.children.map(child => (
+                                        <Link
+                                            key={child.name}
+                                            href={`${child.href}${qs}`}
+                                            className="text-black font-bold uppercase text-lg hover:text-congo-blue relative before:absolute before:-left-[18px] before:top-1/2 before:-translate-y-1/2 before:w-2 before:h-0.5 before:bg-gray-200"
+                                            onClick={() => setIsMobileMenuOpen(false)}
+                                        >
+                                            {child.name}
+                                        </Link>
+                                    ))}
+                                </div>
                             </div>
                         ) : (
                             <Link
@@ -205,7 +195,7 @@ const Navbar = ({ variant = 'default', animate: shouldAnimate = false }: NavbarP
                     </Link>
                 </div>
             )}
-        </motion.nav>
+        </nav>
     );
 };
 
