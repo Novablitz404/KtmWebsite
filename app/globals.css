@@ -231,6 +231,29 @@ input[type="number"]:focus::placeholder {
 .wotf-reveal.wotf-visible.wotf-dir-right { animation-name: wotfRevealRight; }
 .wotf-reveal.wotf-visible.wotf-dir-none  { animation-name: wotfRevealNone; }
 
+/* Mobile: snappier, shorter travel distance */
+@media (max-width: 767px) {
+  .wotf-reveal.wotf-visible {
+    animation-duration: 0.5s;
+  }
+  @keyframes wotfRevealUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes wotfRevealDown {
+    from { opacity: 0; transform: translateY(-30px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes wotfRevealLeft {
+    from { opacity: 0; transform: translateX(30px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes wotfRevealRight {
+    from { opacity: 0; transform: translateX(-30px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+}
+
 /* EventCard staggered entrance */
 @keyframes wotfCardFadeIn {
   from { opacity: 0; transform: translateY(20px); }
@@ -250,4 +273,16 @@ input[type="number"]:focus::placeholder {
 .wotf-accordion.wotf-accordion-open {
   max-height: 500px;
   opacity: 1;
+}
+
+/* Accessibility: disable ALL WOTF animations if user prefers reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .wotf-reveal { opacity: 1; }
+  .animate-hero-fade-in,
+  .animate-hero-fade-in-delayed-1,
+  .animate-hero-fade-in-delayed-2,
+  .wotf-nav-slide-down,
+  .wotf-card-enter,
+  .wotf-reveal.wotf-visible { animation: none !important; }
+  .marquee-track { animation: none !important; }
 }

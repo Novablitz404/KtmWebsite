@@ -10,22 +10,22 @@ interface MotionWrapperProps {
     enableOnMobile?: boolean;
 }
 
-const MotionWrapper = ({ children, className = '', delay = 0, direction = 'up', enableOnMobile = false }: MotionWrapperProps) => {
+const MotionWrapper = ({ children, className = '', delay = 0, direction = 'up' }: MotionWrapperProps) => {
     const ref = useRef<HTMLDivElement>(null);
     const [visible, setVisible] = useState(false);
-    // Single matchMedia check — no resize listener
-    const isMobile = typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)').matches : false;
 
     useEffect(() => {
         const el = ref.current;
         if (!el) return;
 
-        // On mobile, skip animation unless enableOnMobile is set
-        if (isMobile && !enableOnMobile) {
+        // Respect user's motion preferences
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
             setVisible(true);
             return;
         }
 
+        // Use a smaller trigger margin on mobile for earlier reveal
+        const isMobile = window.matchMedia('(max-width: 767px)').matches;
         const observer = new IntersectionObserver(
             ([entry]) => {
                 if (entry.isIntersecting) {
@@ -33,20 +33,19 @@ const MotionWrapper = ({ children, className = '', delay = 0, direction = 'up', 
                     observer.disconnect();
                 }
             },
-            { rootMargin: '-100px' }
+            { rootMargin: isMobile ? '-40px' : '-100px' }
         );
 
         observer.observe(el);
         return () => observer.disconnect();
-    }, [isMobile, enableOnMobile]);
+    }, []);
 
-    const shouldAnimate = !isMobile || enableOnMobile;
     const dirClass = `wotf-dir-${direction}`;
 
     return (
         <div
             ref={ref}
-            className={`${shouldAnimate ? 'wotf-reveal' : ''} ${visible ? `wotf-visible ${dirClass}` : ''} ${className}`}
+            className={`wotf-reveal ${visible ? `wotf-visible ${dirClass}` : ''} ${className}`}
             style={visible && delay > 0 ? { animationDelay: `${delay}s` } : undefined}
         >
             {children}
