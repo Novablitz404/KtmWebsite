@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useRef } from 'react';
-import MotionWrapper from './MotionWrapper';
 
 interface StatsSectionProps {
     stats?: { athletes: number; clubs: number; events: number };
@@ -32,7 +31,7 @@ function useInView(ref: React.RefObject<HTMLElement | null>, options?: { once?: 
     return isInView;
 }
 
-const Counter = ({ value, duration = 2 }: { value: number, duration?: number }) => {
+const Counter = ({ value, duration = 0.8 }: { value: number, duration?: number }) => {
     const [count, setCount] = useState(0);
     const ref = useRef<HTMLSpanElement>(null);
     const isInView = useInView(ref, { once: true, margin: "-20px" });
@@ -95,13 +94,8 @@ const StatsSection = ({ stats }: StatsSectionProps) => {
         <section className="py-10 md:py-16 bg-white border-b border-gray-100">
             <div className="container mx-auto px-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
-                    {statItems.map((stat, index) => (
-                        <MotionWrapper
-                            key={stat.id}
-                            delay={index * 0.1}
-                            direction="up"
-                            className="text-center"
-                        >
+                    {statItems.map((stat) => (
+                        <div key={stat.id} className="text-center">
                             <div className="flex flex-col items-center">
                                 <h3 className={`text-4xl md:text-5xl font-black ${stat.color} mb-2 tracking-tight`}>
                                     <Counter value={stat.value} />
@@ -111,7 +105,7 @@ const StatsSection = ({ stats }: StatsSectionProps) => {
                                     {stat.label}
                                 </p>
                             </div>
-                        </MotionWrapper>
+                        </div>
                     ))}
                 </div>
             </div>
