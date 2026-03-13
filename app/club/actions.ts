@@ -5,9 +5,9 @@ import { getAuthUser } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { toTitleCase } from '@/lib/utils'
 
-// Generate a random 5-digit ID
+// Generate a random 9-digit ID
 function generateUserId(): string {
-    return Math.floor(10000 + Math.random() * 90000).toString()
+    return Math.floor(Math.random() * 1000000000).toString().padStart(9, '0')
 }
 
 // Generate a temporary password (8 chars, alphanumeric)

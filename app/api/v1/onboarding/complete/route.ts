@@ -68,9 +68,9 @@ export async function POST(request: Request) {
         if (!dbUser) {
             // New sign-up: create DB record with unique 5-digit ID
             const role = (authUser.user_metadata?.role as string) || 'ATHLETE'
-            let newId = Math.floor(10000 + Math.random() * 90000).toString()
+            let newId = Math.floor(Math.random() * 1000000000).toString().padStart(9, '0')
             while (await prisma.user.findUnique({ where: { id: newId } })) {
-                newId = Math.floor(10000 + Math.random() * 90000).toString()
+                newId = Math.floor(Math.random() * 1000000000).toString().padStart(9, '0')
             }
             dbUser = await prisma.user.create({
                 data: {
