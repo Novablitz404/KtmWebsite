@@ -1,5 +1,7 @@
 'use client'
 
+import { compressImage } from '@/lib/compress-image'
+
 import { useState, useEffect, use } from 'react'
 import { Upload, X, Home, Settings, ClipboardList, Users, Bell, Trophy, Medal, Clock, Search, Calendar, Zap, ChevronLeft, ChevronRight, Loader2, Camera, Download } from 'lucide-react'
 import Link from 'next/link'
@@ -2018,13 +2020,18 @@ export default function ClubDashboard({
                                                         type="file"
                                                         accept="image/*"
                                                         className="hidden"
-                                                        onChange={(e) => {
+                                                        onChange={async (e) => {
                                                             const file = e.target.files?.[0]
                                                             if (!file) return
-                                                            if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5MB'); return }
                                                             if (!file.type.startsWith('image/')) { toast.error('Must be an image'); return }
-                                                            setEditAvatarFile(file)
-                                                            setEditAvatarPreview(URL.createObjectURL(file))
+                                                            try {
+                                                                const compressed = await compressImage(file, { maxDimension: 800, quality: 0.8 })
+                                                                setEditAvatarFile(compressed)
+                                                                setEditAvatarPreview(URL.createObjectURL(compressed))
+                                                            } catch {
+                                                                setEditAvatarFile(file)
+                                                                setEditAvatarPreview(URL.createObjectURL(file))
+                                                            }
                                                         }}
                                                     />
                                                 </div>

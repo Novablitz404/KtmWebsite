@@ -3,12 +3,52 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { getTenant } from '@/lib/tenant'
 import WOTFEventsPage from '@/components/landing/wotf/pages/EventsPage'
+import GlobalSeminarPage from '@/components/landing/wotf-global/pages/SeminarPage'
+import GlobalChampionshipPage from '@/components/landing/wotf-global/pages/ChampionshipPage'
 
 // Force dynamic rendering to ensure real-time data and avoid build-time DB connections
 export const dynamic = 'force-dynamic'
 
-export default async function EventsPage() {
+export default async function EventsPage(props: { searchParams: Promise<{ type?: string }> }) {
     const tenant = await getTenant()
+    const searchParams = await props.searchParams
+    const eventType = searchParams.type
+
+    // WOTF Global tenant: show seminar or championship page based on type param
+    if (tenant.slug === 'wotf-global') {
+        const orgId = tenant.id
+
+        if (orgId) {
+            const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { ownerId: true } })
+
+            const [tournaments, seminars] = await Promise.all([
+                org?.ownerId ? prisma.tournament.findMany({
+                    where: { organizerId: org.ownerId, status: { not: 'CANCELLED' } },
+                    select: { id: true, name: true, startDate: true, venue: true },
+                    orderBy: { startDate: 'desc' },
+                }) : Promise.resolve([]),
+                prisma.seminar.findMany({
+                    where: { organizationId: orgId, status: { not: 'CANCELLED' } },
+                    select: { id: true, name: true, startDate: true, venue: true },
+                    orderBy: { startDate: 'desc' },
+                }),
+            ])
+
+            const serializedTournaments = tournaments.map(t => ({ id: t.id, name: t.name, date: t.startDate.toISOString(), venue: t.venue }))
+            const serializedSeminars = seminars.map(s => ({ id: s.id, name: s.name, date: s.startDate.toISOString(), venue: s.venue }))
+
+            // Show seminar or championship page based on ?type= param
+            if (eventType === 'seminar') {
+                return <GlobalSeminarPage seminars={serializedSeminars} />
+            }
+            return <GlobalChampionshipPage tournaments={serializedTournaments} />
+        }
+
+        if (eventType === 'seminar') {
+            return <GlobalSeminarPage />
+        }
+        return <GlobalChampionshipPage />
+    }
 
     // Non-KTM tenant: show org-specific events page with real data
     if (tenant.slug !== 'ktm') {

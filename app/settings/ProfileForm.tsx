@@ -1,5 +1,7 @@
 'use client'
 
+import { compressImage } from '@/lib/compress-image'
+
 import { useState, useRef } from 'react'
 import { updateProfile } from '@/app/actions'
 import GlobalDropdown from '@/components/GlobalDropdown'
@@ -42,11 +44,21 @@ export default function ProfileForm({ user, initialImageUrl, customTrigger }: Pr
         return new Date(date).toISOString().split('T')[0]
     }
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (file) {
-            const objectUrl = URL.createObjectURL(file)
-            setPreviewImage(objectUrl)
+            try {
+                const compressed = await compressImage(file, { maxDimension: 800, quality: 0.8 })
+                const objectUrl = URL.createObjectURL(compressed)
+                setPreviewImage(objectUrl)
+                // Replace file in the input with compressed version
+                const dt = new DataTransfer()
+                dt.items.add(compressed)
+                if (fileInputRef.current) fileInputRef.current.files = dt.files
+            } catch {
+                const objectUrl = URL.createObjectURL(file)
+                setPreviewImage(objectUrl)
+            }
         }
     }
 

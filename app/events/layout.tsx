@@ -9,6 +9,11 @@ export default async function EventsLayout({
 }) {
     const tenant = await getTenant()
 
+    // WOTF Global: pages include their own navbar/footer
+    if (tenant.slug === 'wotf-global') {
+        return <>{children}</>
+    }
+
     // Non-KTM tenants: wrap with org Navbar + Footer
     if (tenant.slug !== 'ktm') {
         return (

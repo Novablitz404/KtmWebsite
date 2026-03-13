@@ -1,5 +1,7 @@
 'use client'
 
+import { compressImage } from '@/lib/compress-image'
+
 import { completeOnboarding, checkEmailAvailability, getExistingProfile } from '@/app/actions'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
@@ -189,30 +191,53 @@ export default function CompleteProfilePage() {
         o.name.toLowerCase().includes(orgSearch.toLowerCase())
     )
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (file) {
-            setSelectedFile(file)
-            const reader = new FileReader()
-            reader.onloadend = () => setImgPreview(reader.result as string)
-            reader.readAsDataURL(file)
+            try {
+                const compressed = await compressImage(file, { maxDimension: 800, quality: 0.8 })
+                setSelectedFile(compressed)
+                const reader = new FileReader()
+                reader.onloadend = () => setImgPreview(reader.result as string)
+                reader.readAsDataURL(compressed)
+            } catch {
+                setSelectedFile(file)
+                const reader = new FileReader()
+                reader.onloadend = () => setImgPreview(reader.result as string)
+                reader.readAsDataURL(file)
+            }
         }
     }
 
-    const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'club' | 'org') => {
+    const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>, type: 'club' | 'org') => {
         const file = e.target.files?.[0]
         if (file) {
-            const reader = new FileReader()
-            reader.onloadend = () => {
-                if (type === 'club') {
-                    setClubLogoFile(file)
-                    setClubLogoPreview(reader.result as string)
-                } else {
-                    setOrgLogoFile(file)
-                    setOrgLogoPreview(reader.result as string)
+            try {
+                const compressed = await compressImage(file, { maxDimension: 800, quality: 0.8 })
+                const reader = new FileReader()
+                reader.onloadend = () => {
+                    if (type === 'club') {
+                        setClubLogoFile(compressed)
+                        setClubLogoPreview(reader.result as string)
+                    } else {
+                        setOrgLogoFile(compressed)
+                        setOrgLogoPreview(reader.result as string)
+                    }
                 }
+                reader.readAsDataURL(compressed)
+            } catch {
+                const reader = new FileReader()
+                reader.onloadend = () => {
+                    if (type === 'club') {
+                        setClubLogoFile(file)
+                        setClubLogoPreview(reader.result as string)
+                    } else {
+                        setOrgLogoFile(file)
+                        setOrgLogoPreview(reader.result as string)
+                    }
+                }
+                reader.readAsDataURL(file)
             }
-            reader.readAsDataURL(file)
         }
     }
 

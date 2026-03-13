@@ -1,5 +1,7 @@
 'use client'
 
+import { compressImage } from '@/lib/compress-image'
+
 import { useState, useRef } from 'react'
 import { format } from 'date-fns'
 import { X, UserPlus, Loader2, Check, Camera, Hash } from 'lucide-react'
@@ -64,19 +66,20 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
         setSuccessData(null)
     }
 
-    const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (!file) return
-        if (file.size > 5 * 1024 * 1024) {
-            toast.error('Image must be under 5MB')
-            return
-        }
         if (!file.type.startsWith('image/')) {
             toast.error('File must be an image')
             return
         }
-        setAvatarFile(file)
-        setAvatarPreview(URL.createObjectURL(file))
+        try {
+            const compressed = await compressImage(file, { maxDimension: 800, quality: 0.8 })
+            setAvatarFile(compressed)
+            setAvatarPreview(URL.createObjectURL(compressed))
+        } catch {
+            toast.error('Failed to process image')
+        }
     }
 
     const handleClose = () => {

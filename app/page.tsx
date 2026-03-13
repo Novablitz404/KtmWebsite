@@ -5,6 +5,7 @@ import { fetchLandingPageEvents } from '@/app/actions'
 import LandingPage from '@/components/LandingPage'
 import { getTenant } from '@/lib/tenant'
 import WOTFLandingPage from '@/components/landing/wotf/pages/LandingPage'
+import WOTFGlobalLandingPage from '@/components/landing/wotf-global/pages/LandingPage'
 
 const ADMIN_EMAILS = ['ericjann21@gmail.com']
 
@@ -12,7 +13,41 @@ export default async function Home() {
   const user = await getAuthUser()
   const tenant = await getTenant()
 
-  // Non-KTM tenant handling
+  // WOTF Global tenant handling
+  if (tenant.slug === 'wotf-global') {
+    if (user) {
+      const existingTenantUser = await prisma.user.findUnique({ where: { id: user.id }, select: { role: true } })
+      const tenantQs = `?tenant=${tenant.slug}`
+      if (existingTenantUser?.role === 'ATHLETE') redirect(`/athlete${tenantQs}`)
+      else if (existingTenantUser?.role === 'CLUB_MASTER' || existingTenantUser?.role === 'ASSISTANT_CLUB_MASTER') redirect(`/club${tenantQs}`)
+    }
+
+    const orgId = tenant.id
+    let stats = { athletes: 0, clubs: 0, events: 0 }
+    let upcomingEvents: { id: string; name: string; type: string; date: string; venue: string | null }[] = []
+
+    if (orgId) {
+      const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { ownerId: true } })
+      const [clubs, athleteCount, tournaments, seminars] = await Promise.all([
+        prisma.club.findMany({ where: { organizationId: orgId, status: 'APPROVED' }, select: { name: true } }),
+        prisma.user.count({ where: { organizationMemberId: orgId, role: 'ATHLETE' } }),
+        org?.ownerId ? prisma.tournament.findMany({ where: { organizerId: org.ownerId, startDate: { gte: new Date() }, status: { in: ['UPCOMING', 'ONGOING'] } }, select: { id: true, name: true, startDate: true, venue: true }, orderBy: { startDate: 'asc' }, take: 4 }) : Promise.resolve([]),
+        prisma.seminar.findMany({ where: { organizationId: orgId, startDate: { gte: new Date() }, status: { in: ['UPCOMING', 'OPEN'] } }, select: { id: true, name: true, startDate: true, venue: true }, orderBy: { startDate: 'asc' }, take: 4 }),
+      ])
+      const [tournamentCount, seminarCount] = await Promise.all([
+        org?.ownerId ? prisma.tournament.count({ where: { organizerId: org.ownerId } }) : Promise.resolve(0),
+        prisma.seminar.count({ where: { organizationId: orgId } }),
+      ])
+      stats = { athletes: athleteCount, clubs: clubs.length, events: tournamentCount + seminarCount }
+      const tournamentEvents = tournaments.map(e => ({ id: e.id, name: e.name, type: 'Tournament', date: e.startDate.toISOString(), venue: e.venue }))
+      const semEvents = seminars.map(e => ({ id: e.id, name: e.name, type: 'Seminar', date: e.startDate.toISOString(), venue: e.venue }))
+      upcomingEvents = [...tournamentEvents, ...semEvents].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 4)
+    }
+
+    return <WOTFGlobalLandingPage stats={stats} upcomingEvents={upcomingEvents} />
+  }
+
+  // Non-KTM tenant handling (WOTF PH, etc.)
   if (tenant.slug !== 'ktm') {
     if (user) {
       // Authenticated tenant user → redirect to their dashboard (with tenant param)

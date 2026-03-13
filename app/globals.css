@@ -286,3 +286,53 @@ input[type="number"]:focus::placeholder {
   .wotf-reveal.wotf-visible { animation: none !important; }
   .marquee-track { animation: none !important; }
 }
+
+/* WOTF Global: parallax hero background */
+.wotf-global-parallax {
+  will-change: transform;
+  transform: translateZ(0);
+}
+@supports (background-attachment: fixed) {
+  @media (min-width: 768px) and (hover: hover) {
+    .wotf-global-parallax {
+      background-attachment: fixed;
+    }
+  }
+}
+
+/* WOTF Global: Google Translate dark theme styling */
+.wotf-gtranslate .goog-te-gadget {
+  font-family: inherit !important;
+  font-size: 0 !important;
+  color: transparent !important;
+}
+.wotf-gtranslate .goog-te-gadget .goog-te-combo {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 9999px !important;
+  color: #d1d5db !important;
+  padding: 6px 14px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  cursor: pointer !important;
+  outline: none !important;
+  font-family: inherit !important;
+  appearance: auto !important;
+  -webkit-appearance: auto !important;
+  transition: border-color 0.2s, color 0.2s !important;
+}
+.wotf-gtranslate .goog-te-gadget .goog-te-combo:hover {
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  color: #fff !important;
+}
+.wotf-gtranslate .goog-te-gadget .goog-te-combo option {
+  background: #111 !important;
+  color: #d1d5db !important;
+}
+/* Hide Google Translate top banner */
+.goog-te-banner-frame, .skiptranslate[style] {
+  display: none !important;
+}
+body { top: 0 !important; }

@@ -2,9 +2,14 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { getTenant } from '@/lib/tenant'
 import WOTFAboutPage from '@/components/landing/wotf/pages/AboutPage'
+import GlobalAboutPage from '@/components/landing/wotf-global/pages/AboutPage'
 
 export default async function AboutPage() {
     const tenant = await getTenant()
+
+    if (tenant.slug === 'wotf-global') {
+        return <GlobalAboutPage />
+    }
 
     // Render org-specific about page if not KTM
     if (tenant.slug !== 'ktm') {

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Inter } from "next/font/google";
+import { Geist, Geist_Mono, Inter, Outfit } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -15,6 +15,12 @@ const geistMono = Geist_Mono({
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
+});
+
+const outfit = Outfit({
+  variable: "--font-outfit",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800", "900"],
 });
 
 import { AuthProvider } from '@/app/providers/AuthProvider'
@@ -74,7 +80,7 @@ export default async function RootLayout({
       <html lang="en" suppressHydrationWarning>
         <head />
         <body
-          className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} antialiased`}
+          className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} ${outfit.variable} antialiased`}
           suppressHydrationWarning
           style={{
             '--tenant-primary': tenant.primaryColor,
@@ -86,8 +92,8 @@ export default async function RootLayout({
             <TenantProvider tenant={tenant}>
               <Toaster position="top-center" richColors />
               <RecoveryRedirect />
-              {isEventPage ? (
-                // Event pages: no header, no auth wrapper, no page transition
+              {isEventPage || tenant.slug === 'wotf-global' ? (
+                // Event pages & WOTF Global: no header, no auth wrapper, no page transition
                 children
               ) : (
                 <AuthLoadingWrapper>

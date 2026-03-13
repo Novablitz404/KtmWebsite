@@ -51,4 +51,17 @@ export const TENANT_BRANDING: Record<string, TenantBranding> = {
         tagline: 'World Olympic Taekwondo Federation Philippines',
         footerText: null,
     },
+    'wotf-global': {
+        name: 'World Olympics Taekwondo Federation',
+        slug: 'wotf-global',
+        logoUrl: '/wotf/logo_image.png',
+        logoWhiteUrl: '/wotf/wotf_logo_word.png',
+        primaryColor: '#0085C7',     // Congo Blue
+        secondaryColor: '#DF0024',   // Spanish Red
+        accentColor: '#F4C300',      // Dashing Yellow
+        faviconUrl: '/wotf/logo_image.png',
+        heroImageUrl: null,
+        tagline: 'World Olympics Taekwondo Federation',
+        footerText: null,
+    },
 }
