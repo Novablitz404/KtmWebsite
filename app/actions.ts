@@ -2843,17 +2843,29 @@ export async function removeMemberFromClub(memberId: string) {
     }
 }
 
-export async function updateClubMember(memberId: string, data: { name?: string, weight?: number, height?: number, belt?: string, gender?: string, email?: string }) {
+export async function updateClubMember(memberId: string, data: { name?: string, weight?: number, height?: number, belt?: string, gender?: string, email?: string, birthDate?: Date }) {
     const dbUser = await getAuthUser()
     if (!dbUser) return { error: 'Unauthorized' }
 
     try {
+        const oldUser = await prisma.user.findUnique({ where: { id: memberId } })
+
         await prisma.user.update({
             where: { id: memberId },
             data: {
                 ...data
             }
         })
+
+        if (data.name && oldUser?.name !== data.name) {
+            const { cascadeUserName } = await import('@/lib/cascadeUserName')
+            await cascadeUserName(memberId, data.name)
+        }
+
+        if (data.belt && oldUser?.belt !== data.belt) {
+            const { cascadeUserBelt } = await import('@/lib/cascadeUserBelt')
+            cascadeUserBelt(memberId, data.belt).catch(console.error)
+        }
         return { success: true }
     } catch (error) {
         console.error('Error updating member:', error)

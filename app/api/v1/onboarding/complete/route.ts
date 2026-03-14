@@ -117,7 +117,8 @@ export async function POST(request: Request) {
                 return apiError('All athlete profile fields are required', 400)
             }
 
-            const birthDate = new Date(birthDateStr)
+            const [y, m, d] = birthDateStr.split('-').map(Number)
+            const birthDate = new Date(Date.UTC(y, m - 1, d))
 
             await prisma.user.update({
                 where: { id: dbUser.id },

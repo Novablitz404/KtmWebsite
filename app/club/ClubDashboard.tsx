@@ -11,6 +11,7 @@ import { updateRegistrationStatus, deletePromotionRegistration } from '@/app/pro
 import { approveSeminarRegistration, unapproveSeminarRegistration, deleteSeminarRegistration, updateSeminarRegistrationStatus, updateSeminarParticipantDetails, generateSeminarQRCode } from '@/app/seminars/actions'
 
 import GlobalDropdown from '@/components/GlobalDropdown'
+import GlobalCalendar from '@/components/GlobalCalendar'
 import { calculateAge } from '@/lib/placement'
 import { toast } from 'sonner'
 import ClubSettingsButton from '@/app/components/ClubSettingsButton'
@@ -1949,7 +1950,7 @@ export default function ClubDashboard({
                             return (
                                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setEditingMember(null)} />
-                                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
 
                                         {/* Header */}
                                         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -1977,7 +1978,6 @@ export default function ClubDashboard({
                                                 </span>
                                             </div>
                                         )}
-
                                         <form
                                             onSubmit={(e) => {
                                                 e.preventDefault()
@@ -1988,155 +1988,193 @@ export default function ClubDashboard({
                                                     belt: formData.get('belt'),
                                                     weight: Number(formData.get('weight')) || null,
                                                     height: Number(formData.get('height')) || null,
-                                                    gender: formData.get('gender')
+                                                    gender: formData.get('gender'),
+                                                    birthDate: formData.get('birthDate') ? (() => {
+                                                        const dateStr = formData.get('birthDate') as string
+                                                        const [year, month, day] = dateStr.split('-').map(Number)
+                                                        return new Date(Date.UTC(year, month - 1, day))
+                                                    })() : undefined
                                                 })
                                             }}
-                                            className="px-6 py-5 space-y-5 overflow-y-auto"
+                                            className="px-6 py-5 overflow-y-auto"
                                         >
-                                            {/* Profile Picture */}
-                                            <div className="flex justify-center">
-                                                <div className="relative group">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            const inp = document.getElementById('edit-avatar-input') as HTMLInputElement
-                                                            inp?.click()
-                                                        }}
-                                                        className="w-20 h-20 rounded-full border-2 border-gray-200 hover:border-red-400 flex items-center justify-center transition-all overflow-hidden bg-gray-50 relative"
-                                                    >
-                                                        {(editAvatarPreview || editingMember.imageUrl) ? (
-                                                            <img src={editAvatarPreview || editingMember.imageUrl || ''} alt="Avatar" className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <div className="w-full h-full bg-red-100 flex items-center justify-center text-red-600 text-xl font-bold">
-                                                                {editingMember.name?.charAt(0)?.toUpperCase() || '?'}
+                                            <div className="flex flex-col md:flex-row gap-8">
+                                                {/* Left Column: Photo */}
+                                                <div className="flex flex-col items-center gap-3 md:w-1/3">
+                                                    <div className="relative group">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const inp = document.getElementById('edit-avatar-input') as HTMLInputElement
+                                                                inp?.click()
+                                                            }}
+                                                            className="w-32 h-32 rounded-full border-4 border-white shadow-lg group-hover:border-red-500/50 flex items-center justify-center transition-all overflow-hidden bg-gray-50 relative"
+                                                        >
+                                                            {(editAvatarPreview || editingMember.imageUrl) ? (
+                                                                <img src={editAvatarPreview || editingMember.imageUrl || ''} alt="Avatar" className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <div className="w-full h-full bg-red-100 flex items-center justify-center text-red-600 text-4xl font-bold">
+                                                                    {editingMember.name?.charAt(0)?.toUpperCase() || '?'}
+                                                                </div>
+                                                            )}
+                                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+                                                                <Camera className="w-6 h-6 text-white" />
+                                                                <span className="text-white text-xs font-semibold">Change</span>
                                                             </div>
+                                                        </button>
+                                                        <input
+                                                            id="edit-avatar-input"
+                                                            type="file"
+                                                            accept="image/*"
+                                                            className="hidden"
+                                                            onChange={async (e) => {
+                                                                const file = e.target.files?.[0]
+                                                                if (!file) return
+                                                                if (!file.type.startsWith('image/')) { toast.error('Must be an image'); return }
+                                                                try {
+                                                                    const compressed = await compressImage(file, { maxDimension: 800, quality: 0.8 })
+                                                                    setEditAvatarFile(compressed)
+                                                                    setEditAvatarPreview(URL.createObjectURL(compressed))
+                                                                } catch {
+                                                                    setEditAvatarFile(file)
+                                                                    setEditAvatarPreview(URL.createObjectURL(file))
+                                                                }
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Right Column: Fields */}
+                                                <div className="flex-1 space-y-5">
+                                                    {/* Name */}
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Full Name</label>
+                                                        <input
+                                                            type="text"
+                                                            name="name"
+                                                            defaultValue={editingMember.name || ''}
+                                                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium"
+                                                            placeholder="Enter member's full name"
+                                                        />
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                                        {/* Birth Date */}
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Birth Date</label>
+                                                            <GlobalCalendar
+                                                                value={editingMember.birthDate ? new Date(editingMember.birthDate) : undefined}
+                                                                onChange={(date) => setEditingMember({ ...editingMember, birthDate: date })}
+                                                                fullWidth
+                                                            />
+                                                            <input
+                                                                type="hidden"
+                                                                name="birthDate"
+                                                                value={editingMember.birthDate ? (() => {
+                                                                    let d = new Date(editingMember.birthDate);
+                                                                    const y = d.getFullYear();
+                                                                    const m = String(d.getMonth() + 1).padStart(2, '0');
+                                                                    const day = String(d.getDate()).padStart(2, '0');
+                                                                    return `${y}-${m}-${day}`;
+                                                                })() : ''}
+                                                            />
+                                                        </div>
+
+                                                        {/* Email */}
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Email</label>
+                                                            <input
+                                                                type="email"
+                                                                name="email"
+                                                                defaultValue={editingMember.email?.includes('@member.ktm') ? '' : editingMember.email || ''}
+                                                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium"
+                                                                placeholder="athlete@example.com"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Gender & Belt */}
+                                                    <div className="grid grid-cols-2 gap-5">
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Gender</label>
+                                                            <GlobalDropdown
+                                                                value={editingMember.gender || 'Male'}
+                                                                onChange={(val) => setEditingMember({ ...editingMember, gender: val })}
+                                                                options={['Male', 'Female']}
+                                                                fullWidth
+                                                            />
+                                                            <input type="hidden" name="gender" value={editingMember.gender || 'Male'} />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Belt Rank</label>
+                                                            <GlobalDropdown
+                                                                value={editingMember.belt || 'White'}
+                                                                onChange={(val) => setEditingMember({ ...editingMember, belt: val })}
+                                                                options={['White', 'Yellow', 'Orange', 'Green', 'Purple', 'Blue', 'Maroon', 'Red', 'Brown', 'Black']}
+                                                                fullWidth
+                                                            />
+                                                            <input type="hidden" name="belt" value={editingMember.belt || 'White'} />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Smart Height or Weight */}
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                                                            {isHeightBased ? 'Height (cm)' : 'Weight (kg)'}
+                                                        </label>
+                                                        {isHeightBased ? (
+                                                            <>
+                                                                <div className="relative">
+                                                                    <input
+                                                                        type="number"
+                                                                        name="height"
+                                                                        step="0.1"
+                                                                        defaultValue={editingMember.height || ''}
+                                                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium pr-12"
+                                                                        placeholder="0.0"
+                                                                    />
+                                                                    <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-gray-400 text-sm font-medium">cm</div>
+                                                                </div>
+                                                                <input type="hidden" name="weight" value={editingMember.weight || 0} />
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <div className="relative">
+                                                                    <input
+                                                                        type="number"
+                                                                        name="weight"
+                                                                        step="0.1"
+                                                                        defaultValue={editingMember.weight || ''}
+                                                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium pr-12"
+                                                                        placeholder="0.0"
+                                                                    />
+                                                                    <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-gray-400 text-sm font-medium">kg</div>
+                                                                </div>
+                                                                <input type="hidden" name="height" value={editingMember.height || 0} />
+                                                            </>
                                                         )}
-                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                            <Camera className="w-5 h-5 text-white" />
-                                                        </div>
-                                                    </button>
-                                                    <input
-                                                        id="edit-avatar-input"
-                                                        type="file"
-                                                        accept="image/*"
-                                                        className="hidden"
-                                                        onChange={async (e) => {
-                                                            const file = e.target.files?.[0]
-                                                            if (!file) return
-                                                            if (!file.type.startsWith('image/')) { toast.error('Must be an image'); return }
-                                                            try {
-                                                                const compressed = await compressImage(file, { maxDimension: 800, quality: 0.8 })
-                                                                setEditAvatarFile(compressed)
-                                                                setEditAvatarPreview(URL.createObjectURL(compressed))
-                                                            } catch {
-                                                                setEditAvatarFile(file)
-                                                                setEditAvatarPreview(URL.createObjectURL(file))
-                                                            }
-                                                        }}
-                                                    />
-                                                </div>
-                                            </div>
-                                            <p className="text-[10px] text-center text-gray-400 -mt-3">Click to change photo</p>
-
-                                            {/* Name */}
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Full Name</label>
-                                                <input
-                                                    type="text"
-                                                    name="name"
-                                                    defaultValue={editingMember.name || ''}
-                                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium"
-                                                    placeholder="Enter member's full name"
-                                                />
-                                            </div>
-
-                                            {/* Email */}
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Email</label>
-                                                <input
-                                                    type="email"
-                                                    name="email"
-                                                    defaultValue={editingMember.email?.includes('@member.ktm') ? '' : editingMember.email || ''}
-                                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium"
-                                                    placeholder="athlete@example.com"
-                                                />
-                                            </div>
-
-                                            {/* Gender & Belt */}
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Gender</label>
-                                                    <GlobalDropdown
-                                                        value={editingMember.gender || 'Male'}
-                                                        onChange={(val) => setEditingMember({ ...editingMember, gender: val })}
-                                                        options={['Male', 'Female']}
-                                                        fullWidth
-                                                    />
-                                                    <input type="hidden" name="gender" value={editingMember.gender || 'Male'} />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Belt Rank</label>
-                                                    <GlobalDropdown
-                                                        value={editingMember.belt || 'White'}
-                                                        onChange={(val) => setEditingMember({ ...editingMember, belt: val })}
-                                                        options={['White', 'Yellow', 'Orange', 'Green', 'Purple', 'Blue', 'Maroon', 'Red', 'Brown', 'Black']}
-                                                        fullWidth
-                                                    />
-                                                    <input type="hidden" name="belt" value={editingMember.belt || 'White'} />
+                                                        <p className="text-xs text-gray-500 mt-2">
+                                                            {isHeightBased
+                                                                ? "Because the athlete is 11 or under, height is used for tournament bracketing."
+                                                                : "Because the athlete is over 11, weight is used for tournament bracketing."}
+                                                        </p>
+                                                    </div>
                                                 </div>
                                             </div>
 
-                                            {/* Smart Height or Weight */}
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-                                                    {isHeightBased ? 'Height (cm)' : 'Weight (kg)'}
-                                                </label>
-                                                {isHeightBased ? (
-                                                    <>
-                                                        <div className="relative">
-                                                            <input
-                                                                type="number"
-                                                                name="height"
-                                                                step="0.1"
-                                                                defaultValue={editingMember.height || ''}
-                                                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium pr-12"
-                                                                placeholder="0.0"
-                                                            />
-                                                            <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-gray-400 text-sm font-medium">cm</div>
-                                                        </div>
-                                                        <input type="hidden" name="weight" value={editingMember.weight || 0} />
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <div className="relative">
-                                                            <input
-                                                                type="number"
-                                                                name="weight"
-                                                                step="0.1"
-                                                                defaultValue={editingMember.weight || ''}
-                                                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium pr-12"
-                                                                placeholder="0.0"
-                                                            />
-                                                            <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-gray-400 text-sm font-medium">kg</div>
-                                                        </div>
-                                                        <input type="hidden" name="height" value={editingMember.height || 0} />
-                                                    </>
-                                                )}
-                                            </div>
-
-                                            {/* Footer Actions */}
-                                            <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+                                            {/* Submit Area */}
+                                            <div className="mt-8 pt-6 border-t border-gray-100 flex justify-end gap-3">
                                                 <button
                                                     type="button"
                                                     onClick={() => setEditingMember(null)}
-                                                    className="px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-100 border border-gray-200 transition-all"
+                                                    className="px-5 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
                                                 >
                                                     Cancel
                                                 </button>
                                                 <button
                                                     type="submit"
                                                     disabled={submitting}
-                                                    className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-red-600 hover:bg-red-700 shadow-sm disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                                                    className="px-6 py-2.5 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-all shadow-sm hover:shadow active:scale-[0.98] disabled:opacity-50 flex items-center gap-2"
                                                 >
                                                     {submitting ? (
                                                         <>

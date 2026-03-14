@@ -63,6 +63,15 @@ export async function PUT(request: Request) {
         const { cascadeUserName } = await import('@/lib/cascadeUserName')
         await cascadeUserName(user.id, name)
 
+        // Cascade belt change to all active registrations and re-bracket upcoming tournaments
+        if (belt && belt !== user.belt) {
+            const { cascadeUserBelt } = await import('@/lib/cascadeUserBelt')
+            // Don't await the belt cascade to avoid blocking the profile response UI, fire and forget
+            cascadeUserBelt(user.id, belt).catch(err => {
+                console.error('Failed to cascade user belt update:', err)
+            })
+        }
+
         return apiResponse(updatedUser)
 
     } catch (error) {

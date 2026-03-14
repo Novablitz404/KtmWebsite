@@ -103,7 +103,10 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
                 belt: belt || undefined,
                 weight: weight ? parseFloat(weight) : undefined,
                 height: height ? parseFloat(height) : undefined,
-                birthDate: birthDate ? new Date(birthDate) : undefined,
+                birthDate: birthDate ? (() => {
+                    const [y, m, d] = birthDate.split('-').map(Number)
+                    return new Date(Date.UTC(y, m - 1, d))
+                })() : undefined,
                 athleteNumber: athleteNumber || undefined,
             })
 

@@ -61,7 +61,10 @@ function UserActionButtons({
             setUserDetails(data?.user)
             setAvailableClubs(data?.clubs || [])
             setEditForm({
-                birthDate: data?.user?.birthDate ? new Date(data.user.birthDate).toISOString().split('T')[0] : '',
+                birthDate: data?.user?.birthDate ? (() => {
+                    const d = new Date(data.user.birthDate);
+                    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+                })() : '',
                 weight: data?.user?.weight || '',
                 height: data?.user?.height || '',
                 belt: data?.user?.belt || '',
@@ -170,7 +173,10 @@ function UserActionButtons({
                                                         onChange={(date) => setEditForm({ ...editForm, birthDate: date.toISOString().split('T')[0] })}
                                                         fullWidth
                                                     />
-                                                ) : <p className="text-sm text-gray-900">{userDetails.birthDate ? new Date(userDetails.birthDate).toLocaleDateString() : 'Not set'}</p>}
+                                                ) : <p className="text-sm text-gray-900">{userDetails.birthDate ? (() => {
+                                                    const d = new Date(userDetails.birthDate);
+                                                    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()).toLocaleDateString();
+                                                })() : 'Not set'}</p>}
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-semibold text-gray-500 mb-1">Gender</label>
