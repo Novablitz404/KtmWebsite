@@ -220,7 +220,6 @@ function MembersPageInner({ clubs, stats }: MembersPageProps) {
                     </div>
 
                     <h1 className="text-3xl md:text-5xl lg:text-6xl font-black uppercase tracking-wider">
-                        <span className="text-white">WOTF</span>{' '}
                         <span className="bg-gradient-to-r from-[#0085C7] via-white to-[#DF0024] bg-clip-text text-transparent">National Chapter</span>
                     </h1>
 
@@ -288,62 +287,6 @@ function MembersPageInner({ clubs, stats }: MembersPageProps) {
                 </div>
             </section>
 
-            {/* ═══════════════ REGIONAL OFFICES GRID ═══════════════ */}
-            <section className="py-16 md:py-24 bg-black">
-                <div className="max-w-6xl mx-auto px-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-                        {REGIONAL_OFFICES
-                            .filter(r => !activeRegion || r.region === activeRegion)
-                            .map((region, i) => (
-                                <div
-                                    key={region.region}
-                                    className="wotf-reveal group bg-[#0A0A0A] border border-white/[0.06] rounded-2xl overflow-hidden hover:border-white/10 transition-all duration-300"
-                                    style={{ animationDelay: `${i * 0.1}s` }}
-                                    onClick={() => setActiveRegion(activeRegion === region.region ? null : region.region)}
-                                >
-                                    {/* Region Header */}
-                                    <div className="px-5 py-4 border-b border-white/[0.04] flex items-center justify-between cursor-pointer">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-lg" style={{ backgroundColor: region.color + '15' }}>
-                                          
-                                            </div>
-                                            <div>
-                                                <h3 className="text-white font-black text-sm uppercase tracking-wider">{region.region}</h3>
-                                                <p className="text-[10px] text-gray-600 font-medium">{region.offices.length} {region.offices.length === 1 ? 'chapter' : 'chapters'}</p>
-                                            </div>
-                                        </div>
-                                        <ChevronRight size={14} className="text-gray-600 group-hover:text-white group-hover:translate-x-0.5 transition-all" />
-                                    </div>
-
-                                    {/* Offices List */}
-                                    <div className="px-5 py-4 space-y-3">
-                                        {region.offices.map((office) => (
-                                            <div key={office.name} className="flex items-start gap-3 group/item">
-                                                <div className="mt-0.5 flex-shrink-0">
-                                                    <div
-                                                        className="w-2 h-2 rounded-full"
-                                                        style={{ backgroundColor: 'isHQ' in office && office.isHQ ? '#DF0024' : region.color, opacity: 0.8 }}
-                                                    />
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <p className="text-white text-sm font-medium leading-tight flex items-center gap-1.5">
-                                                        {office.name}
-                                                        {'isHQ' in office && office.isHQ && (
-                                                            <span className="text-[8px] font-black bg-[#DF0024] text-white px-1.5 py-0.5 rounded uppercase">HQ</span>
-                                                        )}
-                                                    </p>
-                                                    <p className="text-gray-600 text-xs flex items-center gap-1 mt-0.5">
-                                                        <MapPin size={9} />{office.location}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
-                    </div>
-                </div>
-            </section>
 
             {/* ═══════════════ MEMBER ORGANIZATIONS (from DB) ═══════════════ */}
             <section className="py-16 md:py-24 bg-[#030303]">

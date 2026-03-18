@@ -38,6 +38,10 @@ export async function updateRegistrationStatus(registrationId: string, status: s
                 where: { id: registration.playerId },
                 data: { belt: nextBelt }
             })
+
+            // Cascade belt change to all active tournament registrations
+            const { cascadeUserBelt } = await import('@/lib/cascadeUserBelt')
+            cascadeUserBelt(registration.playerId, nextBelt).catch(console.error)
         }
     }
 
@@ -98,6 +102,8 @@ export async function bulkUpdateRegistrations(registrationIds: string[], status:
             select: { playerId: true, currentBelt: true, isJump: true }
         })
 
+        const { cascadeUserBelt } = await import('@/lib/cascadeUserBelt')
+
         for (const reg of registrations) {
             if (reg.playerId) {
                 const nextBelt = getNextBelt(reg.currentBelt, reg.isJump)
@@ -106,6 +112,9 @@ export async function bulkUpdateRegistrations(registrationIds: string[], status:
                         where: { id: reg.playerId },
                         data: { belt: nextBelt }
                     })
+
+                    // Cascade belt change to all active tournament registrations
+                    cascadeUserBelt(reg.playerId, nextBelt).catch(console.error)
                 }
             }
         }

@@ -40,6 +40,10 @@ export async function examinerUpdateStatus(registrationId: string, status: strin
                 data: { belt: nextBelt }
             })
 
+            // Cascade belt change to all active tournament registrations
+            const { cascadeUserBelt } = await import('@/lib/cascadeUserBelt')
+            cascadeUserBelt(user.id, nextBelt).catch(console.error)
+
             // Send Email Notification
             if (user.email) {
                 const promotionTest = await prisma.promotionTest.findUnique({
