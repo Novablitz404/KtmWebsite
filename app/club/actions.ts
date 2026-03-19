@@ -29,6 +29,7 @@ interface CreateClubMemberInput {
     height?: number
     birthDate?: Date
     athleteNumber?: string
+    country?: string
 }
 
 export async function createClubMember(input: CreateClubMemberInput) {
@@ -40,7 +41,7 @@ export async function createClubMember(input: CreateClubMemberInput) {
     // Get the Club Master's club
     const clubMaster = await prisma.user.findUnique({
         where: { id: dbUser.id },
-        include: { club: true }
+        include: { club: { select: { name: true, organizationId: true } } }
     })
 
     if (!clubMaster || clubMaster.role !== 'CLUB_MASTER' || !clubMaster.club) {
@@ -87,6 +88,9 @@ export async function createClubMember(input: CreateClubMemberInput) {
                 height: input.height || null,
                 birthDate: input.birthDate || null,
                 athleteNumber: input.athleteNumber || null,
+                country: input.country || null,
+                // Set the org affiliation so the member appears in org stats immediately
+                organizationMemberId: clubMaster.club.organizationId || null,
             }
         })
 

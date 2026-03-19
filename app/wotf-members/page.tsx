@@ -34,7 +34,7 @@ export default async function WOTFMembersPage() {
         // Fetch stats for the hero counters
         const [clubCount, athleteCount, countryCount] = await Promise.all([
             prisma.club.count({ where: { organizationId: orgId, status: 'APPROVED' } }),
-            prisma.user.count({ where: { organizationMemberId: orgId, role: 'ATHLETE' } }),
+            prisma.user.count({ where: { role: 'ATHLETE', organizationMemberId: orgId } }),
             prisma.user.findMany({
                 where: { organizationMemberId: orgId, country: { not: null } },
                 select: { country: true },

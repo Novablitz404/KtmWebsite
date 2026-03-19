@@ -1,16 +1,15 @@
-'use client'
-
 import { compressImage } from '@/lib/compress-image'
 
 import { useState, useRef } from 'react'
 import { format } from 'date-fns'
-import { X, UserPlus, Loader2, Check, Camera, Hash } from 'lucide-react'
+import { X, UserPlus, Loader2, Check, Camera } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClubMember, uploadMemberAvatar } from '@/app/club/actions'
 import { useQueryClient } from '@tanstack/react-query'
 import GlobalDropdown from '@/components/GlobalDropdown'
 import GlobalCalendar from '@/components/GlobalCalendar'
 import { useScrollLock } from '@/hooks/useScrollLock'
+import { COUNTRIES } from '@/lib/countries'
 
 interface CreateMemberModalProps {
     isOpen: boolean
@@ -47,7 +46,7 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
     const [weight, setWeight] = useState('')
     const [height, setHeight] = useState('')
     const [birthDate, setBirthDate] = useState('')
-    const [athleteNumber, setAthleteNumber] = useState('')
+    const [country, setCountry] = useState('')
     const [avatarFile, setAvatarFile] = useState<File | null>(null)
     const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
     const avatarInputRef = useRef<HTMLInputElement>(null)
@@ -60,7 +59,7 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
         setWeight('')
         setHeight('')
         setBirthDate('')
-        setAthleteNumber('')
+        setCountry('')
         setAvatarFile(null)
         setAvatarPreview(null)
         setSuccessData(null)
@@ -89,25 +88,28 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!name) {
-            toast.error('Name is required')
-            return
-        }
+        if (!name) { toast.error('Name is required'); return }
+        if (!gender) { toast.error('Gender is required'); return }
+        if (!belt) { toast.error('Belt is required'); return }
+        if (!weight) { toast.error('Weight is required'); return }
+        if (!height) { toast.error('Height is required'); return }
+        if (!birthDate) { toast.error('Birth date is required'); return }
+        if (!country) { toast.error('Country is required'); return }
 
         setSubmitting(true)
         try {
             const result = await createClubMember({
                 email: email || undefined,
                 name,
-                gender: gender || undefined,
-                belt: belt || undefined,
-                weight: weight ? parseFloat(weight) : undefined,
-                height: height ? parseFloat(height) : undefined,
-                birthDate: birthDate ? (() => {
+                gender,
+                belt,
+                weight: parseFloat(weight),
+                height: parseFloat(height),
+                birthDate: (() => {
                     const [y, m, d] = birthDate.split('-').map(Number)
                     return new Date(Date.UTC(y, m - 1, d))
-                })() : undefined,
-                athleteNumber: athleteNumber || undefined,
+                })(),
+                country,
             })
 
             if ('error' in result) {
@@ -264,7 +266,7 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
                                 {/* Gender */}
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                                        Gender
+                                        Gender <span className="text-red-500">*</span>
                                     </label>
                                     <GlobalDropdown
                                         label="Select..."
@@ -279,7 +281,7 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
                                 {/* Belt */}
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                                        Belt
+                                        Belt <span className="text-red-500">*</span>
                                     </label>
                                     <GlobalDropdown
                                         label="Select..."
@@ -293,33 +295,35 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
 
                                 {/* Weight */}
                                 <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Weight (kg)</label>
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Weight (kg) <span className="text-red-500">*</span></label>
                                     <input
                                         type="number"
                                         step="0.1"
                                         value={weight}
                                         onChange={(e) => setWeight(e.target.value)}
                                         placeholder="50.0"
+                                        required
                                         className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm"
                                     />
                                 </div>
 
                                 {/* Height */}
                                 <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Height (cm)</label>
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Height (cm) <span className="text-red-500">*</span></label>
                                     <input
                                         type="number"
                                         step="0.1"
                                         value={height}
                                         onChange={(e) => setHeight(e.target.value)}
                                         placeholder="150.0"
+                                        required
                                         className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm"
                                     />
                                 </div>
 
                                 {/* Birth Date */}
                                 <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Birth Date</label>
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Birth Date <span className="text-red-500">*</span></label>
                                     <GlobalCalendar
                                         value={birthDate}
                                         onChange={(date: Date) => setBirthDate(format(date, 'yyyy-MM-dd'))}
@@ -329,17 +333,19 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
                                     />
                                 </div>
 
-                                {/* Athlete Number */}
+                                {/* Country */}
                                 <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
-                                        <Hash className="w-3.5 h-3.5" /> Athlete No. <span className="text-gray-400 font-normal">(optional)</span>
+                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                        Country <span className="text-red-500">*</span>
                                     </label>
-                                    <input
-                                        type="text"
-                                        value={athleteNumber}
-                                        onChange={(e) => setAthleteNumber(e.target.value)}
-                                        placeholder="e.g. 12345678"
-                                        className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm"
+                                    <GlobalDropdown
+                                        label="Select country..."
+                                        value={country}
+                                        onChange={setCountry}
+                                        options={COUNTRIES.map(c => ({ label: c, value: c }))}
+                                        fullWidth
+                                        className="w-full"
+                                        searchable
                                     />
                                 </div>
                             </div>
