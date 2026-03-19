@@ -30,6 +30,7 @@ const PUBLIC_PREFIXES = [
     '/api/clubs',
     '/api/v1/onboarding',
     '/api/event',
+    '/api/checkout',   // Guest registration payment flow (no auth required)
     '/api/cron',
     '/api/ai',
     '/tournaments',

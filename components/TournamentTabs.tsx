@@ -13,7 +13,7 @@ import TournamentSettings from './TournamentSettings'
 import TournamentStatusActions from './TournamentStatusActions'
 import DeleteTournamentButton from './DeleteTournamentButton'
 import EventCheckIn from './EventCheckIn'
-import { tournamentCheckIn, searchPlayersForCheckIn, getTournamentCheckInStats, getCheckedInPlayers } from '@/app/actions'
+import { tournamentCheckIn, searchPlayersForCheckIn, getTournamentCheckInStats, getCheckedInPlayers, saveWaiverSignature } from '@/app/actions'
 import {
     LayoutDashboard,
     ClipboardList,
@@ -272,6 +272,7 @@ export default function TournamentTabs({ tournament, players, pendingManagerInvi
                                 onSearch={searchPlayersForCheckIn}
                                 onGetStats={getTournamentCheckInStats}
                                 onGetCheckedIn={getCheckedInPlayers}
+                                onSaveWaiver={saveWaiverSignature}
                             />
                         </div>
                     )}

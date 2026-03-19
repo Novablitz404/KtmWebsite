@@ -154,16 +154,18 @@ export default function ProfileEditForm({ user, initialImageUrl, onCancel, redir
                         <input type="hidden" name="birthDate" value={birthDate ? birthDate.toISOString().split('T')[0] : ''} required />
                     </div>
                 )}
-                <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Club</label>
-                    <input
-                        type="text"
-                        name="clubName"
-                        defaultValue={user.clubName || ''}
-                        required
-                        className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all bg-white"
-                    />
-                </div>
+                {user.role !== 'ORGANIZER' && (
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Club</label>
+                        <input
+                            type="text"
+                            name="clubName"
+                            defaultValue={user.clubName || ''}
+                            required
+                            className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all bg-white"
+                        />
+                    </div>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         {user.role === 'ATHLETE' ? (

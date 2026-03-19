@@ -58,10 +58,20 @@ export async function POST(req: NextRequest) {
 
         // 2. Check for duplicate email registration
         const existingGuest = await prisma.guestRegistration.findFirst({
-            where: { tournamentId, email: email.toLowerCase().trim() }
+            where: { tournamentId, email: email.toLowerCase().trim() },
+            include: { player: { select: { id: true, paymentStatus: true } } }
         })
         if (existingGuest) {
-            return NextResponse.json({ error: 'This email is already registered for this event' }, { status: 409 })
+            const paymentStatus = existingGuest.player?.paymentStatus ?? 'UNPAID'
+            if (paymentStatus === 'PAID' || paymentStatus === 'PENDING') {
+                // Already paid or actively pending payment — block duplicate
+                return NextResponse.json({ error: 'This email is already registered for this event' }, { status: 409 })
+            }
+            // Abandoned / unpaid — delete stale records so the user can re-register
+            await prisma.$transaction([
+                prisma.guestRegistration.delete({ where: { id: existingGuest.id } }),
+                prisma.player.delete({ where: { id: existingGuest.playerId } }),
+            ])
         }
 
         // 3. Auto-detect category
@@ -83,10 +93,32 @@ export async function POST(req: NextRequest) {
         }
 
         // 4. Calculate pricing
-        let price = tournament.regularPrice || 0
         const now = new Date()
-        if (tournament.earlyBirdDeadline && now < tournament.earlyBirdDeadline && tournament.earlyBirdPrice) {
-            price = tournament.earlyBirdPrice
+        const isEarlyBirdActive = !!(tournament.earlyBirdDeadline && now < tournament.earlyBirdDeadline)
+
+        let price = 0
+        if (tournament.regularPrice) {
+            // Flat pricing: use a single regularPrice / earlyBirdPrice for all categories
+            price = isEarlyBirdActive && tournament.earlyBirdPrice
+                ? tournament.earlyBirdPrice
+                : tournament.regularPrice
+        } else if (tournament.categoryPricing) {
+            // Per-category pricing: build the key from eventType + poomsaeSubtype
+            const catPricingMap = tournament.categoryPricing as Record<string, { regular: number; earlyBird?: number }>
+            let catKey = eventType || 'KYORUGI'
+            if (eventType === 'POOMSAE' && poomsaeSubtype) {
+                catKey = `POOMSAE_${poomsaeSubtype}`
+            } else if (eventType === 'KYORUGI') {
+                catKey = 'KYORUGI_INDIVIDUAL'
+            } else if (eventType === 'KYUKPA') {
+                catKey = 'KYUKPA_INDIVIDUAL'
+            }
+            const catPricing = catPricingMap[catKey]
+            if (catPricing) {
+                price = isEarlyBirdActive && catPricing.earlyBird
+                    ? catPricing.earlyBird
+                    : catPricing.regular
+            }
         }
 
         // 5. Validate & apply promo code

@@ -24,6 +24,17 @@ const GENDER_OPTIONS = ['Male', 'Female']
 
 type Step = 'info' | 'category' | 'waiver' | 'payment' | 'confirmation'
 
+type CategoryPricingMap = Record<string, { regular: number; earlyBird?: number }>
+
+/** Returns the currency symbol for a given ISO currency code */
+function getCurrencySymbol(code: string): string {
+    const symbols: Record<string, string> = {
+        PHP: '₱', USD: '$', EUR: '€', SGD: 'S$', AUD: 'A$', GBP: '£', JPY: '¥',
+        KRW: '₩', CNY: '¥', MYR: 'RM', THB: '฿', IDR: 'Rp',
+    }
+    return symbols[code.toUpperCase()] ?? code
+}
+
 interface GuestRegistrationFormProps {
     tournament: {
         id: string
@@ -33,6 +44,8 @@ interface GuestRegistrationFormProps {
         isEarlyBird: boolean
         regularPrice: number | null
         earlyBirdPrice: number | null
+        categoryPricing?: CategoryPricingMap | null
+        currency?: string
     }
     clubs: { id: string; name: string }[]
     eventSlug: string
@@ -48,6 +61,8 @@ export default function GuestRegistrationForm({
     registrationId,
 }: GuestRegistrationFormProps) {
     const router = useRouter()
+    const currencyCode = tournament.currency ?? 'PHP'
+    const currencySymbol = getCurrencySymbol(currencyCode)
     const [step, setStep] = useState<Step>(paymentConfirmed ? 'confirmation' : 'info')
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [error, setError] = useState('')
@@ -79,6 +94,23 @@ export default function GuestRegistrationForm({
     const sigCanvas = useRef<SignatureCanvas>(null)
     const [signatureData, setSignatureData] = useState<string | null>(null)
 
+    // Helper to resolve price from categoryPricing map
+    const resolveCategoryPrice = (evType: string, poomsaeSub: string): number => {
+        const { categoryPricing, regularPrice, earlyBirdPrice, isEarlyBird, currentPrice } = tournament
+        if (regularPrice) {
+            return isEarlyBird && earlyBirdPrice ? earlyBirdPrice : regularPrice
+        }
+        if (categoryPricing) {
+            let key = evType
+            if (evType === 'POOMSAE') key = `POOMSAE_${poomsaeSub}`
+            else if (evType === 'KYORUGI') key = 'KYORUGI_INDIVIDUAL'
+            else if (evType === 'KYUKPA') key = 'KYUKPA_INDIVIDUAL'
+            const entry = categoryPricing[key]
+            if (entry) return isEarlyBird && entry.earlyBird ? entry.earlyBird : entry.regular
+        }
+        return currentPrice
+    }
+
     // Step 4: Payment
     const [promoCode, setPromoCode] = useState('')
     const [promoDiscount, setPromoDiscount] = useState<{ type: string; value: number } | null>(null)
@@ -89,7 +121,18 @@ export default function GuestRegistrationForm({
     const [registrationCode, setRegistrationCode] = useState('')
     const [playerId, setPlayerId] = useState(registrationId || '')
     const [categoryName, setCategoryName] = useState('')
-    const [finalPrice, setFinalPrice] = useState(tournament.currentPrice)
+
+    // Compute initial price: use category pricing map if available
+    const getInitialPrice = (): number => {
+        const { categoryPricing, regularPrice, earlyBirdPrice, isEarlyBird, currentPrice } = tournament
+        if (regularPrice) return isEarlyBird && earlyBirdPrice ? earlyBirdPrice : regularPrice
+        if (categoryPricing) {
+            const entry = categoryPricing['KYORUGI_INDIVIDUAL'] ?? Object.values(categoryPricing)[0]
+            if (entry) return isEarlyBird && entry.earlyBird ? entry.earlyBird : entry.regular
+        }
+        return currentPrice
+    }
+    const [finalPrice, setFinalPrice] = useState(getInitialPrice)
 
     // Filtered lists
     const filteredClubs = clubs.filter(c =>
@@ -245,6 +288,7 @@ export default function GuestRegistrationForm({
                         payerEmail: email,
                         payerName: fullName,
                         amount: data.finalPrice,
+                        currency: currencyCode,
                         redirectUrl: `${window.location.origin}/event/${eventSlug}/register`,
                     }),
                 })
@@ -423,7 +467,7 @@ export default function GuestRegistrationForm({
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {['KYORUGI', 'POOMSAE'].map(type => (
-                    <button key={type} onClick={() => { setEventType(type); detectCategory() }}
+                    <button key={type} onClick={() => { setEventType(type); setFinalPrice(resolveCategoryPrice(type, poomsaeSubtype)); detectCategory() }}
                         className={`p-4 rounded-xl border-2 text-left transition-all ${eventType === type
                             ? (type === 'KYORUGI' ? 'border-red-600 bg-red-50' : 'border-purple-600 bg-purple-50')
                             : 'border-gray-200 hover:border-gray-300'
@@ -437,7 +481,7 @@ export default function GuestRegistrationForm({
             {eventType === 'POOMSAE' && (
                 <div className="flex gap-2">
                     {['INDIVIDUAL', 'PAIR', 'TEAM'].map(sub => (
-                        <button key={sub} onClick={() => { setPoomsaeSubtype(sub); detectCategory() }}
+                        <button key={sub} onClick={() => { setPoomsaeSubtype(sub); setFinalPrice(resolveCategoryPrice('POOMSAE', sub)); detectCategory() }}
                             className={`px-4 py-2 rounded-lg text-sm font-medium border ${poomsaeSubtype === sub
                                 ? 'bg-purple-600 text-white border-purple-600'
                                 : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -582,8 +626,8 @@ export default function GuestRegistrationForm({
                         {tournament.isEarlyBird && <div className="text-xs text-green-600 font-semibold">Early Bird Pricing</div>}
                     </div>
                     <div className="text-right">
-                        {promoDiscount && <div className="text-sm text-gray-400 line-through">₱{tournament.currentPrice.toLocaleString()}</div>}
-                        <div className="text-3xl font-black text-gray-900">₱{finalPrice.toLocaleString()}</div>
+                        {promoDiscount && <div className="text-sm text-gray-400 line-through">{currencySymbol}{tournament.currentPrice.toLocaleString()}</div>}
+                        <div className="text-3xl font-black text-gray-900">{currencySymbol}{finalPrice.toLocaleString()}</div>
                     </div>
                 </div>
             </div>

@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import {
     Camera, CameraOff, CheckCircle2, XCircle, AlertTriangle,
     Loader2, ScanLine, ChevronDown, RotateCcw, Usb,
-    Zap, History, Trash2, Users, Search, Shield, Clock, UserCheck
+    Zap, History, Trash2, Users, Search, Shield, Clock, UserCheck,
+    Monitor, FolderOpen, FileSignature, Send, PenLine
 } from 'lucide-react'
 
 // ============================================
@@ -67,6 +68,7 @@ interface EventCheckInProps {
     onSearch: (eventId: string, query: string) => Promise<SearchResult[]>
     onGetStats: (eventId: string) => Promise<{ total: number; checkedIn: number }>
     onGetCheckedIn: (eventId: string) => Promise<CheckedInAthlete[]>
+    onSaveWaiver?: (id: string, eventId: string) => Promise<{ success: boolean; error?: string }>
 }
 
 type CameraDevice = { id: string; label: string }
@@ -77,7 +79,7 @@ type CameraDevice = { id: string; label: string }
 
 export default function EventCheckIn({
     eventId, eventName, eventType,
-    onCheckIn, onSearch, onGetStats, onGetCheckedIn
+    onCheckIn, onSearch, onGetStats, onGetCheckedIn, onSaveWaiver
 }: EventCheckInProps) {
     const [mode, setMode] = useState<'scanner' | 'camera' | 'search'>('scanner')
     const [stats, setStats] = useState({ total: 0, checkedIn: 0 })
@@ -110,6 +112,16 @@ export default function EventCheckIn({
     const [checkedInAthletes, setCheckedInAthletes] = useState<CheckedInAthlete[]>([])
     const [bottomTab, setBottomTab] = useState<'history' | 'checkedin'>('history')
     const [loadingCheckedIn, setLoadingCheckedIn] = useState(false)
+
+    // Waiver Dual-Screen
+    const [displayWindow, setDisplayWindow] = useState<Window | null>(null)
+    const [displayConnected, setDisplayConnected] = useState(false)
+    const [waiverState, setWaiverState] = useState<'none' | 'signing' | 'signed'>('none')
+    const [signaturePreview, setSignaturePreview] = useState<string | null>(null)
+    const [waiverAthlete, setWaiverAthlete] = useState<CheckInResult['player'] | null>(null)
+    const [savingWaiver, setSavingWaiver] = useState(false)
+    const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null)
+    const channelRef = useRef<BroadcastChannel | null>(null)
 
     // ---- Init ----
     useEffect(() => {
@@ -155,6 +167,165 @@ export default function EventCheckIn({
         cooldownRef.current = false
     }
 
+    // ---- BroadcastChannel for Athlete Display ----
+    useEffect(() => {
+        const channel = new BroadcastChannel('checkin')
+        channelRef.current = channel
+
+        channel.onmessage = (event) => {
+            const { type, data } = event.data
+            if (type === 'SIGNATURE_DATA') {
+                setSignaturePreview(data.signatureDataUrl)
+                setWaiverState('signed')
+            } else if (type === 'SIGNATURE_CLEARED') {
+                setSignaturePreview(null)
+                setWaiverState('signing')
+            } else if (type === 'DISPLAY_READY') {
+                setDisplayConnected(true)
+            }
+        }
+
+        return () => channel.close()
+    }, [])
+
+    // ---- Launch Athlete Display ----
+    const launchAthleteDisplay = async () => {
+        const url = `${window.location.origin}/checkin-display`
+
+        try {
+            // Try Window Management API for external monitor detection
+            if ('getScreenDetails' in window) {
+                const screenDetails = await (window as any).getScreenDetails()
+                const externalScreen = screenDetails.screens.find(
+                    (s: any) => s !== screenDetails.currentScreen
+                )
+                if (externalScreen) {
+                    const win = window.open(
+                        url, 'athleteDisplay',
+                        `left=${externalScreen.availLeft},top=${externalScreen.availTop},width=${externalScreen.availWidth},height=${externalScreen.availHeight}`
+                    )
+                    if (win) {
+                        setDisplayWindow(win)
+                        setDisplayConnected(true)
+                        return
+                    }
+                }
+            }
+        } catch (e) {
+            console.log('Window Management API not available, using fallback')
+        }
+
+        // Fallback: regular popup
+        const win = window.open(url, 'athleteDisplay', 'width=1024,height=768')
+        if (win) {
+            setDisplayWindow(win)
+            setDisplayConnected(true)
+        }
+    }
+
+    // ---- Select Waiver Folder ----
+    const selectWaiverFolder = async () => {
+        try {
+            const handle = await (window as any).showDirectoryPicker()
+            setDirHandle(handle)
+        } catch (e) {
+            // User cancelled or API not supported
+        }
+    }
+
+    // ---- Start Waiver Flow ----
+    const startWaiverFlow = (player: CheckInResult['player']) => {
+        if (!player) return
+        setWaiverAthlete(player)
+        setWaiverState('signing')
+        setSignaturePreview(null)
+
+        channelRef.current?.postMessage({
+            type: 'SHOW_WAIVER',
+            data: {
+                id: player.id || '',
+                name: player.name,
+                category: player.category,
+                club: player.club,
+                eventName,
+                eventType
+            }
+        })
+    }
+
+    // ---- Submit Signed Waiver ----
+    const submitWaiver = async () => {
+        if (!waiverAthlete?.id || !signaturePreview) return
+        setSavingWaiver(true)
+
+        try {
+            // 1. Generate PDF and save locally (if folder selected)
+            if (dirHandle) {
+                try {
+                    const { pdf } = await import('@react-pdf/renderer')
+                    const WaiverDocument = (await import('@/components/WaiverDocument')).default
+                    const React = (await import('react')).default
+
+                    const pdfBlob = await (pdf as any)(
+                        React.createElement(WaiverDocument, {
+                            athleteName: waiverAthlete.name,
+                            tournamentName: eventName,
+                            registrationDate: new Date(),
+                            signatureImage: signaturePreview
+                        })
+                    ).toBlob()
+
+                    const safeName = waiverAthlete.name.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '-')
+                    const dateStr = new Date().toISOString().slice(0, 10)
+                    const fileName = `Waiver_${safeName}_${dateStr}.pdf`
+
+                    const fileHandle = await dirHandle.getFileHandle(fileName, { create: true })
+                    const writable = await (fileHandle as any).createWritable()
+                    await writable.write(pdfBlob)
+                    await writable.close()
+                } catch (err) {
+                    console.error('Failed to save PDF locally:', err)
+                }
+            }
+
+            // 2. Mark waiver as signed in DB
+            if (onSaveWaiver) {
+                await onSaveWaiver(waiverAthlete.id, eventId)
+            }
+
+            // 3. Notify athlete display
+            channelRef.current?.postMessage({ type: 'WAIVER_SAVED' })
+
+            // 4. Reset state
+            setWaiverState('none')
+            setWaiverAthlete(null)
+            setSignaturePreview(null)
+            setResult(null)
+            setScannerReady(true)
+            lastScannedRef.current = ''
+            cooldownRef.current = false
+            scannerInputRef.current?.focus()
+
+        } catch (err) {
+            console.error('Waiver submit error:', err)
+        }
+
+        setSavingWaiver(false)
+    }
+
+    // ---- Skip Waiver ----
+    const skipWaiver = () => {
+        channelRef.current?.postMessage({ type: 'RESET' })
+        setWaiverState('none')
+        setWaiverAthlete(null)
+        setSignaturePreview(null)
+        setResult(null)
+        setScannerReady(true)
+        lastScannedRef.current = ''
+        cooldownRef.current = false
+        scannerInputRef.current?.focus()
+    }
+
     // ---- USB Scanner ----
     const handleScannerKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
@@ -169,11 +340,29 @@ export default function EventCheckIn({
             addToHistory(res, scannedId)
             afterCheckIn()
 
-            setTimeout(() => {
-                setResult(null)
-                setScannerReady(true)
-                scannerInputRef.current?.focus()
-            }, 2500)
+            // If check-in successful and display is connected, start waiver flow
+            if (res.success && !res.alreadyCheckedIn && displayConnected && onSaveWaiver) {
+                // Broadcast check-in to display
+                channelRef.current?.postMessage({
+                    type: 'CHECKED_IN',
+                    data: {
+                        id: res.player?.id || '',
+                        name: res.player?.name || '',
+                        category: res.player?.category,
+                        club: res.player?.club,
+                        eventName,
+                        eventType
+                    }
+                })
+                // Start waiver flow after a brief delay (display shows success first)
+                setTimeout(() => startWaiverFlow(res.player ?? undefined), 2600)
+            } else {
+                setTimeout(() => {
+                    setResult(null)
+                    setScannerReady(true)
+                    scannerInputRef.current?.focus()
+                }, 2500)
+            }
         }
     }
 
@@ -260,6 +449,90 @@ export default function EventCheckIn({
     return (
         <div className="animate-in fade-in duration-300 space-y-6">
 
+            {/* ══ WAIVER SIGNING OVERLAY ══ */}
+            {waiverState !== 'none' && waiverAthlete && (
+                <div className="bg-white rounded-3xl border-2 border-indigo-200 shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                                    <FileSignature className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="text-white font-black text-sm">Waiver Signing</h3>
+                                    <p className="text-white/70 text-xs font-medium">{waiverAthlete.name}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {waiverState === 'signed' && signaturePreview ? (
+                                    <span className="flex items-center gap-1.5 bg-emerald-500 text-white text-xs font-black px-3 py-1.5 rounded-full">
+                                        <PenLine className="w-3 h-3" /> Signed
+                                    </span>
+                                ) : (
+                                    <span className="flex items-center gap-1.5 bg-white/20 text-white text-xs font-bold px-3 py-1.5 rounded-full animate-pulse">
+                                        <PenLine className="w-3 h-3" /> Waiting for signature...
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="p-6">
+                        {/* Signature Preview */}
+                        {signaturePreview && (
+                            <div className="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Signature Preview</p>
+                                <img src={signaturePreview} alt="Signature" className="h-16 object-contain" />
+                            </div>
+                        )}
+
+                        {/* Player Info */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+                            {waiverAthlete.category && (
+                                <div className="bg-gray-50 rounded-lg p-3">
+                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Category</p>
+                                    <p className="text-xs font-bold text-gray-700 mt-0.5">{waiverAthlete.category}</p>
+                                </div>
+                            )}
+                            {waiverAthlete.club && (
+                                <div className="bg-gray-50 rounded-lg p-3">
+                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Club</p>
+                                    <p className="text-xs font-bold text-gray-700 mt-0.5">{waiverAthlete.club}</p>
+                                </div>
+                            )}
+                            {waiverAthlete.belt && (
+                                <div className="bg-gray-50 rounded-lg p-3">
+                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Belt</p>
+                                    <p className="text-xs font-bold text-gray-700 mt-0.5">{waiverAthlete.belt}</p>
+                                </div>
+                            )}
+                            <div className="bg-gray-50 rounded-lg p-3">
+                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">PDF Save</p>
+                                <p className="text-xs font-bold text-gray-700 mt-0.5">{dirHandle ? '✓ Folder Set' : 'Not Set'}</p>
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex gap-3">
+                            <button
+                                onClick={submitWaiver}
+                                disabled={!signaturePreview || savingWaiver}
+                                className='flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl font-black text-sm transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20'
+                            >
+                                {savingWaiver ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                                {savingWaiver ? 'Saving...' : 'Submit & Next'}
+                            </button>
+                            <button
+                                onClick={skipWaiver}
+                                disabled={savingWaiver}
+                                className="px-5 py-3.5 rounded-xl font-bold text-sm text-gray-500 bg-gray-100 hover:bg-gray-200 transition-all active:scale-[0.98]"
+                            >
+                                Skip
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ══ HERO HEADER ══ */}
             <div className="bg-gray-900 rounded-3xl p-6 md:p-8 relative overflow-hidden">
                 <div className="absolute top-0 right-0 -mr-8 -mt-8 w-40 h-40 bg-white/[0.03] rounded-full blur-2xl" />
@@ -278,6 +551,32 @@ export default function EventCheckIn({
                             <span className="text-xs font-black text-white uppercase tracking-wider">{eventType === 'tournament' ? 'Tournament' : 'Seminar'}</span>
                         </div>
                     </div>
+
+                    {/* Waiver Controls Row */}
+                    {onSaveWaiver && (
+                        <div className="flex items-center gap-2 mt-4">
+                            <button
+                                onClick={launchAthleteDisplay}
+                                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all ${displayConnected
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                    : 'bg-white/10 text-white/80 hover:bg-white/20 border border-white/10'
+                                }`}
+                            >
+                                <Monitor className="w-3.5 h-3.5" />
+                                {displayConnected ? 'Display Connected' : 'Launch Athlete Display'}
+                            </button>
+                            <button
+                                onClick={selectWaiverFolder}
+                                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all ${dirHandle
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                    : 'bg-white/10 text-white/80 hover:bg-white/20 border border-white/10'
+                                }`}
+                            >
+                                <FolderOpen className="w-3.5 h-3.5" />
+                                {dirHandle ? '✓ Folder Selected' : 'Select Waiver Folder'}
+                            </button>
+                        </div>
+                    )}
                     <div className="grid grid-cols-3 gap-4 mt-6">
                         {[
                             { label: 'Checked In', value: stats.checkedIn, opacity: '' },

@@ -27,6 +27,8 @@ export default async function EventRegisterPage({ params, searchParams }: PagePr
             earlyBirdDeadline: true,
             registrationEnd: true,
             headerImageUrl: true,
+            categoryPricing: true,
+            currency: true,
         }
     })
 
@@ -41,8 +43,22 @@ export default async function EventRegisterPage({ params, searchParams }: PagePr
 
     // Determine current price tier
     const now = new Date()
-    const isEarlyBird = tournament.earlyBirdDeadline && now < tournament.earlyBirdDeadline
-    const currentPrice = isEarlyBird ? (tournament.earlyBirdPrice || tournament.regularPrice || 0) : (tournament.regularPrice || 0)
+    const isEarlyBird = !!(tournament.earlyBirdDeadline && now < tournament.earlyBirdDeadline)
+
+    // Resolve a "default" display price for the payment step.
+    // If the tournament uses per-category pricing (categoryPricing JSON), pick the
+    // KYORUGI_INDIVIDUAL entry as a baseline; the form will recalculate the real
+    // price after category detection.
+    let currentPrice = 0
+    if (tournament.regularPrice) {
+        currentPrice = isEarlyBird ? (tournament.earlyBirdPrice ?? tournament.regularPrice) : tournament.regularPrice
+    } else if (tournament.categoryPricing) {
+        const catMap = tournament.categoryPricing as Record<string, { regular: number; earlyBird?: number }>
+        const defaultEntry = catMap['KYORUGI_INDIVIDUAL'] ?? Object.values(catMap)[0]
+        if (defaultEntry) {
+            currentPrice = isEarlyBird && defaultEntry.earlyBird ? defaultEntry.earlyBird : defaultEntry.regular
+        }
+    }
 
     // Check if payment just completed (redirect from Xendit)
     const paymentConfirmed = search.payment === 'success'
@@ -54,9 +70,11 @@ export default async function EventRegisterPage({ params, searchParams }: PagePr
                 name: tournament.name,
                 xenditEnabled: tournament.xenditEnabled,
                 currentPrice,
-                isEarlyBird: !!isEarlyBird,
+                isEarlyBird,
                 regularPrice: tournament.regularPrice,
                 earlyBirdPrice: tournament.earlyBirdPrice,
+                categoryPricing: tournament.categoryPricing as Record<string, { regular: number; earlyBird?: number }> | null,
+                currency: tournament.currency ?? 'PHP',
             }}
             clubs={clubs}
             eventSlug={slug}

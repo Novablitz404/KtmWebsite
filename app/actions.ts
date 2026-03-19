@@ -60,6 +60,7 @@ export async function createTournament(formData: FormData) {
     const xenditEnabled = formData.get('xenditEnabled') === 'true'
     const xenditSecretKeyRaw = formData.get('xenditSecretKey') as string | null
     const xenditSecretKey = xenditEnabled && xenditSecretKeyRaw ? encrypt(xenditSecretKeyRaw) : null
+    const currency = (formData.get('currency') as string | null) || 'PHP'
 
     // Date TBA
     const dateTBA = formData.get('dateTBA') === 'true'
@@ -132,6 +133,7 @@ export async function createTournament(formData: FormData) {
             categoryPricing,
             xenditEnabled,
             xenditSecretKey,
+            currency,
             dateTBA,
         },
     })
@@ -3520,6 +3522,29 @@ export async function tournamentCheckIn(playerId: string, tournamentId: string) 
     } catch (error) {
         console.error('Tournament check-in error:', error)
         return { success: false, error: 'Check-in failed. Please try again.', status: 'ERROR' }
+    }
+}
+
+export async function saveWaiverSignature(playerId: string, tournamentId: string) {
+    try {
+        const player = await prisma.player.findUnique({
+            where: { id: playerId },
+            include: { category: { select: { tournamentId: true } } }
+        })
+
+        if (!player) return { success: false, error: 'Player not found.' }
+        if (player.category?.tournamentId !== tournamentId) return { success: false, error: 'Player not in this tournament.' }
+
+        await prisma.player.update({
+            where: { id: playerId },
+            data: { waiverSignedAt: new Date() }
+        })
+
+        revalidatePath(`/tournament/${tournamentId}`)
+        return { success: true }
+    } catch (error) {
+        console.error('Save waiver signature error:', error)
+        return { success: false, error: 'Failed to save waiver.' }
     }
 }
 

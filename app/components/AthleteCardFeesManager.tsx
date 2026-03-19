@@ -31,7 +31,7 @@ export default function AthleteCardFeesManager({
     const router = useRouter()
     const qrInputRef = useRef<HTMLInputElement>(null)
 
-    const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(athleteCardPaymentMethods)
+    const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(athleteCardPaymentMethods ?? [])
 
     // Fee modal state
     const [feeModalOpen, setFeeModalOpen] = useState(false)

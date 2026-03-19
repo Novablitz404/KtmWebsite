@@ -3,6 +3,48 @@ import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/encryption'
 
 /**
+ * Convert an amount from a source currency to PHP.
+ * Tries two free exchange-rate APIs in sequence.
+ * Throws if both fail — never silently passes an unconverted amount to Xendit.
+ */
+async function convertToPhp(amount: number, fromCurrency: string): Promise<number> {
+    if (fromCurrency === 'PHP') return amount
+
+    // Try API 1: exchangerate-api.com (free, no key required)
+    try {
+        const res = await fetch(`https://api.exchangerate-api.com/v4/latest/${fromCurrency}`, {
+            signal: AbortSignal.timeout(4000),
+        })
+        if (res.ok) {
+            const data = await res.json()
+            const rate: number = data?.rates?.PHP
+            if (rate && rate > 1) {
+                console.log(`[convertToPhp] ${fromCurrency}→PHP rate (API1): ${rate}`)
+                return Math.round(amount * rate * 100) / 100
+            }
+        }
+    } catch { /* fall through to API 2 */ }
+
+    // Try API 2: open.er-api.com
+    try {
+        const res = await fetch(`https://open.er-api.com/v6/latest/${fromCurrency}`, {
+            signal: AbortSignal.timeout(4000),
+        })
+        if (res.ok) {
+            const data = await res.json()
+            const rate: number = data?.rates?.PHP
+            if (rate && rate > 1) {
+                console.log(`[convertToPhp] ${fromCurrency}→PHP rate (API2): ${rate}`)
+                return Math.round(amount * rate * 100) / 100
+            }
+        }
+    } catch { /* fall through */ }
+
+    // Both APIs failed — block the payment rather than charge a wrong amount
+    throw new Error(`Unable to fetch live exchange rate for ${fromCurrency}→PHP. Please try again shortly.`)
+}
+
+/**
  * POST /api/checkout/xendit
  * 
  * Creates a Xendit Invoice for a registration (tournament, seminar, or promotion test).
@@ -17,7 +59,10 @@ import { decrypt } from '@/lib/encryption'
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json()
-        const { eventType, eventId, registrationId, payerEmail, payerName, redirectUrl, amount: customAmount } = body
+        const { eventType, eventId, registrationId, payerEmail, payerName, redirectUrl, amount: customAmount, currency: customCurrency } = body
+
+        // Resolved currency — may be overridden per event type below
+        let resolvedCurrency: string = customCurrency ?? 'PHP'
 
         if (!eventType || !eventId || !registrationId) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -56,8 +101,17 @@ export async function POST(req: NextRequest) {
             if (!tournament) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
             xenditEnabled = tournament.xenditEnabled
             xenditSecretKeyEncrypted = tournament.xenditSecretKey
-            amount = customAmount || tournament.regularPrice // Use custom amount (with promo discount applied)
             eventName = tournament.name
+
+            // Source currency (what the price was set in, e.g. 'USD')
+            const sourceCurrency = customCurrency ?? tournament.currency ?? 'PHP'
+            const rawAmount = customAmount || tournament.regularPrice || 0
+
+            // Currency is always PHP for Xendit — convert if the source price is in another currency
+            resolvedCurrency = 'PHP'
+            amount = sourceCurrency !== 'PHP'
+                ? await convertToPhp(rawAmount, sourceCurrency)
+                : rawAmount
         } else if (eventType === 'bulk-registration') {
             // Bulk registration — uses same tournament Xendit config
             const bulkReg = await prisma.bulkRegistration.findUnique({
@@ -81,8 +135,12 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid event type' }, { status: 400 })
         }
 
-        if (!xenditEnabled || !xenditSecretKeyEncrypted) {
+        if (!xenditEnabled) {
             return NextResponse.json({ error: 'Xendit payments are not enabled for this event' }, { status: 400 })
+        }
+
+        if (!xenditSecretKeyEncrypted) {
+            return NextResponse.json({ error: 'Xendit API key is not configured for this event. Please contact the organizer.' }, { status: 400 })
         }
 
         if (!amount || amount <= 0) {
@@ -113,7 +171,7 @@ export async function POST(req: NextRequest) {
             body: JSON.stringify({
                 external_id: externalId,
                 amount,
-                currency: 'PHP',
+                currency: resolvedCurrency,
                 description: `Registration for ${eventName}`,
                 payer_email: payerEmail || undefined,
                 customer: payerName ? { given_names: payerName } : undefined,
@@ -129,8 +187,11 @@ export async function POST(req: NextRequest) {
 
         if (!xenditResponse.ok) {
             const errorData = await xenditResponse.json()
-            console.error('Xendit API error:', errorData)
-            return NextResponse.json({ error: 'Failed to create payment invoice' }, { status: 500 })
+            console.error('Xendit API error:', xenditResponse.status, errorData)
+            return NextResponse.json({
+                error: `Xendit error: ${errorData.error_code || errorData.message || 'Unknown error'}`,
+                details: errorData,
+            }, { status: 500 })
         }
 
         const invoice = await xenditResponse.json()

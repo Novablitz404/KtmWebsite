@@ -46,6 +46,16 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
 
     // Pricing States
     const [showPricing, setShowPricing] = useState(false)
+    const [currency, setCurrency] = useState('PHP')
+    const CURRENCIES = [
+        { code: 'PHP', symbol: '₱', label: 'PHP – Philippine Peso' },
+        { code: 'USD', symbol: '$', label: 'USD – US Dollar' },
+        { code: 'EUR', symbol: '€', label: 'EUR – Euro' },
+        { code: 'SGD', symbol: 'S$', label: 'SGD – Singapore Dollar' },
+        { code: 'AUD', symbol: 'A$', label: 'AUD – Australian Dollar' },
+        { code: 'GBP', symbol: '£', label: 'GBP – British Pound' },
+    ]
+    const currencySymbol = CURRENCIES.find(c => c.code === currency)?.symbol ?? currency
     const PRICING_COMBOS = [
         { key: 'KYORUGI_INDIVIDUAL', label: 'Kyorugi Individual' },
         { key: 'KYORUGI_TEAM', label: 'Kyorugi Team' },
@@ -447,6 +457,31 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                 </h3>
 
                                 <div className="space-y-4">
+                                    {/* Currency Selector */}
+                                    <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/50 space-y-3">
+                                        <div>
+                                            <p className="text-sm font-semibold text-gray-900">Currency</p>
+                                            <p className="text-xs text-gray-500">Athletes will see and pay in this currency. Xendit settles the equivalent amount to your local bank.</p>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {CURRENCIES.map(c => (
+                                                <button
+                                                    key={c.code}
+                                                    type="button"
+                                                    onClick={() => setCurrency(c.code)}
+                                                    className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-all ${
+                                                        currency === c.code
+                                                            ? 'bg-red-600 text-white border-red-600 shadow-sm'
+                                                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                                                    }`}
+                                                >
+                                                    {c.symbol} {c.code}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <input type="hidden" name="currency" value={currency} />
+                                    </div>
+
                                     {/* Early Bird — shows only when registration dates are set */}
                                     {registrationStart && registrationEnd && (
                                         <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/50 space-y-4">
@@ -496,7 +531,7 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                                     <div>
                                                         <label className="block text-sm font-semibold text-gray-700 mb-1">Early Bird Price</label>
                                                         <div className="relative">
-                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₱</span>
+                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">{currencySymbol}</span>
                                                             <input
                                                                 type="number"
                                                                 name="earlyBirdPrice"
@@ -512,7 +547,7 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                                     <div>
                                                         <label className="block text-sm font-semibold text-gray-700 mb-1">Regular Price</label>
                                                         <div className="relative">
-                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₱</span>
+                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">{currencySymbol}</span>
                                                             <input
                                                                 type="number"
                                                                 name="regularPrice"
@@ -540,8 +575,8 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                                 <thead>
                                                     <tr className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">
                                                         <th className="pb-2 pr-4">Event Type</th>
-                                                        <th className="pb-2 px-2 text-center">Early Bird (₱)</th>
-                                                        <th className="pb-2 pl-2 text-center">Regular (₱)</th>
+                                                        <th className="pb-2 px-2 text-center">Early Bird ({currencySymbol})</th>
+                                                        <th className="pb-2 pl-2 text-center">Regular ({currencySymbol})</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-gray-100">

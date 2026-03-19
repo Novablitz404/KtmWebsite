@@ -94,6 +94,7 @@ model Tournament {
   // Xendit Payment Integration
   xenditEnabled     Boolean   @default(false) // Toggle online payments for this tournament
   xenditSecretKey   String?   // Encrypted Xendit API Secret Key
+  currency          String    @default("PHP") // Display & charge currency: "PHP", "USD", etc.
 
   // Guideline Template (optional - if set, auto-generates categories)
   guidelineTemplateId String?
@@ -245,6 +246,7 @@ model Player {
   // Check-in
   checkedIn   Boolean   @default(false)
   checkedInAt DateTime?
+  waiverSignedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -538,6 +540,7 @@ model SeminarRegistration {
   // Check-in
   checkedIn   Boolean   @default(false)
   checkedInAt DateTime?
+  waiverSignedAt DateTime?
 
   createdAt DateTime @default(now())
 

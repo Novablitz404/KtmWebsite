@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { getEventConfig } from '@/lib/event-config'
+import { prisma } from '@/lib/prisma'
 
 // ====================================================
 // EVENT PAGE REGISTRY
@@ -8,7 +9,34 @@ import { getEventConfig } from '@/lib/event-config'
 // ====================================================
 import WorldChampionship2026 from './events/WorldChampionship2026'
 
-const EVENT_PAGES: Record<string, React.ComponentType<{ tournamentId: string; eventName: string }>> = {
+export interface TournamentPricing {
+    regularPrice: number | null
+    earlyBirdPrice: number | null
+    earlyBirdDeadline: Date | null
+    categoryPricing: Record<string, { regular: number | null; earlyBird: number | null }> | null
+    currency: string
+    showPricing: boolean
+}
+
+export interface CountryStat {
+    country: string
+    count: number
+}
+
+export interface TournamentStats {
+    totalAthletes: number
+    kyorugi: number
+    poomsae: number
+    teams: number       // unique clubs/teams
+    countries: CountryStat[]
+}
+
+const EVENT_PAGES: Record<string, React.ComponentType<{
+    tournamentId: string
+    eventName: string
+    pricing: TournamentPricing
+    stats: TournamentStats
+}>> = {
     'world-championship-2026': WorldChampionship2026,
 }
 
@@ -57,6 +85,74 @@ export default async function EventPage({ params }: PageProps) {
         )
     }
 
-    // 3. Render the custom event landing page
-    return <EventComponent tournamentId={config.tournamentId} eventName={config.name} />
+    // 3. Fetch live pricing + stats in parallel
+    const [tournament, registrations] = await Promise.all([
+        prisma.tournament.findUnique({
+            where: { id: config.tournamentId },
+            select: {
+                regularPrice: true,
+                earlyBirdPrice: true,
+                earlyBirdDeadline: true,
+                categoryPricing: true,
+                currency: true,
+                showPricing: true,
+            }
+        }),
+        prisma.guestRegistration.findMany({
+            where: { tournamentId: config.tournamentId },
+            select: {
+                country: true,
+                clubId: true,
+                clubNameOther: true,
+                isIndependent: true,
+                player: {
+                    select: {
+                        category: { select: { type: true } }
+                    }
+                }
+            }
+        })
+    ])
+
+    const pricing: TournamentPricing = {
+        regularPrice: tournament?.regularPrice ?? null,
+        earlyBirdPrice: tournament?.earlyBirdPrice ?? null,
+        earlyBirdDeadline: tournament?.earlyBirdDeadline ?? null,
+        categoryPricing: (tournament?.categoryPricing as TournamentPricing['categoryPricing']) ?? null,
+        currency: config.currency ?? tournament?.currency ?? 'PHP',
+        showPricing: tournament?.showPricing ?? false,
+    }
+
+    // Build stats
+    const countryMap = new Map<string, number>()
+    let kyorugi = 0, poomsae = 0
+    const teamSet = new Set<string>()
+
+    for (const reg of registrations) {
+        // Country counts
+        const c = reg.country || 'Unknown'
+        countryMap.set(c, (countryMap.get(c) ?? 0) + 1)
+        // Category type
+        const catType = reg.player?.category?.type
+        if (catType === 'KYORUGI') kyorugi++
+        else if (catType === 'POOMSAE') poomsae++
+        // Team/club tracking
+        if (reg.clubId) teamSet.add(reg.clubId)
+        else if (reg.clubNameOther) teamSet.add(reg.clubNameOther)
+    }
+
+    const countries: CountryStat[] = Array.from(countryMap.entries())
+        .map(([country, count]) => ({ country, count }))
+        .sort((a, b) => b.count - a.count)
+
+    const stats: TournamentStats = {
+        totalAthletes: registrations.length,
+        kyorugi,
+        poomsae,
+        teams: teamSet.size,
+        countries,
+    }
+
+    // 4. Render the custom event landing page
+    return <EventComponent tournamentId={config.tournamentId} eventName={config.name} pricing={pricing} stats={stats} />
 }

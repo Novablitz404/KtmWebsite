@@ -8,7 +8,7 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import SeminarParticipants from './SeminarParticipants'
 import SeminarSettings from './SeminarSettings'
 import EventCheckIn from '../EventCheckIn'
-import { seminarCheckIn, searchSeminarRegistrationsForCheckIn, getSeminarCheckInStats, getCheckedInSeminarRegistrations } from '@/app/seminars/actions'
+import { seminarCheckIn, searchSeminarRegistrationsForCheckIn, getSeminarCheckInStats, getCheckedInSeminarRegistrations, saveSeminarWaiverSignature } from '@/app/seminars/actions'
 
 type ExtendedSeminar = Seminar & {
     registrations: SeminarRegistration[]
@@ -265,6 +265,7 @@ export default function SeminarTabs({ seminar, userRole }: SeminarTabsProps) {
                                 onSearch={searchSeminarRegistrationsForCheckIn}
                                 onGetStats={getSeminarCheckInStats}
                                 onGetCheckedIn={getCheckedInSeminarRegistrations}
+                                onSaveWaiver={saveSeminarWaiverSignature}
                             />
                         </div>
                     )}

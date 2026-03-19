@@ -22,14 +22,18 @@ export interface EventConfig {
 
     // Assets (for the landing page component)
     logoUrl?: string      // Event logo, e.g. '/events/world-championship-2026/logo.png'
+
+    // Currency (e.g. "PHP", "USD") — overrides what the tournament DB record says
+    // Leave unset to use the currency stored on the tournament record itself.
+    currency?: string
 }
 
 // Add new events here. The slug must match the route: /event/[slug]
 // Assets go in /public/events/[slug]/
 export const EVENT_CONFIG: Record<string, EventConfig> = {
     'world-championship-2026': {
-        tournamentId: 'cmloq9uzj00011rs9bmjx46i3',
-        name: '1ST WOTF NATIONAL TAEKWONDO CHAMPIONSHIP MINDANAO',
+        tournamentId: 'cmmxbkkad0001gmhr2gjc844e',
+        name: 'World Olympics Taekwondo Championship 2026',
         slug: 'world-championship-2026',
         title: 'KTM World Championship 2026',
         description: 'Register for the biggest Taekwondo event of the year. Open to all athletes worldwide.',

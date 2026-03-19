@@ -263,6 +263,28 @@ export async function seminarCheckIn(registrationId: string, seminarId: string) 
     }
 }
 
+export async function saveSeminarWaiverSignature(registrationId: string, seminarId: string) {
+    try {
+        const registration = await prisma.seminarRegistration.findUnique({
+            where: { id: registrationId }
+        })
+
+        if (!registration) return { success: false, error: 'Registration not found.' }
+        if (registration.seminarId !== seminarId) return { success: false, error: 'Registration not in this seminar.' }
+
+        await prisma.seminarRegistration.update({
+            where: { id: registrationId },
+            data: { waiverSignedAt: new Date() }
+        })
+
+        revalidatePath(`/seminars/${seminarId}`)
+        return { success: true }
+    } catch (error) {
+        console.error('Save seminar waiver signature error:', error)
+        return { success: false, error: 'Failed to save waiver.' }
+    }
+}
+
 export async function getSeminarCheckInStats(seminarId: string) {
     try {
         const [total, checkedIn] = await Promise.all([
