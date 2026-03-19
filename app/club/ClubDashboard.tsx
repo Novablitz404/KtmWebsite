@@ -28,6 +28,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import ClubEventBrowser from './ClubEventBrowser'
 import AddAthleteModal from '@/components/club/AddAthleteModal'
 import CreateMemberModal from '@/components/club/CreateMemberModal'
+import UserAvatar from '@/components/UserAvatar'
 import ClubActionCenterModal from './ClubActionCenter'
 import ClubAffiliationCard from '@/components/ClubAffiliationCard'
 
@@ -803,13 +804,12 @@ export default function ClubDashboard({
 
                     <div className="flex items-center gap-3">
                         {/* Profile Pic */}
-                        {clerkImageUrl ? (
-                            <img src={clerkImageUrl} alt="Profile" className="w-8 h-8 rounded-full border border-gray-200" />
-                        ) : (
-                            <div className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center font-bold text-xs">
-                                {userData?.name?.charAt(0)}
-                            </div>
-                        )}
+                        <UserAvatar
+                            src={clerkImageUrl}
+                            name={userData?.name}
+                            size={32}
+                            className="border border-gray-200"
+                        />
                     </div>
                 </div>
 

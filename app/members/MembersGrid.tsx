@@ -10,6 +10,7 @@ import { calculateAge } from '@/lib/placement'
 import { promoteToAssistant, demoteToAthlete } from '@/app/club/actions'
 import { toast } from 'sonner'
 import AthleteDetailsModal from '@/components/club/AthleteDetailsModal'
+import UserAvatar from '@/components/UserAvatar'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -230,17 +231,12 @@ export default function MembersGrid({
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="flex items-center gap-3 overflow-hidden">
                                         <div className="relative flex-shrink-0">
-                                            {avatar ? (
-                                                <img
-                                                    src={avatar}
-                                                    alt={member.name || 'Member'}
-                                                    className="w-12 h-12 rounded-full object-cover bg-gray-50 border border-gray-100"
-                                                />
-                                            ) : (
-                                                <div className="w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center text-lg font-bold border border-red-100">
-                                                    {(member.name || '?').charAt(0)}
-                                                </div>
-                                            )}
+                                            <UserAvatar
+                                                src={avatar}
+                                                name={member.name}
+                                                size={48}
+                                                className="border border-gray-100"
+                                            />
                                         </div>
                                         <div className="min-w-0">
                                             <h3 className="font-bold text-gray-900 text-base truncate flex items-center gap-2">
@@ -409,14 +405,13 @@ export default function MembersGrid({
                                         <tr key={member.id} className="hover:bg-gray-100 transition-colors group">
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="flex-shrink-0 h-10 w-10 relative">
-                                                        {avatar ? (
-                                                            <img className="h-10 w-10 rounded-full object-cover bg-gray-100" src={avatar} alt="" />
-                                                        ) : (
-                                                            <div className="h-10 w-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm font-bold">
-                                                                {(member.name || '?').charAt(0)}
-                                                            </div>
-                                                        )}
+                                                    <div className="flex-shrink-0">
+                                                        <UserAvatar
+                                                            src={avatar}
+                                                            name={member.name}
+                                                            size={40}
+                                                            className="border border-gray-100"
+                                                        />
                                                     </div>
                                                     <div>
                                                         <div className="text-sm font-bold text-gray-900 flex items-center gap-2">

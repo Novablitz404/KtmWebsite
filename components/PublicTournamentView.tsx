@@ -7,6 +7,7 @@ import { Calendar, MapPin, Search, Filter, Info, ChevronRight, FileText } from '
 import { format } from 'date-fns'
 import { Tournament, Player as PrismaPlayer } from '@prisma/client'
 import { useTenant } from '@/app/providers/TenantProvider'
+import UserAvatar from '@/components/UserAvatar'
 
 // Extended Player type with enriched fields
 type Player = PrismaPlayer & {
@@ -307,17 +308,11 @@ export default function PublicTournamentView(props: PublicTournamentViewProps) {
                                             {/* Avatar */}
                                             <div className="relative z-10 mb-2">
                                                 <div className="p-0.5 bg-white rounded-full shadow-sm">
-                                                    {athlete.imageUrl ? (
-                                                        <img
-                                                            src={athlete.imageUrl}
-                                                            alt={athlete.name}
-                                                            className="w-14 h-14 rounded-full object-cover bg-gray-100"
-                                                        />
-                                                    ) : (
-                                                        <div className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold border" style={{ backgroundColor: `${accentColor}10`, color: accentColor, borderColor: `${accentColor}20` }}>
-                                                            {initials}
-                                                        </div>
-                                                    )}
+                                                    <UserAvatar
+                                                        src={athlete.imageUrl}
+                                                        name={athlete.name}
+                                                        size={56}
+                                                    />
                                                 </div>
                                                 {/* Belt Indicator (if exists) */}
                                                 {athlete.belt && (

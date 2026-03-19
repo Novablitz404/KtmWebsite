@@ -123,12 +123,16 @@ export default async function RankingsPage({ searchParams }: PageProps) {
                                                 <div className="flex items-center gap-4">
                                                     {/* Profile Avatar */}
                                                     <div className="relative w-12 h-12 rounded-full overflow-hidden bg-gray-100 border border-gray-100 shadow-sm flex-shrink-0">
-                                                        {athlete.profileImage ? (
-                                                            <img src={athlete.profileImage} alt={athlete.name} className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400 font-bold text-lg">
-                                                                {athlete.name.charAt(0)}
-                                                            </div>
+                                                        <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400 font-bold text-lg">
+                                                            {athlete.name.charAt(0)}
+                                                        </div>
+                                                        {athlete.profileImage && (
+                                                            <img
+                                                                src={athlete.profileImage}
+                                                                alt={athlete.name}
+                                                                className="absolute inset-0 w-full h-full object-cover"
+                                                                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                                                            />
                                                         )}
                                                         {athlete.verified && (
                                                             <div className="absolute bottom-0 right-0 bg-white rounded-full p-0.5 shadow-sm">

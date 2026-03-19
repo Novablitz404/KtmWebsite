@@ -2,6 +2,7 @@ import ProfileForm from './ProfileForm'
 import LogoutButton from '@/components/LogoutButton'
 import AthleteSettingsSubTabs from './AthleteSettingsSubTabs'
 import SecurityForm from './SecurityForm'
+import UserAvatar from '@/components/UserAvatar'
 
 interface AthleteProfileViewProps {
     dbUser: {
@@ -39,17 +40,12 @@ export default function AthleteProfileView({ dbUser, clerkImageUrl, clubLogoUrl 
                     <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
                         {/* Avatar */}
                         <div className="flex-shrink-0">
-                            {clerkImageUrl ? (
-                                <img
-                                    src={clerkImageUrl}
-                                    alt={dbUser.name || 'Athlete'}
-                                    className="w-24 h-24 sm:w-28 sm:h-28 rounded-full border-2 border-gray-100 shadow-sm object-cover bg-gray-100"
-                                />
-                            ) : (
-                                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-gradient-to-br from-red-100 to-red-200 flex items-center justify-center text-3xl sm:text-4xl border-2 border-gray-100 shadow-sm text-gray-400 font-bold">
-                                    {dbUser.name ? dbUser.name.charAt(0).toUpperCase() : 'A'}
-                                </div>
-                            )}
+                            <UserAvatar
+                                src={clerkImageUrl}
+                                name={dbUser.name}
+                                size={112}
+                                className="border-2 border-gray-100 shadow-sm"
+                            />
                         </div>
 
                         {/* Info */}
