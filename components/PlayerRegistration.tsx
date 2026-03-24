@@ -1,9 +1,9 @@
 'use client'
 
 import { createPlayer, getTournamentPlayers, searchAllAthletes, findPlayerCategory } from '@/app/actions'
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
-import { ChevronDown, ChevronUp, UserPlus, Loader2, Search, CheckCircle2, AlertCircle } from 'lucide-react'
+import { ChevronDown, ChevronUp, UserPlus, Loader2, Search, CheckCircle2, AlertCircle, ChevronUpIcon, ChevronsUpDown } from 'lucide-react'
 import GlobalDropdown from '@/components/GlobalDropdown'
 import { calculateAge } from '@/lib/placement'
 
@@ -81,9 +81,42 @@ export default function PlayerRegistration({ tournamentId, categories, players: 
     const [players, setPlayers] = useState(initialPlayers)
     const [currentPage, setCurrentPage] = useState(1)
     const [isLoading, setIsLoading] = useState(false)
-    const itemsPerPage = 30
+    const itemsPerPage = 20
+
+    // ─── Table search / sort / filter state ───
+    const [tableSearch, setTableSearch] = useState('')
+    const [sortField, setSortField] = useState<'name' | 'club' | 'category' | 'status'>('name')
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+    const [filterStatus, setFilterStatus] = useState<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED'>('ALL')
+    const [filterDiscipline, setFilterDiscipline] = useState<'ALL' | 'KYORUGI' | 'POOMSAE' | 'KYUKPA'>('ALL')
 
     const totalPages = Math.ceil(Math.max(totalCount, players.length, initialPlayers.length) / itemsPerPage)
+
+    // ─── Derived: filtered + sorted display list ───
+    const displayedPlayers = useMemo(() => {
+        const q = tableSearch.toLowerCase()
+        return [...players]
+            .filter(p => filterStatus === 'ALL' || p.registrationStatus === filterStatus)
+            .filter(p => filterDiscipline === 'ALL' || (p.category as any)?.type === filterDiscipline)
+            .filter(p => !q ||
+                p.name?.toLowerCase().includes(q) ||
+                (p.club?.name || '').toLowerCase().includes(q) ||
+                (p.category?.name || '').toLowerCase().includes(q)
+            )
+            .sort((a, b) => {
+                let aVal = '', bVal = ''
+                if (sortField === 'name')     { aVal = a.name || ''; bVal = b.name || '' }
+                if (sortField === 'club')     { aVal = a.club?.name || ''; bVal = b.club?.name || '' }
+                if (sortField === 'category') { aVal = a.category?.name || ''; bVal = b.category?.name || '' }
+                if (sortField === 'status')   { aVal = a.registrationStatus || ''; bVal = b.registrationStatus || '' }
+                return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
+            })
+    }, [players, tableSearch, sortField, sortDir, filterStatus, filterDiscipline])
+
+    const handleSort = (field: typeof sortField) => {
+        if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+        else { setSortField(field); setSortDir('asc') }
+    }
 
     useEffect(() => {
         if (currentPage === 1) {
@@ -568,16 +601,66 @@ export default function PlayerRegistration({ tournamentId, categories, players: 
             )}
 
             {/* ─── Athletes Table ─── */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-                    <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
-                        Registered Athletes ({totalCount > 0 ? totalCount : players.length})
-                    </h3>
-                    <span className="text-xs text-gray-500">
-                        Page {currentPage} of {totalPages || 1}
-                    </span>
+            <div className="h-screen bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+                {/* Table header + toolbar */}
+                <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 space-y-3">
+                    <div className="flex justify-between items-center">
+                        <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
+                            Registered Athletes ({totalCount > 0 ? totalCount : players.length})
+                        </h3>
+                        <span className="text-xs text-gray-500">
+                            Page {currentPage} of {totalPages || 1}
+                        </span>
+                    </div>
+
+                    {/* Search + filters */}
+                    <div className="flex flex-col sm:flex-row gap-2">
+                        {/* Search input */}
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                            <input
+                                type="text"
+                                placeholder="Search name, club, or category..."
+                                value={tableSearch}
+                                onChange={e => setTableSearch(e.target.value)}
+                                className="w-full pl-8 pr-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all"
+                            />
+                        </div>
+
+                        {/* Discipline pills */}
+                        <div className="flex gap-1">
+                            {(['ALL', 'KYORUGI', 'POOMSAE', 'KYUKPA'] as const).map(d => (
+                                <button
+                                    key={d}
+                                    onClick={() => setFilterDiscipline(d)}
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                                        filterDiscipline === d
+                                            ? d === 'KYORUGI' ? 'bg-red-600 text-white'
+                                            : d === 'POOMSAE' ? 'bg-blue-600 text-white'
+                                            : d === 'KYUKPA' ? 'bg-purple-600 text-white'
+                                            : 'bg-gray-900 text-white'
+                                            : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                                    }`}
+                                >
+                                    {d === 'ALL' ? 'All' : d.charAt(0) + d.slice(1).toLowerCase()}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Status filter */}
+                        <select
+                            value={filterStatus}
+                            onChange={e => setFilterStatus(e.target.value as any)}
+                            className="px-2.5 py-1.5 text-xs font-medium bg-white border border-gray-200 rounded-lg text-gray-700 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
+                        >
+                            <option value="ALL">All Status</option>
+                            <option value="APPROVED">Approved</option>
+                            <option value="PENDING">Pending</option>
+                            <option value="REJECTED">Rejected</option>
+                        </select>
+                    </div>
                 </div>
-                <div className="overflow-x-auto min-h-[300px]">
+                <div className="flex-1 overflow-auto">
                     {isLoading ? (
                         <div className="flex justify-center items-center h-48 text-gray-400">
                             <Loader2 className="w-5 h-5 animate-spin mr-2" />
@@ -587,23 +670,61 @@ export default function PlayerRegistration({ tournamentId, categories, players: 
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
                                 <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Club</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                                    {/* Sortable: Name */}
+                                    <th
+                                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                                        onClick={() => handleSort('name')}
+                                    >
+                                        <span className="flex items-center gap-1">
+                                            Name
+                                            <ChevronsUpDown className={`w-3 h-3 ${sortField === 'name' ? 'text-red-500' : 'text-gray-300'}`} />
+                                        </span>
+                                    </th>
+                                    {/* Sortable: Club */}
+                                    <th
+                                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                                        onClick={() => handleSort('club')}
+                                    >
+                                        <span className="flex items-center gap-1">
+                                            Club
+                                            <ChevronsUpDown className={`w-3 h-3 ${sortField === 'club' ? 'text-red-500' : 'text-gray-300'}`} />
+                                        </span>
+                                    </th>
+                                    {/* Sortable: Category */}
+                                    <th
+                                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                                        onClick={() => handleSort('category')}
+                                    >
+                                        <span className="flex items-center gap-1">
+                                            Category
+                                            <ChevronsUpDown className={`w-3 h-3 ${sortField === 'category' ? 'text-red-500' : 'text-gray-300'}`} />
+                                        </span>
+                                    </th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Belt</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Skill</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    {/* Sortable: Status */}
+                                    <th
+                                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                                        onClick={() => handleSort('status')}
+                                    >
+                                        <span className="flex items-center gap-1">
+                                            Status
+                                            <ChevronsUpDown className={`w-3 h-3 ${sortField === 'status' ? 'text-red-500' : 'text-gray-300'}`} />
+                                        </span>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                                {players.length === 0 ? (
+                                {displayedPlayers.length === 0 ? (
                                     <tr>
                                         <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                                            No players registered.
+                                            {tableSearch || filterStatus !== 'ALL' || filterDiscipline !== 'ALL'
+                                                ? 'No athletes match your filters.'
+                                                : 'No players registered.'}
                                         </td>
                                     </tr>
                                 ) : (
-                                    players.map((player) => (
+                                    displayedPlayers.map((player) => (
                                         <tr key={player.id} className="hover:bg-gray-50">
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{player.name}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{player.club?.name || '-'}</td>

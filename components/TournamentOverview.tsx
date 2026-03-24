@@ -29,6 +29,11 @@ export default function TournamentOverview({ tournament, players, totalPlayersCo
     const approvedCount = players.filter(p => p.registrationStatus === 'APPROVED').length
     const pendingCount = players.filter(p => p.registrationStatus === 'PENDING').length
 
+    // ─── Per-discipline player counts ───
+    const kyorugiPlayers = players.filter(p => (p.category as any)?.type === 'KYORUGI').length
+    const poomsaePlayers = players.filter(p => (p.category as any)?.type === 'POOMSAE').length
+    const kyukpaPlayers  = players.filter(p => (p.category as any)?.type === 'KYUKPA').length
+
     const daysUntil = Math.max(0, Math.ceil((new Date(tournament.startDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))
     const isPast = new Date(tournament.startDate) < new Date()
 
@@ -146,6 +151,59 @@ export default function TournamentOverview({ tournament, players, totalPlayersCo
                     <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-white/5 rounded-full blur-2xl" />
                 </div>
             </div>
+
+            {/* ─── Discipline Athlete Breakdown ─── */}
+            {(kyorugiPlayers > 0 || poomsaePlayers > 0 || kyukpaPlayers > 0) && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Kyorugi */}
+                    {kyorugiPlayers > 0 && (
+                        <div className="bg-white p-5 rounded-2xl border border-red-100 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center">
+                                    <Trophy className="w-5 h-5 text-red-600" />
+                                </div>
+                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Kyorugi</span>
+                            </div>
+                            <p className="text-3xl font-black text-gray-900">{kyorugiPlayers}</p>
+                            <p className="text-xs text-gray-500 mt-2 font-medium">
+                                {kyorugiCategories} {kyorugiCategories === 1 ? 'category' : 'categories'} · Sparring
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Poomsae */}
+                    {poomsaePlayers > 0 && (
+                        <div className="bg-white p-5 rounded-2xl border border-blue-100 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
+                                    <Users className="w-5 h-5 text-blue-600" />
+                                </div>
+                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Poomsae</span>
+                            </div>
+                            <p className="text-3xl font-black text-gray-900">{poomsaePlayers}</p>
+                            <p className="text-xs text-gray-500 mt-2 font-medium">
+                                {poomsaeCategories} {poomsaeCategories === 1 ? 'category' : 'categories'} · Forms
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Kyukpa */}
+                    {kyukpaPlayers > 0 && (
+                        <div className="bg-white p-5 rounded-2xl border border-purple-100 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
+                                    <TrendingUp className="w-5 h-5 text-purple-600" />
+                                </div>
+                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Kyukpa</span>
+                            </div>
+                            <p className="text-3xl font-black text-gray-900">{kyukpaPlayers}</p>
+                            <p className="text-xs text-gray-500 mt-2 font-medium">
+                                {kyukpaCategories} {kyukpaCategories === 1 ? 'category' : 'categories'} · Breaking
+                            </p>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* ─── Tournament Details ─── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
