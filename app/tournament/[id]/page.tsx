@@ -120,15 +120,13 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
         currentUserId
     }
 
-    // Fetch players - use select for nested relations
-    // Count total players for pagination
-    const totalPlayersCount = await prisma.player.count({
-        where: {
-            category: {
-                tournamentId: id
-            }
-        }
-    })
+    // Fetch players count + pre-aggregated overview stats in parallel
+    const [totalPlayersCount, tournamentStats] = await Promise.all([
+        prisma.player.count({
+            where: { category: { tournamentId: id } }
+        }),
+        (await import('@/app/actions')).getTournamentStats(id)
+    ])
 
     // Fetch players - use select for nested relations
     const playersFetch = await prisma.player.findMany({
@@ -204,6 +202,7 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
                     tournament={tournamentWithData}
                     players={players}
                     totalPlayersCount={totalPlayersCount}
+                    tournamentStats={tournamentStats}
                     pendingManagerInvites={pendingManagerInvites}
                     publicView={false}
                     userRole={dbUserRole}

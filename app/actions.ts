@@ -1901,20 +1901,96 @@ export async function createCategory(tournamentId: string, name: string, type: s
     }
 }
 
-export async function getTournamentPlayers(tournamentId: string, skip?: number, take?: number, search?: string) {
-    const searchFilter = search && search.trim().length >= 2 ? {
-        OR: [
+export async function getTournamentStats(tournamentId: string) {
+    const [statusGroups, kyorugiCount, poomsaeCount, kyukpaCount, clubPlayers] = await Promise.all([
+        // Status breakdown via groupBy
+        prisma.player.groupBy({
+            by: ['registrationStatus'],
+            where: { category: { tournamentId } },
+            _count: { _all: true }
+        }),
+        // Per-discipline counts
+        prisma.player.count({ where: { category: { tournamentId, type: 'KYORUGI' } } }),
+        prisma.player.count({ where: { category: { tournamentId, type: 'POOMSAE' } } }),
+        prisma.player.count({ where: { category: { tournamentId, type: 'KYUKPA' } } }),
+        // Minimal club data for aggregation
+        prisma.player.findMany({
+            where: { category: { tournamentId } },
+            select: {
+                registrationStatus: true,
+                clubId: true,
+                club: { select: { id: true, name: true, logoUrl: true } }
+            }
+        })
+    ])
+
+    const approved = statusGroups.find(g => g.registrationStatus === 'APPROVED')?._count._all ?? 0
+    const pending  = statusGroups.find(g => g.registrationStatus === 'PENDING')?._count._all ?? 0
+    const rejected = statusGroups.find(g => g.registrationStatus === 'REJECTED')?._count._all ?? 0
+    const total    = approved + pending + rejected
+
+    // Aggregate clubs in JS (minimal data already fetched)
+    const clubMap = new Map<string, { name: string; logoUrl: string | null; count: number; approved: number; pending: number }>()
+    for (const player of clubPlayers) {
+        const key  = player.clubId || 'unaffiliated'
+        const name = player.club?.name || 'Unaffiliated'
+        const existing = clubMap.get(key)
+        if (existing) {
+            existing.count++
+            if (player.registrationStatus === 'APPROVED') existing.approved++
+            if (player.registrationStatus === 'PENDING')  existing.pending++
+        } else {
+            clubMap.set(key, {
+                name,
+                logoUrl: player.club?.logoUrl || null,
+                count: 1,
+                approved: player.registrationStatus === 'APPROVED' ? 1 : 0,
+                pending:  player.registrationStatus === 'PENDING'  ? 1 : 0,
+            })
+        }
+    }
+
+    return {
+        total,
+        approved,
+        pending,
+        rejected,
+        kyorugi: kyorugiCount,
+        poomsae: poomsaeCount,
+        kyukpa:  kyukpaCount,
+        clubs: Array.from(clubMap.values()).sort((a, b) => b.count - a.count)
+    }
+}
+
+export async function getTournamentPlayers(
+    tournamentId: string,
+    skip?: number,
+    take?: number,
+    search?: string,
+    status?: string,
+    discipline?: string
+) {
+    // Build the category filter (tournamentId + optional discipline)
+    const categoryFilter: any = { tournamentId }
+    if (discipline) categoryFilter.type = discipline
+
+    // Build the top-level where clause
+    const where: any = { category: categoryFilter }
+
+    // Optional text search across name, club, category
+    if (search && search.trim().length >= 2) {
+        where.OR = [
             { name: { contains: search.trim(), mode: 'insensitive' as const } },
             { club: { name: { contains: search.trim(), mode: 'insensitive' as const } } },
             { category: { name: { contains: search.trim(), mode: 'insensitive' as const } } },
         ]
-    } : {}
+    }
+
+    // Optional status filter
+    if (status) where.registrationStatus = status
 
     return await prisma.player.findMany({
-        where: {
-            category: { tournamentId },
-            ...searchFilter,
-        },
+        where,
         include: {
             category: {
                 select: { id: true, name: true, type: true, tournamentId: true, court: true }
@@ -1924,9 +2000,7 @@ export async function getTournamentPlayers(tournamentId: string, skip?: number, 
             }
         },
         orderBy: {
-            category: {
-                name: 'asc'
-            }
+            category: { name: 'asc' }
         },
         skip,
         take

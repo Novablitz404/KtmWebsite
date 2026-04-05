@@ -89,7 +89,7 @@ export default function PlayerRegistration({ tournamentId, categories, players: 
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
     const [filterStatus, setFilterStatus] = useState<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED'>('ALL')
     const [filterDiscipline, setFilterDiscipline] = useState<'ALL' | 'KYORUGI' | 'POOMSAE' | 'KYUKPA'>('ALL')
-    const [isSearchMode, setIsSearchMode] = useState(false)
+    const [isFilterMode, setIsFilterMode] = useState(false)
 
     const totalPages = Math.ceil(Math.max(totalCount, players.length, initialPlayers.length) / itemsPerPage)
 
@@ -114,16 +114,18 @@ export default function PlayerRegistration({ tournamentId, categories, players: 
     }
 
     useEffect(() => {
-        if (currentPage === 1 && !isSearchMode) {
+        if (currentPage === 1 && !isFilterMode) {
             setPlayers(initialPlayers)
         }
-    }, [initialPlayers, currentPage, isSearchMode])
+    }, [initialPlayers, currentPage, isFilterMode])
 
-    // ─── Debounced server-side search ───
+    // ─── Unified server-side filter (search + discipline + status) ───
+    const hasActiveFilter = tableSearch.trim().length >= 2 || filterStatus !== 'ALL' || filterDiscipline !== 'ALL'
+
     useEffect(() => {
-        if (!tableSearch || tableSearch.trim().length < 2) {
-            if (isSearchMode) {
-                setIsSearchMode(false)
+        if (!hasActiveFilter) {
+            if (isFilterMode) {
+                setIsFilterMode(false)
                 setPlayers(initialPlayers)
                 setCurrentPage(1)
             }
@@ -133,18 +135,25 @@ export default function PlayerRegistration({ tournamentId, categories, players: 
         const timer = setTimeout(async () => {
             setIsLoading(true)
             try {
-                const results = await getTournamentPlayers(tournamentId, undefined, undefined, tableSearch.trim())
+                const results = await getTournamentPlayers(
+                    tournamentId,
+                    undefined,
+                    undefined,
+                    tableSearch.trim() || undefined,
+                    filterStatus !== 'ALL' ? filterStatus : undefined,
+                    filterDiscipline !== 'ALL' ? filterDiscipline : undefined
+                )
                 setPlayers(results)
-                setIsSearchMode(true)
+                setIsFilterMode(true)
             } catch (error) {
-                console.error('Search failed:', error)
+                console.error('Filter failed:', error)
             } finally {
                 setIsLoading(false)
             }
-        }, 400)
+        }, 300)
 
         return () => clearTimeout(timer)
-    }, [tableSearch])
+    }, [tableSearch, filterStatus, filterDiscipline])
 
     // Debounced Athlete Search
     useEffect(() => {
@@ -628,12 +637,12 @@ export default function PlayerRegistration({ tournamentId, categories, players: 
                 <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 space-y-3">
                     <div className="flex justify-between items-center">
                         <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
-                            {isSearchMode
-                                ? `Search Results (${players.length})`
+                            {isFilterMode
+                                ? `Filtered Results (${players.length})`
                                 : `Registered Athletes (${totalCount > 0 ? totalCount : players.length})`
                             }
                         </h3>
-                        {!isSearchMode && (
+                        {!isFilterMode && (
                             <span className="text-xs text-gray-500">
                                 Page {currentPage} of {totalPages || 1}
                             </span>
@@ -785,7 +794,7 @@ export default function PlayerRegistration({ tournamentId, categories, players: 
                 </div>
 
                 {/* Pagination Controls */}
-                {totalPages > 1 && !isSearchMode && (
+                {totalPages > 1 && !isFilterMode && (
                     <div className="px-6 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
                         <button
                             onClick={() => handlePageChange(currentPage - 1)}

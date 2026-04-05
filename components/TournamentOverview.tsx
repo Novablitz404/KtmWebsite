@@ -13,56 +13,67 @@ type PlayerWithClub = Player & {
     club: { id: string; name: string; logoUrl?: string | null } | null
 }
 
-interface TournamentOverviewProps {
-    tournament: TournamentWithData
-    players: PlayerWithClub[]
-    totalPlayersCount: number
+type TournamentStats = {
+    total: number
+    approved: number
+    pending: number
+    rejected: number
+    kyorugi: number
+    poomsae: number
+    kyukpa: number
+    clubs: { name: string; logoUrl: string | null; count: number; approved: number; pending: number }[]
 }
 
-export default function TournamentOverview({ tournament, players, totalPlayersCount }: TournamentOverviewProps) {
-    // ─── Derived stats ───
-    const totalCategories = tournament.categories.length
+interface TournamentOverviewProps {
+    tournament: TournamentWithData
+    players: PlayerWithClub[]  // still passed but only used as fallback
+    totalPlayersCount: number
+    stats?: TournamentStats
+}
+
+export default function TournamentOverview({ tournament, players, totalPlayersCount, stats }: TournamentOverviewProps) {
+    // ─── Use pre-aggregated stats when available, fall back to client-side derivation ───
+    const approvedCount    = stats?.approved    ?? players.filter(p => p.registrationStatus === 'APPROVED').length
+    const pendingCount     = stats?.pending     ?? players.filter(p => p.registrationStatus === 'PENDING').length
+    const rejectedCount    = stats?.rejected    ?? players.filter(p => p.registrationStatus === 'REJECTED').length
+    const kyorugiPlayers   = stats?.kyorugi     ?? players.filter(p => (p.category as any)?.type === 'KYORUGI').length
+    const poomsaePlayers   = stats?.poomsae     ?? players.filter(p => (p.category as any)?.type === 'POOMSAE').length
+    const kyukpaPlayers    = stats?.kyukpa      ?? players.filter(p => (p.category as any)?.type === 'KYUKPA').length
+
+    // ─── Category breakdowns (from tournament.categories — always complete) ───
+    const totalCategories  = tournament.categories.length
     const kyorugiCategories = tournament.categories.filter(c => (c as any).type === 'KYORUGI').length
     const poomsaeCategories = tournament.categories.filter(c => (c as any).type === 'POOMSAE').length
-    const kyukpaCategories = tournament.categories.filter(c => (c as any).type === 'KYUKPA').length
-
-    const approvedCount = players.filter(p => p.registrationStatus === 'APPROVED').length
-    const pendingCount = players.filter(p => p.registrationStatus === 'PENDING').length
-
-    // ─── Per-discipline player counts ───
-    const kyorugiPlayers = players.filter(p => (p.category as any)?.type === 'KYORUGI').length
-    const poomsaePlayers = players.filter(p => (p.category as any)?.type === 'POOMSAE').length
-    const kyukpaPlayers  = players.filter(p => (p.category as any)?.type === 'KYUKPA').length
+    const kyukpaCategories  = tournament.categories.filter(c => (c as any).type === 'KYUKPA').length
 
     const daysUntil = Math.max(0, Math.ceil((new Date(tournament.startDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))
-    const isPast = new Date(tournament.startDate) < new Date()
+    const isPast    = new Date(tournament.startDate) < new Date()
 
-    // ─── Participating clubs aggregation ───
+    // ─── Club stats: use pre-aggregated if available, derive from players as fallback ───
     const clubStats = useMemo(() => {
+        if (stats?.clubs) return stats.clubs
+
         const map = new Map<string, { name: string; logoUrl: string | null; count: number; approved: number; pending: number }>()
-
         players.forEach(player => {
-            const clubName = player.club?.name || (player as any).club || 'Unaffiliated'
-            const clubKey = player.club?.id || clubName
+            const clubName = player.club?.name || 'Unaffiliated'
+            const clubKey  = player.club?.id || clubName
             const existing = map.get(clubKey)
-
             if (existing) {
                 existing.count++
                 if (player.registrationStatus === 'APPROVED') existing.approved++
-                if (player.registrationStatus === 'PENDING') existing.pending++
+                if (player.registrationStatus === 'PENDING')  existing.pending++
             } else {
                 map.set(clubKey, {
                     name: typeof clubName === 'string' ? clubName : 'Unaffiliated',
                     logoUrl: player.club?.logoUrl || null,
                     count: 1,
                     approved: player.registrationStatus === 'APPROVED' ? 1 : 0,
-                    pending: player.registrationStatus === 'PENDING' ? 1 : 0,
+                    pending:  player.registrationStatus === 'PENDING'  ? 1 : 0,
                 })
             }
         })
-
         return Array.from(map.values()).sort((a, b) => b.count - a.count)
-    }, [players])
+    }, [players, stats])
 
     return (
         <div className="space-y-6 animate-in fade-in duration-300">
@@ -264,7 +275,7 @@ export default function TournamentOverview({ tournament, players, totalPlayersCo
                         </div>
                         <div>
                             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Rejected</p>
-                            <p className="text-lg font-bold text-red-600">{players.filter(p => p.registrationStatus === 'REJECTED').length}</p>
+                            <p className="text-lg font-bold text-red-600">{rejectedCount}</p>
                         </div>
                     </div>
                 </div>

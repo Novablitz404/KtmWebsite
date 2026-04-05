@@ -52,9 +52,19 @@ interface TournamentTabsProps {
     publicView?: boolean
     totalPlayersCount?: number
     userRole?: string
+    tournamentStats?: {
+        total: number
+        approved: number
+        pending: number
+        rejected: number
+        kyorugi: number
+        poomsae: number
+        kyukpa: number
+        clubs: { name: string; logoUrl: string | null; count: number; approved: number; pending: number }[]
+    }
 }
 
-export default function TournamentTabs({ tournament, players, pendingManagerInvites = [], publicView = false, totalPlayersCount = 0, userRole }: TournamentTabsProps) {
+export default function TournamentTabs({ tournament, players, pendingManagerInvites = [], publicView = false, totalPlayersCount = 0, userRole, tournamentStats }: TournamentTabsProps) {
     const searchParams = useSearchParams()
     const [activeTab, setActiveTab] = useState<'overview' | 'categories' | 'brackets' | 'athletes' | 'checkin' | 'managers' | 'settings'>(
         publicView ? 'athletes' : 'overview'
@@ -182,6 +192,7 @@ export default function TournamentTabs({ tournament, players, pendingManagerInvi
                                 tournament={tournament}
                                 players={playersList as any}
                                 totalPlayersCount={totalPlayersCount || playersList.length}
+                                stats={tournamentStats}
                             />
                         </div>
                     )}
