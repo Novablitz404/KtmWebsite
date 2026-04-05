@@ -687,7 +687,7 @@ export default function PlayerRegistration({ tournamentId, categories, players: 
                         </select>
                     </div>
                 </div>
-                <div>
+                <div className="overflow-x-auto">
                     {isLoading ? (
                         <div className="flex justify-center items-center h-48 text-gray-400">
                             <Loader2 className="w-5 h-5 animate-spin mr-2" />
