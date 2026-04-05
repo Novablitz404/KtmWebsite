@@ -5,7 +5,7 @@ import {
     Camera, CameraOff, CheckCircle2, XCircle, AlertTriangle,
     Loader2, ScanLine, ChevronDown, RotateCcw, Usb,
     Zap, History, Trash2, Users, Search, Shield, Clock, UserCheck,
-    Monitor, FolderOpen, FileSignature, Send, PenLine
+    Monitor, FolderOpen, FileSignature, Send, PenLine, Wifi, ChevronUp, Tag
 } from 'lucide-react'
 
 // ============================================
@@ -48,6 +48,15 @@ interface ScanHistoryEntry {
     status: 'checked_in' | 'already' | 'error'
     message?: string
     scannedAt: Date
+}
+
+interface NfcQueueEntry {
+    id: string
+    playerId: string
+    playerName: string
+    tournamentId: string
+    status: string
+    createdAt: string
 }
 
 interface CheckedInAthlete {
@@ -123,10 +132,32 @@ export default function EventCheckIn({
     const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null)
     const channelRef = useRef<BroadcastChannel | null>(null)
 
+    // NFC Writer
+    const [nfcQueue, setNfcQueue] = useState<NfcQueueEntry[]>([])
+    const [nfcSupported, setNfcSupported] = useState<boolean | null>(null)
+    const [nfcWriting, setNfcWriting] = useState(false)
+    const [nfcPanelOpen, setNfcPanelOpen] = useState(true)
+    const [nfcWriteResult, setNfcWriteResult] = useState<'success' | 'error' | null>(null)
+
     // ---- Init ----
     useEffect(() => {
         onGetStats(eventId).then(setStats)
         refreshCheckedIn()
+        // Detect Web NFC support
+        setNfcSupported('NDEFReader' in window)
+    }, [eventId])
+
+    // ---- Poll NFC queue every 3s ----
+    useEffect(() => {
+        const fetchQueue = async () => {
+            try {
+                const res = await fetch(`/api/nfc-queue?tournamentId=${eventId}&status=pending`)
+                if (res.ok) setNfcQueue(await res.json())
+            } catch { /* silent */ }
+        }
+        fetchQueue()
+        const interval = setInterval(fetchQueue, 3000)
+        return () => clearInterval(interval)
     }, [eventId])
 
     const refreshCheckedIn = async () => {
@@ -293,7 +324,20 @@ export default function EventCheckIn({
                 await onSaveWaiver(waiverAthlete.id, eventId)
             }
 
-            // 3. Notify athlete display
+            // 3. Push player to NFC queue
+            if (waiverAthlete.id) {
+                fetch('/api/nfc-queue', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tournamentId: eventId,
+                        playerId: waiverAthlete.id,
+                        playerName: waiverAthlete.name,
+                    }),
+                }).catch(console.error)
+            }
+
+            // 4. Notify athlete display
             channelRef.current?.postMessage({ type: 'WAIVER_SAVED' })
 
             // 4. Reset state
@@ -906,6 +950,146 @@ export default function EventCheckIn({
                     </div>
                 )}
             </div>
+
+            {/* ══ NFC WRITER PANEL ══ */}
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+                {/* Header */}
+                <button
+                    onClick={() => setNfcPanelOpen(v => !v)}
+                    className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center">
+                            <Wifi className="w-4 h-4 text-violet-600" />
+                        </div>
+                        <div className="text-left">
+                            <p className="text-sm font-black text-gray-900">NFC Writer</p>
+                            <p className="text-[10px] text-gray-400 font-medium">
+                                {nfcQueue.length > 0 ? `${nfcQueue.length} pending` : 'No pending writes'} · Android Chrome only
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {nfcQueue.length > 0 && (
+                            <span className="w-5 h-5 rounded-full bg-violet-600 text-white text-[10px] font-black flex items-center justify-center">
+                                {nfcQueue.length}
+                            </span>
+                        )}
+                        {nfcPanelOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                    </div>
+                </button>
+
+                {nfcPanelOpen && (
+                    <div className="px-6 pb-6 pt-1">
+                        {/* NFC not supported */}
+                        {nfcSupported === false && (
+                            <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-start gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                                    <AlertTriangle className="w-4 h-4 text-amber-600" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-bold text-amber-800">NFC Not Available</p>
+                                    <p className="text-xs text-amber-600 mt-0.5">Open this page in <strong>Chrome on Android</strong> to use the NFC writer. This device or browser does not support Web NFC.</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* NFC supported — queue empty */}
+                        {nfcSupported && nfcQueue.length === 0 && (
+                            <div className="py-8 flex flex-col items-center gap-2 text-gray-300">
+                                <Tag className="w-8 h-8" />
+                                <p className="text-xs font-semibold">No athletes pending NFC write</p>
+                                <p className="text-[10px] text-gray-300">Athletes appear here after waiver is signed on the laptop</p>
+                            </div>
+                        )}
+
+                        {/* NFC supported — next in queue */}
+                        {nfcSupported && nfcQueue.length > 0 && (() => {
+                            const next = nfcQueue[0]
+                            return (
+                                <div className="space-y-3">
+                                    {/* Athlete card */}
+                                    <div className="p-4 bg-violet-50 border border-violet-100 rounded-2xl">
+                                        <p className="text-[9px] font-black text-violet-400 uppercase tracking-widest mb-1">Next to Write</p>
+                                        <p className="text-base font-black text-gray-900">{next.playerName}</p>
+                                        <p className="text-xs text-gray-400 font-medium mt-0.5">Player ID: {next.playerId}</p>
+                                    </div>
+
+                                    {/* Write result feedback */}
+                                    {nfcWriteResult === 'success' && (
+                                        <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center gap-2">
+                                            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                                            <p className="text-xs font-bold text-emerald-700">NFC tag written successfully!</p>
+                                        </div>
+                                    )}
+                                    {nfcWriteResult === 'error' && (
+                                        <div className="p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2">
+                                            <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                                            <p className="text-xs font-bold text-red-700">Write failed. Please try again.</p>
+                                        </div>
+                                    )}
+
+                                    {/* Actions */}
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={async () => {
+                                                setNfcWriting(true)
+                                                setNfcWriteResult(null)
+                                                try {
+                                                    const ndef = new (window as any).NDEFReader()
+                                                    await ndef.write({
+                                                        records: [{ recordType: 'text', data: next.playerId }]
+                                                    })
+                                                    await fetch(`/api/nfc-queue/${next.id}`, {
+                                                        method: 'PATCH',
+                                                        headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({ status: 'written' }),
+                                                    })
+                                                    setNfcWriteResult('success')
+                                                    setNfcQueue(prev => prev.filter(e => e.id !== next.id))
+                                                    setTimeout(() => setNfcWriteResult(null), 3000)
+                                                } catch (err) {
+                                                    console.error('[NFC write]', err)
+                                                    setNfcWriteResult('error')
+                                                } finally {
+                                                    setNfcWriting(false)
+                                                }
+                                            }}
+                                            disabled={nfcWriting}
+                                            className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl font-black text-sm bg-violet-600 hover:bg-violet-700 text-white transition-all active:scale-[0.98] disabled:opacity-50 shadow-lg shadow-violet-600/20"
+                                        >
+                                            {nfcWriting
+                                                ? <><Loader2 className="w-4 h-4 animate-spin" /> Waiting for tag...</>
+                                                : <><Wifi className="w-4 h-4" /> Tap NFC Tag to Write</>}
+                                        </button>
+                                        <button
+                                            onClick={async () => {
+                                                await fetch(`/api/nfc-queue/${next.id}`, {
+                                                    method: 'PATCH',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ status: 'skipped' }),
+                                                })
+                                                setNfcQueue(prev => prev.filter(e => e.id !== next.id))
+                                            }}
+                                            disabled={nfcWriting}
+                                            className="px-5 py-3.5 rounded-xl font-bold text-sm text-gray-500 bg-gray-100 hover:bg-gray-200 transition-all active:scale-[0.98]"
+                                        >
+                                            Skip
+                                        </button>
+                                    </div>
+
+                                    {nfcQueue.length > 1 && (
+                                        <p className="text-[10px] text-gray-400 text-center font-medium">
+                                            {nfcQueue.length - 1} more athlete{nfcQueue.length - 1 > 1 ? 's' : ''} waiting after this
+                                        </p>
+                                    )}
+                                </div>
+                            )
+                        })()}
+                    </div>
+                )}
+            </div>
+
         </div>
     )
 }

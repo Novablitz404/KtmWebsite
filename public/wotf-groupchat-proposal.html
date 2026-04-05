@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WOTF App — Group Chat Feature Proposal (Sponsored by Tomatok)</title>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+      gap: 32px;
+    }
+
+    .page {
+      width: 210mm;
+      height: 297mm;
+      background: #ffffff;
+      padding: 28px 50px 20px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── WOTF Brand Colors: Red ── */
+    :root {
+      --brand: #C62828;
+      --accent: #ff6b6b;
+      --accent-light: #fff0f0;
+      --accent-mid: #fca5a5;
+      --red: #C62828;
+      --light-bg: #fff5f5;
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 10px;
+      border-bottom: 2.5px solid var(--brand);
+      margin-bottom: 10px;
+      flex-shrink: 0;
+    }
+    .logo-area { display: flex; align-items: center; gap: 10px; }
+    .logo-pill {
+      background: #111;
+      border-radius: 8px;
+      padding: 5px 12px;
+      display: inline-flex;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .sponsor-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--accent-light);
+      border: 1px solid var(--accent);
+      border-radius: 100px;
+      padding: 3px 10px;
+      font-size: 8.5px;
+      font-weight: 700;
+      color: #991b1b;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .sponsor-badge span { color: #7f1d1d; }
+    .ktm-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #111;
+      border-radius: 100px;
+      padding: 3px 10px;
+      font-size: 8.5px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .doc-meta { text-align: right; font-size: 10px; color: #999; line-height: 1.8; }
+    .doc-meta strong { color: #555; font-weight: 600; }
+
+    /* ── Cover Band ── */
+    .cover-band {
+      background: linear-gradient(135deg, #1a0a0a 0%, #3b0d0d 55%, #C62828 100%);
+      margin: 0 -50px 10px;
+      padding: 18px 50px 16px;
+      position: relative;
+      overflow: hidden;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .cover-band::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 500px 300px at 90% 50%, rgba(198,40,40,.35) 0%, transparent 70%);
+    }
+    .cover-band::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #C62828, #ff6b6b, #C62828, transparent);
+    }
+    .cover-inner { position: relative; }
+    .cover-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(198,40,40,.15);
+      border: 1px solid rgba(198,40,40,.4);
+      border-radius: 100px;
+      padding: 3px 12px;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #fca5a5;
+      margin-bottom: 10px;
+    }
+    .cover-title {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 22px;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1.25;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+    }
+    .cover-title span { color: var(--accent-mid); }
+    .cover-sub {
+      font-size: 10.5px;
+      color: rgba(255,255,255,.6);
+      line-height: 1.55;
+      max-width: 500px;
+    }
+    .cover-tomatok {
+      position: absolute;
+      right: 0; top: 50%; transform: translateY(-50%);
+      text-align: right;
+    }
+    .tomatok-label {
+      font-size: 8px;
+      color: rgba(255,255,255,.4);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .tomatok-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 20px;
+      font-weight: 800;
+      color: #fca5a5;
+      letter-spacing: -0.01em;
+    }
+    .tomatok-tagline {
+      font-size: 8px;
+      color: rgba(255,255,255,.35);
+    }
+
+    /* ── Subject / Recipient ── */
+    .recipient-block { margin-bottom: 8px; flex-shrink: 0; }
+    .to-label { font-size: 9px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--brand); margin-bottom: 4px; }
+    .recipient-block p { font-size: 11px; color: #444; line-height: 1.6; }
+    .subject-block {
+      background: #fff5f5; border-left: 3px solid var(--brand); padding: 7px 14px; margin-bottom: 10px; border-radius: 0 6px 6px 0;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact; flex-shrink: 0;
+    }
+    .subject-label { font-size: 9px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #888; margin-bottom: 3px; }
+    .subject-text { font-size: 12px; font-weight: 700; color: #111; }
+
+    /* ── Body ── */
+    .body-section { flex: 1; }
+    .body-section p { font-size: 11px; color: #333; line-height: 1.65; margin-bottom: 6px; }
+
+    .section-heading {
+      font-size: 10px; font-weight: 800; color: #111; letter-spacing: 0.08em; text-transform: uppercase;
+      margin: 9px 0 5px; display: flex; align-items: center; gap: 8px;
+    }
+    .section-heading::after { content: ''; flex: 1; height: 1px; background: #e5e7eb; }
+
+    /* ── Stats Row ── */
+    .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin: 4px 0 6px; }
+    .stat-card {
+      background: #f9f8f4; border: 1px solid #ede9d8; border-radius: 6px; padding: 8px 10px;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .stat-card .stat-val { font-size: 17px; font-weight: 800; color: #C62828; line-height: 1; }
+    .stat-card .stat-label { font-size: 8px; font-weight: 600; color: #888; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.1em; }
+
+    /* ── Feature Grid ── */
+    .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin: 0 0 6px; }
+    .feature-item {
+      padding: 7px 10px; background: #fff5f5; border: 1px solid #fecaca; border-radius: 6px;
+      display: flex; gap: 8px; align-items: flex-start;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .feature-item.full { grid-column: 1 / -1; }
+    .feature-icon {
+      width: 26px; height: 26px; background: #fff0f0; border-radius: 5px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .feature-icon svg { width: 13px; height: 13px; stroke: #C62828; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .feature-icon.gold { background: #fff0f0; }
+    .feature-icon.gold svg { stroke: #C62828; }
+    .feature-content h4 { font-size: 10px; font-weight: 700; color: #111; margin-bottom: 1px; }
+    .feature-content p { font-size: 9.5px; color: #666; line-height: 1.4; margin: 0 !important; }
+
+    /* ── Architecture Diagram ── */
+    .arch-diagram {
+      background: #1a0a0a;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin: 6px 0;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .arch-title { font-size: 9px; font-weight: 700; color: #fca5a5; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 10px; }
+    .arch-tree { display: flex; flex-direction: column; gap: 6px; }
+    .arch-level { display: flex; align-items: center; gap: 10px; }
+    .arch-node {
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(198,40,40,.3);
+      border-radius: 5px;
+      padding: 5px 10px;
+      font-size: 9px;
+      font-weight: 600;
+      color: #fff;
+    }
+    .arch-node.root {
+      background: #C62828;
+      color: #fff;
+      font-weight: 800;
+    }
+    .arch-node.room {
+      background: rgba(198,40,40,.15);
+      border-color: rgba(198,40,40,.5);
+      color: #fca5a5;
+    }
+    .arch-connector { font-size: 14px; color: rgba(255,255,255,.3); }
+    .arch-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .arch-desc { font-size: 8.5px; color: rgba(255,255,255,.45); margin-top: 4px; }
+
+    /* ── Chat UI Mockup ── */
+    .chat-mockup {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      overflow: hidden;
+      margin: 6px 0;
+      background: #f5f5f5;
+    }
+    .chat-mockup-header {
+      background: #1a0a0a;
+      padding: 7px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .chat-mockup-header .back { font-size: 10px; color: #fca5a5; }
+    .chat-group-avatar {
+      width: 22px; height: 22px; background: #C62828; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; color: #000;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .chat-group-info { flex: 1; }
+    .chat-group-name { font-size: 9.5px; font-weight: 700; color: #fff; }
+    .chat-group-rooms { font-size: 8px; color: rgba(255,255,255,.5); }
+    .chat-body { display: flex; height: 80px; }
+    .room-sidebar {
+      width: 90px;
+      background: #2a0a0a;
+      border-right: 1px solid rgba(255,255,255,.08);
+      padding: 6px 0;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .room-item {
+      padding: 4px 8px;
+      font-size: 8px;
+      color: rgba(255,255,255,.5);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+    }
+    .room-item.active { background: rgba(198,40,40,.2); color: #fca5a5; font-weight: 700; border-left: 2px solid #C62828; }
+    .room-hash { font-size: 9px; }
+    .chat-messages { flex: 1; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
+    .chat-msg { display: flex; align-items: flex-end; gap: 5px; }
+    .chat-msg.mine { flex-direction: row-reverse; }
+    .chat-avatar { width: 14px; height: 14px; border-radius: 50%; background: #ccc; flex-shrink: 0; font-size: 7px; display: flex; align-items: center; justify-content: center; color: #444; font-weight: 700; }
+    .chat-avatar.a { background: #a0c4ff; color: #003580; }
+    .chat-avatar.b { background: #caffbf; color: #1a4a00; }
+    .chat-avatar.m { background: #C62828; color: #fff; }
+    .chat-bubble {
+      background: #fff; border-radius: 10px 10px 10px 2px; padding: 4px 8px;
+      font-size: 8px; color: #333; max-width: 130px; line-height: 1.4;
+      box-shadow: 0 1px 2px rgba(0,0,0,.1);
+    }
+    .chat-bubble.mine { background: #C62828; color: #fff; border-radius: 10px 10px 2px 10px; }
+    .chat-time { font-size: 7px; color: #bbb; align-self: flex-end; }
+
+    /* ── Pills ── */
+    .highlight-row { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 3px;
+      background: #fff0f0; border: 1px solid #fca5a5; color: #991b1b;
+      font-size: 9px; font-weight: 600; padding: 2px 8px; border-radius: 100px;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .pill::before { content: '✓'; font-size: 8px; }
+    .pill.gold {
+      background: #fff0f0; border-color: #C62828; color: #991b1b;
+    }
+    .pill.gold::before { content: '★'; }
+
+    /* ── Steps ── */
+    .steps { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 6px; }
+    .step-item { display: flex; gap: 10px; align-items: flex-start; }
+    .step-num {
+      width: 20px; height: 20px; background: #C62828; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px; font-weight: 800; color: #fff; flex-shrink: 0; margin-top: 1px;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .step-content h5 { font-size: 10px; font-weight: 700; color: #111; margin-bottom: 1px; }
+    .step-content p { font-size: 9.5px; color: #555; line-height: 1.45; margin: 0 !important; }
+
+    /* ── Callout ── */
+    .callout {
+      background: #fff5f5; border: 1px solid #fecaca; border-radius: 6px; padding: 10px 14px; margin: 6px 0;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .callout p { font-size: 10px; color: #7f1d1d; line-height: 1.55; margin: 0 !important; }
+    .callout strong { color: #991b1b; }
+    .callout.gold { background: #fff5f5; border-color: #fecaca; }
+    .callout.gold p { color: #7f1d1d; }
+    .callout.gold strong { color: #991b1b; }
+
+    /* ── User Roles Table ── */
+    .roles-table { width: 100%; border-collapse: collapse; margin: 5px 0 6px; font-size: 9.5px; }
+    .roles-table th {
+      background: var(--brand); color: var(--accent-mid); text-align: left; padding: 5px 8px;
+      font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .roles-table th:first-child { border-radius: 5px 0 0 0; }
+    .roles-table th:last-child { border-radius: 0 5px 0 0; }
+    .roles-table td { padding: 4px 8px; border-bottom: 1px solid #eee; color: #333; }
+    .roles-table tr:nth-child(even) td { background: #fff5f5; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .roles-table tr:last-child td { border-bottom: none; }
+    .badge {
+      display: inline-block; padding: 1px 7px; border-radius: 100px;
+      font-size: 8px; font-weight: 700;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .badge.admin { background: #C62828; color: #fff; }
+    .badge.mod { background: #e8f0fe; color: #173c8c; }
+    .badge.member { background: #f3f4f6; color: #555; }
+    .badge.yes { background: #d1fae5; color: #065f46; }
+    .badge.no { background: #fee2e2; color: #991b1b; }
+
+    /* ── Comparison ── */
+    .comparison { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; margin: 5px 0 6px; }
+    .compare-col { border-radius: 6px; overflow: hidden; }
+    .compare-head {
+      padding: 6px 10px; font-size: 9.5px; font-weight: 800; text-align: center;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .compare-head.current { background: #fee2e2; color: #991b1b; }
+    .compare-head.platform { background: var(--brand); color: var(--accent-mid); }
+    .compare-head.ref { background: #f3f4f6; color: #555; }
+    .compare-body { border: 1px solid #eee; border-top: none; border-radius: 0 0 6px 6px; }
+    .compare-item { padding: 4px 8px; font-size: 9px; color: #444; border-bottom: 1px solid #f5f5f5; display: flex; align-items: center; gap: 4px; }
+    .compare-item:last-child { border-bottom: none; }
+    .compare-item .ci { font-size: 10px; }
+
+    /* ── Sponsor Section ── */
+    .sponsor-section {
+      background: linear-gradient(135deg, #1a0a0a 0%, #3b0d0d 100%);
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin: 6px 0;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .sponsor-top { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+    .tomatok-logo-box {
+      background: #C62828;
+      border-radius: 8px;
+      width: 40px; height: 40px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 14px; font-weight: 800; color: #fff;
+      flex-shrink: 0;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .sponsor-info h3 { font-size: 12px; font-weight: 800; color: #fff; margin-bottom: 1px; }
+    .sponsor-info p { font-size: 9.5px; color: rgba(255,255,255,.55); }
+    .sponsor-benefits { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+    .sponsor-benefit {
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(198,40,40,.3);
+      border-radius: 5px;
+      padding: 5px 8px;
+      font-size: 9px;
+      color: rgba(255,255,255,.75);
+    }
+    .sponsor-benefit strong { color: #fca5a5; display: block; font-size: 9.5px; margin-bottom: 1px; }
+
+    /* ── Signature ── */
+    .signature-section { margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee; flex-shrink: 0; }
+    .signature-section .closing { font-size: 11px; color: #333; line-height: 1.5; margin-bottom: 10px; }
+    .signature-fields { display: flex; gap: 24px; align-items: flex-end; }
+    .sig-field { flex: 1; }
+    .sig-name { font-size: 11px; font-weight: 700; color: #111; margin-bottom: 1px; }
+    .sig-title { font-size: 9.5px; color: #666; margin-bottom: 1px; }
+    .sig-org { font-size: 9.5px; color: #888; margin-bottom: 1px; }
+    .sig-contact { font-size: 9.5px; color: #C62828; font-weight: 600; }
+    .sig-line-box { flex: 1; text-align: center; }
+    .sig-line { border-bottom: 1.5px solid #ccc; height: 24px; margin-bottom: 3px; }
+    .sig-label { font-size: 9px; color: #aaa; letter-spacing: 0.08em; text-transform: uppercase; }
+
+    /* ── Footer ── */
+    .footer { margin-top: 8px; padding-top: 7px; border-top: 1px solid #eee; flex-shrink: 0; }
+    .footer-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+    .footer-brand { display: flex; align-items: center; gap: 8px; font-size: 10px; font-weight: 600; color: #777; }
+    .footer-logos { display: flex; align-items: center; gap: 6px; }
+    .footer-logo-pill { background: var(--brand); border-radius: 4px; padding: 3px 10px; font-size: 9px; font-weight: 800; color: #fff; display: inline-block; letter-spacing: 0.08em; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .footer-logo-pill img { height: 11px; display: block; }
+    .footer-tomatok-pill { background: #C62828; border-radius: 4px; padding: 3px 8px; font-size: 9px; font-weight: 800; color: #fff; display: inline-block; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .footer-ktm-pill { background: #111; border-radius: 4px; padding: 3px 8px; font-size: 9px; font-weight: 700; color: #fff; display: inline-block; letter-spacing: 0.06em; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .footer-page { font-size: 9px; color: #bbb; }
+    .footer-confidential { font-size: 8px; color: #bbb; line-height: 1.5; border-top: 1px solid #f3f3f3; padding-top: 5px; }
+
+    @media print {
+      @page { size: A4; margin: 0; }
+      body { background: white; padding: 0; gap: 0; }
+      .page { box-shadow: none; width: 210mm; height: 297mm; padding: 10mm 14mm 8mm; page-break-after: always; page-break-inside: avoid; }
+      .page:last-child { page-break-after: auto; }
+      .cover-band { margin-left: -14mm; margin-right: -14mm; padding-left: 14mm; padding-right: 14mm; }
+    }
+
+    @media screen {
+      .page { width: 210mm; min-height: 297mm; height: 297mm; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══════════════════ PAGE 1 ═══════════════════ -->
+  <div class="page">
+
+    <div class="header">
+      <div class="logo-area">
+        <div class="logo-pill">WOTF</div>
+        <div class="ktm-badge">Powered by KTM</div>
+        <div class="sponsor-badge">Official Messaging App: <span>&nbsp;Tomatok</span></div>
+      </div>
+      <div class="doc-meta">
+        <strong>Date:</strong> March 31, 2026<br/>
+        <strong>Document:</strong> Feature Request — Group Chat &amp; Rooms
+      </div>
+    </div>
+
+    <div class="cover-band">
+      <div class="cover-inner">
+        <div class="cover-eyebrow">Feature Request to Tomatok App</div>
+        <div class="cover-title">Group Chat &amp; <span>Channel Rooms</span><br/>Feature Request for the Tomatok App</div>
+        <div class="cover-sub">WOTF formally requests the Tomatok development team to implement a structured multi-room group chat system — inspired by Telegram and Discord — enabling WOTF athletes, coaches, and officials to communicate within organized, purpose-specific spaces inside the Tomatok app.</div>
+        <div class="cover-tomatok">
+          <div class="tomatok-label">Submitted To</div>
+          <div class="tomatok-name">Tomatok</div>
+          <div class="tomatok-tagline">WOTF Official Messaging App</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="recipient-block">
+      <div class="to-label">Addressed To</div>
+      <p><strong>The Tomatok App Development &amp; Product Team</strong><br/>Tomatok — Official Messaging Application of the World of Taekwondo Federation</p>
+    </div>
+
+    <div class="subject-block">
+      <div class="subject-label">Subject</div>
+      <div class="subject-text">Feature Request: Adding a Telegram/Messenger-Style Group Chat with Multi-Room Support to the Tomatok App</div>
+    </div>
+
+    <div class="body-section">
+      <p>Dear Tomatok Development Team,</p>
+
+      <p>
+        On behalf of the <strong>World of Taekwondo Federation (WOTF)</strong> — the primary organization and official
+        partner of Tomatok — we submit this formal feature request for the implementation of a
+        <strong>Group Chat system with multi-room support</strong> within the Tomatok mobile application. As the
+        designated official messaging platform of WOTF, Tomatok is the natural home for structured, community-level
+        conversations across our federation, clubs, athletes, and officials.
+      </p>
+
+      <p>
+        At present, WOTF members continue to rely on third-party platforms — Facebook Messenger, Viber, and Telegram —
+        for inter-club coordination, event announcements, and community discussions. This fragmentation weakens the
+        Tomatok ecosystem and diminishes the value of having a dedicated official app. The addition of a Group Chat
+        with Rooms feature would consolidate all WOTF communication within Tomatok, driving retention, daily active
+        usage, and federation-wide adoption.
+      </p>
+
+      <div class="section-heading">Why This Feature Is Needed</div>
+
+      <div class="comparison">
+        <div class="compare-col">
+          <div class="compare-head current">Without This Feature</div>
+          <div class="compare-body">
+            <div class="compare-item"><span class="ci">❌</span> Members use FB / Viber / Telegram</div>
+            <div class="compare-item"><span class="ci">❌</span> No role-based access control</div>
+            <div class="compare-item"><span class="ci">❌</span> No WOTF identity in group chats</div>
+            <div class="compare-item"><span class="ci">❌</span> No official announcement rooms</div>
+            <div class="compare-item"><span class="ci">❌</span> Tomatok loses daily active users</div>
+          </div>
+        </div>
+        <div class="compare-col">
+          <div class="compare-head platform" style="background:#C62828;color:#fff;">With This Feature in Tomatok</div>
+          <div class="compare-body">
+            <div class="compare-item"><span class="ci">✅</span> All comms inside Tomatok app</div>
+            <div class="compare-item"><span class="ci">✅</span> Role-aware groups &amp; rooms</div>
+            <div class="compare-item"><span class="ci">✅</span> WOTF-branded group spaces</div>
+            <div class="compare-item"><span class="ci">✅</span> Official announcement support</div>
+            <div class="compare-item"><span class="ci">✅</span> Admin moderation controls</div>
+          </div>
+        </div>
+        <div class="compare-col">
+          <div class="compare-head ref">Reference Apps</div>
+          <div class="compare-body">
+            <div class="compare-item"><span class="ci">📱</span> Telegram — Channels + Groups</div>
+            <div class="compare-item"><span class="ci">💬</span> FB Messenger — Group Chats</div>
+            <div class="compare-item"><span class="ci">🎮</span> Discord — Servers + Rooms</div>
+            <div class="compare-item"><span class="ci">💼</span> Slack — Workspaces + Channels</div>
+            <div class="compare-item"><span class="ci">🏟️</span> Tailored for sports communities</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-heading">At a Glance</div>
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-val">1</div>
+          <div class="stat-label">Group<br/>Umbrella Chat</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">∞</div>
+          <div class="stat-label">Chat Rooms<br/>Inside the Group</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">3</div>
+          <div class="stat-label">User Roles<br/>Admin / Mod / Member</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">100%</div>
+          <div class="stat-label">Native In-App<br/>Experience</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="footer">
+      <div class="footer-top">
+        <div class="footer-brand">
+          <div class="footer-logos">
+            <div class="footer-logo-pill">WOTF</div>
+            <div class="footer-tomatok-pill">Tomatok</div>
+            <div class="footer-ktm-pill">Powered by KTM</div>
+          </div>
+          · WOTF Feature Request to Tomatok
+        </div>
+        <div class="footer-page">Page 1 of 3</div>
+      </div>
+      <div class="footer-confidential">This document is submitted by the World of Taekwondo Federation (WOTF) to the Tomatok development team as a formal feature request. It is intended for internal product planning use only. Unauthorized reproduction or distribution is prohibited.</div>
+    </div>
+
+  </div>
+
+
+  <!-- ═══════════════════ PAGE 2 ═══════════════════ -->
+  <div class="page">
+
+    <div class="header">
+      <div class="logo-area">
+        <div class="logo-pill">WOTF</div>
+        <div class="ktm-badge">Powered by KTM</div>
+        <div class="sponsor-badge">Official Messaging App: <span>&nbsp;Tomatok</span></div>
+      </div>
+      <div class="doc-meta"><strong>Continued:</strong> Page 2 of 3</div>
+    </div>
+
+    <div class="body-section">
+
+      <div class="section-heading">Core Concept — How It Works</div>
+
+      <p>
+        The Group Chat system follows a <strong>two-tier hierarchy</strong> identical to how Telegram Supergroups and Facebook
+        Messenger Groups operate — but organized with named "rooms" (channels) within a single group, much like how Discord
+        organizes its servers. A user joins <em>one WOTF group</em> and can participate in <em>multiple rooms</em> inside it
+        — each room serving a distinct purpose.
+      </p>
+
+      <div class="arch-diagram">
+        <div class="arch-title">Group Chat Architecture — Two-Tier Hierarchy</div>
+        <div class="arch-row">
+          <div class="arch-node root">🏟️ WOTF Philippines — Official Group</div>
+          <div class="arch-connector">→ Contains all rooms →</div>
+        </div>
+        <div style="margin-top: 8px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px;">
+          <div class="arch-node room"># 📢 Announcements</div>
+          <div class="arch-node room"># 🥋 General Discussion</div>
+          <div class="arch-node room"># 🏆 Tournament Updates</div>
+          <div class="arch-node room"># 📸 Media &amp; Highlights</div>
+          <div class="arch-node room"># 🤝 Coaches Corner</div>
+          <div class="arch-node room"># 🎓 Training Tips</div>
+          <div class="arch-node room"># 📍 Regional Chapters</div>
+          <div class="arch-node room"># 💬 Off-Topic / Lounge</div>
+        </div>
+        <div class="arch-desc">Each room operates as an independent message thread. Users see all rooms on a sidebar panel. Admins control which rooms are visible and who can post in them.</div>
+      </div>
+
+      <div class="section-heading">Visual UI Reference — In-App Mockup</div>
+
+      <div class="chat-mockup">
+        <div class="chat-mockup-header">
+          <span class="back">← Back</span>
+          <div class="chat-group-avatar">W</div>
+          <div class="chat-group-info">
+            <div class="chat-group-name">WOTF Philippines — Official</div>
+            <div class="chat-group-rooms">8 Rooms · 1,240 Members</div>
+          </div>
+        </div>
+        <div class="chat-body">
+          <div class="room-sidebar">
+            <div class="room-item active"><span class="room-hash">#</span> Announcements</div>
+            <div class="room-item"><span class="room-hash">#</span> General</div>
+            <div class="room-item"><span class="room-hash">#</span> Tournaments</div>
+            <div class="room-item"><span class="room-hash">#</span> Media</div>
+            <div class="room-item"><span class="room-hash">#</span> Coaches Corner</div>
+            <div class="room-item"><span class="room-hash">#</span> Lounge</div>
+          </div>
+          <div class="chat-messages">
+            <div class="chat-msg">
+              <div class="chat-avatar a">A</div>
+              <div class="chat-bubble">📢 Registration for the 2026 National Championship is now OPEN!</div>
+              <div class="chat-time">9:01 AM</div>
+            </div>
+            <div class="chat-msg">
+              <div class="chat-avatar b">B</div>
+              <div class="chat-bubble">How do I register my athletes from the club dashboard?</div>
+              <div class="chat-time">9:03 AM</div>
+            </div>
+            <div class="chat-msg mine">
+              <div class="chat-avatar m">M</div>
+              <div class="chat-bubble mine">Go to Events → Join Tournament → Submit your team roster.</div>
+              <div class="chat-time">9:04 AM</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-heading">Core Feature Breakdown</div>
+
+      <div class="feature-grid">
+        <div class="feature-item">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+          </div>
+          <div class="feature-content">
+            <h4>Group Creation &amp; Management</h4>
+            <p>Any verified WOTF user can create a group, set a name, description, avatar, and join link. Admins manage membership, room creation, and posting permissions.</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          </div>
+          <div class="feature-content">
+            <h4>Multi-Room Chat Spaces</h4>
+            <p>Each group contains unlimited named rooms (e.g., #announcements, #tournament-updates, #coaches-corner). Users navigate rooms via a sidebar — similar to Telegram topics or Discord channels.</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon gold">
+            <svg viewBox="0 0 24 24"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+          </div>
+          <div class="feature-content">
+            <h4>Announcement-Only Rooms</h4>
+            <p>Certain rooms (e.g., #announcements) can be set to read-only for regular members. Only admins or moderators can post, while others can react or reply — identical to Telegram Channels.</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+          </div>
+          <div class="feature-content">
+            <h4>Push Notifications Per Room</h4>
+            <p>Users can mute or enable notifications at the room level. WOTF can push important alerts (official announcements, event reminders) with priority delivery to all members.</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          </div>
+          <div class="feature-content">
+            <h4>Private &amp; Public Groups</h4>
+            <p>Groups can be set as public (searchable, open join) or private (invite-only, link-based access). Regional club groups can be private while national-level groups remain public.</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="14" x2="13" y2="14"/></svg>
+          </div>
+          <div class="feature-content">
+            <h4>Rich Media &amp; Reactions</h4>
+            <p>Messages support text, images, videos, documents, and polls. Emoji reactions are available on any message. Users can reply in-thread to keep room conversations organized.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="highlight-row">
+        <span class="pill">Multi-room sidebar</span>
+        <span class="pill">Read-only announcement rooms</span>
+        <span class="pill">Public &amp; private groups</span>
+        <span class="pill">Room-level notifications</span>
+        <span class="pill">Media sharing</span>
+        <span class="pill">Thread replies</span>
+        <span class="pill gold">Tomatok-powered</span>
+        <span class="pill">Role-based permissions</span>
+        <span class="pill">Invite links</span>
+        <span class="pill">Emoji reactions</span>
+      </div>
+
+    </div>
+
+    <div class="footer">
+      <div class="footer-top">
+        <div class="footer-brand">
+          <div class="footer-logos">
+            <div class="footer-logo-pill">WOTF</div>
+            <div class="footer-tomatok-pill">Tomatok</div>
+            <div class="footer-ktm-pill">Powered by KTM</div>
+          </div>
+          · WOTF Feature Request to Tomatok
+        </div>
+        <div class="footer-page">Page 2 of 3</div>
+      </div>
+      <div class="footer-confidential">This document is submitted by the World of Taekwondo Federation (WOTF) to the Tomatok development team as a formal feature request. It is intended for internal product planning use only. Unauthorized reproduction or distribution is prohibited.</div>
+    </div>
+
+  </div>
+
+
+  <!-- ═══════════════════ PAGE 3 ═══════════════════ -->
+  <div class="page">
+
+    <div class="header">
+      <div class="logo-area">
+        <div class="logo-pill">WOTF</div>
+        <div class="ktm-badge">Powered by KTM</div>
+        <div class="sponsor-badge">Official Messaging App: <span>&nbsp;Tomatok</span></div>
+      </div>
+      <div class="doc-meta"><strong>Continued:</strong> Page 3 of 3</div>
+    </div>
+
+    <div class="body-section">
+
+      <div class="section-heading">User Roles &amp; Permission Matrix</div>
+
+      <table class="roles-table">
+        <thead>
+          <tr>
+            <th>Permission</th>
+            <th>Group Admin</th>
+            <th>Moderator</th>
+            <th>Member</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Create / Delete Rooms</td>
+            <td><span class="badge yes">✓ Yes</span></td>
+            <td><span class="badge no">✗ No</span></td>
+            <td><span class="badge no">✗ No</span></td>
+          </tr>
+          <tr>
+            <td>Post in Announcement Rooms</td>
+            <td><span class="badge yes">✓ Yes</span></td>
+            <td><span class="badge yes">✓ Yes</span></td>
+            <td><span class="badge no">✗ No</span></td>
+          </tr>
+          <tr>
+            <td>Post in General Rooms</td>
+            <td><span class="badge yes">✓ Yes</span></td>
+            <td><span class="badge yes">✓ Yes</span></td>
+            <td><span class="badge yes">✓ Yes</span></td>
+          </tr>
+          <tr>
+            <td>Invite / Remove Members</td>
+            <td><span class="badge yes">✓ Yes</span></td>
+            <td><span class="badge yes">✓ Yes</span></td>
+            <td><span class="badge no">✗ No</span></td>
+          </tr>
+          <tr>
+            <td>Pin Messages</td>
+            <td><span class="badge yes">✓ Yes</span></td>
+            <td><span class="badge yes">✓ Yes</span></td>
+            <td><span class="badge no">✗ No</span></td>
+          </tr>
+          <tr>
+            <td>Delete Others' Messages</td>
+            <td><span class="badge yes">✓ Yes</span></td>
+            <td><span class="badge yes">✓ Yes</span></td>
+            <td><span class="badge no">✗ No</span></td>
+          </tr>
+          <tr>
+            <td>React to Messages</td>
+            <td><span class="badge yes">✓ Yes</span></td>
+            <td><span class="badge yes">✓ Yes</span></td>
+            <td><span class="badge yes">✓ Yes</span></td>
+          </tr>
+          <tr>
+            <td>Mute / Unmute Rooms</td>
+            <td><span class="badge yes">✓ Yes</span></td>
+            <td><span class="badge yes">✓ Yes</span></td>
+            <td><span class="badge yes">✓ Yes</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+
+      <div class="section-heading">Value to Tomatok — Why Build This</div>
+
+      <div class="sponsor-section">
+        <div class="sponsor-top">
+          <div class="tomatok-logo-box">T</div>
+          <div class="sponsor-info">
+            <h3>How This Feature Strengthens the Tomatok Platform</h3>
+            <p>Adding Group Chat with Rooms directly benefits Tomatok's growth metrics, retention, and position as the premier sports community messaging app in the Philippines.</p>
+          </div>
+        </div>
+        <div class="sponsor-benefits">
+          <div class="sponsor-benefit">
+            <strong>📈 Daily Active Users</strong>
+            Group Rooms create recurring reasons for WOTF members to open Tomatok daily — driving higher DAU and session frequency.
+          </div>
+          <div class="sponsor-benefit">
+            <strong>🏅 WOTF as Launch Partner</strong>
+            WOTF's federation-wide adoption gives Tomatok a high-visibility launch case study for expanding to other sports organizations.
+          </div>
+          <div class="sponsor-benefit">
+            <strong>🔒 User Retention</strong>
+            Bringing group communication natively into Tomatok prevents members from reverting to Messenger or Viber, locking in the user base.
+          </div>
+          <div class="sponsor-benefit">
+            <strong>🌐 Competitive Positioning</strong>
+            A Group Rooms feature elevates Tomatok to the same tier as Telegram and Discord — cementing its place as a full-featured sports communication platform.
+          </div>
+        </div>
+      </div>
+
+      <div class="callout gold">
+        <p>
+          <strong>Summary:</strong> WOTF formally requests the Tomatok development team to implement a Group Chat with
+          multi-room support within the Tomatok app. This feature will consolidate all WOTF community communication
+          into a single, organized, role-aware platform — eliminating reliance on third-party apps, increasing
+          Tomatok's daily active usage, and reinforcing WOTF's long-term commitment to Tomatok as its official and
+          exclusive messaging platform.
+        </p>
+      </div>
+
+    </div>
+
+
+    <div class="footer">
+      <div class="footer-top">
+        <div class="footer-brand">
+          <div class="footer-logos">
+            <div class="footer-logo-pill">WOTF</div>
+            <div class="footer-tomatok-pill">Tomatok</div>
+            <div class="footer-ktm-pill">Powered by KTM</div>
+          </div>
+          · WOTF Feature Request to Tomatok
+        </div>
+        <div class="footer-page">Page 3 of 3</div>
+      </div>
+      <div class="footer-confidential">This document is submitted by the World of Taekwondo Federation (WOTF) to the Tomatok development team as a formal feature request. It is intended for internal product planning use only. Unauthorized reproduction or distribution is prohibited.</div>
+    </div>
+
+  </div>
+
+</body>
+</html>

@@ -79,45 +79,7 @@ export default function TournamentTabs({ tournament, players, pendingManagerInvi
         }
     }
 
-    // Initialize Supabase client for Realtime
-    // Note: This requires NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-    useEffect(() => {
-        // Only run realtime if keys are present and we are on the athletes tab
-        if (activeTab !== 'athletes' || !supabaseUrl || !supabaseKey) return
-
-        const { createClient } = require('@supabase/supabase-js')
-        const supabase = createClient(supabaseUrl, supabaseKey)
-
-        console.log('Subscribe to Supabase Realtime: Player')
-
-        const channel = supabase
-            .channel('table-db-changes')
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'Player'
-                    // Removing unsupported relation filter. 
-                    // We will listen to all Player changes and let getTournamentPlayers filter relevant data.
-                },
-                async (payload: any) => {
-                    console.log('Realtime Change:', payload)
-                    // On any change, simpler to just re-fetch the full list to ensure consistency (especially with relations like club/category)
-                    // efficiently than trying to patch the complex object locally.
-                    const updatedPlayers = await getTournamentPlayers(tournament.id)
-                    setPlayersList(updatedPlayers as unknown as PlayerWithCategory[])
-                }
-            )
-            .subscribe()
-
-        return () => {
-            supabase.removeChannel(channel)
-        }
-    }, [activeTab, tournament.id, supabaseUrl, supabaseKey])
+    // Supabase Realtime removed — caused duplicate rendering and unnecessary refetches.
 
     let tabs = [
         { id: 'overview', label: 'Overview', icon: LayoutDashboard },

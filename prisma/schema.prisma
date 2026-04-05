@@ -968,3 +968,19 @@ model Expense {
   @@index([organizationId, date])
   @@index([organizationId, category])
 }
+
+// ============================================
+// NFC WRISTBAND WRITER QUEUE
+// ============================================
+model NfcQueue {
+  id           String   @id @default(cuid())
+  tournamentId String
+  playerId     String
+  playerName   String
+  status       String   @default("pending") // "pending" | "written" | "skipped"
+  createdAt    DateTime @default(now())
+  writtenAt    DateTime?
+
+  @@index([tournamentId, status])
+  @@index([tournamentId, createdAt])
+}

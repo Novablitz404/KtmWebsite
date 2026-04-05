@@ -1901,12 +1901,19 @@ export async function createCategory(tournamentId: string, name: string, type: s
     }
 }
 
-export async function getTournamentPlayers(tournamentId: string, skip?: number, take?: number) {
+export async function getTournamentPlayers(tournamentId: string, skip?: number, take?: number, search?: string) {
+    const searchFilter = search && search.trim().length >= 2 ? {
+        OR: [
+            { name: { contains: search.trim(), mode: 'insensitive' as const } },
+            { club: { name: { contains: search.trim(), mode: 'insensitive' as const } } },
+            { category: { name: { contains: search.trim(), mode: 'insensitive' as const } } },
+        ]
+    } : {}
+
     return await prisma.player.findMany({
         where: {
-            category: {
-                tournamentId
-            }
+            category: { tournamentId },
+            ...searchFilter,
         },
         include: {
             category: {

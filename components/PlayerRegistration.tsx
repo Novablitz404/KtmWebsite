@@ -89,20 +89,15 @@ export default function PlayerRegistration({ tournamentId, categories, players: 
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
     const [filterStatus, setFilterStatus] = useState<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED'>('ALL')
     const [filterDiscipline, setFilterDiscipline] = useState<'ALL' | 'KYORUGI' | 'POOMSAE' | 'KYUKPA'>('ALL')
+    const [isSearchMode, setIsSearchMode] = useState(false)
 
     const totalPages = Math.ceil(Math.max(totalCount, players.length, initialPlayers.length) / itemsPerPage)
 
-    // ─── Derived: filtered + sorted display list ───
+    // ─── Derived: filtered + sorted display list (search is server-side now) ───
     const displayedPlayers = useMemo(() => {
-        const q = tableSearch.toLowerCase()
         return [...players]
             .filter(p => filterStatus === 'ALL' || p.registrationStatus === filterStatus)
             .filter(p => filterDiscipline === 'ALL' || (p.category as any)?.type === filterDiscipline)
-            .filter(p => !q ||
-                p.name?.toLowerCase().includes(q) ||
-                (p.club?.name || '').toLowerCase().includes(q) ||
-                (p.category?.name || '').toLowerCase().includes(q)
-            )
             .sort((a, b) => {
                 let aVal = '', bVal = ''
                 if (sortField === 'name')     { aVal = a.name || ''; bVal = b.name || '' }
@@ -111,7 +106,7 @@ export default function PlayerRegistration({ tournamentId, categories, players: 
                 if (sortField === 'status')   { aVal = a.registrationStatus || ''; bVal = b.registrationStatus || '' }
                 return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
             })
-    }, [players, tableSearch, sortField, sortDir, filterStatus, filterDiscipline])
+    }, [players, sortField, sortDir, filterStatus, filterDiscipline])
 
     const handleSort = (field: typeof sortField) => {
         if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -119,10 +114,37 @@ export default function PlayerRegistration({ tournamentId, categories, players: 
     }
 
     useEffect(() => {
-        if (currentPage === 1) {
+        if (currentPage === 1 && !isSearchMode) {
             setPlayers(initialPlayers)
         }
-    }, [initialPlayers, currentPage])
+    }, [initialPlayers, currentPage, isSearchMode])
+
+    // ─── Debounced server-side search ───
+    useEffect(() => {
+        if (!tableSearch || tableSearch.trim().length < 2) {
+            if (isSearchMode) {
+                setIsSearchMode(false)
+                setPlayers(initialPlayers)
+                setCurrentPage(1)
+            }
+            return
+        }
+
+        const timer = setTimeout(async () => {
+            setIsLoading(true)
+            try {
+                const results = await getTournamentPlayers(tournamentId, undefined, undefined, tableSearch.trim())
+                setPlayers(results)
+                setIsSearchMode(true)
+            } catch (error) {
+                console.error('Search failed:', error)
+            } finally {
+                setIsLoading(false)
+            }
+        }, 400)
+
+        return () => clearTimeout(timer)
+    }, [tableSearch])
 
     // Debounced Athlete Search
     useEffect(() => {
@@ -601,16 +623,21 @@ export default function PlayerRegistration({ tournamentId, categories, players: 
             )}
 
             {/* ─── Athletes Table ─── */}
-            <div className="h-screen bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 {/* Table header + toolbar */}
                 <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 space-y-3">
                     <div className="flex justify-between items-center">
                         <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
-                            Registered Athletes ({totalCount > 0 ? totalCount : players.length})
+                            {isSearchMode
+                                ? `Search Results (${players.length})`
+                                : `Registered Athletes (${totalCount > 0 ? totalCount : players.length})`
+                            }
                         </h3>
-                        <span className="text-xs text-gray-500">
-                            Page {currentPage} of {totalPages || 1}
-                        </span>
+                        {!isSearchMode && (
+                            <span className="text-xs text-gray-500">
+                                Page {currentPage} of {totalPages || 1}
+                            </span>
+                        )}
                     </div>
 
                     {/* Search + filters */}
@@ -660,7 +687,7 @@ export default function PlayerRegistration({ tournamentId, categories, players: 
                         </select>
                     </div>
                 </div>
-                <div className="flex-1 overflow-auto">
+                <div>
                     {isLoading ? (
                         <div className="flex justify-center items-center h-48 text-gray-400">
                             <Loader2 className="w-5 h-5 animate-spin mr-2" />
@@ -758,7 +785,7 @@ export default function PlayerRegistration({ tournamentId, categories, players: 
                 </div>
 
                 {/* Pagination Controls */}
-                {totalPages > 1 && (
+                {totalPages > 1 && !isSearchMode && (
                     <div className="px-6 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
                         <button
                             onClick={() => handlePageChange(currentPage - 1)}

@@ -152,7 +152,8 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
             category: {
                 name: 'asc'
             }
-        }
+        },
+        take: 20
     })
 
     // Type assertion or cleaner casting for the component props

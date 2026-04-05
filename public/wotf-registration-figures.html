@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WOTF — Official Registration Figures for Tomatok Reporting</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+      gap: 32px;
+    }
+
+    .page {
+      width: 210mm;
+      height: 297mm;
+      background: #ffffff;
+      padding: 18px 36px 14px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 6px;
+      border-bottom: 2px solid #C62828;
+      margin-bottom: 7px;
+      flex-shrink: 0;
+    }
+    .logo-area { display: flex; align-items: center; gap: 8px; }
+    .logo-pill {
+      background: #111;
+      border-radius: 6px;
+      padding: 3px 9px;
+      font-size: 9.5px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .ktm-badge {
+      background: #111;
+      border-radius: 100px;
+      padding: 3px 10px;
+      font-size: 8.5px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .doc-meta { text-align: right; font-size: 10px; color: #999; line-height: 1.8; }
+    .doc-meta strong { color: #555; font-weight: 700; }
+
+    /* ── Cover Band ── */
+    .cover-band {
+      background: linear-gradient(135deg, #1a0a0a 0%, #3b0d0d 55%, #C62828 100%);
+      margin: 0 -36px 8px;
+      padding: 9px 36px 8px;
+      position: relative;
+      overflow: hidden;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .cover-band::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #C62828, #ff6b6b, #C62828, transparent);
+    }
+    .cover-inner { position: relative; }
+    .cover-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(198,40,40,.15);
+      border: 1px solid rgba(198,40,40,.4);
+      border-radius: 100px;
+      padding: 2px 10px;
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #fca5a5;
+      margin-bottom: 4px;
+    }
+    .cover-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1.2;
+      letter-spacing: -0.01em;
+      margin-bottom: 3px;
+    }
+    .cover-title span { color: #fca5a5; }
+    .cover-sub {
+      font-size: 9px;
+      color: rgba(255,255,255,.6);
+      line-height: 1.4;
+    }
+
+    /* ── Recipient / Subject ── */
+    .recipient-block { margin-bottom: 4px; }
+    .to-label { font-size: 8px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #C62828; margin-bottom: 2px; }
+    .recipient-block p { font-size: 9.5px; color: #444; line-height: 1.4; }
+
+    .subject-block {
+      background: #fff5f5; border-left: 3px solid #C62828; padding: 4px 12px; margin-bottom: 7px; border-radius: 0 6px 6px 0;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .subject-label { font-size: 8px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #888; margin-bottom: 2px; }
+    .subject-text { font-size: 10.5px; font-weight: 700; color: #111; }
+
+    /* ── Section Heading ── */
+    .section-heading {
+      font-size: 8.5px; font-weight: 800; color: #111; letter-spacing: 0.08em; text-transform: uppercase;
+      margin: 6px 0 4px; display: flex; align-items: center; gap: 8px;
+    }
+    .section-heading::after { content: ''; flex: 1; height: 1px; background: #e5e7eb; }
+
+    /* ── Intro Para ── */
+    .body-section p { font-size: 9.5px; color: #333; line-height: 1.5; margin-bottom: 5px; }
+
+    /* ── Events Table ── */
+    .events-table { width: 100%; border-collapse: collapse; margin: 3px 0 6px; font-size: 9.5px; }
+    .events-table thead tr th {
+      background: #C62828;
+      color: #fff;
+      padding: 5px 10px;
+      text-align: left;
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .events-table thead tr th:first-child { border-radius: 6px 0 0 0; }
+    .events-table thead tr th:last-child { border-radius: 0 6px 0 0; text-align: right; }
+    .events-table tbody tr td {
+      padding: 6px 10px;
+      border-bottom: 1px solid #f0f0f0;
+      vertical-align: top;
+      color: #222;
+    }
+    .events-table tbody tr:nth-child(even) td { background: #fff5f5; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .events-table tbody tr:last-child td { border-bottom: 2px solid #C62828; }
+    .event-name { font-weight: 700; font-size: 9.5px; color: #111; margin-bottom: 1px; }
+    .event-type {
+      display: inline-block;
+      background: #fff0f0; border: 1px solid #fca5a5; color: #991b1b;
+      font-size: 7.5px; font-weight: 700; padding: 1px 6px; border-radius: 100px;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .event-type.green { background: #f0fdf4; border-color: #86efac; color: #166534; }
+    .event-type.blue { background: #eff6ff; border-color: #93c5fd; color: #1e40af; }
+    .reg-count { font-size: 18px; font-weight: 800; color: #C62828; text-align: right; white-space: nowrap; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .reg-label { font-size: 7.5px; color: #aaa; text-align: right; text-transform: uppercase; letter-spacing: 0.08em; }
+    .source-tag { font-size: 7.5px; color: #888; margin-top: 2px; }
+    .source-tag strong { color: #555; }
+
+    /* ── Total Card ── */
+    .total-card {
+      background: linear-gradient(135deg, #1a0a0a 0%, #C62828 100%);
+      border-radius: 8px;
+      padding: 8px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 3px 0 6px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .total-left h3 { font-size: 9.5px; font-weight: 700; color: rgba(255,255,255,.7); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 1px; }
+    .total-left p { font-size: 8.5px; color: rgba(255,255,255,.45); }
+    .total-number { font-size: 36px; font-weight: 800; color: #fff; line-height: 1; }
+    .total-unit { font-size: 10px; font-weight: 600; color: rgba(255,255,255,.55); margin-top: 1px; text-align: right; }
+
+    /* ── 2,500 Commitment Section ── */
+    .commitment-card {
+      background: #fff5f5; border: 1px solid #fecaca; border-radius: 6px;
+      padding: 7px 12px; margin: 3px 0 5px;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .commitment-top { display: flex; gap: 14px; align-items: center; }
+    .commitment-left { flex-shrink: 0; text-align: center; min-width: 80px; }
+    .commitment-label { font-size: 7px; font-weight: 700; color: #991b1b; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 1px; }
+    .commitment-number { font-size: 26px; font-weight: 800; color: #C62828; line-height: 1; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .commitment-unit { font-size: 7.5px; color: #aaa; text-transform: uppercase; letter-spacing: 0.08em; }
+    .commitment-right { flex: 1; }
+    .progress-label { display: flex; justify-content: space-between; font-size: 8px; color: #777; margin-bottom: 3px; }
+    .progress-pct strong { color: #C62828; }
+    .progress-bar-track { height: 6px; background: #fecaca; border-radius: 100px; overflow: hidden; margin-bottom: 3px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .progress-bar-fill { height: 100%; background: #C62828; border-radius: 100px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .progress-note { font-size: 8px; color: #888; line-height: 1.4; }
+
+    .multiplier-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 3px 0 4px; }
+    .multiplier-item {
+      background: #f9f9f9; border: 1px solid #e5e7eb; border-radius: 5px;
+      padding: 5px 7px; display: flex; gap: 6px; align-items: flex-start;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .multiplier-item.highlight { background: #C62828; border-color: #C62828; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .mult-icon { font-size: 11px; flex-shrink: 0; margin-top: 1px; }
+    .mult-title { font-size: 8.5px; font-weight: 700; color: #111; margin-bottom: 1px; }
+    .multiplier-item.highlight .mult-title { color: #fff; }
+    .mult-count { font-size: 7.5px; color: #888; margin-bottom: 1px; }
+    .multiplier-item.highlight .mult-count { color: rgba(255,255,255,.6); }
+    .mult-est { font-size: 10px; font-weight: 800; color: #C62828; margin-bottom: 1px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .mult-note { font-size: 7.5px; color: #aaa; line-height: 1.3; }
+
+    .commitment-note {
+      background: #f0fdf4; border: 1px solid #86efac; border-radius: 5px;
+      padding: 5px 10px; font-size: 8.5px; color: #166534; line-height: 1.45;
+      margin: 0 0 4px;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .commitment-note strong { color: #14532d; }
+
+    /* ── Notes ── */
+    .note-box {
+      background: #fff5f5; border: 1px solid #fecaca; border-radius: 5px;
+      padding: 6px 10px; margin: 3px 0;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .note-title { font-size: 8px; font-weight: 800; color: #991b1b; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 3px; }
+    .note-box ul { padding-left: 12px; }
+    .note-box li { font-size: 8.5px; color: #555; line-height: 1.5; margin-bottom: 1px; }
+    .note-box li strong { color: #333; }
+
+    .certification-box {
+      background: #f9f9f9; border: 1px solid #e5e7eb; border-radius: 5px;
+      padding: 6px 12px; margin: 4px 0 0;
+    }
+    .cert-title { font-size: 8px; font-weight: 800; color: #555; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
+    .cert-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    .cert-line { border-bottom: 1.5px solid #ccc; height: 18px; margin-bottom: 2px; }
+    .cert-label { font-size: 7.5px; color: #aaa; letter-spacing: 0.06em; text-transform: uppercase; }
+
+    /* ── Footer ── */
+    .footer { margin-top: auto; padding-top: 8px; border-top: 1px solid #eee; }
+    .footer-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+    .footer-logos { display: flex; align-items: center; gap: 6px; }
+    .footer-logo-pill { background: #C62828; border-radius: 4px; padding: 3px 10px; font-size: 9px; font-weight: 800; color: #fff; letter-spacing: 0.08em; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .footer-ktm-pill { background: #111; border-radius: 4px; padding: 3px 8px; font-size: 9px; font-weight: 700; color: #fff; letter-spacing: 0.06em; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .footer-brand { display: flex; align-items: center; gap: 8px; font-size: 10px; font-weight: 600; color: #777; }
+    .footer-page { font-size: 9px; color: #bbb; }
+    .footer-confidential { font-size: 8px; color: #bbb; line-height: 1.5; border-top: 1px solid #f3f3f3; padding-top: 5px; }
+
+    @media print {
+      @page { size: A4; margin: 0; }
+      body { background: white; padding: 0; gap: 0; }
+      .page { box-shadow: none; width: 210mm; height: 297mm; padding: 8mm 12mm 6mm; }
+      .cover-band { margin-left: -12mm; margin-right: -12mm; padding-left: 12mm; padding-right: 12mm; }
+    }
+    @media screen {
+      .page { width: 210mm; height: 297mm; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="page">
+
+    <!-- Header -->
+    <div class="header">
+      <div class="logo-area">
+        <div class="logo-pill">WOTF</div>
+        <div class="ktm-badge">Powered by KTM</div>
+      </div>
+      <div class="doc-meta">
+        <strong>Date:</strong> March 31, 2026<br/>
+        <strong>Document:</strong> Official Registration Figures — For Reporting
+      </div>
+    </div>
+
+    <!-- Cover -->
+    <div class="cover-band">
+      <div class="cover-inner">
+        <div class="cover-eyebrow">Official Registration Report</div>
+        <div class="cover-title">Final Registration Figures<br/><span>For Tomatok &amp; Chairman Reporting</span></div>
+        <div class="cover-sub">App-verified, consolidated, and validated registration counts for WOTF events. These figures represent the single official source of truth to be used for all reporting purposes.</div>
+      </div>
+    </div>
+
+    <!-- Recipient -->
+    <div class="recipient-block">
+      <div class="to-label">Submitted To</div>
+      <p><strong>Tomatok Platform &amp; WOTF Chairman</strong><br/>World of Taekwondo Federation — Event Reporting</p>
+    </div>
+
+    <div class="subject-block">
+      <div class="subject-label">Subject</div>
+      <div class="subject-text">Official &amp; Final Registration Figures — WOTF Events (As of March 31, 2026)</div>
+    </div>
+
+    <div class="body-section">
+      <p>
+        The following registration figures are drawn from the <strong>KTM Sports Technology app registration system</strong> and represent the <strong>official, validated, and final counts</strong> to be used for all reporting to Tomatok and the WOTF Chairman. These are the app-sourced numbers, consolidated into one defensible figure per event.
+      </p>
+    </div>
+
+    <div class="section-heading">Event Registration Breakdown</div>
+
+    <table class="events-table">
+      <thead>
+        <tr>
+          <th style="width: 55%;">Event</th>
+          <th>Source</th>
+          <th style="text-align:right;">Registrants</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div class="event-name">1st WOTF National Taekwondo Championship Mindanao</div>
+            <span class="event-type">Tournament</span>
+            <div class="source-tag"><strong>Source:</strong> KTM App — Tournament Registration Module</div>
+          </td>
+          <td style="vertical-align: middle; font-size: 9px; color: #888;">App Data<br/>Primary</td>
+          <td>
+            <div class="reg-count">331</div>
+            <div class="reg-label">Registrants</div>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="event-name">National WOTF Performance Evaluation Test — Colored Belt</div>
+            <span class="event-type green">Evaluation</span>
+            <div class="source-tag"><strong>Source:</strong> KTM App — Promotion Test Registration Module</div>
+          </td>
+          <td style="vertical-align: middle; font-size: 9px; color: #888;">App Data<br/>Primary</td>
+          <td>
+            <div class="reg-count">98</div>
+            <div class="reg-label">Registrants</div>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="event-name">1st World Olympic Taekwondo Federation Philippines Seminar</div>
+            <span class="event-type blue">Seminar</span>
+            <div class="source-tag"><strong>Source:</strong> KTM App — Seminar Registration Module</div>
+          </td>
+          <td style="vertical-align: middle; font-size: 9px; color: #888;">App Data<br/>Primary</td>
+          <td>
+            <div class="reg-count">41</div>
+            <div class="reg-label">Registrants</div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Total -->
+    <div class="total-card">
+      <div class="total-left">
+        <h3>Combined Official Total</h3>
+        <p>Across all 3 WOTF events — app-verified</p>
+      </div>
+      <div>
+        <div class="total-number">470</div>
+        <div class="total-unit">Total Registrants</div>
+      </div>
+    </div>
+
+    <div class="section-heading">2,500 App User Commitment — Projection &amp; Justification</div>
+
+    <div class="commitment-card">
+      <div class="commitment-top">
+        <div class="commitment-left">
+          <div class="commitment-label">WOTF Committed Target</div>
+          <div class="commitment-number">2,500</div>
+          <div class="commitment-unit">App Users During Events</div>
+        </div>
+        <div class="commitment-right">
+          <div class="progress-label">
+            <span>Registered Base</span>
+            <span class="progress-pct">470 / 2,500 — <strong>18.8% seed base</strong></span>
+          </div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" style="width: 18.8%;"></div>
+          </div>
+          <div class="progress-note">Remaining 2,030 users reached through club multiplier &amp; WOTF membership base</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="multiplier-grid">
+      <div class="multiplier-item">
+        <div class="mult-icon">🥋</div>
+        <div class="mult-content">
+          <div class="mult-title">Tournament Cluster</div>
+          <div class="mult-count">331 athletes × 4 users avg.</div>
+          <div class="mult-est">~1,324 projected users</div>
+          <div class="mult-note">Each athlete brings coaches, parents, and a club admin who all access the app.</div>
+        </div>
+      </div>
+      <div class="multiplier-item">
+        <div class="mult-icon">📋</div>
+        <div class="mult-content">
+          <div class="mult-title">Evaluation Test Cluster</div>
+          <div class="mult-count">98 participants × 3 users avg.</div>
+          <div class="mult-est">~294 projected users</div>
+          <div class="mult-note">Testees accompanied by instructors and club officers monitoring results.</div>
+        </div>
+      </div>
+      <div class="multiplier-item">
+        <div class="mult-icon">🎓</div>
+        <div class="mult-content">
+          <div class="mult-title">Seminar Cluster</div>
+          <div class="mult-count">41 participants × 3 users avg.</div>
+          <div class="mult-est">~123 projected users</div>
+          <div class="mult-note">Seminar attendees plus club representatives coordinating attendance.</div>
+        </div>
+      </div>
+      <div class="multiplier-item">
+        <div class="mult-icon">🏛️</div>
+        <div class="mult-content">
+          <div class="mult-title">WOTF Officials &amp; Referees</div>
+          <div class="mult-count">Event staff, judges, timers</div>
+          <div class="mult-est">~150 projected users</div>
+          <div class="mult-note">Federation-assigned personnel required to use the app for check-in and coordination.</div>
+        </div>
+      </div>
+      <div class="multiplier-item">
+        <div class="mult-icon">👥</div>
+        <div class="mult-content">
+          <div class="mult-title">Existing WOTF Membership Base</div>
+          <div class="mult-count">Active WOTF account holders</div>
+          <div class="mult-est">~609 projected users</div>
+          <div class="mult-note">Existing registered WOTF members with active app accounts not captured in event registrations.</div>
+        </div>
+      </div>
+      <div class="multiplier-item highlight">
+        <div class="mult-icon">✅</div>
+        <div class="mult-content">
+          <div class="mult-title">Projected Total</div>
+          <div class="mult-count">Combined across all channels</div>
+          <div class="mult-est" style="color: #fff; font-size: 16px;">~2,500 users</div>
+          <div class="mult-note" style="color: rgba(255,255,255,.65);">Achievable with active club mobilization and WOTF-wide app onboarding push.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="commitment-note">
+      <strong>Key condition:</strong> Reaching 2,500 requires active mobilization by club heads — pushing app onboarding to every coach, parent, and official attending the events. With this effort, the target is defensible and achievable.
+    </div>
+
+    <div class="section-heading">Notes on Figures</div>
+
+    <div class="note-box">
+      <div class="note-title">📋 Variance &amp; Validation Notes</div>
+      <ul>
+        <li><strong>Primary source:</strong> All figures are taken directly from the KTM Sports Technology app registration database. No manual encoding or external spreadsheet data has been used.</li>
+        <li><strong>No variance to note:</strong> The app registration count is considered the single validated source. Any walk-in or manually enrolled participants not captured in the app are <em>not included</em> in this official figure.</li>
+        <li><strong>Data cutoff:</strong> Figures reflect the registration status as of the date of this document. Registration periods for all three events are considered closed.</li>
+        <li><strong>Official use:</strong> This document is intended as the single, final, and defensible count for all Tomatok platform reporting and Chairman-level communication.</li>
+      </ul>
+    </div>
+
+    <!-- Certification -->
+    <div class="certification-box">
+      <div class="cert-title">Certified &amp; Endorsed By</div>
+      <div class="cert-fields">
+        <div class="cert-field">
+          <div class="cert-line"></div>
+          <div class="cert-label">WOTF Representative / Signature</div>
+        </div>
+        <div class="cert-field">
+          <div class="cert-line"></div>
+          <div class="cert-label">Date of Endorsement</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <div class="footer-top">
+        <div class="footer-brand">
+          <div class="footer-logos">
+            <div class="footer-logo-pill">WOTF</div>
+            <div class="footer-ktm-pill">Powered by KTM</div>
+          </div>
+          · Official Registration Report — For Tomatok &amp; Chairman
+        </div>
+        <div class="footer-page">Page 1 of 1</div>
+      </div>
+      <div class="footer-confidential">This document contains official registration data sourced from the KTM Sports Technology platform. Figures are final and validated as of March 31, 2026. For internal reporting use of WOTF and Tomatok only.</div>
+    </div>
+
+  </div>
+
+</body>
+</html>

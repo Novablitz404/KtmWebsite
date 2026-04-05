@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>KTM Sports Technology Inc. — Arnis Organization Proposal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet"/>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+      gap: 32px;
+    }
+
+    .page {
+      width: 210mm;
+      height: 297mm;
+      background: #ffffff;
+      padding: 32px 54px 22px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 10px;
+      border-bottom: 2.5px solid #C62828;
+      margin-bottom: 10px;
+      flex-shrink: 0;
+    }
+    .logo-pill {
+      background: #111;
+      border-radius: 8px;
+      padding: 6px 10px;
+      display: inline-flex;
+      align-items: center;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .logo-pill img { height: 20px; display: block; }
+    .doc-meta { text-align: right; font-size: 10px; color: #999; line-height: 1.8; }
+    .doc-meta strong { color: #555; font-weight: 600; }
+
+    /* ── Cover band ── */
+    .cover-band {
+      background: linear-gradient(135deg, #1a0a0a 0%, #3b0d0d 55%, #C62828 100%);
+      margin: 0 -54px 10px;
+      padding: 16px 54px 14px;
+      position: relative;
+      overflow: hidden;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .cover-band::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 500px 300px at 90% 50%, rgba(198,40,40,.35) 0%, transparent 70%);
+    }
+    .cover-band::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #C62828, #ff6b6b, #C62828, transparent);
+    }
+    .cover-inner { position: relative; }
+    .cover-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255,255,255,.1);
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 100px;
+      padding: 3px 12px;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #fca5a5;
+      margin-bottom: 10px;
+    }
+    .cover-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 24px;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+    }
+    .cover-title span { color: #fca5a5; }
+    .cover-sub {
+      font-size: 11px;
+      color: rgba(255,255,255,.6);
+      line-height: 1.5;
+      max-width: 480px;
+    }
+
+    /* ── Recipient / Subject ── */
+    .recipient-block { margin-bottom: 8px; flex-shrink: 0; }
+    .to-label { font-size: 9px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #C62828; margin-bottom: 4px; }
+    .recipient-block p { font-size: 11px; color: #444; line-height: 1.6; }
+    .subject-block {
+      background: #fff5f5; border-left: 3px solid #C62828; padding: 7px 14px; margin-bottom: 10px; border-radius: 0 6px 6px 0;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact; flex-shrink: 0;
+    }
+    .subject-label { font-size: 9px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #888; margin-bottom: 3px; }
+    .subject-text { font-size: 12px; font-weight: 700; color: #111; }
+
+    /* ── Body ── */
+    .body-section { flex: 1; }
+    .body-section p { font-size: 11px; color: #333; line-height: 1.6; margin-bottom: 6px; }
+
+    .section-heading {
+      font-size: 10px; font-weight: 800; color: #111; letter-spacing: 0.08em; text-transform: uppercase;
+      margin: 8px 0 5px; display: flex; align-items: center; gap: 8px;
+    }
+    .section-heading::after { content: ''; flex: 1; height: 1px; background: #e5e7eb; }
+
+    /* ── Feature Grid ── */
+    .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin: 0 0 6px; }
+    .feature-item {
+      padding: 7px 10px; background: #f9f9f9; border: 1px solid #eee; border-radius: 6px;
+      display: flex; gap: 8px; align-items: flex-start;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .feature-icon {
+      width: 26px; height: 26px; background: #fff0f0; border-radius: 5px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .feature-icon svg { width: 13px; height: 13px; stroke: #C62828; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .feature-content h4 { font-size: 10px; font-weight: 700; color: #111; margin-bottom: 1px; }
+    .feature-content p { font-size: 9.5px; color: #666; line-height: 1.4; margin: 0 !important; }
+
+    /* ── Pills ── */
+    .highlight-row { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 3px;
+      background: #fff0f0; border: 1px solid #fca5a5; color: #991b1b;
+      font-size: 9px; font-weight: 600; padding: 2px 8px; border-radius: 100px;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .pill::before { content: '✓'; font-size: 8px; }
+
+    /* ── Stats ── */
+    .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin: 4px 0 6px; }
+    .stat-card { background: #f9f9f9; border: 1px solid #eee; border-radius: 6px; padding: 8px 10px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .stat-card .stat-val { font-size: 18px; font-weight: 800; color: #C62828; line-height: 1; }
+    .stat-card .stat-label { font-size: 8.5px; font-weight: 600; color: #888; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.1em; }
+
+    /* ── Steps ── */
+    .steps { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 6px; }
+    .step-item { display: flex; gap: 10px; align-items: flex-start; }
+    .step-num {
+      width: 20px; height: 20px; background: #C62828; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px; font-weight: 800; color: white; flex-shrink: 0; margin-top: 1px;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .step-content h5 { font-size: 10px; font-weight: 700; color: #111; margin-bottom: 1px; }
+    .step-content p { font-size: 9.5px; color: #555; line-height: 1.45; margin: 0 !important; }
+
+    /* ── Callout ── */
+    .callout {
+      background: #fff5f5; border: 1px solid #fecaca; border-radius: 6px; padding: 10px 14px; margin: 6px 0;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .callout p { font-size: 10px; color: #7f1d1d; line-height: 1.55; margin: 0 !important; }
+    .callout strong { color: #991b1b; }
+
+    /* ── Signature ── */
+    .signature-section { margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; flex-shrink: 0; }
+    .signature-section .closing { font-size: 11px; color: #333; line-height: 1.5; margin-bottom: 12px; }
+    .signature-fields { display: flex; gap: 24px; align-items: flex-end; }
+    .sig-field { flex: 1; }
+    .sig-name { font-size: 11px; font-weight: 700; color: #111; margin-bottom: 1px; }
+    .sig-title { font-size: 9.5px; color: #666; margin-bottom: 1px; }
+    .sig-org { font-size: 9.5px; color: #888; margin-bottom: 1px; }
+    .sig-contact { font-size: 9.5px; color: #C62828; font-weight: 600; }
+    .sig-line-box { flex: 1; text-align: center; }
+    .sig-line { border-bottom: 1.5px solid #ccc; height: 24px; margin-bottom: 3px; }
+    .sig-label { font-size: 9px; color: #aaa; letter-spacing: 0.08em; text-transform: uppercase; }
+
+    /* ── Footer ── */
+    .footer { margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; flex-shrink: 0; }
+    .footer-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .footer-brand { display: flex; align-items: center; gap: 8px; font-size: 10px; font-weight: 600; color: #777; }
+    .footer-logo-pill { background: #111; border-radius: 4px; padding: 3px 8px 2px; display: inline-block; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .footer-logo-pill img { height: 11px; display: block; }
+    .footer-page { font-size: 9px; color: #bbb; }
+    .footer-confidential { font-size: 8px; color: #bbb; line-height: 1.5; border-top: 1px solid #f3f3f3; padding-top: 5px; }
+
+    @media print {
+      @page { size: A4; margin: 0; }
+      body { background: white; padding: 0; gap: 0; }
+      .page { box-shadow: none; width: 210mm; height: 297mm; padding: 10mm 16mm 8mm; page-break-after: always; page-break-inside: avoid; }
+      .page:last-child { page-break-after: auto; }
+      .cover-band { margin-left: -16mm; margin-right: -16mm; padding-left: 16mm; padding-right: 16mm; }
+    }
+
+    @media screen {
+      .page { width: 210mm; min-height: 297mm; height: 297mm; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══════════════════ PAGE 1 ═══════════════════ -->
+  <div class="page">
+
+    <div class="header">
+      <div class="logo-pill"><img src="ktmnav_white.png" alt="KTM Sports Technology Inc."/></div>
+      <div class="doc-meta">
+        <strong>Date:</strong> March 25, 2026<br/>
+        <strong>Document:</strong> System Proposal — Arnis
+      </div>
+    </div>
+
+    <div class="cover-band">
+      <div class="cover-inner">
+        <div class="cover-eyebrow">Arnis Organization Proposal</div>
+        <div class="cover-title">The Official Digital Platform<br/>for <span>Arnis in the Philippines</span></div>
+        <div class="cover-sub">A technology partnership to modernize arnisador management, streamline tournament operations, and elevate the competitive experience for your federation, clubs, and athletes.</div>
+      </div>
+    </div>
+
+    <div class="recipient-block">
+      <div class="to-label">Addressed To</div>
+      <p><strong>The President / Executive Director</strong><br/>Arnis Organization / Federation</p>
+    </div>
+
+    <div class="subject-block">
+      <div class="subject-label">Subject</div>
+      <div class="subject-text">Proposal: Digitizing Your Arnis Federation Operations with KTM Sports Technology Inc.</div>
+    </div>
+
+    <div class="body-section">
+      <p>Dear Organization Leadership,</p>
+
+      <p>
+        We are pleased to present this proposal on behalf of <strong>KTM Sports Technology Inc.</strong>, the Philippines' premier
+        digital platform purpose-built for combat sports. Our system has been designed in direct partnership with active martial arts
+        federations, fully supporting <strong>Anyo (Forms)</strong>, <strong>Laban (Full-Contact Sparring)</strong>,
+        and <strong>Padded Stick / Arnis Stick Fighting</strong> disciplines at regional and national levels.
+      </p>
+
+      <p>
+        We understand the challenges your federation faces — managing registrations through group chats, manually encoding
+        participants, collecting fees on event day, and operating without reliable real-time event data. KTM eliminates
+        these pain points entirely, giving your organization a unified platform that handles everything from athlete onboarding
+        to medal tallying, with zero paperwork and full transparency.
+      </p>
+
+      <div class="section-heading">Platform at a Glance</div>
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-val">3</div>
+          <div class="stat-label">Disciplines Supported<br/>Anyo · Laban · Stick Fighting</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">∞</div>
+          <div class="stat-label">Events &amp; Tournaments<br/>No per-event license fee</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">100%</div>
+          <div class="stat-label">Digital Operations<br/>No physical forms needed</div>
+        </div>
+      </div>
+
+      <div class="section-heading">Core System Capabilities</div>
+
+      <div class="feature-grid">
+        <div class="feature-item">
+          <div class="feature-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
+          <div class="feature-content">
+            <h4>Tournament Management</h4>
+            <p>Create multi-discipline events with automated bracket generation, category seeding, registration windows, and entry fee configuration for Anyo and Laban.</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/></svg></div>
+          <div class="feature-content">
+            <h4>Online Athlete Registration</h4>
+            <p>Arnisadors register and pay online. Admins approve, reject, or request corrections from a single dashboard — no spreadsheets needed.</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/></svg></div>
+          <div class="feature-content">
+            <h4>QR Code Check-In</h4>
+            <p>Each athlete receives a unique QR card. Staff scan via USB scanner, webcam, or manual search — with real-time attendance tracking.</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon"><svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div>
+          <div class="feature-content">
+            <h4>Secure Online Payments</h4>
+            <p>Registration fees collected upfront through secure checkout. Per-athlete payment tracking with support for multiple payment channels.</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+          <div class="feature-content">
+            <h4>Digital Waiver Signing</h4>
+            <p>Athletes sign waivers digitally at check-in via a dual-screen display. PDFs auto-generated and saved per event — fully paperless.</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div>
+          <div class="feature-content">
+            <h4>Financial Dashboard</h4>
+            <p>Live revenue tracking across all event types. Track expected vs. collected amounts, view breakdowns, and export reports.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="highlight-row">
+        <span class="pill">Zero paperwork</span>
+        <span class="pill">Anyo &amp; Laban brackets</span>
+        <span class="pill">Live event data</span>
+        <span class="pill">Online payments</span>
+        <span class="pill">QR check-in</span>
+        <span class="pill">National events proven</span>
+        <span class="pill">Auto notifications</span>
+        <span class="pill">Built for PH sports</span>
+      </div>
+
+    </div>
+
+    <div class="footer">
+      <div class="footer-top">
+        <div class="footer-brand"><div class="footer-logo-pill"><img src="ktmnav_white.png" alt="KTM"/></div> · Tradition Rooted. Innovation Driven.</div>
+        <div class="footer-page">Page 1 of 2</div>
+      </div>
+      <div class="footer-confidential">This document is prepared by KTM Sports Technology Inc. for the exclusive use of the intended recipient organization. It contains proprietary and confidential information. Unauthorized reproduction, distribution, or disclosure of any part of this document is strictly prohibited without the prior written consent of KTM Sports Technology Inc.</div>
+    </div>
+
+  </div>
+
+
+  <!-- ═══════════════════ PAGE 2 ═══════════════════ -->
+  <div class="page">
+
+    <div class="header">
+      <div class="logo-pill"><img src="ktmnav_white.png" alt="KTM Sports Technology Inc."/></div>
+      <div class="doc-meta">
+        <strong>Continued:</strong> Page 2 of 2
+      </div>
+    </div>
+
+    <div class="body-section">
+
+      <div class="section-heading">Organization &amp; Club Management</div>
+
+      <div class="feature-grid">
+        <div class="feature-item">
+          <div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/></svg></div>
+          <div class="feature-content">
+            <h4>Club Master Accounts</h4>
+            <p>Each club gets a dashboard to manage rosters, submit team registrations, track payment status, and view competition history.</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
+          <div class="feature-content">
+            <h4>Athlete ID &amp; QR Cards</h4>
+            <p>Unique 5-digit Player IDs and downloadable QR cards sent automatically via email upon registration approval.</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
+          <div class="feature-content">
+            <h4>Rank Promotions &amp; Seminars</h4>
+            <p>Manage Lakan/Dayang rank promotions and seminars as standalone events with their own registration, payments, and attendance tracking.</p>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg></div>
+          <div class="feature-content">
+            <h4>National Rankings</h4>
+            <p>Automated score-based rankings updated after every event. Public leaderboards by discipline, division, age, and weight class.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-heading">Why KTM Sports Technology Inc.</div>
+
+      <div class="callout">
+        <p>
+          <strong>KTM is already actively powering national-level combat sports events in the Philippines</strong> — including
+          multi-discipline championships with 350+ registered athletes, 9+ affiliated clubs, and 2,500+ projected event
+          attendees. As the Philippines' national martial art, Arnis deserves a world-class digital platform —
+          and KTM is purpose-built to deliver exactly that.
+        </p>
+      </div>
+
+      <div class="section-heading">Partnership Invitation &amp; Next Steps</div>
+
+      <div class="steps">
+        <div class="step-item">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <h5>Platform Walkthrough</h5>
+            <p>A full live demonstration covering all modules relevant to your federation's workflow — in-person or via video call.</p>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <h5>Custom Onboarding</h5>
+            <p>We configure the platform to your organization's structure — Anyo, Laban, stick fighting categories, club access levels, and branding.</p>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <h5>Pilot Event Partnership</h5>
+            <p>Run one event together with full KTM technical support on-site, so your team experiences the system firsthand.</p>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <h5>Long-Term Digital Partnership</h5>
+            <p>Formalize a technology partnership covering all annual events, with dedicated support and continuous improvements.</p>
+          </div>
+        </div>
+      </div>
+
+      <p>
+        We are confident KTM Sports Technology Inc. can transform how your federation operates — bringing transparency,
+        efficiency, and a professional digital experience to every arnisador, club, and administrator in your network.
+      </p>
+
+      <!-- CTA Banner -->
+      <div style="background: linear-gradient(135deg, #111 0%, #1a1a1a 60%, #C62828 100%); border-radius: 10px; padding: 22px 24px; margin-top: 16px; text-align: center; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+          <div style="font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 800; color: #fff; letter-spacing: -0.01em; line-height: 1.2;">Tradition Rooted. <span style="color: #fca5a5;">Innovation Driven.</span></div>
+          <div style="font-size: 11px; color: rgba(255,255,255,.45); margin-top: 8px; font-weight: 500; letter-spacing: 0.06em;">Empowering Philippine Combat Sports Through Technology</div>
+      </div>
+
+    </div>
+
+    <div class="signature-section">
+      <div class="closing">Respectfully yours,</div>
+      <div class="signature-fields">
+        <div class="sig-field">
+          <div class="sig-name">Erich Jann Liwag</div>
+          <div class="sig-title">Founder &amp; Chief Developer</div>
+          <div class="sig-org">KTM Sports Technology Inc.</div>
+          <div class="sig-contact">ktmsportstechnology@gmail.com</div>
+        </div>
+        <div class="sig-line-box">
+          <div class="sig-line"></div>
+          <div class="sig-label">Organization Representative</div>
+        </div>
+        <div class="sig-line-box">
+          <div class="sig-line"></div>
+          <div class="sig-label">Date &amp; Official Seal</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="footer-top">
+        <div class="footer-brand"><div class="footer-logo-pill"><img src="ktmnav_white.png" alt="KTM"/></div> · Tradition Rooted. Innovation Driven.</div>
+        <div class="footer-page">Page 2 of 2</div>
+      </div>
+      <div class="footer-confidential">This document is prepared by KTM Sports Technology Inc. for the exclusive use of the intended recipient organization. It contains proprietary and confidential information. Unauthorized reproduction, distribution, or disclosure of any part of this document is strictly prohibited without the prior written consent of KTM Sports Technology Inc.</div>
+    </div>
+
+  </div>
+
+</body>
+</html>

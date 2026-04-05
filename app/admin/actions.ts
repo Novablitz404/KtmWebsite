@@ -715,19 +715,39 @@ export async function getBillingOrgsForMonth(year: number, month: number) {
             }
         }),
         prisma.seminar.findMany({
-            where: { startDate: { gte: startDate, lt: endDate } },
+            where: {
+                registrations: {
+                    some: {
+                        status: 'APPROVED',
+                        createdAt: { gte: startDate, lt: endDate }
+                    }
+                }
+            },
             select: {
                 id: true, name: true, startDate: true,
                 organization: { select: { id: true, name: true, address: true, contactPhone: true, owner: { select: { email: true, name: true } } } },
-                registrations: { select: { status: true, playerName: true, clubName: true } }
+                registrations: {
+                    where: { status: 'APPROVED', createdAt: { gte: startDate, lt: endDate } },
+                    select: { status: true, playerName: true, clubName: true }
+                }
             }
         }),
         prisma.promotionTest.findMany({
-            where: { testDate: { gte: startDate, lt: endDate } },
+            where: {
+                registrations: {
+                    some: {
+                        paymentStatus: 'PAID',
+                        createdAt: { gte: startDate, lt: endDate }
+                    }
+                }
+            },
             select: {
                 id: true, name: true, testDate: true,
                 organization: { select: { id: true, name: true, address: true, contactPhone: true, owner: { select: { email: true, name: true } } } },
-                registrations: { select: { paymentStatus: true, playerName: true, clubName: true } }
+                registrations: {
+                    where: { paymentStatus: 'PAID', createdAt: { gte: startDate, lt: endDate } },
+                    select: { paymentStatus: true, playerName: true, clubName: true }
+                }
             }
         }),
         prisma.clubAffiliation.findMany({
