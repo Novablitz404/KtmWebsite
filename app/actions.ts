@@ -382,6 +382,49 @@ export async function createPlayer(formData: FormData) {
 
     if (!name || !categoryId) return
 
+    // ─── Auth ───
+    const dbUser = await getAuthUser()
+    if (!dbUser) throw new Error('Not authenticated')
+
+    // ─── Fetch tournament for deadline + status + permission checks ───
+    const tournament = await prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        select: {
+            registrationStart: true,
+            registrationEnd: true,
+            status: true,
+            organizerId: true,
+            managers: { select: { id: true } }
+        }
+    })
+
+    if (!tournament) throw new Error('Tournament not found')
+
+    // ─── Role-based bypass: organizers, managers, and admins can always add ───
+    const isPrivileged =
+        dbUser.role === 'ADMIN' ||
+        tournament.organizerId === dbUser.id ||
+        tournament.managers.some(m => m.id === dbUser.id)
+
+    if (!isPrivileged) {
+        // Block if tournament is cancelled or completed
+        if (tournament.status === 'CANCELLED') {
+            throw new Error('This tournament has been cancelled.')
+        }
+        if (tournament.status === 'COMPLETED') {
+            throw new Error('This tournament is already completed.')
+        }
+
+        // Block if outside registration window
+        const now = new Date()
+        if (tournament.registrationStart && now < tournament.registrationStart) {
+            throw new Error('Registration has not started yet.')
+        }
+        if (tournament.registrationEnd && now > tournament.registrationEnd) {
+            throw new Error('Registration is closed.')
+        }
+    }
+
     // Generate unique 9-digit player ID
     const generatePlayerId = async (): Promise<string> => {
         let attempts = 0
@@ -415,6 +458,7 @@ export async function createPlayer(formData: FormData) {
 
     revalidatePath(`/tournament/${tournamentId}`)
 }
+
 
 
 
@@ -3184,6 +3228,25 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
 
         const data = JSON.parse(proposal.data)
 
+        // ─── Option B: Consent Threshold ───────────────────────────────────────
+        // For MERGE and SPLIT, block force-execute if the majority of clubs disagree.
+        // UNCONTESTED is exempt — it's always a unilateral organiser decision.
+        if (proposal.type === 'MERGE' || proposal.type === 'SPLIT') {
+            const votes = await prisma.smartProposalVote.findMany({ where: { proposalId } })
+            if (votes.length > 0) {
+                const disagreeCount = votes.filter(v => v.vote === 'DISAGREE').length
+                if (disagreeCount > votes.length / 2) {
+                    return {
+                        error: `Blocked: ${disagreeCount} of ${votes.length} clubs disagreed. Majority consent is required to proceed.`,
+                        blocked: true,
+                        disagreeCount,
+                        totalVotes: votes.length
+                    }
+                }
+            }
+        }
+        // ───────────────────────────────────────────────────────────────────────
+
         if (proposal.type === 'UNCONTESTED') {
             // Uncontested Actions: MOVE_UP, WALKOVER, WITHDRAW
             // Using the overrideVote as the decision (since this is typically 1 club)
@@ -3198,24 +3261,18 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
             if (!decision) return { error: 'No decision made yet' }
 
             if (decision === 'MOVE_UP') {
-                // Move player to target category (assuming we can find it)
-                // For now, "Move Up" likely needs a target. 
-                // If the logic didn't provide one, we might need a manual selection?
-                // But for automation, let's assume we find the next weight category.
-
-                // If data doesn't have targetId, we can't move. 
-                // The alert/proposal data SHOULD contain target options or we find it now.
                 const player = await prisma.player.findUnique({
                     where: { id: data.playerId },
                     include: { category: true }
                 })
 
                 if (player && player.category) {
+                    const sourceCategoryId = player.categoryId
+
                     // Find next heavier category
                     const siblings = await prisma.category.findMany({
                         where: {
                             tournamentId: player.category.tournamentId,
-                            // same division/gender/belt
                             gender: player.category.gender,
                             minAge: player.category.minAge,
                             belt: player.category.belt
@@ -3230,6 +3287,12 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
                             where: { id: player.id },
                             data: { categoryId: target.id }
                         })
+
+                        // Clean fix: delete source category if now empty
+                        const remaining = await prisma.player.count({ where: { categoryId: sourceCategoryId } })
+                        if (remaining === 0 && sourceCategoryId) {
+                            await prisma.category.delete({ where: { id: sourceCategoryId } })
+                        }
                     } else {
                         return { error: 'No heavier category found' }
                     }
@@ -3260,34 +3323,32 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
             })
 
             if (category) {
-                // Create Group A / B
                 const baseName = category.name
+
+                // Sort players by weight ascending so the split is meaningful
+                const sortedPlayers = [...category.players].sort((a, b) => ((a as any).weight || 0) - ((b as any).weight || 0))
+                const midIndex = Math.floor(sortedPlayers.length / 2)
+
+                // Derive weight-aware group labels when weights are available
+                const lightMax  = (sortedPlayers[midIndex - 1] as any)?.weight
+                const heavyMin  = (sortedPlayers[midIndex] as any)?.weight
+                const nameA = lightMax  ? `${baseName} (≤${lightMax}kg)` : `${baseName} (Group A)`
+                const nameB = heavyMin  ? `${baseName} (>${lightMax ?? '?'}kg)` : `${baseName} (Group B)`
+
                 const [cA, cB] = await prisma.$transaction([
                     prisma.category.create({
-                        data: {
-                            ...category,
-                            id: undefined, // new ID
-                            name: `${baseName} (Group A)`,
-                            players: undefined, // don't copy relation
-                            matches: undefined
-                        }
+                        data: { ...category, id: undefined, name: nameA, players: undefined, matches: undefined } as any
                     }),
                     prisma.category.create({
-                        data: {
-                            ...category,
-                            id: undefined,
-                            name: `${baseName} (Group B)`,
-                            players: undefined,
-                            matches: undefined
-                        }
+                        data: { ...category, id: undefined, name: nameB, players: undefined, matches: undefined } as any
                     })
                 ])
 
-                // Split players (Even/Odd)
-                const updates = category.players.map((p, i) =>
+                // Assign lighter half → Group A, heavier half → Group B
+                const updates = sortedPlayers.map((p, i) =>
                     prisma.player.update({
                         where: { id: p.id },
-                        data: { categoryId: i % 2 === 0 ? cA.id : cB.id }
+                        data: { categoryId: i < midIndex ? cA.id : cB.id }
                     })
                 )
 

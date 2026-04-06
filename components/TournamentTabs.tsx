@@ -7,13 +7,14 @@ import BracketList from './BracketList'
 import PlayerRegistration from './PlayerRegistration'
 import TournamentManagers from './TournamentManagers'
 import TournamentOverview from './TournamentOverview'
-import { getTournamentPlayers, updateTournamentGuidelines } from '@/app/actions'
+import { getTournamentPlayers, updateTournamentGuidelines, getTournamentAlerts } from '@/app/actions'
 import DashboardDataExport from './DashboardDataExport'
 import TournamentSettings from './TournamentSettings'
 import TournamentStatusActions from './TournamentStatusActions'
 import DeleteTournamentButton from './DeleteTournamentButton'
 import EventCheckIn from './EventCheckIn'
 import { tournamentCheckIn, searchPlayersForCheckIn, getTournamentCheckInStats, getCheckedInPlayers, saveWaiverSignature } from '@/app/actions'
+import { useQuery } from '@tanstack/react-query'
 import {
     LayoutDashboard,
     ClipboardList,
@@ -72,9 +73,26 @@ export default function TournamentTabs({ tournament, players, pendingManagerInvi
     const [playersList, setPlayersList] = useState<PlayerWithCategory[]>(players)
     const [isSidebarOpen, setSidebarOpen] = useState(false)
 
+    // Handle ?tab= query param for deep linking from org dashboard
+    useEffect(() => {
+        const tabParam = searchParams.get('tab')
+        if (tabParam && ['overview', 'categories', 'brackets', 'athletes', 'checkin', 'managers', 'settings'].includes(tabParam)) {
+            setActiveTab(tabParam as any)
+        }
+    }, [searchParams])
+
     // Guidelines State
     const [guidelinesText, setGuidelinesText] = useState(tournament.guidelinesText || tournament.guidelineTemplate?.content || '')
     const [isSavingGuidelines, setIsSavingGuidelines] = useState(false)
+
+    // Fetch alert count for Matches tab badge
+    const { data: alertData } = useQuery({
+        queryKey: ['tournament-smart-alerts', tournament.id],
+        queryFn: () => getTournamentAlerts(tournament.id),
+        enabled: !publicView,
+        staleTime: 1000 * 30
+    })
+    const alertCount = alertData?.alerts?.length || 0
 
     const handleSaveGuidelines = async () => {
         setIsSavingGuidelines(true)
@@ -163,6 +181,11 @@ export default function TournamentTabs({ tournament, players, pendingManagerInvi
                                 >
                                     <Icon className={`w-5 h-5 ${isActive ? 'text-red-600' : 'text-gray-400'}`} />
                                     {tab.label}
+                                    {tab.id === 'brackets' && alertCount > 0 && !publicView && (
+                                        <span className="ml-auto bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                                            {alertCount}
+                                        </span>
+                                    )}
                                 </button>
                             )
                         })}
@@ -215,6 +238,7 @@ export default function TournamentTabs({ tournament, players, pendingManagerInvi
                             <BracketList
                                 categories={tournament.categories.filter(c => (c._count?.players ?? 0) > 0)}
                                 tournamentName={tournament.name}
+                                publicView={publicView}
                             />
                         </div>
                     )}

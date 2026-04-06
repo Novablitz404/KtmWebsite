@@ -193,8 +193,12 @@ function SmartAlertRow({ alert }: { alert: any }) {
         if (!confirm("Are you sure you want to force execute this action? This will override club decisions.")) return
         setLoading(true)
         try {
-            await forceExecuteSmartAction(proposal.id)
-            toast.success("Action executed successfully")
+            const result = await forceExecuteSmartAction(proposal.id)
+            if (result?.error) {
+                toast.error(result.error)
+            } else {
+                toast.success("Action executed successfully")
+            }
         } catch (e) {
             toast.error("Failed to execute action")
         } finally {
