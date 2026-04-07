@@ -1,19 +1,16 @@
 'use client'
 
-
 import { useState, useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getOrganizerTournaments, getOrganizationEventsData } from '@/app/organization/actions'
-import { getPromotionTests } from '@/app/promotions/actions'
+import { getOrganizationEventsData } from '@/app/organization/actions'
 import TournamentsList from '@/components/TournamentsList'
 import PromotionsList from '@/app/promotions/PromotionsList'
+import SeminarsList from '@/components/organization/SeminarsList'
 import { TournamentsTableSkeleton, PromotionsTableSkeleton } from '@/components/Skeletons'
-import { GraduationCap, Trophy, Award, Plus, ChevronLeft, ChevronRight } from 'lucide-react'
-import Link from 'next/link'
+import { GraduationCap, Trophy, Award, Plus, Loader2 } from 'lucide-react'
 import CreateTournamentModal from '@/components/CreateTournamentModal'
 import CreatePromotionModal from '@/components/CreatePromotionModal'
 import CreateSeminarModal from '@/components/CreateSeminarModal'
-import SeminarsList from '@/components/organization/SeminarsList'
 
 type EventType = 'tournaments' | 'promotions' | 'seminars'
 const ITEMS_PER_PAGE = 10
@@ -30,185 +27,173 @@ export default function OrganizationEventsView({ searchQuery = '', templates = [
     const [isPromotionModalOpen, setIsPromotionModalOpen] = useState(false)
     const [isSeminarModalOpen, setIsSeminarModalOpen] = useState(false)
 
-    // Reset page when switching event type or search query changes
-    useEffect(() => {
-        setCurrentPage(1)
-    }, [eventType, searchQuery])
+    useEffect(() => { setCurrentPage(1) }, [eventType, searchQuery])
 
-    // Fetch BOTH tournaments and promotions in parallel via one server action
     const { data, isLoading } = useQuery({
         queryKey: ['organization-events-data'],
         queryFn: () => getOrganizationEventsData(),
-        staleTime: 1000 * 60 * 5
+        staleTime: 1000 * 60 * 5,
     })
 
-    const tournaments = data?.tournaments
-    const promotionTests = data?.promotionTests
-    const seminars = data?.seminars
+    const tournaments    = data?.tournaments    || []
+    const promotionTests = data?.promotionTests || []
+    const seminars       = data?.seminars       || []
 
-    // Loading derivation
-    const tournamentsLoading = isLoading
-    const promotionsLoading = isLoading
-    const seminarsLoading = isLoading
-
-    // Filter data by search query
     const filteredTournaments = useMemo(() => {
-        if (!searchQuery.trim() || !tournaments) return tournaments || []
-        const query = searchQuery.toLowerCase()
-        return tournaments.filter((t: any) =>
-            t.name?.toLowerCase().includes(query) ||
-            t.venue?.toLowerCase().includes(query)
-        )
+        if (!searchQuery.trim()) return tournaments
+        const q = searchQuery.toLowerCase()
+        return tournaments.filter((t: any) => t.name?.toLowerCase().includes(q) || t.venue?.toLowerCase().includes(q))
     }, [tournaments, searchQuery])
 
     const filteredPromotions = useMemo(() => {
-        if (!searchQuery.trim() || !promotionTests) return promotionTests || []
-        const query = searchQuery.toLowerCase()
-        return promotionTests.filter((p: any) =>
-            p.name?.toLowerCase().includes(query) ||
-            p.venue?.toLowerCase().includes(query)
-        )
+        if (!searchQuery.trim()) return promotionTests
+        const q = searchQuery.toLowerCase()
+        return promotionTests.filter((p: any) => p.name?.toLowerCase().includes(q) || p.venue?.toLowerCase().includes(q))
     }, [promotionTests, searchQuery])
 
     const filteredSeminars = useMemo(() => {
-        if (!searchQuery.trim() || !seminars) return seminars || []
-        const query = searchQuery.toLowerCase()
-        return seminars.filter((s: any) =>
-            s.name?.toLowerCase().includes(query) ||
-            s.venue?.toLowerCase().includes(query)
-        )
+        if (!searchQuery.trim()) return seminars
+        const q = searchQuery.toLowerCase()
+        return seminars.filter((s: any) => s.name?.toLowerCase().includes(q) || s.venue?.toLowerCase().includes(q))
     }, [seminars, searchQuery])
 
-    // Pagination Logic
-    const currentData = eventType === 'tournaments' ? filteredTournaments : eventType === 'promotions' ? filteredPromotions : filteredSeminars
-    const totalItems = currentData?.length || 0
-    const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE)
-
-    const paginatedData = currentData?.slice(
-        (currentPage - 1) * ITEMS_PER_PAGE,
-        currentPage * ITEMS_PER_PAGE
-    ) || []
-
-    const handlePageChange = (newPage: number) => {
-        if (newPage >= 1 && newPage <= totalPages) {
-            setCurrentPage(newPage)
-        }
-    }
+    const currentData  = eventType === 'tournaments' ? filteredTournaments : eventType === 'promotions' ? filteredPromotions : filteredSeminars
+    const totalItems   = currentData.length
+    const totalPages   = Math.ceil(totalItems / ITEMS_PER_PAGE)
+    const paginatedData = currentData.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
 
     const handleCreateClick = () => {
-        if (eventType === 'tournaments') {
-            setIsTournamentModalOpen(true)
-        } else if (eventType === 'promotions') {
-            setIsPromotionModalOpen(true)
-        } else {
-            setIsSeminarModalOpen(true)
-        }
+        if (eventType === 'tournaments') setIsTournamentModalOpen(true)
+        else if (eventType === 'promotions') setIsPromotionModalOpen(true)
+        else setIsSeminarModalOpen(true)
     }
 
-    return (
-        <div className="flex flex-col h-full space-y-4">
-            {/* Header with Toggle and Actions */}
-            <div className="flex-shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                {/* Toggle */}
-                <div className="flex p-1 bg-gray-100 rounded-xl">
-                    <button
-                        onClick={() => setEventType('tournaments')}
-                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${eventType === 'tournaments'
-                            ? 'bg-white text-red-600 shadow-sm'
-                            : 'text-gray-500 hover:text-gray-700'
-                            }`}
-                    >
-                        <Trophy size={16} />
-                        Tournaments
-                    </button>
-                    <button
-                        onClick={() => setEventType('promotions')}
-                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${eventType === 'promotions'
-                            ? 'bg-white text-red-600 shadow-sm'
-                            : 'text-gray-500 hover:text-gray-700'
-                            }`}
-                    >
-                        <Award size={16} />
-                        Promotions
-                    </button>
-                    <button
-                        onClick={() => setEventType('seminars')}
-                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${eventType === 'seminars'
-                            ? 'bg-white text-red-600 shadow-sm'
-                            : 'text-gray-500 hover:text-gray-700'
-                            }`}
-                    >
-                        <GraduationCap size={16} />
-                        Seminars
-                    </button>
-                </div>
+    const TABS = [
+        { id: 'tournaments' as const, label: 'Tournaments', Icon: Trophy,        count: tournaments.length },
+        { id: 'promotions'  as const, label: 'Promotions',  Icon: Award,         count: promotionTests.length },
+        { id: 'seminars'    as const, label: 'Seminars',    Icon: GraduationCap, count: seminars.length },
+    ]
 
-                {/* Create Button */}
+    return (
+        <div className="space-y-6 animate-in fade-in duration-300">
+
+            {/* ── Page header ── */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-black text-gray-900 tracking-tight">Events</h1>
+                    <p className="text-sm text-gray-500 mt-1">Manage tournaments, promotion tests, and seminars.</p>
+                </div>
                 <button
                     onClick={handleCreateClick}
-                    className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold shadow-sm transition-all"
+                    className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white rounded-xl text-sm font-bold shadow-sm transition-all active:scale-95"
                 >
-                    <Plus size={16} />
-                    <span className="hidden sm:inline">Create</span>
+                    <Plus size={14} />
+                    Create {eventType === 'tournaments' ? 'Tournament' : eventType === 'promotions' ? 'Promotion Test' : 'Seminar'}
                 </button>
             </div>
 
-            {/* Content Card - Full Height Flex Container */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col flex-1 overflow-hidden min-h-0">
-                {/* Scrollable List Container */}
-                <div className="flex-1 overflow-y-auto">
-                    {eventType === 'tournaments' ? (
-                        tournamentsLoading ? (
-                            <TournamentsTableSkeleton />
-                        ) : (
-                            <TournamentsList tournaments={paginatedData as any} embedded={true} />
-                        )
-                    ) : eventType === 'promotions' ? (
-                        promotionsLoading ? (
-                            <PromotionsTableSkeleton />
-                        ) : (
-                            <PromotionsList promotionTests={paginatedData as any} />
-                        )
-                    ) : (
-                        seminarsLoading ? (
-                            <PromotionsTableSkeleton /> // Reusing skeleton for now
-                        ) : (
-                            <SeminarsList seminars={paginatedData as any} />
-                        )
+            {/* ── Tab toggle ── */}
+            <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-2xl shadow-sm p-1 self-start w-fit">
+                {TABS.map(t => (
+                    <button
+                        key={t.id}
+                        onClick={() => setEventType(t.id)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                            eventType === t.id
+                                ? 'bg-red-600 text-white shadow-sm'
+                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                        }`}
+                    >
+                        <t.Icon size={14} />
+                        {t.label}
+                        {!isLoading && (
+                            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${
+                                eventType === t.id ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
+                            }`}>
+                                {t.count}
+                            </span>
+                        )}
+                    </button>
+                ))}
+            </div>
+
+            {/* ── Table card ── */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                {/* Card header strip */}
+                <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                        {eventType === 'tournaments' ? 'All Tournaments' : eventType === 'promotions' ? 'All Promotion Tests' : 'All Seminars'}
+                    </p>
+                    {!isLoading && totalItems > 0 && (
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                            {totalItems} {eventType === 'tournaments' ? 'events' : eventType === 'promotions' ? 'tests' : 'seminars'}
+                        </span>
                     )}
                 </div>
 
-                {/* Fixed Pagination Footer */}
-                {!tournamentsLoading && !promotionsLoading && !seminarsLoading && totalItems > 0 && (
-                    <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white flex items-center justify-end z-10">
-                        <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-100">
+                {/* Loading state */}
+                {isLoading ? (
+                    <div className="py-20 flex flex-col items-center justify-center text-gray-400">
+                        <Loader2 size={28} className="animate-spin mb-3" />
+                        <p className="text-sm font-medium">Loading events...</p>
+                    </div>
+                ) : totalItems === 0 ? (
+                    <div className="py-20 text-center">
+                        {(() => { const T = TABS.find(t => t.id === eventType)!; return (
+                            <>
+                                <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                                    <T.Icon size={24} className="text-gray-300" />
+                                </div>
+                                <p className="text-sm font-bold text-gray-900 mb-1">
+                                    {searchQuery ? `No ${T.label.toLowerCase()} match "${searchQuery}"` : `No ${T.label.toLowerCase()} yet`}
+                                </p>
+                                <p className="text-xs text-gray-400 mb-5">
+                                    {searchQuery ? 'Try a different search term.' : `Create your first ${T.label.slice(0, -1).toLowerCase()} to get started.`}
+                                </p>
+                                {!searchQuery && (
+                                    <button onClick={handleCreateClick}
+                                        className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-xl hover:bg-red-700 transition-colors shadow-sm">
+                                        <Plus size={14} /> Create {T.label.slice(0, -1)}
+                                    </button>
+                                )}
+                            </>
+                        )})()}
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        {eventType === 'tournaments' ? (
+                            <TournamentsList tournaments={paginatedData as any} embedded={true} />
+                        ) : eventType === 'promotions' ? (
+                            <PromotionsList promotionTests={paginatedData as any} />
+                        ) : (
+                            <SeminarsList seminars={paginatedData as any} />
+                        )}
+                    </div>
+                )}
+
+                {/* Premium pagination footer */}
+                {!isLoading && totalItems > ITEMS_PER_PAGE && (
+                    <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
+                        <span className="text-xs text-gray-500 font-medium">
+                            Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, totalItems)} of {totalItems}
+                        </span>
+                        <div className="flex items-center gap-1">
                             <button
-                                onClick={() => handlePageChange(currentPage - 1)}
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                 disabled={currentPage <= 1}
-                                className={`p-2 rounded-lg transition-all ${currentPage <= 1
-                                    ? 'text-gray-300 cursor-not-allowed hidden'
-                                    : 'text-gray-700 hover:bg-white hover:shadow-sm hover:text-gray-900 active:scale-95'
-                                    }`}
-                                title="Previous Page"
+                                className="px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-white hover:shadow-sm rounded-xl border border-transparent hover:border-gray-200 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                             >
-                                <ChevronLeft className="w-5 h-5" />
+                                Prev
                             </button>
-
-                            <div className="flex items-center gap-1.5 px-3">
-                                <span className="text-sm font-bold text-gray-900">Page {currentPage}</span>
-                                <span className="text-xs text-gray-400 font-medium">of {Math.max(totalPages, 1)}</span>
-                            </div>
-
+                            <span className="text-xs font-black text-gray-700 px-2">
+                                {currentPage} / {Math.max(totalPages, 1)}
+                            </span>
                             <button
-                                onClick={() => handlePageChange(currentPage + 1)}
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                                 disabled={currentPage >= totalPages}
-                                className={`p-2 rounded-lg transition-all ${currentPage >= totalPages
-                                    ? 'text-gray-300 cursor-not-allowed hidden'
-                                    : 'text-gray-700 hover:bg-white hover:shadow-sm hover:text-gray-900 active:scale-95'
-                                    }`}
-                                title="Next Page"
+                                className="px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-white hover:shadow-sm rounded-xl border border-transparent hover:border-gray-200 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                             >
-                                <ChevronRight className="w-5 h-5" />
+                                Next
                             </button>
                         </div>
                     </div>
@@ -216,19 +201,9 @@ export default function OrganizationEventsView({ searchQuery = '', templates = [
             </div>
 
             {/* Modals */}
-            <CreateTournamentModal
-                isOpen={isTournamentModalOpen}
-                onClose={() => setIsTournamentModalOpen(false)}
-                templates={templates}
-            />
-            <CreatePromotionModal
-                isOpen={isPromotionModalOpen}
-                onClose={() => setIsPromotionModalOpen(false)}
-            />
-            <CreateSeminarModal
-                isOpen={isSeminarModalOpen}
-                onClose={() => setIsSeminarModalOpen(false)}
-            />
+            <CreateTournamentModal isOpen={isTournamentModalOpen} onClose={() => setIsTournamentModalOpen(false)} templates={templates} />
+            <CreatePromotionModal  isOpen={isPromotionModalOpen}  onClose={() => setIsPromotionModalOpen(false)} />
+            <CreateSeminarModal    isOpen={isSeminarModalOpen}    onClose={() => setIsSeminarModalOpen(false)} />
         </div>
     )
 }

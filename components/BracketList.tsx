@@ -5,7 +5,10 @@ import { Category, Match, PoomsaeMatch } from '@prisma/client'
 import BracketView from './BracketView'
 import PoomsaeBracketView from './PoomsaeBracketView'
 import { generateAllBrackets, getTournamentAlerts, initiateSmartProposal, forceExecuteSmartAction } from '@/app/actions'
-import { Trophy, Medal, Wand2, Loader2, AlertCircle, Search, ShieldAlert, Split, Merge, ChevronDown, Users, X } from 'lucide-react'
+import {
+    Trophy, Medal, Wand2, Loader2, AlertCircle, Search,
+    ShieldAlert, Split, Merge, Users, X, ChevronDown, Zap, ArrowRight
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -23,7 +26,6 @@ export default function BracketList({ categories, tournamentName, publicView = f
 
     const tournamentId = categories[0]?.tournamentId
 
-    // Fetch smart alerts client-side
     const queryClient = useQueryClient()
     const { data: alertData } = useQuery({
         queryKey: ['tournament-smart-alerts', tournamentId],
@@ -35,7 +37,6 @@ export default function BracketList({ categories, tournamentName, publicView = f
     const alerts = alertData?.alerts || []
     const proposals = alertData?.proposals || []
 
-    // Build a map: categoryId -> alerts for that category
     const alertsByCategory = new Map<string, any[]>()
     for (const alert of alerts) {
         const existing = alertsByCategory.get(alert.categoryId) || []
@@ -44,25 +45,32 @@ export default function BracketList({ categories, tournamentName, publicView = f
     }
 
     if (categories.length === 0) {
-        return <p className="text-gray-500">Add categories to generate matches.</p>
+        return (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
+                    <Trophy size={24} className="text-gray-300" />
+                </div>
+                <p className="text-sm font-semibold text-gray-500">No categories yet</p>
+                <p className="text-xs text-gray-400 mt-1">Add categories to generate matches.</p>
+            </div>
+        )
     }
 
-    // Filter categories based on tab
     const kyorugiCategories = categories.filter(c => c.type === 'KYORUGI' || !c.type)
     const poomsaeCategories = categories.filter(c => c.type === 'POOMSAE')
-    const kyukpaCategories = categories.filter(c => c.type === 'KYUKPA')
+    const kyukpaCategories  = categories.filter(c => c.type === 'KYUKPA')
 
-    const displayedCategories = activeTab === 'kyorugi' ? kyorugiCategories : activeTab === 'poomsae' ? poomsaeCategories : kyukpaCategories
+    const displayedCategories = activeTab === 'kyorugi' ? kyorugiCategories
+        : activeTab === 'poomsae' ? poomsaeCategories : kyukpaCategories
 
-    // Apply search
     const q = searchQuery.toLowerCase().trim()
     let filteredCategories = q
         ? displayedCategories.filter(c => c.name.toLowerCase().includes(q))
         : displayedCategories
 
-    // Apply alert filter
     if (alertFilter !== 'all') {
-        const targetType = alertFilter === 'uncontested' ? 'UNCONTESTED' : alertFilter === 'merge' ? 'MERGE_SUGGESTION' : 'SPLIT_SUGGESTION'
+        const targetType = alertFilter === 'uncontested' ? 'UNCONTESTED'
+            : alertFilter === 'merge' ? 'MERGE_SUGGESTION' : 'SPLIT_SUGGESTION'
         filteredCategories = filteredCategories.filter(c => {
             const catAlerts = alertsByCategory.get(c.id)
             return catAlerts?.some(a => a.type === targetType)
@@ -70,173 +78,209 @@ export default function BracketList({ categories, tournamentName, publicView = f
     }
 
     const handleGenerateAll = () => {
-        if (!confirm(`Are you sure you want to regenerate ALL ${activeTab} matches? This will overwrite existing brackets.`)) return;
-
+        if (!confirm(`Regenerate ALL ${activeTab} matches? This will overwrite existing brackets.`)) return
         startTransition(async () => {
             try {
                 const targetType = activeTab === 'kyorugi' ? 'KYORUGI' : activeTab === 'poomsae' ? 'POOMSAE' : 'KYUKPA'
                 const result = await generateAllBrackets(tournamentId, targetType)
-                if (result?.success) {
-                    toast.success(`Generated matches for ${result.count} categories!`)
-                } else {
-                    toast.error(result?.message || "Failed to generate matches.")
-                }
-            } catch (error) {
-                console.error(error)
-                toast.error("An error occurred while generating matches.")
+                if (result?.success) toast.success(`Generated matches for ${result.count} categories!`)
+                else toast.error(result?.message || 'Failed to generate matches.')
+            } catch {
+                toast.error('An error occurred while generating matches.')
             }
         })
     }
 
-    // Alert counts for summary
     const uncontestedCount = alerts.filter(a => a.type === 'UNCONTESTED').length
-    const mergeCount = alerts.filter(a => a.type === 'MERGE_SUGGESTION').length
-    const splitCount = alerts.filter(a => a.type === 'SPLIT_SUGGESTION').length
-    const totalAlerts = uncontestedCount + mergeCount + splitCount
+    const mergeCount       = alerts.filter(a => a.type === 'MERGE_SUGGESTION').length
+    const splitCount       = alerts.filter(a => a.type === 'SPLIT_SUGGESTION').length
+    const totalAlerts      = uncontestedCount + mergeCount + splitCount
+
+
+    // Discipline tab config
+    const discTabs = [
+        { id: 'kyorugi', label: 'Kyorugi', icon: Trophy, count: kyorugiCategories.length },
+        { id: 'poomsae', label: 'Poomsae', icon: Medal,  count: poomsaeCategories.length },
+        { id: 'kyukpa',  label: 'Kyukpa',  icon: Wand2,  count: kyukpaCategories.length  },
+    ]
 
     return (
-        <div className="space-y-4">
-            {/* Alert Summary Banner */}
+        <div className="space-y-5">
+
+            {/* ── Alert Strip ─────────────────────────────────────── */}
             {totalAlerts > 0 && !publicView && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 flex items-center gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                    <div className="p-1.5 bg-amber-100 rounded-lg">
-                        <AlertCircle size={18} className="text-amber-600" />
-                    </div>
-                    <div className="flex items-center gap-3 flex-wrap text-sm font-medium">
-                        <span className="text-amber-800 font-bold">{totalAlerts} Alert{totalAlerts !== 1 ? 's' : ''}</span>
-                        <span className="text-amber-300">|</span>
-                        {uncontestedCount > 0 && (
-                            <button
-                                onClick={() => setAlertFilter(alertFilter === 'uncontested' ? 'all' : 'uncontested')}
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold transition-all cursor-pointer ${alertFilter === 'uncontested' ? 'bg-yellow-200 text-yellow-800 ring-1 ring-yellow-400' : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'}`}
-                            >
-                                <ShieldAlert size={10} />
-                                {uncontestedCount} Uncontested
-                            </button>
-                        )}
-                        {mergeCount > 0 && (
-                            <button
-                                onClick={() => setAlertFilter(alertFilter === 'merge' ? 'all' : 'merge')}
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold transition-all cursor-pointer ${alertFilter === 'merge' ? 'bg-purple-200 text-purple-800 ring-1 ring-purple-400' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
-                            >
-                                <Merge size={10} />
-                                {mergeCount} Merge
-                            </button>
-                        )}
-                        {splitCount > 0 && (
-                            <button
-                                onClick={() => setAlertFilter(alertFilter === 'split' ? 'all' : 'split')}
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold transition-all cursor-pointer ${alertFilter === 'split' ? 'bg-blue-200 text-blue-800 ring-1 ring-blue-400' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
-                            >
-                                <Split size={10} />
-                                {splitCount} Split
-                            </button>
-                        )}
-                        {alertFilter !== 'all' && (
-                            <button onClick={() => setAlertFilter('all')} className="text-amber-600 hover:text-amber-800 text-xs font-medium underline ml-1">
-                                Clear Filter
-                            </button>
-                        )}
+                <div className="relative overflow-hidden rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-50 px-5 py-4 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
+                    {/* decorative glow */}
+                    <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-amber-200/40 blur-2xl pointer-events-none" />
+
+                    <div className="flex items-center gap-4 flex-wrap relative">
+                        <div className="flex items-center gap-2.5 flex-shrink-0">
+                            <div className="p-2 bg-amber-100 rounded-xl">
+                                <AlertCircle size={16} className="text-amber-600" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-black text-amber-900 uppercase tracking-wide">
+                                    {totalAlerts} Alert{totalAlerts !== 1 ? 's' : ''} Pending
+                                </p>
+                                <p className="text-[10px] text-amber-600 font-medium">
+                                    Resolve before generating brackets
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="h-5 w-px bg-amber-200 hidden sm:block" />
+
+                        <div className="flex items-center gap-2 flex-wrap">
+                            {uncontestedCount > 0 && (
+                                <button
+                                    onClick={() => setAlertFilter(alertFilter === 'uncontested' ? 'all' : 'uncontested')}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all border ${
+                                        alertFilter === 'uncontested'
+                                            ? 'bg-yellow-400 text-yellow-900 border-yellow-400 shadow-sm scale-105'
+                                            : 'bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200'
+                                    }`}
+                                >
+                                    <ShieldAlert size={10} />
+                                    {uncontestedCount} Uncontested
+                                </button>
+                            )}
+                            {mergeCount > 0 && (
+                                <button
+                                    onClick={() => setAlertFilter(alertFilter === 'merge' ? 'all' : 'merge')}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all border ${
+                                        alertFilter === 'merge'
+                                            ? 'bg-purple-500 text-white border-purple-500 shadow-sm scale-105'
+                                            : 'bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-200'
+                                    }`}
+                                >
+                                    <Merge size={10} />
+                                    {mergeCount} Merge
+                                </button>
+                            )}
+                            {splitCount > 0 && (
+                                <button
+                                    onClick={() => setAlertFilter(alertFilter === 'split' ? 'all' : 'split')}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all border ${
+                                        alertFilter === 'split'
+                                            ? 'bg-blue-500 text-white border-blue-500 shadow-sm scale-105'
+                                            : 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200'
+                                    }`}
+                                >
+                                    <Split size={10} />
+                                    {splitCount} Split
+                                </button>
+                            )}
+                            {alertFilter !== 'all' && (
+                                <button
+                                    onClick={() => setAlertFilter('all')}
+                                    className="text-amber-700 text-[11px] font-semibold hover:underline px-1"
+                                >
+                                    Clear
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
 
-            {/* Header Controls */}
-            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                {/* Tab Switcher */}
-                <div className="flex p-1 bg-gray-100 rounded-lg w-fit">
-                    <button
-                        onClick={() => setActiveTab('kyorugi')}
-                        className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'kyorugi'
-                            ? 'bg-white text-red-600 shadow-sm'
-                            : 'text-gray-500 hover:text-gray-700'
-                            }`}
-                    >
-                        <Trophy size={16} />
-                        Kyorugi
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('poomsae')}
-                        className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'poomsae'
-                            ? 'bg-white text-red-600 shadow-sm'
-                            : 'text-gray-500 hover:text-gray-700'
-                            }`}
-                    >
-                        <Medal size={16} />
-                        Poomsae
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('kyukpa')}
-                        className={`px-4 py-2 rounded-md text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'kyukpa'
-                            ? 'bg-white text-red-600 shadow-sm'
-                            : 'text-gray-500 hover:text-gray-700'
-                            }`}
-                    >
-                        <Wand2 size={16} />
-                        Kyukpa
-                    </button>
-                </div>
+            {/* ── Toolbar Card ────────────────────────────────────── */}
+            <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
 
-                {/* Search + Actions */}
-                <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
-                    <div className="relative flex-1 xl:flex-none xl:w-64">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
-                        <input
-                            type="text"
-                            placeholder="Search categories..."
-                            value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
-                            className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 transition-all"
-                        />
-                        {searchQuery && (
-                            <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                <X size={14} />
+                {/* Top row */}
+                <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-gray-100">
+                    {/* Discipline tabs */}
+                    <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
+                        {discTabs.map(({ id, label, icon: Icon, count }) => (
+                            <button
+                                key={id}
+                                onClick={() => setActiveTab(id as any)}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                                    activeTab === id
+                                        ? 'bg-white text-red-600 shadow-sm'
+                                        : 'text-gray-500 hover:text-gray-700 hover:bg-white/60'
+                                }`}
+                            >
+                                <Icon size={14} />
+                                {label}
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                                    activeTab === id ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-500'
+                                }`}>
+                                    {count}
+                                </span>
                             </button>
+                        ))}
+                    </div>
+
+                    {/* Search + Generate */}
+                    <div className="flex items-center gap-3">
+                        {/* Search */}
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={13} />
+                            <input
+                                type="text"
+                                placeholder="Search categories..."
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                className="pl-8 pr-8 py-2 text-sm font-medium bg-gray-50 border border-gray-200 rounded-xl w-52 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 focus:bg-white transition-all"
+                            />
+                            {searchQuery && (
+                                <button
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                                >
+                                    <X size={13} />
+                                </button>
+                            )}
+                        </div>
+
+                        {!publicView && (
+                            <>
+                                <div className="h-6 w-px bg-gray-200" />
+                                {totalAlerts > 0 && (
+                                    <span className="text-xs text-amber-600 font-semibold max-w-[140px] leading-tight hidden lg:block">
+                                        Resolve {totalAlerts} alert{totalAlerts !== 1 ? 's' : ''} first
+                                    </span>
+                                )}
+                                <button
+                                    onClick={handleGenerateAll}
+                                    disabled={isPending || displayedCategories.length === 0 || totalAlerts > 0}
+                                    title={totalAlerts > 0 ? `Resolve ${totalAlerts} alert(s) first` : undefined}
+                                    className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold text-white transition-all
+                                        bg-gradient-to-br from-red-600 to-red-700
+                                        shadow-md shadow-red-500/20
+                                        hover:shadow-lg hover:shadow-red-500/30 hover:-translate-y-0.5
+                                        disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:translate-y-0"
+                                >
+                                    {isPending ? (
+                                        <><Loader2 size={15} className="animate-spin" /> Generating...</>
+                                    ) : (
+                                        <><Zap size={15} /> Generate All</>
+                                    )}
+                                </button>
+                            </>
                         )}
                     </div>
-                    {!publicView && (
-                        <div className="flex items-center gap-3">
-                            {totalAlerts > 0 && (
-                                <span className="text-xs text-amber-600 font-medium max-w-[180px] leading-tight">
-                                    Resolve {totalAlerts} alert{totalAlerts !== 1 ? 's' : ''} before generating
-                                </span>
-                            )}
-                            <button
-                                onClick={handleGenerateAll}
-                                disabled={isPending || displayedCategories.length === 0 || totalAlerts > 0}
-                                title={totalAlerts > 0 ? `Resolve ${totalAlerts} smart alert(s) first` : undefined}
-                                className={`flex items-center gap-2 px-6 py-2 rounded-lg font-bold text-white transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${isPending ? 'bg-red-400' : 'bg-red-600 hover:bg-red-700'
-                                    }`}
-                            >
-                                {isPending ? (
-                                    <>
-                                        <Loader2 size={18} className="animate-spin" />
-                                        Generating...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Wand2 size={18} />
-                                        Generate All
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    )}
                 </div>
+
             </div>
 
-            {/* Category List */}
-            <div className="space-y-3">
+            {/* ── Category List ────────────────────────────────────── */}
+            <div className="space-y-2">
                 {filteredCategories.length === 0 ? (
-                    <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
-                        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 mb-4">
-                            <AlertCircle className="text-gray-400" size={24} />
+                    <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border-2 border-dashed border-gray-200 text-center">
+                        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+                            <AlertCircle size={20} className="text-gray-300" />
                         </div>
-                        <p className="text-gray-500 font-medium">
-                            {searchQuery || alertFilter !== 'all' ? 'No categories match your filter.' : `No ${activeTab} categories found.`}
+                        <p className="text-sm font-semibold text-gray-500">
+                            {searchQuery || alertFilter !== 'all'
+                                ? 'No categories match your filter.'
+                                : `No ${activeTab} categories found.`}
                         </p>
                         {(searchQuery || alertFilter !== 'all') && (
-                            <button onClick={() => { setSearchQuery(''); setAlertFilter('all') }} className="text-red-600 text-sm font-medium mt-2 hover:underline">
+                            <button
+                                onClick={() => { setSearchQuery(''); setAlertFilter('all') }}
+                                className="text-red-600 text-xs font-semibold mt-2 hover:underline"
+                            >
                                 Clear all filters
                             </button>
                         )}
@@ -261,92 +305,118 @@ export default function BracketList({ categories, tournamentName, publicView = f
     )
 }
 
+// ─────────────────────────────────────────────
+// CollapsibleBracket
+// ─────────────────────────────────────────────
 function CollapsibleBracket({
-    category,
-    isPoomsae = false,
-    tournamentName,
-    alerts,
-    proposals,
-    tournamentId,
-    publicView,
-    onAlertResolved
+    category, isPoomsae = false, tournamentName,
+    alerts, proposals, tournamentId, publicView, onAlertResolved
 }: {
     category: Category & { matches: Match[], poomsaeMatches?: (PoomsaeMatch & { player: { name: string; club?: { name: string } | null } })[] },
-    isPoomsae?: boolean,
-    tournamentName?: string,
-    alerts: any[],
-    proposals: any[],
-    tournamentId: string,
-    publicView?: boolean,
-    onAlertResolved: () => void
+    isPoomsae?: boolean, tournamentName?: string, alerts: any[], proposals: any[],
+    tournamentId: string, publicView?: boolean, onAlertResolved: () => void
 }) {
     const [isOpen, setIsOpen] = useState(false)
     const [isAlertOpen, setIsAlertOpen] = useState(false)
     const matchCount = isPoomsae ? (category.poomsaeMatches?.length || 0) : category.matches.length
 
-    return (
-        <div className={`bg-white rounded-xl shadow-sm border overflow-hidden transition-colors ${alerts.length > 0 ? 'border-amber-200 hover:border-amber-300' : 'border-gray-200 hover:border-red-200'}`}>
-            {/* Category Header */}
-            <div
-                className="p-5 bg-gray-50/50 border-b border-gray-100 flex justify-between items-center cursor-pointer select-none"
-                onClick={() => setIsOpen(!isOpen)}
-            >
-                <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <button className="text-gray-400 group-hover:text-red-500 transition-colors focus:outline-none bg-white p-1.5 rounded-md border border-gray-200 shadow-sm flex-shrink-0">
-                        <svg className={`w-4 h-4 transform transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </button>
+    const hasAlert  = alerts.some(a => a.type === 'UNCONTESTED')
+    const hasMerge  = alerts.some(a => a.type === 'MERGE_SUGGESTION')
+    const hasSplit  = alerts.some(a => a.type === 'SPLIT_SUGGESTION')
+    const hasAnAlert = alerts.length > 0
 
-                    <div className="flex flex-col min-w-0">
-                        <h3 className="font-bold text-lg text-gray-800 truncate">{category.name}</h3>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                            <span className="text-xs text-gray-500 font-medium bg-gray-100 px-2 py-0.5 rounded-full">
+    // Left accent colour
+    const accentClass = hasAlert  ? 'bg-gradient-to-b from-amber-400 to-yellow-500'
+        : hasMerge ? 'bg-gradient-to-b from-purple-400 to-violet-600'
+        : hasSplit  ? 'bg-gradient-to-b from-blue-400 to-blue-600'
+        : 'bg-gray-200'
+
+    const borderClass = hasAlert  ? 'border-amber-200 hover:border-amber-300'
+        : hasMerge ? 'border-purple-200 hover:border-purple-300'
+        : hasSplit  ? 'border-blue-200 hover:border-blue-300'
+        : 'border-gray-200 hover:border-gray-300'
+
+    return (
+        <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all duration-200 ${borderClass}`}>
+            <div className="flex">
+                {/* Left accent bar */}
+                <div className={`w-1 flex-shrink-0 ${accentClass}`} />
+
+                {/* Header */}
+                <div
+                    className="flex-1 flex items-center gap-3 px-4 py-3.5 cursor-pointer select-none hover:bg-gray-50/50 transition-colors"
+                    onClick={() => setIsOpen(!isOpen)}
+                >
+                    {/* Chevron */}
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all ${
+                        isOpen ? 'bg-red-50 border border-red-100' : 'bg-gray-100 border border-gray-200'
+                    }`}>
+                        <ChevronDown
+                            size={13}
+                            className={`transition-transform duration-200 ${isOpen ? 'rotate-180 text-red-500' : 'text-gray-400'}`}
+                        />
+                    </div>
+
+                    {/* Category info */}
+                    <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-bold text-gray-900 truncate">{category.name}</h3>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                            {/* Match count */}
+                            <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md">
                                 {matchCount} Matches
                             </span>
 
+                            {/* Court */}
                             {category.court && (
-                                <span className="text-[10px] font-bold text-orange-700 bg-orange-50 uppercase tracking-wide px-2 py-0.5 rounded border border-orange-100">
+                                <span className="text-[10px] font-bold text-orange-700 bg-orange-50 border border-orange-100 px-2 py-0.5 rounded-md uppercase">
                                     Court {category.court}
                                 </span>
                             )}
 
-                            {/* Alert Pills */}
+                            {/* Alert pills */}
                             {!publicView && alerts.map((alert: any, i: number) => (
                                 <button
                                     key={`${alert.type}-${i}`}
-                                    onClick={(e) => { e.stopPropagation(); setIsAlertOpen(!isAlertOpen) }}
-                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border transition-all hover:scale-105 cursor-pointer ${
-                                        alert.type === 'UNCONTESTED' ? 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100' :
-                                        alert.type === 'MERGE_SUGGESTION' ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100' :
-                                        'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                                    onClick={e => { e.stopPropagation(); setIsAlertOpen(!isAlertOpen) }}
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all hover:scale-105 ${
+                                        alert.type === 'UNCONTESTED'
+                                            ? 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100'
+                                            : alert.type === 'MERGE_SUGGESTION'
+                                            ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
+                                            : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
                                     }`}
                                 >
-                                    {alert.type === 'UNCONTESTED' && <ShieldAlert size={10} />}
-                                    {alert.type === 'MERGE_SUGGESTION' && <Merge size={10} />}
-                                    {alert.type === 'SPLIT_SUGGESTION' && <Split size={10} />}
-                                    {alert.type === 'UNCONTESTED' ? 'Uncontested' : alert.type === 'MERGE_SUGGESTION' ? 'Merge' : 'Split'}
+                                    {alert.type === 'UNCONTESTED'    && <ShieldAlert size={9} />}
+                                    {alert.type === 'MERGE_SUGGESTION' && <Merge size={9} />}
+                                    {alert.type === 'SPLIT_SUGGESTION' && <Split size={9} />}
+                                    {alert.type === 'UNCONTESTED' ? 'Uncontested'
+                                        : alert.type === 'MERGE_SUGGESTION' ? 'Merge' : 'Split'}
                                 </button>
                             ))}
                         </div>
                     </div>
-                </div>
 
-                <div className="flex items-center gap-4 flex-shrink-0">
-                    {matchCount > 0 ? (
-                        <span className="flex h-2.5 w-2.5 relative">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
-                        </span>
-                    ) : (
-                        <span className="h-2.5 w-2.5 rounded-full bg-gray-300"></span>
-                    )}
+                    {/* Right: match count + status dot */}
+                    <div className="flex items-center gap-3 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                        <div className="text-right hidden sm:block">
+                            <div className="text-lg font-black text-gray-800 leading-none">{matchCount}</div>
+                            <div className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">matches</div>
+                        </div>
+                        {matchCount > 0 ? (
+                            <span className="relative flex h-2.5 w-2.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                            </span>
+                        ) : (
+                            <span className="h-2.5 w-2.5 rounded-full bg-gray-300 flex-shrink-0" />
+                        )}
+                    </div>
                 </div>
             </div>
 
             {/* Inline Alert Panel */}
-            {isAlertOpen && alerts.length > 0 && !publicView && (
-                <div className="border-b border-amber-100 bg-amber-50/30 animate-in fade-in slide-in-from-top-1 duration-200">
+            {isAlertOpen && hasAnAlert && !publicView && (
+                <div className="border-t border-amber-100 bg-gradient-to-b from-amber-50/60 to-transparent animate-in fade-in slide-in-from-top-1 duration-200">
                     {alerts.map((alert: any, idx: number) => (
                         <InlineAlertPanel
                             key={`${alert.categoryId}-${alert.type}-${idx}`}
@@ -359,9 +429,9 @@ function CollapsibleBracket({
                 </div>
             )}
 
-            {/* Bracket Content */}
+            {/* Bracket content */}
             {isOpen && (
-                <div className="p-6 border-t border-gray-100 bg-white">
+                <div className="border-t border-gray-100 bg-white p-6 animate-in fade-in duration-200">
                     <div className="overflow-x-auto">
                         {isPoomsae ? (
                             <PoomsaeBracketView
@@ -383,15 +453,14 @@ function CollapsibleBracket({
     )
 }
 
+// ─────────────────────────────────────────────
+// InlineAlertPanel
+// ─────────────────────────────────────────────
 function InlineAlertPanel({ alert, proposals, tournamentId, onResolved }: {
-    alert: any,
-    proposals: any[],
-    tournamentId: string,
-    onResolved: () => void
+    alert: any, proposals: any[], tournamentId: string, onResolved: () => void
 }) {
     const [loading, setLoading] = useState(false)
 
-    // Find matching proposal
     const proposal = proposals.find((p: any) => {
         const data = JSON.parse(p.data)
         if (p.type === 'UNCONTESTED' && alert.type === 'UNCONTESTED') return data.playerId === alert.details?.playerId
@@ -400,110 +469,149 @@ function InlineAlertPanel({ alert, proposals, tournamentId, onResolved }: {
         return false
     })
 
-    const isPending = proposal?.status === 'PENDING'
+    const isPending  = proposal?.status === 'PENDING'
+    const votes: { clubId: string, vote: string }[] = proposal?.votes || []
+    const voteCount  = votes.length
+
+    const voteLabel: Record<string, { text: string, color: string }> = {
+        MOVE_UP:  { text: 'Move Up',  color: 'text-amber-700 bg-amber-100' },
+        WALKOVER: { text: 'Walkover', color: 'text-emerald-700 bg-emerald-100' },
+        WITHDRAW: { text: 'Withdraw', color: 'text-red-700 bg-red-100' },
+        AGREE:    { text: 'Agree',    color: 'text-emerald-700 bg-emerald-100' },
+        DISAGREE: { text: 'Disagree', color: 'text-gray-700 bg-gray-100' },
+    }
 
     async function handleAction() {
         setLoading(true)
         try {
             if (isPending && proposal) {
                 const result = await forceExecuteSmartAction(proposal.id)
-                if (result?.error) {
-                    toast.error(result.error)
-                } else {
-                    toast.success("Action executed")
-                    onResolved()
-                }
+                if (result?.error) toast.error(result.error)
+                else { toast.success('Action executed'); onResolved() }
             } else {
                 if (alert.type === 'UNCONTESTED') {
-                    await initiateSmartProposal(tournamentId, 'UNCONTESTED', { playerId: alert.details.playerId, playerName: alert.details.playerName })
+                    await initiateSmartProposal(tournamentId, 'UNCONTESTED', {
+                        playerId: alert.details.playerId,
+                        playerName: alert.details.playerName,
+                        sourceCategoryId: alert.categoryId,
+                        sourceCategoryName: alert.details.sourceCategoryName || alert.categoryName,
+                        targetCategoryId: alert.details.targetCategoryId || null,
+                        targetCategoryName: alert.details.targetCategoryName || null,
+                    })
                 } else if (alert.type === 'MERGE_SUGGESTION') {
-                    await initiateSmartProposal(tournamentId, 'MERGE', { sourceCategoryId: alert.categoryId, targetCategoryId: alert.details.targetCategoryId })
+                    await initiateSmartProposal(tournamentId, 'MERGE', {
+                        sourceCategoryId: alert.categoryId,
+                        targetCategoryId: alert.details.targetCategoryId
+                    })
                 } else if (alert.type === 'SPLIT_SUGGESTION') {
                     await initiateSmartProposal(tournamentId, 'SPLIT', { categoryId: alert.categoryId })
                 }
-                toast.success("Proposal sent to clubs")
+                toast.success('Proposal sent to clubs')
                 onResolved()
             }
         } catch {
-            toast.error("Action failed")
+            toast.error('Action failed')
         } finally {
             setLoading(false)
         }
     }
 
     const details = alert.details || {}
-    const players = details.players || (details.playerName ? [{ name: details.playerName, clubName: details.clubName, clubLogoUrl: details.clubLogoUrl }] : [])
+    const players  = details.players || (details.playerName
+        ? [{ name: details.playerName, clubName: details.clubName, clubLogoUrl: details.clubLogoUrl }]
+        : [])
+
+    const alertColor = alert.type === 'UNCONTESTED'
+        ? { bg: 'bg-amber-100', text: 'text-amber-700', btn: 'bg-amber-500 hover:bg-amber-600', btnPending: 'bg-gray-900 hover:bg-gray-800' }
+        : alert.type === 'MERGE_SUGGESTION'
+        ? { bg: 'bg-purple-100', text: 'text-purple-700', btn: 'bg-purple-600 hover:bg-purple-700', btnPending: 'bg-gray-900 hover:bg-gray-800' }
+        : { bg: 'bg-blue-100', text: 'text-blue-700', btn: 'bg-blue-600 hover:bg-blue-700', btnPending: 'bg-gray-900 hover:bg-gray-800' }
 
     return (
-        <div className="px-6 py-4 border-b border-amber-100 last:border-b-0">
+        <div className="px-5 py-4 border-b border-amber-100/80 last:border-b-0">
             <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-                {/* Alert Info */}
+                {/* Left: alert info */}
                 <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
-                            alert.type === 'UNCONTESTED' ? 'bg-yellow-100 text-yellow-700' :
-                            alert.type === 'MERGE_SUGGESTION' ? 'bg-purple-100 text-purple-700' :
-                            'bg-blue-100 text-blue-700'
-                        }`}>
-                            {alert.type === 'UNCONTESTED' && <ShieldAlert size={10} />}
-                            {alert.type === 'MERGE_SUGGESTION' && <Merge size={10} />}
-                            {alert.type === 'SPLIT_SUGGESTION' && <Split size={10} />}
-                            {alert.type === 'UNCONTESTED' ? 'Uncontested' : alert.type === 'MERGE_SUGGESTION' ? 'Merge Suggestion' : 'Split Suggestion'}
+                    {/* Tag row */}
+                    <div className="flex items-center gap-2 flex-wrap mb-2">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${alertColor.bg} ${alertColor.text}`}>
+                            {alert.type === 'UNCONTESTED'    && <ShieldAlert size={9} />}
+                            {alert.type === 'MERGE_SUGGESTION' && <Merge size={9} />}
+                            {alert.type === 'SPLIT_SUGGESTION' && <Split size={9} />}
+                            {alert.type === 'UNCONTESTED' ? 'Uncontested'
+                                : alert.type === 'MERGE_SUGGESTION' ? 'Merge Suggestion' : 'Split Suggestion'}
                         </span>
-                        {isPending && (
-                            <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full animate-pulse">
-                                Pending Club Response
+
+                        {/* Vote state badges */}
+                        {isPending && voteCount === 0 && (
+                            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-full animate-pulse">
+                                Awaiting Club Response
                             </span>
                         )}
+                        {isPending && voteCount > 0 && alert.type === 'UNCONTESTED' && votes.map((v, i) => {
+                            const vl = voteLabel[v.vote] || { text: v.vote, color: 'text-gray-700 bg-gray-100' }
+                            return (
+                                <span key={i} className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${vl.color}`}>
+                                    Club voted: {vl.text}
+                                </span>
+                            )
+                        })}
+                        {isPending && voteCount > 0 && (alert.type === 'MERGE_SUGGESTION' || alert.type === 'SPLIT_SUGGESTION') && (() => {
+                            const agrees    = votes.filter(v => v.vote === 'AGREE').length
+                            const disagrees = votes.filter(v => v.vote === 'DISAGREE').length
+                            return (
+                                <span className="text-[10px] font-bold text-gray-600 bg-gray-100 px-2.5 py-1 rounded-full">
+                                    {agrees} Agree · {disagrees} Disagree
+                                </span>
+                            )
+                        })()}
                     </div>
-                    <p className="text-sm text-gray-700 font-medium">{alert.message}</p>
 
-                    {/* Athletes List */}
+                    <p className="text-sm text-gray-700 font-medium leading-relaxed">{alert.message}</p>
+
+                    {/* Athletes */}
                     {players.length > 0 && (
                         <div className="mt-3 space-y-1.5">
                             <div className="text-[10px] text-gray-400 uppercase font-bold tracking-wider flex items-center gap-1">
-                                <Users size={10} /> Affected Athletes
+                                <Users size={9} /> Affected Athletes
                             </div>
                             {players.map((p: any, i: number) => (
-                                <div key={i} className="flex items-center gap-2.5 px-3 py-1.5 bg-white rounded-lg border border-gray-100">
+                                <div key={i} className="flex items-center gap-2.5 px-3 py-2 bg-white rounded-xl border border-gray-100 shadow-sm">
                                     {p.clubLogoUrl ? (
                                         <img src={p.clubLogoUrl} alt="" className="w-5 h-5 rounded-full object-cover ring-1 ring-gray-200" />
                                     ) : (
-                                        <div className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center text-[8px] font-bold text-gray-500">
+                                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center text-[8px] font-black text-white">
                                             {(p.clubName || '?')[0]}
                                         </div>
                                     )}
-                                    <span className="text-sm font-medium text-gray-900">{p.name}</span>
-                                    <span className="text-xs text-gray-400">•</span>
+                                    <span className="text-sm font-semibold text-gray-900">{p.name}</span>
+                                    <span className="text-gray-300">·</span>
                                     <span className="text-xs text-gray-500">{p.clubName}</span>
                                 </div>
                             ))}
                             {details.playerCount && details.playerCount > players.length && (
-                                <div className="text-xs text-gray-400 pl-3">
+                                <p className="text-xs text-gray-400 pl-3">
                                     + {details.playerCount - players.length} more athletes
-                                </div>
+                                </p>
                             )}
                         </div>
                     )}
                 </div>
 
-                {/* Action Button */}
+                {/* Right: action button */}
                 <div className="flex-shrink-0 self-start">
                     <button
                         onClick={handleAction}
                         disabled={loading}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm disabled:opacity-50 ${
-                            isPending
-                                ? 'bg-gray-900 text-white hover:bg-gray-800'
-                                : alert.type === 'UNCONTESTED'
-                                    ? 'bg-yellow-600 text-white hover:bg-yellow-700'
-                                    : alert.type === 'MERGE_SUGGESTION'
-                                        ? 'bg-purple-600 text-white hover:bg-purple-700'
-                                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0 ${
+                            isPending ? alertColor.btnPending : alertColor.btn
                         }`}
                     >
-                        {loading ? <Loader2 size={12} className="animate-spin" /> : null}
-                        {isPending ? 'Force Execute' : alert.type === 'UNCONTESTED' ? 'Request Resolution' : alert.type === 'MERGE_SUGGESTION' ? 'Propose Merge' : 'Propose Split'}
+                        {loading && <Loader2 size={12} className="animate-spin" />}
+                        {isPending ? 'Force Execute'
+                            : alert.type === 'UNCONTESTED' ? 'Request Resolution'
+                            : alert.type === 'MERGE_SUGGESTION' ? 'Propose Merge'
+                            : 'Propose Split'}
                     </button>
                 </div>
             </div>

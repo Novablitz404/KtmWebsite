@@ -196,9 +196,9 @@ function DonutChart({ data, primaryColor }: {
     const total = data.reduce((s, d) => s + d.value, 0)
     if (total === 0) {
         return (
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm flex flex-col items-center justify-center h-full min-h-[280px]">
-                <div className="w-32 h-32 rounded-full border-[12px] border-gray-100 mb-4" />
-                <p className="text-sm text-gray-400">No revenue data yet</p>
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col items-center justify-center min-h-[280px]">
+                <div className="w-32 h-32 rounded-full border-[10px] border-gray-100 mb-4" />
+                <p className="text-sm text-gray-400 font-medium">No revenue data yet</p>
             </div>
         )
     }
@@ -215,33 +215,35 @@ function DonutChart({ data, primaryColor }: {
     const gradientParts = segments.map(s => `${s.color} ${s.start}% ${s.start + s.pct}%`).join(', ')
 
     return (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm h-full flex flex-col">
-            <h3 className="font-bold text-gray-900 text-lg mb-6 flex-shrink-0">Revenue Distribution</h3>
-            <div className="flex flex-col items-center justify-center gap-6 flex-1">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm h-full flex flex-col overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex-shrink-0">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Revenue Distribution</p>
+            </div>
+            <div className="flex flex-col items-center justify-center gap-6 p-6 flex-1">
                 {/* Donut */}
-                <div className="relative w-40 h-40 flex-shrink-0">
+                <div className="relative w-36 h-36 flex-shrink-0">
                     <div
                         className="w-full h-full rounded-full"
                         style={{ background: `conic-gradient(${gradientParts})` }}
                     />
                     <div className="absolute inset-3 bg-white rounded-full flex items-center justify-center">
                         <div className="text-center">
-                            <p className="text-xs text-gray-400 font-medium">Total</p>
+                            <p className="text-[10px] text-gray-400 font-medium">Total</p>
                             <p className="text-sm font-black text-gray-900">{formatCurrency(total)}</p>
                         </div>
                     </div>
                 </div>
                 {/* Legend */}
-                <div className="w-full flex justify-center flex-wrap gap-4 mt-auto">
+                <div className="w-full space-y-2.5">
                     {segments.map(s => (
-                        <div key={s.label} className="flex items-center gap-2.5">
-                            <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: s.color }} />
-                            <div className="flex items-center justify-between flex-1 min-w-0">
-                                <span className="text-xs font-medium text-gray-600 truncate">{s.label}</span>
-                                <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-                                    <span className="text-xs font-bold text-gray-900">{formatCurrency(s.value)}</span>
-                                    <span className="text-[10px] text-gray-400">({Math.round(s.pct)}%)</span>
-                                </div>
+                        <div key={s.label} className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: s.color }} />
+                                <span className="text-xs font-semibold text-gray-600">{s.label}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-black text-gray-900">{formatCurrency(s.value)}</span>
+                                <span className="text-[10px] text-gray-400 w-8 text-right">{Math.round(s.pct)}%</span>
                             </div>
                         </div>
                     ))}
@@ -265,16 +267,15 @@ function BarChart({ data, primaryColor }: {
     }).reverse()
 
     return (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm h-full flex flex-col">
-            <div className="flex items-center justify-between mb-6">
-                <h3 className="font-bold text-gray-900 text-lg">Monthly Revenue</h3>
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm h-full flex flex-col overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex-shrink-0">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Monthly Revenue</p>
             </div>
-
-            <div className="flex gap-4 flex-1 min-h-[220px]">
+            <div className="p-6 flex gap-4 flex-1 min-h-[220px]">
                 {/* Y-Axis */}
-                <div className="flex flex-col justify-between items-end text-[10px] text-gray-400 font-medium py-1 w-10 shrink-0 pb-6">
+                <div className="flex flex-col justify-between items-end text-[10px] text-gray-300 font-medium py-1 w-10 shrink-0 pb-6">
                     {yAxisLabels.map((lbl, i) => (
-                        <span key={i} className="leading-none transform">{lbl}</span>
+                        <span key={i} className="leading-none">{lbl}</span>
                     ))}
                 </div>
 
@@ -282,8 +283,8 @@ function BarChart({ data, primaryColor }: {
                 <div className="flex-1 relative">
                     {/* Grid lines */}
                     <div className="absolute inset-x-0 inset-y-0 flex flex-col justify-between pointer-events-none pb-6">
-                        {[0, 1, 2, 3, 4].map((i) => (
-                            <div key={i} className="w-full border-b border-gray-100/50 border-dashed" />
+                        {[0, 1, 2, 3, 4].map(i => (
+                            <div key={i} className="w-full border-b border-gray-100" />
                         ))}
                     </div>
 
@@ -296,17 +297,14 @@ function BarChart({ data, primaryColor }: {
 
                             return (
                                 <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1 h-full group relative z-10">
-                                    {/* Tooltip */}
                                     {hasData && (
-                                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2.5 py-1.5 rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none shadow-lg font-bold">
+                                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none font-bold">
                                             {formatCurrency(total)}
                                         </div>
                                     )}
-
-                                    {/* Bar Container */}
                                     <div className="w-full flex items-end justify-center pb-1 h-[calc(100%-1.25rem)]">
                                         <div
-                                            className="w-[90%] rounded-t-sm transition-all duration-500 ease-out hover:opacity-80"
+                                            className="w-[80%] rounded-t-md transition-all duration-500 ease-out hover:opacity-80"
                                             style={{
                                                 height: `${Math.max(barHeight, hasData ? 4 : 0)}%`,
                                                 backgroundColor: primaryColor,
@@ -314,9 +312,7 @@ function BarChart({ data, primaryColor }: {
                                             }}
                                         />
                                     </div>
-
-                                    {/* Month label */}
-                                    <span className="text-[10px] text-gray-400 font-medium leading-none absolute -bottom-5 text-center w-full">{d.month}</span>
+                                    <span className="text-[9px] text-gray-400 font-black uppercase tracking-wide leading-none absolute -bottom-5 text-center w-full">{d.month}</span>
                                 </div>
                             )
                         })}
@@ -333,16 +329,16 @@ function YoYBanner({ yoy }: { yoy: FinancialData['yoy'] }) {
     const hasLastYear = yoy.lastYear > 0
 
     return (
-        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-4">
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${isUp ? 'bg-emerald-50' : 'bg-red-50'}`}>
-                        {isUp ? <TrendingUp size={18} className="text-emerald-600" /> : <TrendingDown size={18} className="text-red-600" />}
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${isUp ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                        {isUp ? <TrendingUp size={14} className="text-emerald-600" /> : <TrendingDown size={14} className="text-red-600" />}
                     </div>
                     <div>
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Year-over-Year</p>
-                        <div className="flex items-center gap-2">
-                            <span className="text-lg font-black text-gray-900">{formatCurrency(yoy.thisYear)}</span>
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Year-over-Year</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-xl font-black text-gray-900">{formatCurrency(yoy.thisYear)}</span>
                             <span className="text-xs text-gray-400">in {yoy.currentYear}</span>
                         </div>
                     </div>
@@ -350,12 +346,12 @@ function YoYBanner({ yoy }: { yoy: FinancialData['yoy'] }) {
                 <div className="flex items-center gap-4">
                     {hasLastYear && (
                         <div className="text-right">
-                            <p className="text-xs text-gray-400">{yoy.currentYear - 1}</p>
+                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{yoy.currentYear - 1}</p>
                             <p className="text-sm font-bold text-gray-600">{formatCurrency(yoy.lastYear)}</p>
                         </div>
                     )}
-                    <div className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-bold ${isUp ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-                        {isUp ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
+                    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-bold ${isUp ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                        {isUp ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
                         {Math.abs(yoy.changePercent)}%
                     </div>
                 </div>
@@ -581,52 +577,52 @@ export default function OrganizationFinancialsView() {
     ]
 
     return (
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 overflow-y-auto h-[calc(100vh-5rem)] pb-24 md:pb-6">
-            {/* Header with Tabs and Download */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-                <div className="flex bg-gray-100 p-1 rounded-lg self-start">
-                    <button
-                        onClick={() => setActiveTab('overview')}
-                        className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${activeTab === 'overview' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                        Overview
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('advances')}
-                        className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${activeTab === 'advances' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                        Advance Payments
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('expenses')}
-                        className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${activeTab === 'expenses' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                        Expenses
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('balance')}
-                        className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${activeTab === 'balance' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                        Balance Sheet
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('rules')}
-                        className={`px-4 py-2 text-sm font-semibold rounded-md transition-all flex items-center gap-2 ${activeTab === 'rules' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                        Distribution Rules
-                    </button>
+        <div className="space-y-6 animate-in fade-in duration-300">
+
+            {/* ── Page header ─────────────────────────────────────────── */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-black text-gray-900 tracking-tight">Financials</h1>
+                    <p className="text-sm text-gray-500 mt-1">Revenue overview for all events and activities.</p>
                 </div>
                 {activeTab === 'overview' && (
                     <button
                         onClick={handleDownloadReport}
                         disabled={isGeneratingPDF}
-                        className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 shadow-sm transition-all hover:shadow-md disabled:opacity-50"
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-br from-red-600 to-red-700 shadow-md shadow-red-500/25 hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:translate-y-0"
                     >
-                        <Download size={16} />
-                        {isGeneratingPDF ? 'Generating PDF...' : 'Download Report'}
+                        <Download size={14} />
+                        {isGeneratingPDF ? 'Generating...' : 'Download Report'}
                     </button>
                 )}
             </div>
+
+            {/* ── Tab nav (standalone pill bar) ───────────────────────── */}
+            <div className="flex bg-white border border-gray-200 rounded-2xl shadow-sm p-1 gap-1 overflow-x-auto self-start">
+                {(
+                    [
+                        { id: 'overview',  label: 'Overview'           },
+                        { id: 'advances',  label: 'Advance Payments'   },
+                        { id: 'expenses',  label: 'Expenses'           },
+                        { id: 'balance',   label: 'Balance Sheet'      },
+                        { id: 'rules',     label: 'Distribution Rules' },
+                    ] as const
+                ).map(tab => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`flex-shrink-0 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                            activeTab === tab.id
+                                ? 'bg-red-600 text-white shadow-sm'
+                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                        }`}
+                    >
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
+
+            {/* ── Tab content ─────────────────────────────────────────── */}
 
             {activeTab === 'rules' ? (
                 <DistributionRulesView
@@ -640,64 +636,63 @@ export default function OrganizationFinancialsView() {
             ) : activeTab === 'balance' ? (
                 <BalanceSheetView primaryColor={primaryColor} />
             ) : (
-                <>
-                    {/* Summary Cards */}
-                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                        {summaryCards.map((card, i) => {
-                            const Icon = card.icon
-                            const isCollectionRate = card.label === 'Collection Rate'
-                            return (
-                                <div key={i} className={`bg-white rounded-xl border ${card.borderColor} p-5 shadow-sm ${i === 0 ? 'col-span-2 lg:col-span-1' : ''}`}>
-                                    <div className="flex items-center gap-3 mb-3">
-                                        <div className={`p-2 rounded-lg ${card.color}`}>
-                                            <Icon size={18} />
-                                        </div>
-                                        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{card.label}</span>
+            <div className="space-y-5">
+                {/* Summary Cards */}
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                    {summaryCards.map((card, i) => {
+                        const Icon = card.icon
+                        const isCollectionRate = card.label === 'Collection Rate'
+                        return (
+                            <div key={i} className={`bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-shadow ${i === 0 ? 'col-span-2 lg:col-span-1' : ''}`}>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${card.color}`}>
+                                        <Icon size={13} />
                                     </div>
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex flex-col">
-                                            <p className="text-2xl font-black text-gray-900">{card.value}</p>
-                                            {card.extra && !isCollectionRate && card.extra}
-                                        </div>
-                                        {isCollectionRate && card.extra}
-                                    </div>
+                                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">{card.label}</span>
                                 </div>
-                            )
-                        })}
+                                <div className="flex items-end justify-between">
+                                    <p className="text-2xl font-black text-gray-900">{card.value}</p>
+                                    {isCollectionRate && card.extra}
+                                </div>
+                                {!isCollectionRate && card.extra && <div className="mt-1">{card.extra}</div>}
+                            </div>
+                        )
+                    })}
+                </div>
+
+                {/* YoY Banner */}
+                <YoYBanner yoy={yoy} />
+
+                {/* Charts: Bar + Donut */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
+                    <div className="lg:col-span-2">
+                        <BarChart data={monthlyData} primaryColor={primaryColor} />
                     </div>
-
-                    {/* YoY Banner */}
-                    <YoYBanner yoy={yoy} />
-
-                    {/* Charts Section — Bar + Donut */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
-                        <div className="lg:col-span-2 h-full">
-                            <BarChart data={monthlyData} primaryColor={primaryColor} />
-                        </div>
-                        <div className="lg:col-span-1 h-full">
-                            <DonutChart data={donutData} primaryColor={primaryColor} />
-                        </div>
+                    <div className="lg:col-span-1">
+                        <DonutChart data={donutData} primaryColor={primaryColor} />
                     </div>
+                </div>
 
-                    {/* Events Table */}
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                        <div className="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                            <h3 className="font-bold text-gray-900 text-lg">Event Breakdown</h3>
-                            <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-                                {(['all', 'tournament', 'promotion', 'seminar', 'affiliation'] as const).map(f => (
-                                    <button
-                                        key={f}
-                                        onClick={() => setFilter(f)}
-                                        className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${filter === f
+                {/* Events Table */}
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Event Breakdown</p>
+                        <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+                            {(['all', 'tournament', 'promotion', 'seminar', 'affiliation'] as const).map(f => (
+                                <button
+                                    key={f}
+                                    onClick={() => setFilter(f)}
+                                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                                        filter === f
                                             ? 'bg-white text-gray-900 shadow-sm'
                                             : 'text-gray-500 hover:text-gray-700'
-                                            }`}
-                                    >
-                                        {f === 'all' ? 'All' : f === 'tournament' ? 'Tournaments' : f === 'promotion' ? 'Promotions' : f === 'seminar' ? 'Seminars' : 'Affiliations'}
-                                    </button>
-                                ))}
-                            </div>
+                                    }`}
+                                >
+                                    {f === 'all' ? 'All' : f === 'tournament' ? 'Tournaments' : f === 'promotion' ? 'Promotions' : f === 'seminar' ? 'Seminars' : 'Affiliations'}
+                                </button>
+                            ))}
                         </div>
+                    </div>
 
                         {filteredEvents.length === 0 ? (
                             <div className="p-12 text-center text-gray-400 text-sm">
@@ -807,8 +802,7 @@ export default function OrganizationFinancialsView() {
                             isExporting={isGeneratingPDF}
                         />
                     )}
-                </>
-            )}
+            </div>)}
         </div>
     )
 }

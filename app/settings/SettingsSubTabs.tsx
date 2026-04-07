@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { User, Building2, DollarSign, Wifi, Shield } from 'lucide-react'
 
 interface SettingsSubTabsProps {
     profileContent: React.ReactNode
@@ -10,57 +11,62 @@ interface SettingsSubTabsProps {
     networkContent?: React.ReactNode
 }
 
-const baseTabs = [
-    { id: 'profile', label: 'Profile' },
-    { id: 'organization', label: 'Organization' },
-    { id: 'fees', label: 'Fees' },
-    { id: 'network', label: 'Network' },
-    { id: 'security', label: 'Security' },
+const BASE_TABS = [
+    { id: 'profile',      label: 'Profile',       Icon: User       },
+    { id: 'organization', label: 'Organization',   Icon: Building2  },
+    { id: 'fees',         label: 'Fees',           Icon: DollarSign },
+    { id: 'network',      label: 'Network',        Icon: Wifi       },
+    { id: 'security',     label: 'Security',       Icon: Shield     },
 ] as const
 
-type TabId = typeof baseTabs[number]['id']
+type TabId = typeof BASE_TABS[number]['id']
 
 export default function SettingsSubTabs({ profileContent, organizationContent, feesContent, securityContent, networkContent }: SettingsSubTabsProps) {
     const [activeTab, setActiveTab] = useState<TabId>('profile')
 
-    // Filter tabs based on what content is provided
-    let tabs = [...baseTabs]
-    if (!networkContent) tabs = tabs.filter(t => t.id !== 'network')
-    if (!feesContent) tabs = tabs.filter(t => t.id !== 'fees')
+    const tabs = BASE_TABS.filter(t => {
+        if (t.id === 'fees'    && !feesContent)    return false
+        if (t.id === 'network' && !networkContent) return false
+        return true
+    })
 
     return (
-        <div className="space-y-6">
-            {/* Sub-tab Navigation */}
-            <div className="bg-white sm:rounded-xl border border-gray-200 shadow-sm">
-                <div className="flex gap-2 p-2">
-                    {tabs.map((tab) => {
-                        const isActive = activeTab === tab.id
-                        return (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
-                                className={`
-                                    px-5 py-2.5 text-sm font-semibold rounded-lg transition-all
-                                    ${isActive
-                                        ? 'bg-gray-900 text-white shadow-sm'
-                                        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-                                    }
-                                `}
-                            >
-                                {tab.label}
-                            </button>
-                        )
-                    })}
-                </div>
+        <div className="space-y-6 animate-in fade-in duration-300">
+
+            {/* ── Page header ── */}
+            <div>
+                <h1 className="text-2xl font-black text-gray-900 tracking-tight">Settings</h1>
+                <p className="text-sm text-gray-500 mt-1">Manage your profile, organization details, and platform preferences.</p>
             </div>
 
-            {/* Tab Content */}
+            {/* ── Tab bar ── */}
+            <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-2xl shadow-sm p-1 w-fit">
+                {tabs.map(tab => {
+                    const isActive = activeTab === tab.id
+                    return (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                                isActive
+                                    ? 'bg-red-600 text-white shadow-sm'
+                                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                            }`}
+                        >
+                            <tab.Icon size={13} />
+                            {tab.label}
+                        </button>
+                    )
+                })}
+            </div>
+
+            {/* ── Tab content ── */}
             <div>
-                {activeTab === 'profile' && <div key="profile">{profileContent}</div>}
+                {activeTab === 'profile'      && <div key="profile">{profileContent}</div>}
                 {activeTab === 'organization' && <div key="organization">{organizationContent}</div>}
-                {activeTab === 'fees' && <div key="fees">{feesContent}</div>}
-                {activeTab === 'network' && <div key="network">{networkContent}</div>}
-                {activeTab === 'security' && <div key="security">{securityContent}</div>}
+                {activeTab === 'fees'         && <div key="fees">{feesContent}</div>}
+                {activeTab === 'network'      && <div key="network">{networkContent}</div>}
+                {activeTab === 'security'     && <div key="security">{securityContent}</div>}
             </div>
         </div>
     )

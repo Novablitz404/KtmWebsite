@@ -27,26 +27,53 @@ type UniqueAthlete = {
     id: string // first player record id for key
 }
 
+interface TournamentStats {
+    total: number
+    approved: number
+    pending: number
+    rejected: number
+    uniqueAthletes?: number
+    uniqueApproved?: number
+    kyorugi: number
+    poomsae: number
+    kyukpa: number
+    clubs: { name: string; logoUrl: string | null; count: number; approved: number; pending: number }[]
+}
+
 interface PublicTournamentViewProps {
     tournament: Tournament
     players: Player[]
     guidelinesContent?: string | null
     currentUserId?: string
+    tournamentStats?: TournamentStats | null
+    totalPlayersCount?: number
 }
 
 
 export default function PublicTournamentView(props: PublicTournamentViewProps) {
-    const { tournament, players } = props
-    // Participating Teams (Unique Clubs)
+    const { tournament, players, tournamentStats, totalPlayersCount } = props
+
+    // Use uniqueAthletes (deduplicated) for display; fall back to local dedup count
+    const totalAthletes = tournamentStats?.uniqueAthletes ?? totalPlayersCount ?? players.length
+    const totalClubs = tournamentStats?.clubs?.length ?? (() => {
+        const clubMap = new Map<string, string | null>()
+        players.forEach(p => { if (p.club?.name) clubMap.set(p.club.name, p.club.logoUrl || null) })
+        return clubMap.size
+    })()
+
+    // Build club map for team display (use server stats clubs if available, else local)
     const clubMap = new Map<string, string | null>()
-    players.forEach(p => {
-        if (p.club?.name) {
-            // Store logo if not already set or overwrite if current is null (though consistent data preferred)
-            if (!clubMap.has(p.club.name) || p.club.logoUrl) {
-                clubMap.set(p.club.name, p.club.logoUrl || null)
+    if (tournamentStats?.clubs?.length) {
+        tournamentStats.clubs.forEach(c => clubMap.set(c.name, c.logoUrl))
+    } else {
+        players.forEach(p => {
+            if (p.club?.name) {
+                if (!clubMap.has(p.club.name) || p.club.logoUrl) {
+                    clubMap.set(p.club.name, p.club.logoUrl || null)
+                }
             }
-        }
-    })
+        })
+    }
 
     const teams = Array.from(clubMap.keys()).sort()
 
@@ -217,11 +244,11 @@ export default function PublicTournamentView(props: PublicTournamentViewProps) {
                     {/* Stats Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center">
-                            <span className="text-4xl font-bold block mb-1" style={accentStyle}>{teams.length}</span>
+                            <span className="text-4xl font-bold block mb-1" style={accentStyle}>{totalClubs}</span>
                             <span className="text-sm text-gray-500 font-medium uppercase tracking-wider">Participating Teams</span>
                         </div>
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center">
-                            <span className="text-4xl font-bold block mb-1" style={accentStyle}>{uniqueAthletes.length}</span>
+                            <span className="text-4xl font-bold block mb-1" style={accentStyle}>{totalAthletes}</span>
                             <span className="text-sm text-gray-500 font-medium uppercase tracking-wider">Registered Athletes</span>
                         </div>
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center flex flex-col justify-center">

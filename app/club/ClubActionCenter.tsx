@@ -120,6 +120,7 @@ export default function ClubActionCenterModal({ isOpen, onClose, clubId, proposa
 
 function ClubProposalRow({ proposal, clubId, onVoted }: { proposal: any, clubId: string, onVoted: () => void }) {
     const [loading, setLoading] = useState(false)
+    const [showMoveUpConfirm, setShowMoveUpConfirm] = useState(false)
     const data = JSON.parse(proposal.data)
     const myVote = proposal.myVote
 
@@ -180,10 +181,26 @@ function ClubProposalRow({ proposal, clubId, onVoted }: { proposal: any, clubId:
             {/* Details Column */}
             <td className="px-6 py-4 align-top">
                 {proposal.type === 'UNCONTESTED' && (
-                    <div>
-                        <p className="text-gray-900 font-medium text-sm">
-                            {data.playerName || 'Unknown Athlete'}
-                        </p>
+                    <div className="space-y-1.5">
+                        <p className="text-gray-900 font-semibold text-sm">{data.playerName || 'Unknown Athlete'}</p>
+                        {data.sourceCategoryName && (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded font-medium truncate max-w-[160px]" title={data.sourceCategoryName}>
+                                    {data.sourceCategoryName}
+                                </span>
+                                {data.targetCategoryName ? (
+                                    <>
+                                        <ArrowRight size={12} className="text-gray-400 flex-shrink-0" />
+                                        <span className="text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded font-bold truncate max-w-[160px]" title={data.targetCategoryName}>
+                                            {data.targetCategoryName}
+                                        </span>
+                                        <span className="text-[10px] text-gray-400 italic">if Move Up</span>
+                                    </>
+                                ) : (
+                                    <span className="text-[10px] text-amber-600 italic">No heavier category available</span>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
                 {proposal.type === 'MERGE' && (
@@ -223,12 +240,63 @@ function ClubProposalRow({ proposal, clubId, onVoted }: { proposal: any, clubId:
                         {proposal.type === 'UNCONTESTED' && (
                             <>
                                 <button
-                                    onClick={() => handleVote('MOVE_UP')}
+                                    onClick={() => setShowMoveUpConfirm(true)}
                                     disabled={loading}
                                     className="px-3 py-1.5 bg-yellow-100 text-yellow-700 hover:bg-yellow-200 rounded-lg text-xs font-bold transition"
                                 >
                                     Move Up
                                 </button>
+
+                                {/* Move Up Confirmation Dialog */}
+                                {showMoveUpConfirm && (
+                                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-in zoom-in-95 duration-200">
+                                            <div className="flex items-center gap-3 mb-4">
+                                                <div className="p-2 bg-yellow-100 rounded-xl">
+                                                    <ArrowRight size={20} className="text-yellow-700" />
+                                                </div>
+                                                <h3 className="text-lg font-bold text-gray-900">Confirm Move Up</h3>
+                                            </div>
+
+                                            <p className="text-sm text-gray-600 mb-5 leading-relaxed">
+                                                <span className="font-semibold text-gray-900">{data.playerName}</span> will be moved to a heavier category.
+                                            </p>
+
+                                            {/* Source → Target */}
+                                            <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mb-6">
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-0.5">From</p>
+                                                    <p className="text-sm font-semibold text-gray-700 truncate" title={data.sourceCategoryName}>
+                                                        {data.sourceCategoryName || 'Current Category'}
+                                                    </p>
+                                                </div>
+                                                <ArrowRight size={18} className="text-gray-400 flex-shrink-0" />
+                                                <div className="flex-1 min-w-0 text-right">
+                                                    <p className="text-[10px] text-green-600 uppercase font-bold tracking-wider mb-0.5">To</p>
+                                                    <p className="text-sm font-bold text-green-700 truncate" title={data.targetCategoryName}>
+                                                        {data.targetCategoryName || 'Next Category'}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex gap-3">
+                                                <button
+                                                    onClick={() => setShowMoveUpConfirm(false)}
+                                                    className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition"
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button
+                                                    onClick={() => { setShowMoveUpConfirm(false); handleVote('MOVE_UP') }}
+                                                    disabled={loading}
+                                                    className="flex-1 px-4 py-2.5 rounded-xl bg-yellow-500 hover:bg-yellow-600 text-sm font-bold text-white transition shadow-sm disabled:opacity-50"
+                                                >
+                                                    Proceed
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                                 <button
                                     onClick={() => handleVote('WALKOVER')}
                                     disabled={loading}

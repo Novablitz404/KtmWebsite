@@ -28,9 +28,18 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
 
     const alerts: SmartAlert[] = []
 
-    // Helper map for finding adjacent categories
-    // Key: "Division|Gender|Belt" -> List of categories sorted by weight
+    // Pre-build group map (needed for UNCONTESTED target lookup + merge detection)
+    // Key: "Type|Subtype|Gender|Belt|MinAge|MaxAge" -> categories sorted by weight
     const catGroups = new Map<string, typeof categories>()
+    for (const cat of categories) {
+        const key = `${cat.type}|${cat.subtype}|${cat.gender}|${cat.belt || 'Any'}|${cat.minAge}|${cat.maxAge}`
+        if (!catGroups.has(key)) catGroups.set(key, [])
+        catGroups.get(key)!.push(cat)
+    }
+    // Sort each group by weight ascending
+    for (const group of catGroups.values()) {
+        group.sort((a, b) => (a.minWeight || 0) - (b.minWeight || 0))
+    }
 
     // Track which weight groups have uncontested alerts → suppress merge in those groups
     const uncontestedGroupKeys = new Set<string>()
@@ -42,6 +51,12 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
         // 1. Uncontested Logic
         if (cat.players.length === 1) {
             const player = cat.players[0]
+
+            // Find next heavier sibling in the same group → that's where "Move Up" sends the athlete
+            const group = catGroups.get(groupKey) || []
+            const myIdx = group.findIndex(c => c.id === cat.id)
+            const targetCat = myIdx >= 0 && myIdx < group.length - 1 ? group[myIdx + 1] : null
+
             alerts.push({
                 type: 'UNCONTESTED',
                 categoryId: cat.id,
@@ -51,7 +66,10 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
                     playerId: player.id,
                     playerName: player.name,
                     clubName: player.club?.name || 'Unknown Club',
-                    clubLogoUrl: player.club?.logoUrl || null
+                    clubLogoUrl: player.club?.logoUrl || null,
+                    sourceCategoryName: cat.name,
+                    targetCategoryId: targetCat?.id || null,
+                    targetCategoryName: targetCat?.name || null
                 }
             })
             uncontestedGroupKeys.add(groupKey)
@@ -75,20 +93,13 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
             })
         }
 
-        // Grouping for Merge Logic
-        if (!catGroups.has(groupKey)) {
-            catGroups.set(groupKey, [])
-        }
-        catGroups.get(groupKey)?.push(cat)
+        // Grouping already done above — nothing to do here
     }
 
-    // 3. Merge Logic
-    // Iterate groups and find "Small" categories (< MERGE_THRESHOLD) that have a viable heavier neighbour
+    // 3. Merge Logic — iterate pre-built groups
     // SKIP groups that still have uncontested alerts — resolve those first
-    for (const [groupKey, groupCats] of catGroups.entries()) {
-        if (uncontestedGroupKeys.has(groupKey)) continue
-
-        groupCats.sort((a, b) => (a.minWeight || 0) - (b.minWeight || 0))
+    for (const [gKey, groupCats] of catGroups.entries()) {
+        if (uncontestedGroupKeys.has(gKey)) continue
 
         for (let i = 0; i < groupCats.length - 1; i++) {
             const current = groupCats[i]
@@ -126,6 +137,7 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
 
     return alerts
 }
+
 
 /**
  * Creates a formal proposal in the database

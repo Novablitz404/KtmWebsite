@@ -150,8 +150,7 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
             category: {
                 name: 'asc'
             }
-        },
-        take: 20
+        }
     })
 
     // Type assertion or cleaner casting for the component props
@@ -215,6 +214,8 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
                             <PublicTournamentView
                                 tournament={tournament}
                                 players={enrichedPlayers}
+                                tournamentStats={tournamentStats}
+                                totalPlayersCount={totalPlayersCount}
                                 guidelinesContent={
                                     tournament.guidelinesText || (tournament.guidelineTemplate?.content
                                         ? tournament.guidelineTemplate.content

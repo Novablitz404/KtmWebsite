@@ -22,6 +22,7 @@ import { Suspense } from 'react'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import ClubSidebar from '@/components/club/ClubSidebar'
+import ClubGrowthCard from '@/components/club/ClubGrowthCard'
 import ClubTopBar from '@/components/club/ClubTopBar'
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
@@ -837,7 +838,7 @@ export default function ClubDashboard({
                             activeView === 'tournaments' ? 'Search registrations...' :
                                 undefined
                     }
-                    title={activeView === 'settings' ? 'Settings' : undefined}
+                    title={undefined}
                     onActionClick={() => setIsActionModalOpen(true)}
                     actionCount={alertCount}
                 />
@@ -845,15 +846,12 @@ export default function ClubDashboard({
                 <div className="flex-1 overflow-y-auto pb-20 md:pb-0">
                     {activeView === 'home' && (
                         <>
-                            {/* Desktop Home View - Full dashboard */}
-                            <div className="relative animate-in fade-in duration-300 p-4 md:p-6 h-auto md:h-[calc(100vh-80px)] overflow-visible md:overflow-y-auto">
+                            {/* Desktop Home View - Premium Dashboard */}
+                            <div className="relative animate-in fade-in duration-300 p-6 md:p-8 space-y-5 overflow-y-auto h-auto md:h-[calc(100vh-80px)]">
 
-
-
-                                {/* Main 2-Column Layout */}
                                 {/* Affiliation Alert Banner */}
                                 {affiliationData?.affiliationStatus && affiliationData.affiliationStatus.status !== 'ACTIVE' && (
-                                    <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl mb-4">
+                                    <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
                                         <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
                                             <Bell className="w-4 h-4 text-amber-600" />
                                         </div>
@@ -872,167 +870,203 @@ export default function ClubDashboard({
                                     </div>
                                 )}
 
-                                <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6 h-auto md:h-full">
+                                {/* Row 1: Growth Chart — full width */}
+                                <ClubGrowthCard
+                                    totalMembers={totalMembers}
+                                    newMembersCount={(streamedData as any)?.newMembersCount || 0}
+                                    membersByMonth={(streamedData as any)?.membersByMonth || []}
+                                    beltStats={(streamedData as any)?.beltStats || []}
+                                    pendingCount={pendingPlayers.length}
+                                    eventsJoined={upcomingEvents.length + clubTournaments.length}
+                                    isLoading={isLoading}
+                                />
 
-                                    {/* Left Column - Main Content */}
-                                    <div className="flex flex-col gap-6 h-auto md:h-full overflow-visible md:overflow-hidden">
-
-                                        {/* Action Center Modal moved to global scope */}
-
-                                        {/* Stats Row */}
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-shrink-0">
-                                            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col justify-between min-h-[120px] hover:shadow-md transition-shadow">
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full">Members</span>
-                                                    <span className="text-xs text-emerald-600">+12%</span>
+                                {/* Row 2: Pending Registrations — full width */}
+                                {pendingPlayers.length > 0 && (
+                                    <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                                        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+                                                    <ClipboardList size={14} className="text-white" />
                                                 </div>
                                                 <div>
-                                                    <h3 className="text-3xl font-bold text-gray-900">
-                                                        {isLoading ? <Skeleton className="h-8 w-12" /> : totalMembers}
-                                                    </h3>
-                                                    <p className="text-sm text-gray-500 mt-1">Total Members</p>
+                                                    <h3 className="text-sm font-bold text-gray-900">Pending Registrations</h3>
+                                                    <p className="text-[11px] text-gray-400 mt-0.5">{pendingPlayers.length} athlete{pendingPlayers.length !== 1 ? 's' : ''} awaiting approval</p>
                                                 </div>
                                             </div>
-
-                                            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col justify-between min-h-[120px] hover:shadow-md transition-shadow">
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">New</span>
-                                                    <span className="text-xs text-gray-400">This month</span>
+                                            <button
+                                                onClick={() => setActiveView('tournaments')}
+                                                className="text-xs font-semibold text-red-600 hover:text-red-700 flex items-center gap-1"
+                                            >
+                                                View All <ChevronRight size={14} />
+                                            </button>
+                                        </div>
+                                        <div className="divide-y divide-gray-100">
+                                            {pendingPlayers.slice(0, 4).map((player) => (
+                                                <div key={player.id} className="px-6 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2">
+                                                            <h4 className="text-sm font-semibold text-gray-900 truncate">{player.name}</h4>
+                                                            <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-yellow-100 text-yellow-700">PENDING</span>
+                                                            {player.paymentStatus && (
+                                                                <span className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                                                    player.paymentStatus === 'PAID' ? 'bg-blue-100 text-blue-700' :
+                                                                    player.paymentStatus === 'EXPIRED' ? 'bg-red-100 text-red-700' :
+                                                                    'bg-gray-100 text-gray-500'
+                                                                }`}>
+                                                                    {player.paymentStatus === 'PAID' ? '💰 PAID' : player.paymentStatus}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-xs text-gray-500 truncate mt-0.5">{player.category?.name} • {player.category?.tournament?.name}</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleApprove(player)}
+                                                        disabled={submitting}
+                                                        className="ml-4 px-3 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 flex-shrink-0"
+                                                    >
+                                                        Approve
+                                                    </button>
                                                 </div>
-                                                <div>
-                                                    <h3 className="text-3xl font-bold text-gray-900">
-                                                        {isLoading ? <Skeleton className="h-8 w-12" /> : ((streamedData as any)?.newMembersCount || 0)}
-                                                    </h3>
-                                                    <p className="text-sm text-gray-500 mt-1">New Members</p>
-                                                </div>
+                                            ))}
+                                        </div>
+                                        {pendingPlayers.length > 4 && (
+                                            <div className="px-6 py-3 border-t border-gray-100 text-center">
+                                                <button
+                                                    onClick={() => setActiveView('tournaments')}
+                                                    className="text-xs font-semibold text-gray-500 hover:text-red-600 transition-colors"
+                                                >
+                                                    +{pendingPlayers.length - 4} more pending registration{pendingPlayers.length - 4 !== 1 ? 's' : ''}
+                                                </button>
                                             </div>
+                                        )}
+                                    </div>
+                                )}
 
-                                            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col justify-between min-h-[120px] hover:shadow-md transition-shadow">
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full">Pending</span>
-                                                    <span className="text-xs text-red-500">Requires action</span>
-                                                </div>
-                                                <div>
-                                                    <h3 className="text-3xl font-bold text-gray-900">
-                                                        {isLoading ? <Skeleton className="h-8 w-12" /> : pendingPlayers.length}
-                                                    </h3>
-                                                    <p className="text-sm text-gray-500 mt-1">Pending Requests</p>
-                                                </div>
+                                {/* Browse Events Widget */}
+                                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                                    <ClubEventBrowser clubId={clubId} />
+                                </div>
+
+                                {/* Upcoming Events | Action Center */}
+                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+                                    {/* Upcoming Events */}
+                                    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                                        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                                                <Calendar size={14} className="text-white" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-sm font-bold text-gray-900">Upcoming Events</h3>
+                                                <p className="text-[11px] text-gray-400 mt-0.5">{upcomingEvents.length} event{upcomingEvents.length !== 1 ? 's' : ''} scheduled</p>
                                             </div>
                                         </div>
-                                        {/* Browse Events Widget */}
-                                        <div className="flex-1 min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
-                                            <ClubEventBrowser clubId={clubId} />
-                                        </div>
+                                        <div className="p-5">
+                                            {isLoading ? (
+                                                <div className="space-y-3">
+                                                    <Skeleton className="h-28 w-full rounded-2xl" />
+                                                    <Skeleton className="h-14 w-full rounded-lg" />
+                                                </div>
+                                            ) : nextEvent ? (
+                                                <div className="space-y-3">
+                                                    {/* Next Event Card */}
+                                                    <Link
+                                                        href={nextEvent.type === 'TOURNAMENT' ? `/tournament/${nextEvent.id}` : '#'}
+                                                        className="bg-gradient-to-br from-red-600 to-red-700 rounded-2xl p-5 text-white shadow-lg cursor-pointer hover:shadow-xl transition-all block"
+                                                    >
+                                                        <div className="flex items-start justify-between">
+                                                            <div>
+                                                                <div className="mb-2 flex items-center gap-2">
+                                                                    <span className="text-xs font-medium text-red-100 uppercase tracking-wider bg-red-800/30 px-2 py-0.5 rounded-full border border-red-400/20">
+                                                                        {nextEvent.type}
+                                                                    </span>
+                                                                    <span className="text-xs font-medium text-red-200 uppercase tracking-wider">Next Event</span>
+                                                                </div>
+                                                                <h3 className="text-lg font-bold mb-1 line-clamp-1">{nextEvent.name}</h3>
+                                                                <p className="text-red-200 text-xs mt-2 flex items-center gap-1">
+                                                                    <Clock size={12} />
+                                                                    {new Date(nextEvent.startDate).toLocaleDateString('en-US', {
+                                                                        month: 'short',
+                                                                        day: 'numeric',
+                                                                        year: 'numeric'
+                                                                    })}
+                                                                </p>
+                                                            </div>
+                                                            <div className="text-right flex-shrink-0">
+                                                                <div className="text-3xl font-black">{daysUntil}</div>
+                                                                <div className="text-xs text-red-200">days</div>
+                                                            </div>
+                                                        </div>
+                                                    </Link>
 
+                                                    {/* Other upcoming events */}
+                                                    {upcomingEvents.length > 1 && (
+                                                        <div className="space-y-2">
+                                                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-2 mb-1">Later</p>
+                                                            {upcomingEvents.slice(1, 4).map(event => (
+                                                                <Link
+                                                                    key={event.id}
+                                                                    href={event.type === 'TOURNAMENT' ? `/tournament/${event.id}` : '#'}
+                                                                    className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-red-100 hover:bg-red-50 cursor-pointer transition-all group"
+                                                                >
+                                                                    <div className="w-10 h-10 rounded-lg bg-gray-50 flex flex-col items-center justify-center text-[10px] leading-tight border border-gray-200 group-hover:border-red-200 group-hover:bg-white text-center">
+                                                                        <span className="text-gray-500 font-bold uppercase">{new Date(event.startDate).toLocaleDateString('en-US', { month: 'short' })}</span>
+                                                                        <span className="text-gray-900 font-bold">{new Date(event.startDate).getDate()}</span>
+                                                                    </div>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <div className="flex items-center gap-1.5 mb-0.5">
+                                                                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${event.type === 'TOURNAMENT' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
+                                                                                event.type === 'SEMINAR' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                                                                    'bg-emerald-50 text-emerald-600 border-emerald-100'
+                                                                                }`}>
+                                                                                {event.type}
+                                                                            </span>
+                                                                        </div>
+                                                                        <h4 className="text-sm font-semibold text-gray-900 truncate group-hover:text-red-700">{event.name}</h4>
+                                                                        <p className="text-xs text-gray-500 truncate">{event.athleteCount || 0} athletes registered</p>
+                                                                    </div>
+                                                                    <ChevronRight size={16} className="text-gray-300 group-hover:text-red-400" />
+                                                                </Link>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col items-center justify-center text-center py-8 border-2 border-dashed border-gray-100 rounded-2xl bg-gray-50/50">
+                                                    <span className="text-4xl mb-3">🏆</span>
+                                                    <h3 className="font-bold text-gray-900 mb-1">No Upcoming Events</h3>
+                                                    <p className="text-sm text-gray-500 mb-4">Register for an event to get started!</p>
+                                                    <button
+                                                        onClick={() => setActiveView('tournaments')}
+                                                        className="text-sm text-red-600 hover:text-red-700 font-medium flex items-center gap-1"
+                                                    >
+                                                        Browse Events <ChevronRight size={14} />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
 
-                                    {/* Right Column - Sidebar Widgets */}
-                                    <div className="flex flex-col gap-6 h-auto md:h-full overflow-visible md:overflow-hidden">
-                                        {/* Upcoming Events - Swapped to top */}
-                                        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col flex-1">
-                                            <div className="flex items-center justify-between mb-4 flex-shrink-0">
-                                                <h2 className="font-bold text-gray-900">Upcoming Events</h2>
+                                    {/* Action Center Widget */}
+                                    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                                        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+                                                    <Zap size={14} className="text-white" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-sm font-bold text-gray-900">Action Center</h3>
+                                                    <p className="text-[11px] text-gray-400 mt-0.5">Tasks requiring your attention</p>
+                                                </div>
                                             </div>
-
-                                            <div className="space-y-3 flex-1 overflow-y-auto pr-1">
-                                                {isLoading ? (
-                                                    // Skeleton Loading for Tournaments
-                                                    <div className="space-y-3">
-                                                        <Skeleton className="h-32 w-full rounded-2xl" />
-                                                        <Skeleton className="h-16 w-full rounded-lg" />
-                                                    </div>
-                                                ) : nextEvent ? (
-                                                    <>
-                                                        {/* Next Event Card */}
-                                                        <Link
-                                                            href={nextEvent.type === 'TOURNAMENT' ? `/tournament/${nextEvent.id}` : '#'}
-                                                            className="bg-gradient-to-br from-red-600 to-red-700 rounded-2xl p-5 text-white shadow-lg cursor-pointer hover:shadow-xl transition-all block"
-                                                        >
-                                                            <div className="flex items-start justify-between">
-                                                                <div>
-                                                                    <div className="mb-2 flex items-center gap-2">
-                                                                        <span className="text-xs font-medium text-red-100 uppercase tracking-wider bg-red-800/30 px-2 py-0.5 rounded-full border border-red-400/20">
-                                                                            {nextEvent.type}
-                                                                        </span>
-                                                                        <span className="text-xs font-medium text-red-200 uppercase tracking-wider">Next Event</span>
-                                                                    </div>
-                                                                    <h3 className="text-lg font-bold mb-1 line-clamp-1">{nextEvent.name}</h3>
-                                                                    <p className="text-red-200 text-xs mt-2 flex items-center gap-1">
-                                                                        <Clock size={12} />
-                                                                        {new Date(nextEvent.startDate).toLocaleDateString('en-US', {
-                                                                            month: 'short',
-                                                                            day: 'numeric',
-                                                                            year: 'numeric'
-                                                                        })}
-                                                                    </p>
-                                                                </div>
-                                                                <div className="text-right flex-shrink-0">
-                                                                    <div className="text-3xl font-black">{daysUntil}</div>
-                                                                    <div className="text-xs text-red-200">days</div>
-                                                                </div>
-                                                            </div>
-                                                        </Link>
-
-                                                        {/* Other upcoming events */}
-                                                        {upcomingEvents.length > 1 && (
-                                                            <div className="mt-2 space-y-2">
-                                                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-4 mb-2">Later</p>
-                                                                {upcomingEvents.slice(1, 3).map(event => (
-                                                                    <Link
-                                                                        key={event.id}
-                                                                        href={event.type === 'TOURNAMENT' ? `/tournament/${event.id}` : '#'}
-                                                                        className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-red-100 hover:bg-red-50 cursor-pointer transition-all group"
-                                                                    >
-                                                                        <div className="w-10 h-10 rounded-lg bg-gray-50 flex flex-col items-center justify-center text-[10px] leading-tight border border-gray-200 group-hover:border-red-200 group-hover:bg-white text-center">
-                                                                            <span className="text-gray-500 font-bold uppercase">{new Date(event.startDate).toLocaleDateString('en-US', { month: 'short' })}</span>
-                                                                            <span className="text-gray-900 font-bold">{new Date(event.startDate).getDate()}</span>
-                                                                        </div>
-                                                                        <div className="flex-1 min-w-0">
-                                                                            <div className="flex items-center gap-1.5 mb-0.5">
-                                                                                <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${event.type === 'TOURNAMENT' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
-                                                                                    event.type === 'SEMINAR' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                                                                                        'bg-emerald-50 text-emerald-600 border-emerald-100'
-                                                                                    }`}>
-                                                                                    {event.type}
-                                                                                </span>
-                                                                            </div>
-                                                                            <h4 className="text-sm font-semibold text-gray-900 truncate group-hover:text-red-700">{event.name}</h4>
-                                                                            <p className="text-xs text-gray-500 truncate">{event.athleteCount || 0} athletes registered</p>
-                                                                        </div>
-                                                                        <ChevronRight size={16} className="text-gray-300 group-hover:text-red-400" />
-                                                                    </Link>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                    </>
-                                                ) : (
-                                                    <div className="h-full flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-gray-100 rounded-2xl bg-gray-50/50">
-                                                        <span className="text-4xl mb-3">🏆</span>
-                                                        <h3 className="font-bold text-gray-900 mb-1">No Upcoming Events</h3>
-                                                        <p className="text-sm text-gray-500 mb-4">Register for an event to get started!</p>
-                                                        <button
-                                                            onClick={() => setActiveView('tournaments')}
-                                                            className="text-sm text-red-600 hover:text-red-700 font-medium flex items-center gap-1"
-                                                        >
-                                                            Browse Events <ChevronRight size={14} />
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
+                                            {alertCount > 0 && (
+                                                <span className="text-xs font-semibold text-white bg-red-500 px-2 py-0.5 rounded-full">
+                                                    {alertCount}
+                                                </span>
+                                            )}
                                         </div>
-
-                                        {/* Action Center Widget */}
-                                        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col h-1/2">
-                                            <div className="flex items-center justify-between mb-4 flex-shrink-0">
-                                                <h2 className="font-bold text-gray-900">Action Center</h2>
-                                                {alertCount > 0 && (
-                                                    <span className="text-xs font-semibold text-white bg-red-500 px-2 py-0.5 rounded-full">
-                                                        {alertCount}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="space-y-2 flex-1 overflow-y-auto pr-1">
+                                        <div className="p-5">
+                                            <div className="space-y-2">
                                                 {isLoading ? (
                                                     [1, 2, 3].map((i) => (
                                                         <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50">
@@ -1045,7 +1079,7 @@ export default function ClubDashboard({
                                                     ))
                                                 ) : proposals && proposals.length > 0 ? (
                                                     <>
-                                                        {proposals.slice(0, 3).map((proposal: any) => (
+                                                        {proposals.slice(0, 4).map((proposal: any) => (
                                                             <div
                                                                 key={proposal.id}
                                                                 className={`flex items-center gap-3 p-3 rounded-xl ${!proposal.myVote
@@ -1065,14 +1099,14 @@ export default function ClubDashboard({
                                                                 </div>
                                                             </div>
                                                         ))}
-                                                        {proposals.length > 3 && (
+                                                        {proposals.length > 4 && (
                                                             <p className="text-xs text-gray-400 text-center pt-1">
-                                                                +{proposals.length - 3} more action{proposals.length - 3 > 1 ? 's' : ''}
+                                                                +{proposals.length - 4} more action{proposals.length - 4 > 1 ? 's' : ''}
                                                             </p>
                                                         )}
                                                     </>
                                                 ) : (
-                                                    <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                                                    <div className="flex flex-col items-center justify-center text-center py-8">
                                                         <span className="text-3xl mb-2">✅</span>
                                                         <p className="text-sm font-medium text-gray-900">All caught up!</p>
                                                         <p className="text-xs text-gray-500 mt-1">No pending actions</p>
@@ -1082,17 +1116,14 @@ export default function ClubDashboard({
                                             {proposals && proposals.length > 0 && (
                                                 <button
                                                     onClick={() => setIsActionModalOpen(true)}
-                                                    className="w-full mt-4 py-2.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors flex-shrink-0"
+                                                    className="w-full mt-4 py-2.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
                                                 >
                                                     View all actions
                                                 </button>
                                             )}
                                         </div>
-
                                     </div>
                                 </div>
-
-                                {/* Modals moved to global scope */}
 
                             </div>
                         </>
@@ -1100,35 +1131,42 @@ export default function ClubDashboard({
                     }
                     {
                         activeView === 'members' && (
-                            <div className="bg-gray-50 h-auto md:h-[calc(100vh-80px)] flex flex-col overflow-visible md:overflow-hidden md:p-0">
-                                <div className="flex-1 flex flex-col min-h-[600px] md:min-h-0 sm:p-6 sm:max-w-[1920px] sm:mx-auto w-full">
-                                    <div className="flex-1 flex flex-col min-h-0 md:bg-white md:rounded-2xl md:shadow-sm md:border md:border-gray-200 overflow-hidden">
-                                        <div className="h-full flex flex-col">
-                                            {/* Header with Create Member Button */}
-                                            <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-100">
-                                                <h2 className="text-lg font-bold text-gray-900">Club Members</h2>
-                                                <button
-                                                    onClick={() => setIsCreateMemberOpen(true)}
-                                                    className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
-                                                >
-                                                    <Users className="w-4 h-4" />
-                                                    Create Member
-                                                </button>
+                            <div className="flex flex-col h-full min-h-screen md:min-h-0 bg-gray-50 p-4 sm:p-6">
+                                <div className="flex-1 flex flex-col min-h-0 bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                                    {/* Header */}
+                                    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center">
+                                                <Users size={14} className="text-white" />
                                             </div>
-                                            <MembersGrid
-                                                members={membersData?.paginatedMembers || []}
-                                                avatars={avatars}
-                                                currentPage={pagination?.currentPage || 1}
-                                                totalPages={pagination?.totalPages || 1}
-                                                isClubMaster={true}
-                                                baseUrl="/club"
-                                                clubName={clubName || ''}
-                                                searchQuery={membersSearchQuery}
-                                                onEdit={(m: any) => setEditingMember(m)}
-                                                onDelete={handleMemberDelete}
-                                            />
+                                            <div>
+                                                <h2 className="text-sm font-bold text-gray-900">Club Members</h2>
+                                                <p className="text-[11px] text-gray-400 mt-0.5">
+                                                    {totalMembers > 0 ? `${totalMembers} registered athlete${totalMembers !== 1 ? 's' : ''}` : 'Manage your club roster'}
+                                                </p>
+                                            </div>
                                         </div>
+                                        <button
+                                            onClick={() => setIsCreateMemberOpen(true)}
+                                            className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-xl transition-colors shadow-sm"
+                                        >
+                                            <Users className="w-4 h-4" />
+                                            <span className="hidden sm:inline">Create Member</span>
+                                            <span className="sm:hidden">Add</span>
+                                        </button>
                                     </div>
+                                    <MembersGrid
+                                        members={membersData?.paginatedMembers || []}
+                                        avatars={avatars}
+                                        currentPage={pagination?.currentPage || 1}
+                                        totalPages={pagination?.totalPages || 1}
+                                        isClubMaster={true}
+                                        baseUrl="/club"
+                                        clubName={clubName || ''}
+                                        searchQuery={membersSearchQuery}
+                                        onEdit={(m: any) => setEditingMember(m)}
+                                        onDelete={handleMemberDelete}
+                                    />
                                 </div>
                             </div>
                         )
@@ -1169,104 +1207,74 @@ export default function ClubDashboard({
                         activeView === 'tournaments' && (
                             <div className="bg-gray-50 h-auto md:h-[calc(100vh-80px)] flex flex-col overflow-visible md:overflow-hidden md:p-0">
                                 <div className="flex-1 flex flex-col min-h-[600px] md:min-h-0 sm:p-6 sm:max-w-[1920px] sm:mx-auto w-full">
-                                    <div className="flex-1 flex flex-col min-h-0 md:bg-white md:rounded-2xl md:shadow-sm md:border md:border-gray-200 overflow-hidden">
+                                    <div className="flex-1 flex flex-col min-h-0 md:bg-white md:rounded-2xl md:shadow-sm md:border md:border-gray-100 overflow-hidden">
                                         {eventsContent ? (
                                             <div className="min-h-[85vh]">
                                                 {eventsContent}
                                             </div>
                                         ) : (
                                             <>
-                                                {/* Header */}
-                                                <div className="bg-white px-4 py-3 sticky top-0 z-10 shadow-sm flex items-center justify-between gap-4">
+                                                {/* ── Toolbar ── */}
+                                                <div className="bg-white border-b border-gray-100 px-5 py-3 sticky top-0 z-10 flex items-center justify-between gap-3 flex-wrap">
 
-                                                    {/* Filter Tabs with Select button */}
-                                                    <div className="flex flex-wrap gap-4 items-center flex-1">
-                                                        {/* Type Toggle */}
-                                                        <div className="flex p-1 bg-red-50/50 rounded-xl border border-red-100/50">
-                                                            <button
-                                                                onClick={() => {
-                                                                    setRegistrationType('TOURNAMENT')
-                                                                    setRegistrationsPage(1)
-                                                                    setSelectedRegistrationIds(new Set())
-                                                                }}
-                                                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${registrationType === 'TOURNAMENT'
-                                                                    ? 'bg-red-600 text-white shadow-sm'
-                                                                    : 'text-red-600 hover:bg-red-100'
-                                                                    }`}
-                                                            >
-                                                                Tournaments
-                                                            </button>
-
-                                                            <button
-                                                                onClick={() => {
-                                                                    setRegistrationType('PROMOTION')
-                                                                    setRegistrationsPage(1)
-                                                                    setSelectedRegistrationIds(new Set())
-                                                                }}
-                                                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${registrationType === 'PROMOTION'
-                                                                    ? 'bg-red-600 text-white shadow-sm'
-                                                                    : 'text-red-600 hover:bg-red-100'
-                                                                    }`}
-                                                            >
-                                                                Promotions
-                                                            </button>
-                                                            <button
-                                                                onClick={() => {
-                                                                    setRegistrationType('SEMINAR')
-                                                                    setRegistrationsPage(1)
-                                                                    setSelectedRegistrationIds(new Set())
-                                                                }}
-                                                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${registrationType === 'SEMINAR'
-                                                                    ? 'bg-red-600 text-white shadow-sm'
-                                                                    : 'text-red-600 hover:bg-red-100'
-                                                                    }`}
-                                                            >
-                                                                Seminars
-                                                            </button>
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        {/* Type switcher */}
+                                                        <div className="flex p-1 bg-gray-100 rounded-xl">
+                                                            {([
+                                                                { key: 'TOURNAMENT', label: 'Tournaments' },
+                                                                { key: 'PROMOTION', label: 'Promotions' },
+                                                                { key: 'SEMINAR', label: 'Seminars' },
+                                                            ] as const).map(({ key, label }) => (
+                                                                <button
+                                                                    key={key}
+                                                                    onClick={() => { setRegistrationType(key); setRegistrationsPage(1); setSelectedRegistrationIds(new Set()) }}
+                                                                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${registrationType === key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                                                >
+                                                                    {label}
+                                                                </button>
+                                                            ))}
                                                         </div>
 
-                                                        <div className="h-6 w-px bg-gray-200 hidden sm:block" />
+                                                        <div className="w-px h-5 bg-gray-200 hidden sm:block" />
 
-                                                        <div className="flex gap-2">
-                                                            {registrationType !== 'SEMINAR' && (
-                                                                <button
-                                                                    onClick={() => setBulkSelectMode(!bulkSelectMode)}
-                                                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${bulkSelectMode
-                                                                        ? 'bg-red-600 text-white'
-                                                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                                                        }`}
-                                                                >
-                                                                    {bulkSelectMode ? 'Done' : 'Select'}
-                                                                </button>
-                                                            )}
-
-                                                            <div className="flex p-1 bg-gray-100 rounded-xl">
-                                                                {(['ALL', 'PENDING', 'APPROVED'] as const).map((tab) => (
+                                                        {/* Status filter */}
+                                                        <div className="flex p-1 bg-gray-100 rounded-xl">
+                                                            {(['ALL', 'PENDING', 'APPROVED'] as const).map((tab) => {
+                                                                const count = tab === 'ALL'
+                                                                    ? (registrationType === 'TOURNAMENT' ? allRegistrations.length : registrationType === 'PROMOTION' ? rawPromotions.length : rawSeminars.length)
+                                                                    : tab === 'PENDING'
+                                                                    ? (registrationType === 'TOURNAMENT' ? pendingPlayers.length : registrationType === 'PROMOTION' ? rawPromotions.filter(p => p.status === 'PENDING').length : rawSeminars.filter(p => p.status === 'PENDING').length)
+                                                                    : (registrationType === 'TOURNAMENT' ? filteredApprovedPlayers.length : registrationType === 'PROMOTION' ? rawPromotions.filter(p => p.status === 'APPROVED').length : rawSeminars.filter(p => p.status === 'APPROVED').length)
+                                                                return (
                                                                     <button
                                                                         key={tab}
-                                                                        onClick={() => {
-                                                                            setActiveTab(tab)
-                                                                            setRegistrationsPage(1)
-                                                                            setSelectedRegistrationIds(new Set())
-                                                                        }}
-                                                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === tab
-                                                                            ? 'bg-white text-gray-900 shadow-sm'
-                                                                            : 'text-gray-500 hover:text-gray-700'
-                                                                            }`}
+                                                                        onClick={() => { setActiveTab(tab); setRegistrationsPage(1); setSelectedRegistrationIds(new Set()) }}
+                                                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${activeTab === tab ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                                                                     >
-                                                                        {tab === 'ALL' ? `All ${registrationType === 'TOURNAMENT' ? allRegistrations.length : registrationType === 'PROMOTION' ? rawPromotions.length : rawSeminars.length}` :
-                                                                            tab === 'PENDING' ? `Pending ${registrationType === 'TOURNAMENT' ? pendingPlayers.length : registrationType === 'PROMOTION' ? rawPromotions.filter(p => p.status === 'PENDING').length : rawSeminars.filter(p => p.status === 'PENDING').length}` :
-                                                                                `Done ${registrationType === 'TOURNAMENT' ? filteredApprovedPlayers.length : registrationType === 'PROMOTION' ? rawPromotions.filter(p => p.status === 'APPROVED').length : rawSeminars.filter(p => p.status === 'APPROVED').length}`}
+                                                                        {tab === 'ALL' ? 'All' : tab === 'PENDING' ? 'Pending' : 'Approved'}
+                                                                        <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${activeTab === tab
+                                                                            ? tab === 'PENDING' ? 'bg-amber-100 text-amber-700' : tab === 'APPROVED' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                                                                            : 'bg-gray-200 text-gray-500'}`}>{count}</span>
                                                                     </button>
-                                                                ))}
-                                                            </div>
+                                                                )
+                                                            })}
                                                         </div>
+
+                                                        {registrationType !== 'SEMINAR' && (
+                                                            <button
+                                                                onClick={() => setBulkSelectMode(!bulkSelectMode)}
+                                                                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all border ${bulkSelectMode ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
+                                                            >
+                                                                {bulkSelectMode ? '✓ Done' : 'Select'}
+                                                            </button>
+                                                        )}
                                                     </div>
+
                                                     <button
                                                         onClick={() => setIsAddAthleteOpen(true)}
-                                                        className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold shadow-sm transition-all active:scale-95"
+                                                        className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black shadow-sm transition-all active:scale-95"
                                                     >
-                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                                                         </svg>
                                                         <span className="hidden sm:inline">Add Athlete</span>
@@ -1274,18 +1282,21 @@ export default function ClubDashboard({
                                                 </div>
 
                                                 <div className={`flex-1 overflow-y-auto ${bulkSelectMode ? 'pb-24' : ''}`}>
-
-                                                    {/* Player List */}
                                                     {(registrationType === 'TOURNAMENT' ? currentRegistrations : registrationType === 'PROMOTION' ? currentPromotions : currentSeminars).length === 0 ? (
-                                                        <div className="p-8 text-center min-h-[300px] flex flex-col items-center justify-center">
-                                                            <p className="text-4xl mb-4">📋</p>
-                                                            <p className="text-gray-900 font-medium mb-1">No {registrationType.toLowerCase()} registrations found</p>
-                                                            <p className="text-gray-500 text-sm">Athletes will appear here once registered</p>
+                                                        <div className="p-8 text-center min-h-[300px] flex flex-col items-center justify-center gap-3">
+                                                            <div className="w-14 h-14 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center">
+                                                                <svg className="w-6 h-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                                                </svg>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-sm font-black text-gray-900">No registrations yet</p>
+                                                                <p className="text-xs text-gray-400 mt-1">Athletes will appear here once registered</p>
+                                                            </div>
                                                         </div>
                                                     ) : (
-                                                        <div className="space-y-3 md:space-y-0 md:divide-y md:divide-gray-200 bg-transparent md:bg-white px-4 md:px-0 pt-3 md:pt-0 pb-4 md:pb-0">
+                                                        <div className="divide-y divide-gray-50">
                                                             {registrationType === 'TOURNAMENT' ? (
-                                                                // Tournament List
                                                                 currentRegistrations.map((player, index) => {
                                                                     const isPending = player.registrationStatus === 'PENDING'
                                                                     const isSelected = selectedRegistrationIds.has(player.id)
@@ -1293,147 +1304,76 @@ export default function ClubDashboard({
                                                                     return (
                                                                         <div
                                                                             key={player.id}
-                                                                            className={`flex items-center gap-3 md:px-4 md:py-3 p-4 rounded-2xl md:rounded-none shadow-sm md:shadow-none border border-gray-100 md:border-0 bg-white md:bg-transparent transition-all ${isSelected ? 'bg-red-50 ring-1 ring-red-500 md:ring-0' : ''}`}
+                                                                            className={`flex items-center gap-3 px-5 py-3.5 transition-colors ${isSelected ? 'bg-red-50 ring-1 ring-inset ring-red-200' : 'hover:bg-gray-50/80'}`}
                                                                         >
-                                                                            {/* ... (Existing Tournament Row Logic) ... */}
-                                                                            {/* Card Header */}
-                                                                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                                                                                {/* Selection Checkbox - Only show in bulk mode */}
-                                                                                {bulkSelectMode && (
-                                                                                    <button
-                                                                                        onClick={(e) => toggleSelect(player.id, e)}
-                                                                                        className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${isSelected
-                                                                                            ? 'bg-red-600 border-red-600 text-white'
-                                                                                            : 'border-gray-300 hover:border-red-400'
-                                                                                            }`}
-                                                                                    >
-                                                                                        {isSelected && (
-                                                                                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                                                                            </svg>
-                                                                                        )}
-                                                                                    </button>
-                                                                                )}
+                                                                            {bulkSelectMode && (
+                                                                                <button
+                                                                                    onClick={(e) => toggleSelect(player.id, e)}
+                                                                                    className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${isSelected ? 'bg-red-600 border-red-600 text-white' : 'border-gray-300 hover:border-red-400'}`}
+                                                                                >
+                                                                                    {isSelected && <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                                                                                </button>
+                                                                            )}
 
-
-
-                                                                                {/* Info */}
-                                                                                <div className="flex-1 min-w-0">
-                                                                                    <div className="flex items-center gap-2">
-                                                                                        <h3 className="font-semibold text-gray-900 text-sm truncate">{player.name}</h3>
-                                                                                        {isPending ? (
-                                                                                            <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-yellow-100 text-yellow-700">
-                                                                                                PENDING
-                                                                                            </span>
-                                                                                        ) : (
-                                                                                            <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-green-100 text-green-700">
-                                                                                                APPROVED
-                                                                                            </span>
-                                                                                        )}
-                                                                                        {player.paymentStatus && (
-                                                                                            <span className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold ${player.paymentStatus === 'PAID' ? 'bg-blue-100 text-blue-700' :
-                                                                                                player.paymentStatus === 'EXPIRED' ? 'bg-red-100 text-red-700' :
-                                                                                                    player.paymentStatus === 'PENDING' ? 'bg-amber-100 text-amber-700' :
-                                                                                                        'bg-gray-100 text-gray-500'
-                                                                                                }`}>
-                                                                                                {player.paymentStatus === 'PAID' ? '💰 PAID' : player.paymentStatus === 'UNPAID' ? 'UNPAID' : player.paymentStatus}
-                                                                                            </span>
-                                                                                        )}
-                                                                                    </div>
-                                                                                    <p className="text-xs text-gray-500 truncate mt-0.5">
-                                                                                        {player.category.name} • {player.category.tournament.name}
-                                                                                        {player.poomsaeType && player.poomsaeType !== 'INDIVIDUAL' && (
-                                                                                            <span className="ml-2 font-medium text-blue-600">
-                                                                                                {player.poomsaeType} {player.teamId ? `(Team ${player.teamId})` : '(No ID)'}
-                                                                                            </span>
-                                                                                        )}
-                                                                                    </p>
+                                                                            <div className="flex-1 min-w-0">
+                                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                                    <span className="text-sm font-black text-gray-900">{player.name}</span>
+                                                                                    <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${isPending ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+                                                                                        {isPending ? 'PENDING' : 'APPROVED'}
+                                                                                    </span>
+                                                                                    {player.paymentStatus && (
+                                                                                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${player.paymentStatus === 'PAID' ? 'bg-blue-100 text-blue-700' : player.paymentStatus === 'EXPIRED' ? 'bg-red-100 text-red-700' : player.paymentStatus === 'PENDING' ? 'bg-amber-50 text-amber-600' : 'bg-gray-100 text-gray-500'}`}>
+                                                                                            {player.paymentStatus === 'PAID' ? 'PAID' : player.paymentStatus}
+                                                                                        </span>
+                                                                                    )}
                                                                                 </div>
+                                                                                <p className="text-[11px] text-gray-400 mt-0.5 truncate">
+                                                                                    {player.category.name}
+                                                                                    <span className="text-gray-300 mx-1">·</span>
+                                                                                    {player.category.tournament.name}
+                                                                                    {player.poomsaeType && player.poomsaeType !== 'INDIVIDUAL' && (
+                                                                                        <span className="ml-2 font-bold text-blue-500">{player.poomsaeType}{player.teamId ? ` #${player.teamId}` : ''}</span>
+                                                                                    )}
+                                                                                </p>
                                                                             </div>
 
-                                                                            {/* Three-dot menu */}
-                                                                            <div className="relative">
+                                                                            <div className="relative flex-shrink-0">
                                                                                 <button
                                                                                     onClick={() => setActionMenuOpen(actionMenuOpen === player.id ? null : player.id)}
-                                                                                    className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                                                                                    className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
                                                                                 >
-                                                                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                                                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                                                                         <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                                                                                     </svg>
                                                                                 </button>
-
-                                                                                {/* Dropdown Menu */}
                                                                                 {actionMenuOpen === player.id && (
                                                                                     <>
-                                                                                        {/* Backdrop */}
-                                                                                        <div
-                                                                                            className="fixed inset-0 z-40"
-                                                                                            onClick={() => setActionMenuOpen(null)}
-                                                                                        />
-                                                                                        {/* Menu */}
-                                                                                        <div className={`absolute right-0 w-40 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-50 ${isLastItems ? 'bottom-8' : 'top-8'}`}>
+                                                                                        <div className="fixed inset-0 z-40" onClick={() => setActionMenuOpen(null)} />
+                                                                                        <div className={`absolute right-0 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 z-50 overflow-hidden ${isLastItems ? 'bottom-9' : 'top-9'}`}>
                                                                                             {isPending ? (
-                                                                                                <button
-                                                                                                    onClick={() => {
-                                                                                                        handleApprove(player)
-                                                                                                        setActionMenuOpen(null)
-                                                                                                    }}
-                                                                                                    disabled={submitting}
-                                                                                                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-green-600 hover:bg-green-50 disabled:opacity-50 flex items-center gap-2"
-                                                                                                >
-                                                                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                                                                                    </svg>
+                                                                                                <button onClick={() => { handleApprove(player); setActionMenuOpen(null) }} disabled={submitting} className="w-full px-4 py-2.5 text-left text-xs font-bold text-green-600 hover:bg-green-50 disabled:opacity-50 flex items-center gap-2">
+                                                                                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                                                                                                     Approve
                                                                                                 </button>
                                                                                             ) : (
-                                                                                                <button
-                                                                                                    onClick={() => {
-                                                                                                        handleUnapprove(player.id)
-                                                                                                        setActionMenuOpen(null)
-                                                                                                    }}
-                                                                                                    disabled={submitting}
-                                                                                                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-yellow-600 hover:bg-yellow-50 disabled:opacity-50 flex items-center gap-2"
-                                                                                                >
-                                                                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                                                                                    </svg>
+                                                                                                <button onClick={() => { handleUnapprove(player.id); setActionMenuOpen(null) }} disabled={submitting} className="w-full px-4 py-2.5 text-left text-xs font-bold text-amber-600 hover:bg-amber-50 disabled:opacity-50 flex items-center gap-2">
+                                                                                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                                                                                                     Unapprove
                                                                                                 </button>
                                                                                             )}
-                                                                                            <button
-                                                                                                onClick={() => {
-                                                                                                    setEditingPlayer(player)
-                                                                                                    setActionMenuOpen(null)
-                                                                                                }}
-                                                                                                className="w-full px-4 py-2.5 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                                                                                            >
-                                                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                                                                                </svg>
+                                                                                            <button onClick={() => { setEditingPlayer(player); setActionMenuOpen(null) }} className="w-full px-4 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                                                                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                                                                                 Edit
                                                                                             </button>
                                                                                             {!isPending && (
-                                                                                                <button
-                                                                                                    onClick={() => {
-                                                                                                        handleDownloadQR('tournament', player.id)
-                                                                                                        setActionMenuOpen(null)
-                                                                                                    }}
-                                                                                                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-indigo-600 hover:bg-indigo-50 flex items-center gap-2"
-                                                                                                >
-                                                                                                    <Download className="w-4 h-4" />
+                                                                                                <button onClick={() => { handleDownloadQR('tournament', player.id); setActionMenuOpen(null) }} className="w-full px-4 py-2.5 text-left text-xs font-bold text-indigo-600 hover:bg-indigo-50 flex items-center gap-2">
+                                                                                                    <Download className="w-3.5 h-3.5" />
                                                                                                     Download QR
                                                                                                 </button>
                                                                                             )}
                                                                                             <div className="border-t border-gray-100 my-1" />
-                                                                                            <button
-                                                                                                onClick={() => {
-                                                                                                    handleDelete(player.id)
-                                                                                                    setActionMenuOpen(null)
-                                                                                                }}
-                                                                                                disabled={submitting}
-                                                                                                className="w-full px-4 py-2.5 text-left text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 flex items-center gap-2"
-                                                                                            >
+                                                                                            <button onClick={() => { handleDelete(player.id); setActionMenuOpen(null) }} disabled={submitting} className="w-full px-4 py-2.5 text-left text-xs font-bold text-red-600 hover:bg-red-50 disabled:opacity-50 flex items-center gap-2">
+                                                                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                                                                 Delete
                                                                                             </button>
                                                                                         </div>
@@ -1449,75 +1389,49 @@ export default function ClubDashboard({
                                                                         const isLastItems = currentPromotions.length > 2 && index >= currentPromotions.length - 2
 
                                                                         return (
-                                                                            <div key={promo.id} className="flex items-center gap-3 md:px-4 md:py-3 p-4 rounded-2xl md:rounded-none shadow-sm md:shadow-none border border-gray-100 md:border-0 bg-white md:bg-transparent">
-
+                                                                            <div key={promo.id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50/80 transition-colors">
                                                                                 <div className="flex-1 min-w-0">
-                                                                                    <div className="flex items-center gap-2">
-                                                                                        <h3 className="font-semibold text-gray-900 text-sm truncate">{promo.name}</h3>
-                                                                                        {isPending ? (
-                                                                                            <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-yellow-100 text-yellow-700">PENDING</span>
-                                                                                        ) : (
-                                                                                            <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold bg-green-100 text-green-700">APPROVED</span>
-                                                                                        )}
+                                                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                                                        <span className="text-sm font-black text-gray-900">{promo.name}</span>
+                                                                                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${isPending ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+                                                                                            {isPending ? 'PENDING' : 'APPROVED'}
+                                                                                        </span>
                                                                                         {promo.paymentStatus && (
-                                                                                            <span className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold ${promo.paymentStatus === 'PAID' ? 'bg-blue-100 text-blue-700' :
-                                                                                                promo.paymentStatus === 'EXPIRED' ? 'bg-red-100 text-red-700' :
-                                                                                                    promo.paymentStatus === 'PENDING' ? 'bg-amber-100 text-amber-700' :
-                                                                                                        'bg-gray-100 text-gray-500'
-                                                                                                }`}>
-                                                                                                {promo.paymentStatus === 'PAID' ? '💰 PAID' : promo.paymentStatus === 'UNPAID' ? 'UNPAID' : promo.paymentStatus}
+                                                                                            <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${promo.paymentStatus === 'PAID' ? 'bg-blue-100 text-blue-700' : promo.paymentStatus === 'EXPIRED' ? 'bg-red-100 text-red-700' : promo.paymentStatus === 'PENDING' ? 'bg-amber-50 text-amber-600' : 'bg-gray-100 text-gray-500'}`}>
+                                                                                                {promo.paymentStatus === 'PAID' ? 'PAID' : promo.paymentStatus}
                                                                                             </span>
                                                                                         )}
                                                                                     </div>
-                                                                                    <p className="text-xs text-gray-500 truncate mt-0.5">
-                                                                                        {promo.eventName} • {promo.currentBelt} → {promo.targetBelt}
+                                                                                    <p className="text-[11px] text-gray-400 mt-0.5 truncate">
+                                                                                        {promo.eventName}
+                                                                                        <span className="text-gray-300 mx-1">·</span>
+                                                                                        {promo.currentBelt} → {promo.targetBelt}
                                                                                     </p>
                                                                                 </div>
-
-                                                                                {/* Actions */}
-                                                                                <div className="relative">
+                                                                                <div className="relative flex-shrink-0">
                                                                                     <button
                                                                                         onClick={() => setActionMenuOpen(actionMenuOpen === promo.id ? null : promo.id)}
-                                                                                        className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                                                                                        className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
                                                                                     >
-                                                                                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                                                                            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                                                                                        </svg>
+                                                                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg>
                                                                                     </button>
-
                                                                                     {actionMenuOpen === promo.id && (
-                                                                                        <div className={`absolute right-0 w-40 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-50 ${isLastItems ? 'bottom-8' : 'top-8'}`}>
-                                                                                            {/* Backdrop */}
+                                                                                        <div className={`absolute right-0 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 z-50 overflow-hidden ${isLastItems ? 'bottom-9' : 'top-9'}`}>
                                                                                             <div className="fixed inset-0 z-40" onClick={() => setActionMenuOpen(null)} />
                                                                                             <div className="relative z-50">
                                                                                                 {isPending ? (
-                                                                                                    <button
-                                                                                                        onClick={() => {
-                                                                                                            handlePromotionStatusChange(promo.id, 'APPROVED')
-                                                                                                            setActionMenuOpen(null)
-                                                                                                        }}
-                                                                                                        className="w-full px-4 py-2.5 text-left text-sm font-medium text-green-600 hover:bg-green-50 flex items-center gap-2"
-                                                                                                    >
+                                                                                                    <button onClick={() => { handlePromotionStatusChange(promo.id, 'APPROVED'); setActionMenuOpen(null) }} className="w-full px-4 py-2.5 text-left text-xs font-bold text-green-600 hover:bg-green-50 flex items-center gap-2">
+                                                                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                                                                                                         Approve
                                                                                                     </button>
                                                                                                 ) : (
-                                                                                                    <button
-                                                                                                        onClick={() => {
-                                                                                                            handlePromotionStatusChange(promo.id, 'PENDING')
-                                                                                                            setActionMenuOpen(null)
-                                                                                                        }}
-                                                                                                        className="w-full px-4 py-2.5 text-left text-sm font-medium text-yellow-600 hover:bg-yellow-50 flex items-center gap-2"
-                                                                                                    >
+                                                                                                    <button onClick={() => { handlePromotionStatusChange(promo.id, 'PENDING'); setActionMenuOpen(null) }} className="w-full px-4 py-2.5 text-left text-xs font-bold text-amber-600 hover:bg-amber-50 flex items-center gap-2">
                                                                                                         Unapprove
                                                                                                     </button>
                                                                                                 )}
-                                                                                                <button
-                                                                                                    onClick={() => {
-                                                                                                        handlePromotionDelete(promo.id)
-                                                                                                        setActionMenuOpen(null)
-                                                                                                    }}
-                                                                                                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-red-600 hover:bg-red-50 flex items-center gap-2"
-                                                                                                >
+                                                                                                <div className="border-t border-gray-100 my-1" />
+                                                                                                <button onClick={() => { handlePromotionDelete(promo.id); setActionMenuOpen(null) }} className="w-full px-4 py-2.5 text-left text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2">
+                                                                                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                                                                     Delete
                                                                                                 </button>
                                                                                             </div>
@@ -1533,125 +1447,71 @@ export default function ClubDashboard({
                                                                     const isLastItems = currentSeminars.length > 2 && index >= currentSeminars.length - 2
 
                                                                     return (
-                                                                        <div key={seminar.id} className="flex items-center gap-3 md:px-4 md:py-3 p-4 rounded-2xl md:rounded-none shadow-sm md:shadow-none border border-gray-100 md:border-0 bg-white md:bg-transparent">
-
+                                                                        <div key={seminar.id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50/80 transition-colors">
                                                                             <div className="flex-1 min-w-0">
-                                                                                <div className="flex items-center gap-3">
-                                                                                    <h3 className="font-semibold text-gray-900 text-sm truncate">{seminar.name}</h3>
-                                                                                    {/* Registration Status */}
-                                                                                    <span className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold ${isPending
-                                                                                        ? 'bg-yellow-100 text-yellow-700'
-                                                                                        : seminar.status === 'APPROVED'
-                                                                                            ? 'bg-green-100 text-green-700'
-                                                                                            : 'bg-red-100 text-red-700'
-                                                                                        }`}>
+                                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                                    <span className="text-sm font-black text-gray-900">{seminar.name}</span>
+                                                                                    <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${isPending ? 'bg-amber-100 text-amber-700' : seminar.status === 'APPROVED' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                                                                                         {seminar.status}
                                                                                     </span>
-                                                                                    {/* Payment Status */}
                                                                                     {seminar.paymentStatus && (
-                                                                                        <span className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold ${seminar.paymentStatus === 'PAID' ? 'bg-blue-100 text-blue-700' :
-                                                                                            seminar.paymentStatus === 'EXPIRED' ? 'bg-red-100 text-red-700' :
-                                                                                                seminar.paymentStatus === 'PENDING' ? 'bg-amber-100 text-amber-700' :
-                                                                                                    'bg-gray-100 text-gray-500'
-                                                                                            }`}>
-                                                                                            {seminar.paymentStatus === 'PAID' ? '💰 PAID' : seminar.paymentStatus === 'UNPAID' ? 'UNPAID' : seminar.paymentStatus}
+                                                                                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${seminar.paymentStatus === 'PAID' ? 'bg-blue-100 text-blue-700' : seminar.paymentStatus === 'EXPIRED' ? 'bg-red-100 text-red-700' : seminar.paymentStatus === 'PENDING' ? 'bg-amber-50 text-amber-600' : 'bg-gray-100 text-gray-500'}`}>
+                                                                                            {seminar.paymentStatus === 'PAID' ? 'PAID' : seminar.paymentStatus}
                                                                                         </span>
                                                                                     )}
 
                                                                                 </div>
-                                                                                <p className="text-xs text-gray-500 truncate mt-0.5">
-                                                                                    {seminar.eventName} • {new Date(seminar.eventDate).toLocaleDateString()}
-                                                                                    {seminar.belt && <span className="ml-2 text-gray-400">| {seminar.belt}</span>}
+                                                                                <p className="text-[11px] text-gray-400 mt-0.5 truncate">
+                                                                                    {seminar.eventName}
+                                                                                    <span className="text-gray-300 mx-1">·</span>
+                                                                                    {new Date(seminar.eventDate).toLocaleDateString()}
+                                                                                    {seminar.belt && <span className="ml-2 font-bold text-gray-500">· {seminar.belt}</span>}
                                                                                 </p>
                                                                             </div>
 
-                                                                            {/* Actions */}
-                                                                            <div className="relative">
-                                                                                <button
-                                                                                    onClick={() => setActionMenuOpen(actionMenuOpen === seminar.id ? null : seminar.id)}
-                                                                                    className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                                                                                >
-                                                                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                                                                        <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                                                                                    </svg>
-                                                                                </button>
-
-                                                                                {actionMenuOpen === seminar.id && (
-                                                                                    <div className={`absolute right-0 w-40 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-50 ${isLastItems ? 'bottom-8' : 'top-8'}`}>
-                                                                                        {/* Backdrop */}
-                                                                                        <div className="fixed inset-0 z-40" onClick={() => setActionMenuOpen(null)} />
-                                                                                        <div className="relative z-50">
-                                                                                            {isPending ? (
-                                                                                                <button
-                                                                                                    onClick={() => {
-                                                                                                        handleSeminarStatusChange(seminar.id, 'APPROVED')
-                                                                                                        setActionMenuOpen(null)
-                                                                                                    }}
-                                                                                                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-green-600 hover:bg-green-50 flex items-center gap-2"
-                                                                                                >
-                                                                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                                                                                    </svg>
-                                                                                                    Approve
+                                                                                <div className="relative flex-shrink-0">
+                                                                                    <button
+                                                                                        onClick={() => setActionMenuOpen(actionMenuOpen === seminar.id ? null : seminar.id)}
+                                                                                        className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+                                                                                    >
+                                                                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg>
+                                                                                    </button>
+                                                                                    {actionMenuOpen === seminar.id && (
+                                                                                        <div className={`absolute right-0 w-44 bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 z-50 overflow-hidden ${isLastItems ? 'bottom-9' : 'top-9'}`}>
+                                                                                            <div className="fixed inset-0 z-40" onClick={() => setActionMenuOpen(null)} />
+                                                                                            <div className="relative z-50">
+                                                                                                {isPending ? (
+                                                                                                    <button onClick={() => { handleSeminarStatusChange(seminar.id, 'APPROVED'); setActionMenuOpen(null) }} className="w-full px-4 py-2.5 text-left text-xs font-bold text-green-600 hover:bg-green-50 flex items-center gap-2">
+                                                                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                                                                                        Approve
+                                                                                                    </button>
+                                                                                                ) : (
+                                                                                                    <button onClick={() => { handleSeminarStatusChange(seminar.id, 'PENDING'); setActionMenuOpen(null) }} className="w-full px-4 py-2.5 text-left text-xs font-bold text-amber-600 hover:bg-amber-50 flex items-center gap-2">
+                                                                                                        Unapprove
+                                                                                                    </button>
+                                                                                                )}
+                                                                                                <button onClick={() => { setEditingSeminar(seminar); setActionMenuOpen(null) }} className="w-full px-4 py-2.5 text-left text-xs font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                                                                                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                                                                    Edit Details
                                                                                                 </button>
-                                                                                            ) : (
-                                                                                                <button
-                                                                                                    onClick={() => {
-                                                                                                        handleSeminarStatusChange(seminar.id, 'PENDING')
-                                                                                                        setActionMenuOpen(null)
-                                                                                                    }}
-                                                                                                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-yellow-600 hover:bg-yellow-50 flex items-center gap-2"
-                                                                                                >
-                                                                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                                                                                    </svg>
-                                                                                                    Unapprove
+                                                                                                {!isPending && (
+                                                                                                    <button onClick={() => { handleDownloadQR('seminar', seminar.id); setActionMenuOpen(null) }} className="w-full px-4 py-2.5 text-left text-xs font-bold text-indigo-600 hover:bg-indigo-50 flex items-center gap-2">
+                                                                                                        <Download className="w-3.5 h-3.5" />
+                                                                                                        Download QR
+                                                                                                    </button>
+                                                                                                )}
+                                                                                                <div className="border-t border-gray-100 my-1" />
+                                                                                                <button onClick={() => { handleSeminarDelete(seminar.id); setActionMenuOpen(null) }} className="w-full px-4 py-2.5 text-left text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2">
+                                                                                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                                                                    Delete
                                                                                                 </button>
-                                                                                            )}
-                                                                                            <button
-                                                                                                onClick={() => {
-                                                                                                    setEditingSeminar(seminar)
-                                                                                                    setActionMenuOpen(null)
-                                                                                                }}
-                                                                                                className="w-full px-4 py-2.5 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                                                                                            >
-                                                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                                                                                </svg>
-                                                                                                Edit Details
-                                                                                            </button>
-                                                                                            {!isPending && (
-                                                                                                <button
-                                                                                                    onClick={() => {
-                                                                                                        handleDownloadQR('seminar', seminar.id)
-                                                                                                        setActionMenuOpen(null)
-                                                                                                    }}
-                                                                                                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-indigo-600 hover:bg-indigo-50 flex items-center gap-2"
-                                                                                                >
-                                                                                                    <Download className="w-4 h-4" />
-                                                                                                    Download QR
-                                                                                                </button>
-                                                                                            )}
-                                                                                            <div className="border-t border-gray-100 my-1" />
-                                                                                            <button
-                                                                                                onClick={() => {
-                                                                                                    handleSeminarDelete(seminar.id)
-                                                                                                    setActionMenuOpen(null)
-                                                                                                }}
-                                                                                                className="w-full px-4 py-2.5 text-left text-sm font-medium text-red-600 hover:bg-red-50 flex items-center gap-2"
-                                                                                            >
-                                                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                                                                </svg>
-                                                                                                Delete
-                                                                                            </button>
+                                                                                            </div>
                                                                                         </div>
-                                                                                    </div>
-                                                                                )}
+                                                                                    )}
+                                                                                </div>
                                                                             </div>
-                                                                        </div>
-                                                                    )
-                                                                }))}
+                                                                        )
+                                                                    }))}
                                                         </div>
                                                     )}
 
@@ -1949,35 +1809,33 @@ export default function ClubDashboard({
                             const isHeightBased = memberAge !== null && memberAge <= 11
                             return (
                                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setEditingMember(null)} />
-                                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setEditingMember(null)} />
+                                    <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
 
-                                        {/* Header */}
-                                        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                                            <div>
-                                                <h3 className="text-lg font-bold text-gray-900">Edit Member Details</h3>
-                                                <p className="text-xs text-gray-500 mt-0.5">{editingMember.name || editingMember.email}</p>
+                                        {/* ── Header ── */}
+                                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-9 h-9 rounded-xl overflow-hidden bg-red-100 flex items-center justify-center flex-shrink-0 ring-2 ring-gray-100">
+                                                    {(editAvatarPreview || editingMember.imageUrl) ? (
+                                                        <img src={editAvatarPreview || editingMember.imageUrl || ''} alt="avatar" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <span className="text-red-600 font-black text-sm">{editingMember.name?.charAt(0)?.toUpperCase() || '?'}</span>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-sm font-black text-gray-900">Edit Member Details</h3>
+                                                    <p className="text-[11px] text-gray-400 font-medium">{editingMember.name || editingMember.email}</p>
+                                                </div>
                                             </div>
                                             <button
                                                 onClick={() => setEditingMember(null)}
-                                                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                                                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
                                             >
-                                                <X size={18} />
+                                                <X size={16} />
                                             </button>
                                         </div>
 
-                                        {/* Age Badge */}
-                                        {memberAge !== null && (
-                                            <div className="px-6 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
-                                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Age</span>
-                                                <span className="text-xs font-bold text-gray-700 bg-white px-2.5 py-1 rounded-lg border border-gray-200">
-                                                    {memberAge} years old
-                                                </span>
-                                                <span className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full ${isHeightBased ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'}`}>
-                                                    {isHeightBased ? 'Height-based' : 'Weight-based'}
-                                                </span>
-                                            </div>
-                                        )}
+                                        {/* ── Form ── */}
                                         <form
                                             onSubmit={(e) => {
                                                 e.preventDefault()
@@ -1996,11 +1854,13 @@ export default function ClubDashboard({
                                                     })() : undefined
                                                 })
                                             }}
-                                            className="px-6 py-5 overflow-y-auto"
+                                            className="flex-1 overflow-y-auto"
                                         >
-                                            <div className="flex flex-col md:flex-row gap-8">
-                                                {/* Left Column: Photo */}
-                                                <div className="flex flex-col items-center gap-3 md:w-1/3">
+                                            {/* Two-column body */}
+                                            <div className="flex gap-0 divide-x divide-gray-100">
+
+                                                {/* ── Left: Avatar column ── */}
+                                                <div className="flex flex-col items-center gap-4 px-6 py-6 w-52 flex-shrink-0 bg-gray-50/60">
                                                     <div className="relative group">
                                                         <button
                                                             type="button"
@@ -2008,18 +1868,17 @@ export default function ClubDashboard({
                                                                 const inp = document.getElementById('edit-avatar-input') as HTMLInputElement
                                                                 inp?.click()
                                                             }}
-                                                            className="w-32 h-32 rounded-full border-4 border-white shadow-lg group-hover:border-red-500/50 flex items-center justify-center transition-all overflow-hidden bg-gray-50 relative"
+                                                            className="w-28 h-28 rounded-2xl overflow-hidden bg-white shadow-md ring-2 ring-gray-200 group-hover:ring-red-400 transition-all relative"
                                                         >
                                                             {(editAvatarPreview || editingMember.imageUrl) ? (
                                                                 <img src={editAvatarPreview || editingMember.imageUrl || ''} alt="Avatar" className="w-full h-full object-cover" />
                                                             ) : (
-                                                                <div className="w-full h-full bg-red-100 flex items-center justify-center text-red-600 text-4xl font-bold">
+                                                                <div className="w-full h-full bg-red-100 flex items-center justify-center text-red-600 text-4xl font-black">
                                                                     {editingMember.name?.charAt(0)?.toUpperCase() || '?'}
                                                                 </div>
                                                             )}
-                                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+                                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                                 <Camera className="w-6 h-6 text-white" />
-                                                                <span className="text-white text-xs font-semibold">Change</span>
                                                             </div>
                                                         </button>
                                                         <input
@@ -2042,26 +1901,51 @@ export default function ClubDashboard({
                                                             }}
                                                         />
                                                     </div>
+                                                    <div className="text-center">
+                                                        <p className="text-xs font-bold text-gray-700">Profile Photo</p>
+                                                        <p className="text-[10px] text-gray-400 mt-0.5">Click to upload</p>
+                                                    </div>
+                                                    {memberAge !== null && (
+                                                        <div className="flex flex-col items-center gap-1.5 w-full">
+                                                            <span className="text-[10px] font-bold text-gray-500 bg-white px-3 py-1 rounded-lg border border-gray-200 w-full text-center">{memberAge} years old</span>
+                                                            <span className={`text-[10px] font-bold px-3 py-1 rounded-lg border w-full text-center ${isHeightBased ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                                                                {isHeightBased ? '⬆ Height-based' : '⚖ Weight-based'}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
 
-                                                {/* Right Column: Fields */}
-                                                <div className="flex-1 space-y-5">
-                                                    {/* Name */}
-                                                    <div>
-                                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Full Name</label>
-                                                        <input
-                                                            type="text"
-                                                            name="name"
-                                                            defaultValue={editingMember.name || ''}
-                                                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium"
-                                                            placeholder="Enter member's full name"
-                                                        />
+                                                {/* ── Right: Fields column ── */}
+                                                <div className="flex-1 px-6 py-6 space-y-5">
+
+                                                    {/* Row 1: Name + Email */}
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Full Name</label>
+                                                            <input
+                                                                type="text"
+                                                                name="name"
+                                                                defaultValue={editingMember.name || ''}
+                                                                className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-400 outline-none transition-all text-sm font-medium text-gray-900 placeholder:text-gray-400"
+                                                                placeholder="Enter full name"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Email</label>
+                                                            <input
+                                                                type="email"
+                                                                name="email"
+                                                                defaultValue={editingMember.email?.includes('@member.ktm') ? '' : editingMember.email || ''}
+                                                                className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-400 outline-none transition-all text-sm font-medium text-gray-900 placeholder:text-gray-400"
+                                                                placeholder="athlete@example.com"
+                                                            />
+                                                        </div>
                                                     </div>
 
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                                        {/* Birth Date */}
+                                                    {/* Row 2: Birth Date + Gender */}
+                                                    <div className="grid grid-cols-2 gap-4">
                                                         <div>
-                                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Birth Date</label>
+                                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Birth Date</label>
                                                             <GlobalCalendar
                                                                 value={editingMember.birthDate ? new Date(editingMember.birthDate) : undefined}
                                                                 onChange={(date) => setEditingMember({ ...editingMember, birthDate: date })}
@@ -2079,24 +1963,8 @@ export default function ClubDashboard({
                                                                 })() : ''}
                                                             />
                                                         </div>
-
-                                                        {/* Email */}
                                                         <div>
-                                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Email</label>
-                                                            <input
-                                                                type="email"
-                                                                name="email"
-                                                                defaultValue={editingMember.email?.includes('@member.ktm') ? '' : editingMember.email || ''}
-                                                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium"
-                                                                placeholder="athlete@example.com"
-                                                            />
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Gender & Belt */}
-                                                    <div className="grid grid-cols-2 gap-5">
-                                                        <div>
-                                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Gender</label>
+                                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Gender</label>
                                                             <GlobalDropdown
                                                                 value={editingMember.gender || 'Male'}
                                                                 onChange={(val) => setEditingMember({ ...editingMember, gender: val })}
@@ -2105,8 +1973,12 @@ export default function ClubDashboard({
                                                             />
                                                             <input type="hidden" name="gender" value={editingMember.gender || 'Male'} />
                                                         </div>
+                                                    </div>
+
+                                                    {/* Row 3: Belt + Height/Weight */}
+                                                    <div className="grid grid-cols-2 gap-4">
                                                         <div>
-                                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Belt Rank</label>
+                                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Belt Rank</label>
                                                             <GlobalDropdown
                                                                 value={editingMember.belt || 'White'}
                                                                 onChange={(val) => setEditingMember({ ...editingMember, belt: val })}
@@ -2115,71 +1987,67 @@ export default function ClubDashboard({
                                                             />
                                                             <input type="hidden" name="belt" value={editingMember.belt || 'White'} />
                                                         </div>
-                                                    </div>
-
-                                                    {/* Smart Height or Weight */}
-                                                    <div>
-                                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-                                                            {isHeightBased ? 'Height (cm)' : 'Weight (kg)'}
-                                                        </label>
-                                                        {isHeightBased ? (
-                                                            <>
-                                                                <div className="relative">
-                                                                    <input
-                                                                        type="number"
-                                                                        name="height"
-                                                                        step="0.1"
-                                                                        defaultValue={editingMember.height || ''}
-                                                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium pr-12"
-                                                                        placeholder="0.0"
-                                                                    />
-                                                                    <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-gray-400 text-sm font-medium">cm</div>
-                                                                </div>
-                                                                <input type="hidden" name="weight" value={editingMember.weight || 0} />
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <div className="relative">
-                                                                    <input
-                                                                        type="number"
-                                                                        name="weight"
-                                                                        step="0.1"
-                                                                        defaultValue={editingMember.weight || ''}
-                                                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium pr-12"
-                                                                        placeholder="0.0"
-                                                                    />
-                                                                    <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-gray-400 text-sm font-medium">kg</div>
-                                                                </div>
-                                                                <input type="hidden" name="height" value={editingMember.height || 0} />
-                                                            </>
-                                                        )}
-                                                        <p className="text-xs text-gray-500 mt-2">
-                                                            {isHeightBased
-                                                                ? "Because the athlete is 11 or under, height is used for tournament bracketing."
-                                                                : "Because the athlete is over 11, weight is used for tournament bracketing."}
-                                                        </p>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
+                                                                {isHeightBased ? 'Height' : 'Weight'}
+                                                            </label>
+                                                            {isHeightBased ? (
+                                                                <>
+                                                                    <div className="relative">
+                                                                        <input
+                                                                            type="number"
+                                                                            name="height"
+                                                                            step="0.1"
+                                                                            defaultValue={editingMember.height || ''}
+                                                                            className="w-full px-3.5 py-2.5 pr-12 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-400 outline-none transition-all text-sm font-medium text-gray-900"
+                                                                            placeholder="0.0"
+                                                                        />
+                                                                        <span className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-xs font-bold text-gray-400 pointer-events-none">cm</span>
+                                                                    </div>
+                                                                    <input type="hidden" name="weight" value={editingMember.weight || 0} />
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <div className="relative">
+                                                                        <input
+                                                                            type="number"
+                                                                            name="weight"
+                                                                            step="0.1"
+                                                                            defaultValue={editingMember.weight || ''}
+                                                                            className="w-full px-3.5 py-2.5 pr-12 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-400 outline-none transition-all text-sm font-medium text-gray-900"
+                                                                            placeholder="0.0"
+                                                                        />
+                                                                        <span className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-xs font-bold text-gray-400 pointer-events-none">kg</span>
+                                                                    </div>
+                                                                    <input type="hidden" name="height" value={editingMember.height || 0} />
+                                                                </>
+                                                            )}
+                                                            <p className="text-[10px] text-gray-400 mt-1">
+                                                                {isHeightBased ? 'For athletes 11 & under.' : 'For athletes over 11.'}
+                                                            </p>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            {/* Submit Area */}
-                                            <div className="mt-8 pt-6 border-t border-gray-100 flex justify-end gap-3">
+                                            {/* ── Sticky footer ── */}
+                                            <div className="flex-shrink-0 px-6 py-4 border-t border-gray-100 bg-white flex items-center justify-end gap-3">
                                                 <button
                                                     type="button"
                                                     onClick={() => setEditingMember(null)}
-                                                    className="px-5 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+                                                    className="px-5 py-2.5 text-sm font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
                                                 >
                                                     Cancel
                                                 </button>
                                                 <button
                                                     type="submit"
                                                     disabled={submitting}
-                                                    className="px-6 py-2.5 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-all shadow-sm hover:shadow active:scale-[0.98] disabled:opacity-50 flex items-center gap-2"
+                                                    className="px-6 py-2.5 text-sm font-black text-white bg-red-600 hover:bg-red-700 rounded-xl transition-all shadow-sm hover:shadow-md active:scale-[0.98] disabled:opacity-50 flex items-center gap-2"
                                                 >
                                                     {submitting ? (
                                                         <>
                                                             <Loader2 className="animate-spin w-4 h-4" />
-                                                            Saving...
+                                                            Saving…
                                                         </>
                                                     ) : 'Save Changes'}
                                                 </button>
@@ -2320,8 +2188,8 @@ export default function ClubDashboard({
                             </div>
                         )
                     }
-                </div >
-            </div >
+                </div>
+            </div>
 
             {/* Global Modals */}
 
@@ -2346,6 +2214,6 @@ export default function ClubDashboard({
                 proposals={proposals || []}
                 onRefresh={refetchProposals}
             />
-        </div >
+        </div>
     )
 }

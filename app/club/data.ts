@@ -448,7 +448,63 @@ export const getClubMemberCount = cache(async (clubName: string) => {
 
 export const getClubHomeData = cache(async (clubId: string, clubName: string) => {
     const { pendingPlayers, approvedPlayers, clubTournaments, upcomingEvents, topPerformers, promotionRegistrations, seminarRegistrations } = await getClubEventsData(clubId, clubName)
-    const totalMembers = await getClubMemberCount(clubName)
+
+    // Parallel fetch: total members + member growth data
+    const now = new Date()
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1) // Start of 6 months ago
+    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+
+    const [totalMembers, memberGrowthRaw, newMembersCount, beltDistribution] = await Promise.all([
+        getClubMemberCount(clubName),
+
+        // Members joined per month (last 6 months)
+        prisma.user.findMany({
+            where: {
+                clubName: clubName,
+                role: { in: ['ATHLETE', 'ASSISTANT_CLUB_MASTER'] },
+                createdAt: { gte: sixMonthsAgo }
+            },
+            select: { createdAt: true }
+        }),
+
+        // New members this month
+        prisma.user.count({
+            where: {
+                clubName: clubName,
+                role: { in: ['ATHLETE', 'ASSISTANT_CLUB_MASTER'] },
+                createdAt: { gte: startOfThisMonth }
+            }
+        }),
+
+        // Belt distribution
+        prisma.user.groupBy({
+            by: ['belt'],
+            where: { clubName: clubName, role: { in: ['ATHLETE', 'ASSISTANT_CLUB_MASTER'] } },
+            _count: true
+        })
+    ])
+
+    // Aggregate members by month
+    const membersByMonth: { key: string; count: number }[] = []
+    for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+        const nextMonth = new Date(d.getFullYear(), d.getMonth() + 1, 1)
+
+        const count = memberGrowthRaw.filter(m => {
+            if (!m.createdAt) return false
+            const created = new Date(m.createdAt)
+            return created >= d && created < nextMonth
+        }).length
+
+        membersByMonth.push({ key, count })
+    }
+
+    // Belt distribution map
+    const beltStats = beltDistribution.map(b => ({
+        belt: b.belt || 'Unknown',
+        count: b._count
+    }))
 
     return {
         pendingPlayers,
@@ -458,6 +514,9 @@ export const getClubHomeData = cache(async (clubId: string, clubName: string) =>
         totalMembers,
         topPerformers,
         promotionRegistrations,
-        seminarRegistrations
+        seminarRegistrations,
+        newMembersCount,
+        membersByMonth,
+        beltStats
     }
 })

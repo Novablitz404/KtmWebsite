@@ -318,342 +318,268 @@ function ClubDetailModal({ club, onClose }: { club: ClubData, onClose: () => voi
 
     return (
         <>
-            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-                <div
-                    className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col"
-                    onClick={e => e.stopPropagation()}
-                >
-                    {/* Header */}
-                    <div className="p-5 border-b border-gray-100 flex-shrink-0">
-                        <div className="flex items-center gap-4">
-                            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0 border border-gray-200">
-                                {club.logoUrl ? (
-                                    <Image src={club.logoUrl} alt={club.name} width={56} height={56} className="object-cover" unoptimized />
-                                ) : (
-                                    <Building2 className="w-7 h-7 text-gray-400" />
-                                )}
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+                <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+
+                    {/* ── Dark Hero Header ── */}
+                    <div className="bg-gradient-to-br from-gray-900 to-gray-800 p-6 flex-shrink-0">
+                        <div className="flex items-start gap-4">
+                            <div className="w-16 h-16 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                {club.logoUrl ? <Image src={club.logoUrl} alt={club.name} width={64} height={64} className="object-cover" unoptimized /> : <Building2 className="w-8 h-8 text-white/50" />}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <h2 className="text-lg font-bold text-gray-900 truncate">{club.name}</h2>
-                                <p className="text-sm text-gray-500">{club.memberCount} members</p>
+                                <h2 className="text-xl font-black text-white tracking-tight truncate">{club.name}</h2>
+                                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${
+                                        affStatus === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                                        affStatus === 'PENDING_REVIEW' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
+                                        affStatus === 'EXPIRED' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                                        'bg-red-500/20 text-red-300 border border-red-500/30'
+                                    }`}>
+                                        <AffIcon className="w-3 h-3" />
+                                        {affBadge.label}
+                                    </span>
+                                    <span className="text-white/50 text-xs font-medium">{club.memberCount} members</span>
+                                </div>
                             </div>
-                            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1">
+                            <button onClick={onClose} className="p-1.5 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-all flex-shrink-0">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
 
-                        {/* Tabs */}
-                        <div className="flex gap-1 mt-4 bg-gray-100 rounded-lg p-1">
-                            <button
-                                onClick={() => setTab('overview')}
-                                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-md transition-all ${tab === 'overview' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                            >
-                                <Building2 size={14} />
-                                Overview
-                            </button>
-                            <button
-                                onClick={() => setTab('members')}
-                                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-md transition-all ${tab === 'members' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                            >
-                                <Users size={14} />
-                                Members
-                                <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">{club.memberCount}</span>
-                            </button>
+                        {/* Stat pills */}
+                        <div className="flex items-center gap-2 mt-4 flex-wrap">
+                            <div className="flex items-center gap-1.5 bg-white/10 rounded-xl px-3 py-1.5 border border-white/10">
+                                <Users className="w-3.5 h-3.5 text-white/60" />
+                                <span className="text-xs font-bold text-white">{club.memberCount}</span>
+                                <span className="text-[10px] text-white/40 uppercase tracking-widest">Members</span>
+                            </div>
+                            {club.affiliationExpiresAt && affStatus === 'ACTIVE' && (
+                                <div className="flex items-center gap-1.5 bg-white/10 rounded-xl px-3 py-1.5 border border-white/10">
+                                    <Calendar className="w-3.5 h-3.5 text-white/60" />
+                                    <span className="text-xs font-bold text-white">Expires {new Date(club.affiliationExpiresAt).toLocaleDateString()}</span>
+                                </div>
+                            )}
+                            {club.affiliationPaidAt && (
+                                <div className="flex items-center gap-1.5 bg-white/10 rounded-xl px-3 py-1.5 border border-white/10">
+                                    <Shield className="w-3.5 h-3.5 text-white/60" />
+                                    <span className="text-xs font-bold text-white">Paid {new Date(club.affiliationPaidAt).toLocaleDateString()}</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Tab switcher */}
+                        <div className="flex gap-1 mt-5 bg-white/10 rounded-xl p-1 w-fit">
+                            {([
+                                { id: 'overview' as const, label: 'Overview', Icon: Building2 },
+                                { id: 'members'  as const, label: 'Members',  Icon: Users },
+                            ]).map(t => (
+                                <button key={t.id} onClick={() => setTab(t.id)}
+                                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all ${tab === t.id ? 'bg-white text-gray-900 shadow-sm' : 'text-white/60 hover:text-white'}`}>
+                                    <t.Icon size={13} />
+                                    {t.label}
+                                    {t.id === 'members' && (
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${tab === 'members' ? 'bg-gray-100 text-gray-600' : 'bg-white/20 text-white'}`}>{club.memberCount}</span>
+                                    )}
+                                </button>
+                            ))}
                         </div>
                     </div>
 
-                    {/* Body */}
+                    {/* ── Body ── */}
                     <div className="flex-1 overflow-y-auto">
                         {tab === 'overview' ? (
-                            <div className="p-5">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                    {/* Left Column */}
-                                    <div className="space-y-5">
-                                        {/* Affiliation Status Card */}
-                                        <div className={`p-4 rounded-xl border ${affStatus === 'ACTIVE' ? 'bg-green-50 border-green-200' :
-                                            affStatus === 'PENDING_REVIEW' ? 'bg-blue-50 border-blue-200' :
-                                                affStatus === 'EXPIRED' ? 'bg-amber-50 border-amber-200' :
-                                                    'bg-red-50 border-red-200'
-                                            }`}>
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2">
-                                                    <AffIcon className={`w-5 h-5 ${affStatus === 'ACTIVE' ? 'text-green-600' :
-                                                        affStatus === 'PENDING_REVIEW' ? 'text-blue-600' :
-                                                            affStatus === 'EXPIRED' ? 'text-amber-600' : 'text-red-600'
-                                                        }`} />
-                                                    <span className="text-sm font-semibold text-gray-900">Affiliation</span>
-                                                </div>
-                                                <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${affBadge.bg}`}>
-                                                    {affBadge.label}
-                                                </span>
-                                            </div>
-                                            {club.affiliationExpiresAt && affStatus === 'ACTIVE' && (
-                                                <p className="text-xs text-gray-500 mt-2">
-                                                    Expires: {new Date(club.affiliationExpiresAt).toLocaleDateString()}
-                                                </p>
-                                            )}
-                                            {club.affiliationPaidAt && (
-                                                <p className="text-xs text-gray-500 mt-1">
-                                                    Last paid: {new Date(club.affiliationPaidAt).toLocaleDateString()}
-                                                </p>
-                                            )}
+                            <div className="p-6 space-y-4">
 
-                                            {affStatus === 'PENDING_REVIEW' && club.affiliationId && (
-                                                <div className="mt-3 flex items-center gap-2">
-                                                    {club.affiliationProofImageUrl && (
-                                                        <button
-                                                            onClick={() => setViewingProof(club.affiliationProofImageUrl!)}
-                                                            className="px-3 py-1.5 bg-white border border-blue-200 text-blue-600 text-xs font-medium rounded-lg hover:bg-blue-50 transition-colors flex items-center gap-1"
-                                                        >
-                                                            <Eye className="w-3 h-3" /> View Proof
-                                                        </button>
-                                                    )}
-                                                    <button
-                                                        onClick={() => handleApproveAffiliation(club.affiliationId!)}
-                                                        className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1"
-                                                    >
-                                                        <CheckCircle className="w-3 h-3" /> Approve
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleRejectAffiliation(club.affiliationId!)}
-                                                        className="px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1"
-                                                    >
-                                                        <XCircle className="w-3 h-3" /> Reject
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
+                                {/* Affiliation Actions */}
+                                {affStatus === 'PENDING_REVIEW' && club.affiliationId && (
 
-                                        {/* Mark as Paid */}
-                                        {affStatus !== 'ACTIVE' && affStatus !== 'PENDING_REVIEW' && (
-                                            <button
-                                                onClick={() => handleMarkAsPaid(club.id)}
-                                                className="w-full px-4 py-2.5 bg-green-600 text-white text-sm font-medium rounded-xl hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                                            >
-                                                <CheckCircle className="w-4 h-4" /> Mark as Paid
+                                    <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+                                        <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-3">Pending Review — Action Required</p>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            {club.affiliationProofImageUrl && (
+                                                <button onClick={() => setViewingProof(club.affiliationProofImageUrl!)}
+                                                    className="flex items-center gap-1.5 px-3 py-2 bg-white border border-blue-200 text-blue-600 text-xs font-bold rounded-xl hover:bg-blue-50 transition-colors">
+                                                    <Eye className="w-3.5 h-3.5" /> View Proof
+                                                </button>
+                                            )}
+                                            <button onClick={() => handleApproveAffiliation(club.affiliationId!)}
+                                                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition-colors">
+                                                <CheckCircle className="w-3.5 h-3.5" /> Approve
                                             </button>
-                                        )}
-
-                                        {/* Club Contact Details */}
-                                        <div className="space-y-3">
-                                            <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Club Details</h4>
-                                            <div className="space-y-2.5">
-                                                {club.address && (
-                                                    <div className="flex items-start gap-3">
-                                                        <MapPin className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                                                        <span className="text-sm text-gray-700">{club.address}</span>
-                                                    </div>
-                                                )}
-                                                {club.contactPhone && (
-                                                    <div className="flex items-center gap-3">
-                                                        <Phone className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                                                        <span className="text-sm text-gray-700">{club.contactPhone}</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Members Stat */}
-                                        <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-center">
-                                            <p className="text-2xl font-bold text-gray-900">{club.memberCount}</p>
-                                            <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Members</p>
+                                            <button onClick={() => handleRejectAffiliation(club.affiliationId!)}
+                                                className="flex items-center gap-1.5 px-3 py-2 bg-red-600 text-white text-xs font-bold rounded-xl hover:bg-red-700 transition-colors">
+                                                <XCircle className="w-3.5 h-3.5" /> Reject
+                                            </button>
                                         </div>
                                     </div>
+                                )}
+                                {affStatus !== 'ACTIVE' && affStatus !== 'PENDING_REVIEW' && (
+                                    <button onClick={() => handleMarkAsPaid(club.id)}
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 text-white text-sm font-bold rounded-2xl hover:bg-emerald-700 transition-colors shadow-sm">
+                                        <CheckCircle className="w-4 h-4" /> Mark as Paid — Activate for 1 Year
+                                    </button>
+                                )}
 
-                                    {/* Right Column — Master Details */}
-                                    <div className="space-y-3">
-                                        <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Club Master</h4>
-                                        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* Club Details */}
+                                    <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 space-y-3">
+                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Club Details</p>
+                                        {club.address ? (
+                                            <div className="flex items-start gap-3">
+                                                <div className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                    <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                                                </div>
+                                                <span className="text-sm text-gray-700 leading-snug">{club.address}</span>
+                                            </div>
+                                        ) : null}
+                                        {club.contactPhone ? (
                                             <div className="flex items-center gap-3">
-                                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center overflow-hidden flex-shrink-0 border-2 border-white shadow-sm">
-                                                    {club.masterImageUrl ? (
-                                                        <Image src={club.masterImageUrl} alt={club.masterName} width={48} height={48} className="object-cover w-full h-full" unoptimized />
-                                                    ) : (
-                                                        <Users className="w-5 h-5 text-gray-400" />
-                                                    )}
+                                                <div className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                                                    <Phone className="w-3.5 h-3.5 text-gray-400" />
                                                 </div>
-                                                <div className="min-w-0">
-                                                    <p className="text-sm font-bold text-gray-900 truncate">{club.masterName}</p>
-                                                    <p className="text-[10px] text-gray-400 uppercase tracking-wider">Club Master</p>
-                                                </div>
+                                                <span className="text-sm text-gray-700">{club.contactPhone}</span>
                                             </div>
-                                            <div className="space-y-2.5 pt-1 border-t border-gray-200/60">
-                                                {club.masterEmail && (
-                                                    <div className="flex items-center gap-2.5 pt-2.5">
-                                                        <Mail className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                                                        <span className="text-xs text-gray-600 truncate">{club.masterEmail}</span>
-                                                    </div>
-                                                )}
-                                                {club.masterBelt && (
-                                                    <div className="flex items-center gap-2.5">
-                                                        <Award className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                                                        <span className="text-xs text-gray-600 capitalize">{club.masterBelt} Belt</span>
-                                                    </div>
-                                                )}
-                                                {club.masterGender && (
-                                                    <div className="flex items-center gap-2.5">
-                                                        <Users className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                                                        <span className="text-xs text-gray-600 capitalize">{club.masterGender}</span>
-                                                    </div>
-                                                )}
-                                                {club.masterCountry && (
-                                                    <div className="flex items-center gap-2.5">
-                                                        <Globe className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                                                        <span className="text-xs text-gray-600">{club.masterCountry}</span>
-                                                    </div>
+                                        ) : null}
+                                        {!club.address && !club.contactPhone && (
+                                            <p className="text-xs text-gray-400">No contact details on file.</p>
+                                        )}
+                                    </div>
+
+                                    {/* Club Master */}
+                                    <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 space-y-3">
+                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Club Master</p>
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center overflow-hidden flex-shrink-0 border-2 border-white shadow-sm">
+                                                {club.masterImageUrl ? (
+                                                    <Image src={club.masterImageUrl} alt={club.masterName} width={40} height={40} className="object-cover w-full h-full" unoptimized />
+                                                ) : (
+                                                    <Users className="w-4 h-4 text-gray-400" />
                                                 )}
                                             </div>
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-bold text-gray-900 truncate">{club.masterName}</p>
+                                                {club.masterBelt && <p className="text-xs text-gray-500 capitalize">{club.masterBelt} Belt</p>}
+                                            </div>
+                                        </div>
+                                        <div className="border-t border-gray-200 pt-3 space-y-2">
+                                            {club.masterEmail && (
+                                                <div className="flex items-center gap-2.5">
+                                                    <Mail className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                                    <span className="text-xs text-gray-600 truncate">{club.masterEmail}</span>
+                                                </div>
+                                            )}
+                                            {club.masterGender && (
+                                                <div className="flex items-center gap-2.5">
+                                                    <Users className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                                    <span className="text-xs text-gray-600 capitalize">{club.masterGender}</span>
+                                                </div>
+                                            )}
+                                            {club.masterCountry && (
+                                                <div className="flex items-center gap-2.5">
+                                                    <Globe className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                                    <span className="text-xs text-gray-600">{club.masterCountry}</span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         ) : (
-                            /* ─── Members Tab ─────────────────────────── */
-                            <div className="p-5 space-y-4">
-                                {/* Search + Add */}
+                            /* ── Members Tab ── */
+                            <div className="p-6 space-y-4">
                                 <div className="flex items-center gap-2">
                                     <div className="relative flex-1">
-                                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                        <input
-                                            type="text"
-                                            placeholder="Search members..."
-                                            value={memberSearch}
+                                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                        <input type="text" placeholder="Search members..." value={memberSearch}
                                             onChange={e => setMemberSearch(e.target.value)}
-                                            className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-200"
+                                            className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-400 transition-colors bg-gray-50"
                                         />
                                     </div>
-                                    <button
-                                        onClick={() => setShowAddForm(!showAddForm)}
-                                        className={`flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg transition-all flex-shrink-0 ${showAddForm
-                                            ? 'bg-gray-200 text-gray-700'
-                                            : 'bg-red-600 text-white hover:bg-red-700'
-                                            }`}
-                                    >
-                                        {showAddForm ? <X size={16} /> : <UserPlus size={16} />}
+                                    <button onClick={() => setShowAddForm(!showAddForm)}
+                                        className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-bold rounded-xl transition-all flex-shrink-0 ${showAddForm ? 'bg-gray-200 text-gray-700' : 'bg-red-600 text-white hover:bg-red-700 shadow-sm'}`}>
+                                        {showAddForm ? <X size={14} /> : <UserPlus size={14} />}
                                         {showAddForm ? 'Cancel' : 'Add'}
                                     </button>
                                 </div>
 
-                                {/* Add Member Form */}
                                 {showAddForm && (
-                                    <div className="bg-gray-50 rounded-xl border border-gray-200 p-4">
-                                        <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-                                            <UserPlus size={16} className="text-red-500" />
-                                            Add Member to {club.name}
-                                        </h4>
-                                        <AddMemberForm
-                                            clubId={club.id}
-                                            clubName={club.name}
-                                            onSuccess={() => {
-                                                loadMembers()
-                                            }}
-                                            onCancel={() => setShowAddForm(false)}
-                                        />
+                                    <div className="bg-gray-50 rounded-2xl border border-gray-200 p-4">
+                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Add Member to {club.name}</p>
+                                        <AddMemberForm clubId={club.id} clubName={club.name}
+                                            onSuccess={() => { loadMembers() }}
+                                            onCancel={() => setShowAddForm(false)} />
                                     </div>
                                 )}
 
-                                {/* Member List */}
                                 {isLoadingMembers ? (
-                                    <div className="py-12 flex flex-col items-center justify-center text-gray-400">
+                                    <div className="py-16 flex flex-col items-center justify-center text-gray-400">
                                         <Loader2 size={28} className="animate-spin mb-3" />
-                                        <p className="text-sm">Loading members...</p>
+                                        <p className="text-sm font-medium">Loading members...</p>
                                     </div>
                                 ) : filteredMembers.length === 0 ? (
-                                    <div className="py-12 text-center">
-                                        <User className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                                        <p className="text-sm font-semibold text-gray-900 mb-1">
-                                            {memberSearch ? 'No matches' : 'No members yet'}
-                                        </p>
-                                        <p className="text-xs text-gray-400">
-                                            {memberSearch ? 'Try a different search term.' : 'Click "Add" to add a member to this club.'}
-                                        </p>
+                                    <div className="py-16 text-center">
+                                        <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
+                                            <User className="w-6 h-6 text-gray-300" />
+                                        </div>
+                                        <p className="text-sm font-bold text-gray-900 mb-1">{memberSearch ? 'No matches' : 'No members yet'}</p>
+                                        <p className="text-xs text-gray-400">{memberSearch ? 'Try a different search.' : 'Click "Add" to add a member.'}</p>
                                     </div>
                                 ) : (
-                                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                                    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
                                         <table className="w-full text-sm">
-                                            <thead className="bg-gray-50 border-b border-gray-200">
-                                                <tr>
-                                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Athlete</th>
-                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Belt</th>
-                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Gender</th>
-                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Age</th>
-                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Measurement</th>
+                                            <thead>
+                                                <tr className="border-b border-gray-100 bg-gray-50">
+                                                    <th className="px-4 py-3 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Athlete</th>
+                                                    <th className="px-4 py-3 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Belt</th>
+                                                    <th className="px-4 py-3 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Gender</th>
+                                                    <th className="px-4 py-3 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest hidden sm:table-cell">Age</th>
+                                                    <th className="px-4 py-3 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest hidden sm:table-cell">Measurement</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-50">
                                                 {paginatedMembers.map(m => {
                                                     const age = m.birthDate ? calculateAge(m.birthDate) : null
                                                     const isHeightBased = age !== null && age <= 11
-
                                                     return (
                                                         <tr key={m.id} className="hover:bg-gray-50 transition-colors">
                                                             <td className="px-4 py-3">
                                                                 <div className="flex items-center gap-3">
-                                                                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden flex-shrink-0 border border-gray-200">
-                                                                        {m.imageUrl ? (
-                                                                            <Image src={m.imageUrl} alt={m.name} width={32} height={32} className="object-cover w-full h-full" unoptimized />
-                                                                        ) : (
-                                                                            <User className="w-4 h-4 text-gray-400" />
-                                                                        )}
+                                                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0 border border-gray-200">
+                                                                        {m.imageUrl ? <Image src={m.imageUrl} alt={m.name} width={32} height={32} className="object-cover w-full h-full" unoptimized /> : <User className="w-4 h-4 text-gray-400" />}
                                                                     </div>
                                                                     <div className="min-w-0">
-                                                                        <p className="text-sm font-semibold text-gray-900 truncate">{m.name}</p>
+                                                                        <p className="text-sm font-bold text-gray-900 truncate">{m.name}</p>
                                                                         <p className="text-[10px] text-gray-400 truncate">{m.email.includes('noemail-') ? 'No email' : m.email}</p>
                                                                     </div>
                                                                 </div>
                                                             </td>
                                                             <td className="px-4 py-3 text-center">
-                                                                {m.belt ? (
-                                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-700 capitalize">
-                                                                        {m.belt}
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="text-gray-300 text-xs">—</span>
-                                                                )}
+                                                                {m.belt ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-gray-100 text-gray-700 capitalize">{m.belt}</span> : <span className="text-gray-300">—</span>}
                                                             </td>
-                                                            <td className="px-4 py-3 text-center text-xs text-gray-600 capitalize">
-                                                                {m.gender || <span className="text-gray-300">—</span>}
+                                                            <td className="px-4 py-3 text-center text-xs text-gray-600 capitalize">{m.gender || <span className="text-gray-300">—</span>}</td>
+                                                            <td className="px-4 py-3 text-center text-xs hidden sm:table-cell">
+                                                                {age !== null ? <span className="font-bold text-gray-900">{age}<span className="text-gray-400 font-normal"> y/o</span></span> : <span className="text-gray-300">—</span>}
                                                             </td>
-                                                            <td className="px-4 py-3 text-center text-xs text-gray-600 hidden sm:table-cell">
-                                                                {age !== null ? (
-                                                                    <span className="font-medium text-gray-900">{age} <span className="text-gray-400 font-normal">y/o</span></span>
-                                                                ) : <span className="text-gray-300">—</span>}
-                                                            </td>
-                                                            <td className="px-4 py-3 text-center text-xs text-gray-600 hidden sm:table-cell">
-                                                                {isHeightBased ? (
-                                                                    m.height ? <span className="text-blue-600 font-medium">{m.height}cm</span> : <span className="text-gray-300">—</span>
-                                                                ) : (
-                                                                    m.weight ? <span className="text-amber-600 font-medium">{m.weight}kg</span> : <span className="text-gray-300">—</span>
-                                                                )}
+                                                            <td className="px-4 py-3 text-center text-xs hidden sm:table-cell">
+                                                                {isHeightBased ? (m.height ? <span className="text-blue-600 font-bold">{m.height}cm</span> : <span className="text-gray-300">—</span>) : (m.weight ? <span className="text-amber-600 font-bold">{m.weight}kg</span> : <span className="text-gray-300">—</span>)}
                                                             </td>
                                                         </tr>
                                                     )
                                                 })}
                                             </tbody>
                                         </table>
-                                        <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
-                                            <span className="text-xs text-gray-500">
-                                                Showing {((memberPage - 1) * MEMBERS_PER_PAGE) + 1}–{Math.min(memberPage * MEMBERS_PER_PAGE, filteredMembers.length)} of {filteredMembers.length}
+                                        <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                                            <span className="text-xs text-gray-500 font-medium">
+                                                {((memberPage - 1) * MEMBERS_PER_PAGE) + 1}–{Math.min(memberPage * MEMBERS_PER_PAGE, filteredMembers.length)} of {filteredMembers.length}
                                             </span>
                                             {memberTotalPages > 1 && (
                                                 <div className="flex items-center gap-1">
-                                                    <button
-                                                        onClick={() => setMemberPage(p => Math.max(1, p - 1))}
-                                                        disabled={memberPage <= 1}
-                                                        className="px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                                    >
-                                                        Prev
-                                                    </button>
-                                                    <span className="text-xs font-semibold text-gray-700 px-2">
-                                                        {memberPage} / {memberTotalPages}
-                                                    </span>
-                                                    <button
-                                                        onClick={() => setMemberPage(p => Math.min(memberTotalPages, p + 1))}
-                                                        disabled={memberPage >= memberTotalPages}
-                                                        className="px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                                    >
-                                                        Next
-                                                    </button>
+                                                    <button onClick={() => setMemberPage(p => Math.max(1, p - 1))} disabled={memberPage <= 1}
+                                                        className="px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-white hover:shadow-sm rounded-xl border border-transparent hover:border-gray-200 transition-all disabled:opacity-30">Prev</button>
+                                                    <span className="text-xs font-black text-gray-700 px-2">{memberPage} / {memberTotalPages}</span>
+                                                    <button onClick={() => setMemberPage(p => Math.min(memberTotalPages, p + 1))} disabled={memberPage >= memberTotalPages}
+                                                        className="px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-white hover:shadow-sm rounded-xl border border-transparent hover:border-gray-200 transition-all disabled:opacity-30">Next</button>
                                                 </div>
                                             )}
                                         </div>
@@ -662,29 +588,16 @@ function ClubDetailModal({ club, onClose }: { club: ClubData, onClose: () => voi
                             </div>
                         )}
                     </div>
-
-                    {/* Footer */}
-                    <div className="p-4 border-t border-gray-100 flex-shrink-0">
-                        <button
-                            onClick={onClose}
-                            className="w-full px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg text-sm transition-colors"
-                        >
-                            Close
-                        </button>
-                    </div>
                 </div>
             </div>
 
-            {/* Proof of Payment Lightbox */}
+            {/* Proof Lightbox */}
             {viewingProof && (
-                <div
-                    className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4"
-                    onClick={() => setViewingProof(null)}
-                >
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => setViewingProof(null)}>
                     <div className="relative max-w-lg w-full max-h-[80vh] bg-white rounded-2xl overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-                            <h3 className="text-sm font-semibold text-gray-900">Proof of Payment</h3>
-                            <button onClick={() => setViewingProof(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+                        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Proof of Payment</p>
+                            <button onClick={() => setViewingProof(null)} className="p-1.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"><X className="w-4 h-4" /></button>
                         </div>
                         <div className="relative w-full h-[60vh]">
                             <Image src={viewingProof} alt="Proof of payment" fill className="object-contain" unoptimized />

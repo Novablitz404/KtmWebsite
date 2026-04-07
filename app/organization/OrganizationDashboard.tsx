@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { getOrganizationDashboardData } from './actions'
 
-import DashboardStats from '@/components/DashboardStats'
+import PlatformGrowthCard from '@/components/organization/PlatformGrowthCard'
 import AffiliatedClubsTable from '@/components/organization/AffiliatedClubsTable'
 import AffiliatedOrgsTable from '@/components/organization/AffiliatedOrgsTable'
 
@@ -79,7 +79,7 @@ export default function OrganizationDashboard({
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-[#f7f8fa]">
             {/* Desktop Sidebar */}
             <OrganizationSidebar
                 activeView={activeView}
@@ -92,8 +92,6 @@ export default function OrganizationDashboard({
                 <OrganizationTopBar
                     userName={userData.name || 'User'}
                     userImageUrl={clerkImageUrl}
-                    title={activeView === 'settings' ? 'Settings' : activeView === 'athletes' ? 'Athlete Cards' : activeView === 'financials' ? 'Financials' : undefined}
-                    subtitle={activeView === 'athletes' ? 'Manage athlete card activation status' : activeView === 'financials' ? 'Revenue overview for all events' : undefined}
                     searchQuery={searchQuery}
                     onSearchChange={activeView === 'clubs' || activeView === 'events' ? handleSearchChange : undefined}
                     searchPlaceholder={activeView === 'clubs' ? 'Search clubs, masters...' : activeView === 'events' ? 'Search events...' : 'Search...'}
@@ -134,47 +132,33 @@ export default function OrganizationDashboard({
                     <>
                         {/* Home View */}
                         {activeView === 'home' && (
-                            <div className="p-6 h-[calc(100vh-80px)] overflow-hidden">
-                                {/* Main 2-Column Layout */}
-                                <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6 h-full">
-                                    {/* Left Column - Main Content */}
-                                    <div className="flex flex-col gap-6 h-full overflow-hidden">
-                                        {/* Stats Row */}
-                                        <div className="flex-shrink-0">
-                                            <DashboardStats stats={{
-                                                totalMembers: dashboardData.stats.totalMembers,
-                                                directMembers: dashboardData.stats.totalDirectMembers,
-                                                directClubs: dashboardData.stats.directClubsCount,
-                                                affiliatedOrgs: dashboardData.stats.affiliatedOrgsCount
-                                            }} />
-                                        </div>
+                            <div className="p-6 md:p-8 space-y-5">
 
-                                        {/* Pending Approvals Widget */}
-                                        <PendingApprovalsWidget
-                                            pendingClubs={(dashboardData.allClubs || []).filter((c: any) => c?.status === 'PENDING')}
-                                            pendingAffiliations={(dashboardData.allClubs || []).filter((c: any) => c?.affiliationStatus === 'PENDING_REVIEW')}
-                                        />
-                                    </div>
+                                {/* Row 1: Growth chart — full width */}
+                                <PlatformGrowthCard
+                                    clubs={dashboardData.allClubs || []}
+                                    totalMembers={dashboardData.stats.totalMembers}
+                                    directClubs={dashboardData.stats.directClubsCount}
+                                    affiliatedOrgs={dashboardData.stats.affiliatedOrgsCount}
+                                />
 
-                                    {/* Right Column (Sidebar/Quick Info) - Desktop Only */}
-                                    <div className="hidden xl:flex flex-col gap-6 h-full">
-                                        {/* Smart Alerts Widget (Replaces Details) */}
-                                        <div className="flex-shrink-0">
-                                            <SmartAlertsWidget />
-                                        </div>
+                                {/* Row 2: Pending Approvals — full width */}
+                                <PendingApprovalsWidget
+                                    pendingClubs={(dashboardData.allClubs || []).filter((c: any) => c?.status === 'PENDING')}
+                                    pendingAffiliations={(dashboardData.allClubs || []).filter((c: any) => c?.affiliationStatus === 'PENDING_REVIEW')}
+                                />
 
-                                        {/* Announcements Widget */}
-                                        <div className="flex-1 min-h-0 flex flex-col">
-                                            <AnnouncementsWidget announcements={dashboardData.announcements || []} />
-                                        </div>
-                                    </div>
+                                {/* Row 3: Smart Alerts | Announcements */}
+                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+                                    <SmartAlertsWidget />
+                                    <AnnouncementsWidget announcements={dashboardData.announcements || []} />
                                 </div>
                             </div>
                         )}
 
                         {/* Clubs View */}
                         {activeView === 'clubs' && (
-                            <div className="h-[calc(100vh-9rem)] md:h-[calc(100vh-7rem)] px-4 pt-4 pb-0 sm:px-6 sm:pt-6 sm:pb-0 lg:px-8 lg:pt-8 lg:pb-0 overflow-hidden">
+                            <div className="p-6 md:p-8">
                                 <OrganizationClubsView
                                     clubs={dashboardData.allClubs || []}
                                     organizations={dashboardData.affiliatedOrgs || []}
@@ -187,7 +171,7 @@ export default function OrganizationDashboard({
 
                         {/* Events View */}
                         {activeView === 'events' && (
-                            <div className="h-[calc(100vh-9rem)] md:h-[calc(100vh-7rem)] px-4 pt-4 pb-0 sm:px-6 sm:pt-6 sm:pb-0 lg:px-8 lg:pt-8 lg:pb-0 overflow-hidden">
+                            <div className="p-6 md:p-8">
                                 <OrganizationEventsView
                                     searchQuery={searchQuery}
                                     templates={dashboardData.guidelineTemplates || []}
@@ -197,24 +181,30 @@ export default function OrganizationDashboard({
 
                         {/* Athletes View */}
                         {activeView === 'athletes' && (
-                            <OrganizationAthletesView />
+                            <div className="p-6 md:p-8">
+                                <OrganizationAthletesView />
+                            </div>
                         )}
 
                         {/* Financials View */}
                         {activeView === 'financials' && (
-                            <OrganizationFinancialsView />
+                            <div className="p-6 md:p-8">
+                                <OrganizationFinancialsView />
+                            </div>
                         )}
 
                         {/* Settings View */}
                         {activeView === 'settings' && (
-                            <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                            <div className="p-6 md:p-8">
                                 {settingsContent ? (
                                     settingsContent
                                 ) : (
-                                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
-                                        <Settings className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                                        <h2 className="text-xl font-bold text-gray-900 mb-2">Organization Settings</h2>
-                                        <p className="text-gray-500">Settings management coming soon.</p>
+                                    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-10 text-center">
+                                        <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                                            <Settings className="w-6 h-6 text-gray-300" />
+                                        </div>
+                                        <h2 className="text-lg font-bold text-gray-900 mb-1">Organization Settings</h2>
+                                        <p className="text-sm text-gray-400">Settings management coming soon.</p>
                                     </div>
                                 )}
                             </div>
@@ -222,7 +212,7 @@ export default function OrganizationDashboard({
 
                         {/* Team / Co-Organizers View */}
                         {activeView === 'team' && dashboardData?.organization && (
-                            <div className="h-[calc(100vh-9rem)] md:h-[calc(100vh-7rem)] px-4 pt-4 pb-0 sm:px-6 sm:pt-6 sm:pb-0 lg:px-8 lg:pt-8 lg:pb-0 overflow-hidden">
+                            <div className="p-6 md:p-8">
                                 <OrganizationCoOrganizers
                                     organizationId={dashboardData.organization.id}
                                     isOwner={userRole === 'ORGANIZER'}

@@ -81,9 +81,6 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
     const [promotions, setPromotions] = useState<PromotionTest[]>([])
     const [selectedPromotionId, setSelectedPromotionId] = useState<string>('')
 
-    // Seminar Specific State
-
-
     // Promotion Specific State
     const [targetBelt, setTargetBelt] = useState<string>('')
 
@@ -124,9 +121,6 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
         }
     }, [isOpen, activeTab, clubId, tournaments.length, seminars.length, promotions.length])
 
-    // Handle Proof of Payment Preview
-
-
     // Derived state for available event types
     const selectedTournamentObj = tournaments.find(t => t.id === selectedTournament)
     const availableEventTypes = selectedTournamentObj
@@ -150,7 +144,6 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
     // Auto-Detect Category Logic
     useEffect(() => {
         const detectCategory = async () => {
-            // Basic requirements: Tournament + Member (for Age/Gender) + Weight (for Kyorugi) or Belt (for Poomsae)
             if (!selectedTournament || !selectedMember) {
                 setTentativeCategory(null)
                 return
@@ -159,7 +152,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
             setIsDetecting(true)
             try {
                 const category = await findPlayerCategory(selectedTournament, {
-                    birthDate: selectedMember.birthDate || new Date(), // Fallback if missing, but should be there
+                    birthDate: selectedMember.birthDate || new Date(),
                     gender: selectedMember.gender || 'Male',
                     weight: parseFloat(weight) || 0,
                     height: parseFloat(height) || 0,
@@ -305,30 +298,35 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
 
     if (!isOpen) return null
 
+    const tabLabel = activeTab === 'TOURNAMENT' ? 'Tournament' : activeTab === 'SEMINAR' ? 'Seminar' : 'Promotion Test'
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
-                {/* Header */}
-                <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-gray-900">
-                        {activeTab === 'TOURNAMENT' ? 'Add Athlete to Tournament' :
-                            activeTab === 'SEMINAR' ? 'Add Athlete to Seminar' :
-                                'Add Athlete to Promotion'}
-                    </h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
+
+                {/* ── Header ── */}
+                <div className="flex-shrink-0 flex items-center justify-between px-7 py-5 border-b border-gray-100">
+                    <div>
+                        <h2 className="text-lg font-black text-gray-900">Add Athlete</h2>
+                        <p className="text-xs text-gray-400 mt-0.5">Register a club member to an upcoming {tabLabel.toLowerCase()}</p>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+                    >
                         <X className="w-5 h-5" />
                     </button>
                 </div>
 
-                {/* Event Type Switcher (only if not pre-selected or force-shown) */}
-                <div className="px-6 py-2 bg-gray-50/50 border-b border-gray-100">
-                    <div className="flex p-1 bg-gray-200/50 rounded-xl">
+                {/* ── Event Type Switcher ── */}
+                <div className="flex-shrink-0 px-7 pt-5">
+                    <div className="flex p-1 bg-gray-100 rounded-xl w-full">
                         {(['TOURNAMENT', 'SEMINAR', 'PROMOTION'] as const).map((tab) => (
                             <button
                                 key={tab}
                                 type="button"
                                 onClick={() => setActiveTab(tab)}
-                                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${activeTab === tab
+                                className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${activeTab === tab
                                     ? 'bg-white text-gray-900 shadow-sm'
                                     : 'text-gray-500 hover:text-gray-700'
                                     }`}
@@ -339,314 +337,336 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                     </div>
                 </div>
 
-                {/* Content */}
-                <div className="p-6 overflow-y-auto">
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                        {/* Member Search */}
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Select Athlete</label>
-                            {selectedMember ? (
-                                <div className="flex items-center justify-between p-3 bg-indigo-50 border border-indigo-100 rounded-xl">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold">
-                                            {selectedMember.name?.charAt(0)}
-                                        </div>
-                                        <div>
-                                            <p className="font-bold text-gray-900">{selectedMember.name}</p>
-                                            <p className="text-xs text-indigo-600">{selectedMember.email}</p>
-                                        </div>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectedMember(null)}
-                                        className="text-xs font-semibold text-gray-500 hover:text-red-600 px-2 py-1"
-                                    >
-                                        Change
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                    <input
-                                        type="text"
-                                        placeholder="Search by name or email..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm"
-                                    />
-                                    {isSearching && (
-                                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-500 animate-spin" />
-                                    )}
+                {/* ── Scrollable Body ── */}
+                <div className="flex-1 overflow-y-auto">
+                    <form id="add-athlete-form" onSubmit={handleSubmit}>
+                        <div className="px-7 py-5 space-y-6">
 
-                                    {/* Search Dropdown */}
-                                    {searchResults.length > 0 && (
-                                        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-lg border border-gray-100 py-2 z-10 max-h-60 overflow-y-auto">
-                                            {searchResults.map(member => (
+                            {/* ── Section: Athlete ── */}
+                            <div>
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Athlete</p>
+                                {selectedMember ? (
+                                    <div className="flex items-center justify-between px-4 py-3.5 bg-gray-900 rounded-2xl">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0">
+                                                {selectedMember.name?.charAt(0)}
+                                            </div>
+                                            <div>
+                                                <p className="font-black text-white text-sm leading-tight">{selectedMember.name}</p>
+                                                <p className="text-[11px] text-gray-400 mt-0.5">{selectedMember.email}</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedMember(null)}
+                                            className="text-xs font-bold text-gray-400 hover:text-red-400 px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0"
+                                        >
+                                            Change
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="relative">
+                                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Search by name or email..."
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            className="w-full pl-10 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium"
+                                        />
+                                        {isSearching && (
+                                            <Loader2 className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-spin" />
+                                        )}
+                                        {searchResults.length > 0 && (
+                                            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-20 max-h-52 overflow-y-auto">
+                                                {searchResults.map(member => (
+                                                    <button
+                                                        key={member.id}
+                                                        type="button"
+                                                        onClick={() => handleSelectMember(member)}
+                                                        className="w-full px-4 py-2.5 text-left hover:bg-gray-50 flex items-center gap-3 transition-colors"
+                                                    >
+                                                        <div className="w-8 h-8 bg-gray-100 rounded-xl flex items-center justify-center text-xs font-black text-gray-600 flex-shrink-0">
+                                                            {member.name?.charAt(0)}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm font-black text-gray-900">{member.name}</p>
+                                                            <p className="text-[11px] text-gray-400 mt-0.5">{member.email}</p>
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* ── Section: Event ── */}
+                            <div>
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Event Details</p>
+
+                                {activeTab === 'TOURNAMENT' && (
+                                    <div className="space-y-4">
+                                        {/* Tournament + Event Type */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-1.5">Tournament</label>
+                                                <GlobalDropdown
+                                                    value={selectedTournament}
+                                                    onChange={setSelectedTournament}
+                                                    options={tournaments.map(t => ({ value: t.id, label: t.name }))}
+                                                    fullWidth
+                                                    searchable
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-1.5">Event Type</label>
+                                                <GlobalDropdown
+                                                    value={eventType}
+                                                    onChange={(val: any) => setEventType(val)}
+                                                    options={availableEventTypes}
+                                                    fullWidth
+                                                />
+                                                {selectedTournament && availableEventTypes.length === 0 && (
+                                                    <p className="text-[10px] text-red-500 mt-1 font-medium">No categories available.</p>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Weight/Height + Belt */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            {(() => {
+                                                const memberAge = selectedMember?.birthDate ? calculateAge(selectedMember.birthDate) : null
+                                                const usesHeight = memberAge !== null && memberAge <= 11
+                                                return usesHeight ? (
+                                                    <div>
+                                                        <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-1.5">Height (cm)</label>
+                                                        <input
+                                                            type="number"
+                                                            step="0.1"
+                                                            value={height}
+                                                            onChange={(e) => setHeight(e.target.value)}
+                                                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium"
+                                                            required={eventType === 'KYORUGI'}
+                                                            disabled={eventType === 'POOMSAE' || eventType === 'KYUKPA'}
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div>
+                                                        <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-1.5">Weight (kg)</label>
+                                                        <input
+                                                            type="number"
+                                                            step="0.1"
+                                                            value={weight}
+                                                            onChange={(e) => setWeight(e.target.value)}
+                                                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium"
+                                                            required={eventType === 'KYORUGI'}
+                                                            disabled={eventType === 'POOMSAE' || eventType === 'KYUKPA'}
+                                                        />
+                                                    </div>
+                                                )
+                                            })()}
+                                            <div>
+                                                <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-1.5">Current Belt</label>
+                                                <GlobalDropdown
+                                                    value={belt}
+                                                    onChange={setBelt}
+                                                    options={BELT_OPTIONS.map(b => ({ label: b, value: b }))}
+                                                    label="Select..."
+                                                    fullWidth
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Poomsae extras */}
+                                        {eventType === 'POOMSAE' && (
+                                            <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                <div>
+                                                    <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-1.5">Poomsae Type</label>
+                                                    <GlobalDropdown
+                                                        value={poomsaeType}
+                                                        onChange={setPoomsaeType}
+                                                        options={[
+                                                            { value: 'INDIVIDUAL', label: 'Individual' },
+                                                            { value: 'PAIR', label: 'Pair' },
+                                                            { value: 'TEAM', label: 'Team' }
+                                                        ]}
+                                                        fullWidth
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-1.5">
+                                                        Team ID <span className="normal-case font-medium text-gray-400">(optional)</span>
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="e.g. 1, A, B"
+                                                        value={teamId}
+                                                        onChange={(e) => setTeamId(e.target.value)}
+                                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Category Detector Card */}
+                                        <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Detected Category</p>
                                                 <button
-                                                    key={member.id}
                                                     type="button"
-                                                    onClick={() => handleSelectMember(member)}
-                                                    className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-3 transition-colors"
+                                                    onClick={() => { setIsManualMode(!isManualMode); setManualCategoryId('') }}
+                                                    className="text-[11px] font-bold text-red-600 hover:text-red-800 transition-colors"
                                                 >
-                                                    <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-600">
-                                                        {member.name?.charAt(0)}
+                                                    {isManualMode ? '← Auto-Detect' : 'Choose Manually →'}
+                                                </button>
+                                            </div>
+
+                                            {isManualMode ? (
+                                                <div className="space-y-2">
+                                                    <GlobalDropdown
+                                                        value={manualCategoryId}
+                                                        onChange={setManualCategoryId}
+                                                        options={filteredCategories.map(c => ({ value: c.id, label: c.name }))}
+                                                        label="Select category..."
+                                                        fullWidth
+                                                        searchable
+                                                    />
+                                                    {manualCategoryId && (
+                                                        <div className="flex items-center gap-1.5 text-[11px] text-green-600 font-bold mt-1">
+                                                            <CheckCircle2 className="w-3.5 h-3.5" />
+                                                            Manually selected
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : isDetecting ? (
+                                                <div className="flex items-center gap-2 text-sm text-gray-500">
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                    <span className="font-medium">Detecting category...</span>
+                                                </div>
+                                            ) : tentativeCategory ? (
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
+                                                        <CheckCircle2 className="w-4 h-4 text-green-600" />
                                                     </div>
                                                     <div>
-                                                        <p className="text-sm font-medium text-gray-900">{member.name}</p>
-                                                        <p className="text-xs text-gray-500">{member.email}</p>
+                                                        <p className="font-black text-gray-900 text-sm">{tentativeCategory.name}</p>
+                                                        <p className="text-[11px] text-green-600 font-medium mt-0.5">Auto-detected based on profile</p>
                                                     </div>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Event Selection */}
-                        {activeTab === 'TOURNAMENT' && (
-                            <>
-                                <div className="space-y-4">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Tournament</label>
-                                    <GlobalDropdown
-                                        value={selectedTournament}
-                                        onChange={setSelectedTournament}
-                                        options={tournaments.map(t => ({ value: t.id, label: t.name }))}
-                                        fullWidth
-                                        searchable
-                                    />
-                                </div>
-
-                                <div className="space-y-4">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Event Category</label>
-                                    <GlobalDropdown
-                                        value={eventType}
-                                        onChange={(val: any) => setEventType(val)}
-                                        options={availableEventTypes}
-                                        fullWidth
-                                    />
-                                    {selectedTournament && availableEventTypes.length === 0 && (
-                                        <p className="text-xs text-red-500">No event categories available for this tournament.</p>
-                                    )}
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    {/* Dynamic: Height for ages 0-11, Weight for ages 12+ */}
-                                    {(() => {
-                                        const memberAge = selectedMember?.birthDate
-                                            ? calculateAge(selectedMember.birthDate)
-                                            : null
-                                        const usesHeight = memberAge !== null && memberAge <= 11
-
-                                        return usesHeight ? (
-                                            <div className="space-y-2">
-                                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Height (cm)</label>
-                                                <input
-                                                    type="number"
-                                                    step="0.1"
-                                                    value={height}
-                                                    onChange={(e) => setHeight(e.target.value)}
-                                                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
-                                                    required={eventType === 'KYORUGI'}
-                                                    disabled={eventType === 'POOMSAE' || eventType === 'KYUKPA'}
-                                                />
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-2">
-                                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Weight (kg)</label>
-                                                <input
-                                                    type="number"
-                                                    step="0.1"
-                                                    value={weight}
-                                                    onChange={(e) => setWeight(e.target.value)}
-                                                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
-                                                    required={eventType === 'KYORUGI'}
-                                                    disabled={eventType === 'POOMSAE' || eventType === 'KYUKPA'}
-                                                />
-                                            </div>
-                                        )
-                                    })()}
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Current Belt</label>
-                                        <GlobalDropdown
-                                            value={belt}
-                                            onChange={setBelt}
-                                            options={BELT_OPTIONS.map(b => ({ label: b, value: b }))}
-                                            label="Select..."
-                                            fullWidth
-                                        />
-                                    </div>
-                                </div>
-
-                                {eventType === 'POOMSAE' && (
-                                    <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                        <div className="space-y-2">
-                                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Poomsae Type</label>
-                                            <GlobalDropdown
-                                                value={poomsaeType}
-                                                onChange={setPoomsaeType}
-                                                options={[
-                                                    { value: 'INDIVIDUAL', label: 'Individual' },
-                                                    { value: 'PAIR', label: 'Pair' },
-                                                    { value: 'TEAM', label: 'Team' }
-                                                ]}
-                                                fullWidth
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Team ID (Optional)</label>
-                                            <input
-                                                type="text"
-                                                placeholder="e.g. 1, A, B"
-                                                value={teamId}
-                                                onChange={(e) => setTeamId(e.target.value)}
-                                                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-sm font-medium"
-                                            />
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+                                                        <AlertCircle className="w-4 h-4 text-amber-600" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-black text-gray-700 text-sm">No Category Found</p>
+                                                        <p className="text-[11px] text-gray-400 font-medium mt-0.5">Enter weight, belt &amp; select a tournament to detect.</p>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 )}
 
-                                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Category</label>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setIsManualMode(!isManualMode)
-                                                setManualCategoryId('')
-                                            }}
-                                            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
-                                        >
-                                            {isManualMode ? '← Auto-Detect' : 'Choose Manually'}
-                                        </button>
-                                    </div>
-
-                                    {isManualMode ? (
-                                        /* Manual Category Selection */
-                                        <div className="space-y-2">
+                                {activeTab === 'SEMINAR' && (
+                                    <div className="space-y-4 animate-in fade-in duration-200">
+                                        <div>
+                                            <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-1.5">Seminar</label>
                                             <GlobalDropdown
-                                                value={manualCategoryId}
-                                                onChange={setManualCategoryId}
-                                                options={filteredCategories.map(c => ({ value: c.id, label: c.name }))}
-                                                label="Select category..."
+                                                value={selectedSeminarId}
+                                                onChange={setSelectedSeminarId}
+                                                options={seminars.map(s => ({ value: s.id, label: s.name }))}
                                                 fullWidth
                                                 searchable
                                             />
-                                            {manualCategoryId && (
-                                                <div className="flex items-center gap-2 text-xs text-indigo-600 mt-1">
-                                                    <CheckCircle2 className="w-3.5 h-3.5" />
-                                                    <span>Manually selected</span>
-                                                </div>
-                                            )}
                                         </div>
-                                    ) : (
-                                        /* Auto-Detected Category */
-                                        isDetecting ? (
-                                            <div className="flex items-center gap-2 text-gray-500 text-sm">
-                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                                <span>Detecting category...</span>
+                                        {selectedSeminarId && seminars.find(s => s.id === selectedSeminarId)?.fee && (
+                                            <div className="flex items-center justify-between px-4 py-3 bg-green-50 border border-green-100 rounded-xl">
+                                                <span className="text-xs font-black text-green-700 uppercase tracking-wider">Registration Fee</span>
+                                                <span className="font-black text-green-700">₱{seminars.find(s => s.id === selectedSeminarId)?.fee}</span>
                                             </div>
-                                        ) : tentativeCategory ? (
-                                            <div className="flex items-start gap-3">
-                                                <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5" />
-                                                <div>
-                                                    <p className="font-bold text-gray-900 text-sm">{tentativeCategory.name}</p>
-                                                    <p className="text-xs text-green-600 mt-0.5">Auto-detected based on profile</p>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-start gap-3">
-                                                <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5" />
-                                                <div>
-                                                    <p className="font-medium text-gray-700 text-sm">No Category Found</p>
-                                                    <p className="text-xs text-gray-500 mt-0.5">Try choosing manually or check weight, age, and requirements.</p>
-                                                </div>
-                                            </div>
-                                        )
-                                    )}
-                                </div>
-                            </>
-                        )}
+                                        )}
+                                    </div>
+                                )}
 
-                        {activeTab === 'SEMINAR' && (
-                            <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
-                                <div className="space-y-4">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Seminar</label>
-                                    <GlobalDropdown
-                                        value={selectedSeminarId}
-                                        onChange={setSelectedSeminarId}
-                                        options={seminars.map(s => ({ value: s.id, label: s.name }))}
-                                        fullWidth
-                                        searchable
-                                    />
-                                    {selectedSeminarId && seminars.find(s => s.id === selectedSeminarId)?.fee && (
-                                        <div className="flex items-center justify-between px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-lg">
-                                            <span className="text-xs font-medium text-emerald-700">Registration Fee</span>
-                                            <span className="font-bold text-emerald-700">₱{seminars.find(s => s.id === selectedSeminarId)?.fee}</span>
+                                {activeTab === 'PROMOTION' && (
+                                    <div className="space-y-4 animate-in fade-in duration-200">
+                                        <div>
+                                            <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-1.5">Promotion Test</label>
+                                            <GlobalDropdown
+                                                value={selectedPromotionId}
+                                                onChange={setSelectedPromotionId}
+                                                options={promotions.map(p => ({ value: p.id, label: p.name }))}
+                                                fullWidth
+                                                searchable
+                                            />
                                         </div>
-                                    )}
-                                </div>
-
-                            </div>
-                        )}
-
-                        {activeTab === 'PROMOTION' && (
-                            <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
-                                <div className="space-y-4">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Promotion Test</label>
-                                    <GlobalDropdown
-                                        value={selectedPromotionId}
-                                        onChange={setSelectedPromotionId}
-                                        options={promotions.map(p => ({ value: p.id, label: p.name }))}
-                                        fullWidth
-                                        searchable
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Current Belt</label>
-                                        <GlobalDropdown
-                                            value={belt}
-                                            onChange={setBelt}
-                                            options={BELT_OPTIONS.map(b => ({ label: b, value: b }))}
-                                            label="Select..."
-                                            fullWidth
-                                        />
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-1.5">Current Belt</label>
+                                                <GlobalDropdown
+                                                    value={belt}
+                                                    onChange={setBelt}
+                                                    options={BELT_OPTIONS.map(b => ({ label: b, value: b }))}
+                                                    label="Select..."
+                                                    fullWidth
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-1.5">Target Belt</label>
+                                                {(() => {
+                                                    const idx = BELT_OPTIONS.findIndex(b => b.toLowerCase() === belt.toLowerCase())
+                                                    const nextBelt = idx !== -1 && idx < BELT_OPTIONS.length - 1 ? BELT_OPTIONS[idx + 1] : null
+                                                    return (
+                                                        <div className={`w-full px-4 py-2.5 rounded-xl text-sm font-black ${nextBelt ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-gray-100 border border-gray-200 text-gray-400'}`}>
+                                                            {nextBelt || (belt ? 'Highest rank' : 'Select current belt')}
+                                                        </div>
+                                                    )
+                                                })()}
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Target Belt</label>
-                                        {(() => {
-                                            const idx = BELT_OPTIONS.findIndex(b => b.toLowerCase() === belt.toLowerCase())
-                                            const nextBelt = idx !== -1 && idx < BELT_OPTIONS.length - 1 ? BELT_OPTIONS[idx + 1] : null
-                                            return (
-                                                <div className={`w-full px-3 py-2.5 rounded-xl text-sm font-medium ${nextBelt ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-gray-100 border border-gray-200 text-gray-400'}`}>
-                                                    {nextBelt || (belt ? 'Already at highest rank' : 'Select current belt first')}
-                                                </div>
-                                            )
-                                        })()}
-                                    </div>
-                                </div>
+                                )}
                             </div>
-                        )}
 
-                        {/* Submit */}
+                        </div>
+                    </form>
+                </div>
+
+                {/* ── Sticky Footer ── */}
+                <div className="flex-shrink-0 px-7 py-4 border-t border-gray-100 bg-gray-50/60 flex items-center gap-3 rounded-b-3xl">
+                    <div className="flex-1 hidden sm:block">
+                        <p className="text-[11px] text-gray-400 font-medium truncate">
+                            {selectedMember
+                                ? <><span className="font-black text-gray-700">{selectedMember.name}</span>{effectiveCategory && activeTab === 'TOURNAMENT' && <> · <span className="text-green-600 font-black">{effectiveCategory.name}</span></>}</>
+                                : 'No athlete selected yet'}
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2 ml-auto">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="px-5 py-2.5 rounded-xl text-sm font-black text-gray-600 hover:bg-gray-100 border border-gray-200 transition-all"
+                        >
+                            Cancel
+                        </button>
                         <button
                             type="submit"
+                            form="add-athlete-form"
                             disabled={submitting || !selectedMember || (activeTab === 'TOURNAMENT' && !effectiveCategory)}
-                            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-sm shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                            className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-black shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center gap-2"
                         >
                             {submitting ? (
                                 <>
-                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                    <Loader2 className="w-4 h-4 animate-spin" />
                                     Registering...
                                 </>
-                            ) : (
-                                activeTab === 'TOURNAMENT' ? 'Register Athlete' : 'Add Athlete'
-                            )}
+                            ) : activeTab === 'TOURNAMENT' ? 'Register Athlete' : 'Add Athlete'}
                         </button>
-                    </form>
+                    </div>
                 </div>
+
             </div>
         </div>
     )

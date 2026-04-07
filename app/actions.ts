@@ -1994,11 +1994,28 @@ export async function getTournamentStats(tournamentId: string) {
         }
     }
 
+    // Deduplicate athletes by userId (same person in multiple disciplines = 1 unique athlete)
+    // Fetch userId + name + clubId for deduplication
+    const allPlayersForDedup = await prisma.player.findMany({
+        where: { category: { tournamentId } },
+        select: { userId: true, name: true, clubId: true, registrationStatus: true }
+    })
+
+    const uniqueAthleteSet = new Set<string>()
+    const uniqueApprovedSet = new Set<string>()
+    for (const p of allPlayersForDedup) {
+        const key = p.userId || `${p.name.toLowerCase().trim()}::${p.clubId || 'none'}`
+        uniqueAthleteSet.add(key)
+        if (p.registrationStatus === 'APPROVED') uniqueApprovedSet.add(key)
+    }
+
     return {
         total,
         approved,
         pending,
         rejected,
+        uniqueAthletes: uniqueAthleteSet.size,
+        uniqueApproved: uniqueApprovedSet.size,
         kyorugi: kyorugiCount,
         poomsae: poomsaeCount,
         kyukpa:  kyukpaCount,
@@ -3070,6 +3087,21 @@ export async function getTournamentAlerts(tournamentId: string) {
     return { alerts, proposals }
 }
 
+export async function getResolutionHistory(tournamentId: string) {
+    const resolved = await prisma.smartProposal.findMany({
+        where: {
+            tournamentId,
+            status: 'EXECUTED'
+        },
+        include: {
+            votes: true
+        },
+        orderBy: { updatedAt: 'desc' }
+    })
+
+    return resolved
+}
+
 export async function initiateSmartProposal(
     tournamentId: string,
     type: string,
@@ -3112,12 +3144,15 @@ export async function submitClubDecision(
         where: { id: proposalId }
     })
 
-    // 5. If UNCONTESTED and action is unilateral (Withdraw/Walkover), execute immediately
+    // 5. If UNCONTESTED, all three club actions are unilateral — execute immediately
+    //    Move Up: club consented via confirmation dialog → move the athlete now
+    //    Walkover / Withdraw: club-side decisions that don't need organizer sign-off
     if (proposal?.type === 'UNCONTESTED') {
-        if (vote === 'WITHDRAW' || vote === 'WALKOVER') {
+        if (vote === 'WITHDRAW' || vote === 'WALKOVER' || vote === 'MOVE_UP') {
             await forceExecuteSmartAction(proposalId, vote)
         }
     }
+
 
     revalidatePath('/club') // Refresh club dashboard
     revalidatePath('/organization')
@@ -3171,6 +3206,8 @@ export async function updateTournamentDetails(
         earlyBirdPrice?: number | null
         regularPrice?: number | null
         headerImageUrl?: string | null
+        status?: string
+        guidelines?: string | null
     }
 ) {
     const dbUser = await getAuthUser()
@@ -3204,6 +3241,8 @@ export async function updateTournamentDetails(
                 ...(data.earlyBirdPrice !== undefined && { earlyBirdPrice: data.earlyBirdPrice }),
                 ...(data.regularPrice !== undefined && { regularPrice: data.regularPrice }),
                 ...(data.headerImageUrl !== undefined && { headerImageUrl: data.headerImageUrl }),
+                ...(data.status !== undefined && { status: data.status as any }),
+                ...(data.guidelines !== undefined && { guidelines: data.guidelines }),
             }
         })
 

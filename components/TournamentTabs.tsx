@@ -7,6 +7,7 @@ import BracketList from './BracketList'
 import PlayerRegistration from './PlayerRegistration'
 import TournamentManagers from './TournamentManagers'
 import TournamentOverview from './TournamentOverview'
+import ResolutionHistory from './ResolutionHistory'
 import { getTournamentPlayers, updateTournamentGuidelines, getTournamentAlerts } from '@/app/actions'
 import DashboardDataExport from './DashboardDataExport'
 import TournamentSettings from './TournamentSettings'
@@ -24,12 +25,10 @@ import {
     Settings,
     ArrowLeft,
     Menu,
-    X,
-    Calendar,
-    MapPin,
     Loader2,
     Save,
-    ScanLine
+    ScanLine,
+    ShieldCheck,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -58,6 +57,8 @@ interface TournamentTabsProps {
         approved: number
         pending: number
         rejected: number
+        uniqueAthletes?: number
+        uniqueApproved?: number
         kyorugi: number
         poomsae: number
         kyukpa: number
@@ -65,32 +66,84 @@ interface TournamentTabsProps {
     }
 }
 
-export default function TournamentTabs({ tournament, players, pendingManagerInvites = [], publicView = false, totalPlayersCount = 0, userRole, tournamentStats }: TournamentTabsProps) {
+const STATUS_CONFIG: Record<string, { label: string; dot: string; text: string; bg: string }> = {
+    UPCOMING:    { label: 'Upcoming',    dot: 'bg-blue-400',   text: 'text-blue-700',  bg: 'bg-blue-50'  },
+    ONGOING:     { label: 'Ongoing',     dot: 'bg-emerald-400', text: 'text-emerald-700', bg: 'bg-emerald-50' },
+    COMPLETED:   { label: 'Completed',   dot: 'bg-gray-400',   text: 'text-gray-600',  bg: 'bg-gray-100' },
+    CANCELLED:   { label: 'Cancelled',   dot: 'bg-red-400',    text: 'text-red-700',   bg: 'bg-red-50'   },
+    RESCHEDULED: { label: 'Rescheduled', dot: 'bg-amber-400',  text: 'text-amber-700', bg: 'bg-amber-50' },
+}
+
+// Nav groups
+const NAV_SECTIONS = [
+    {
+        label: 'Event',
+        items: [
+            { id: 'overview',    label: 'Overview',    icon: LayoutDashboard },
+            { id: 'categories',  label: 'Categories',  icon: ClipboardList   },
+            { id: 'brackets',    label: 'Matches',     icon: Trophy          },
+            { id: 'athletes',    label: 'Athletes',    icon: Users           },
+        ],
+    },
+    {
+        label: 'Operations',
+        items: [
+            { id: 'checkin',  label: 'Check-in', icon: ScanLine   },
+            { id: 'managers', label: 'Managers', icon: UserCog    },
+            { id: 'history',  label: 'History',  icon: ShieldCheck },
+        ],
+    },
+    {
+        label: 'Admin',
+        items: [
+            { id: 'settings', label: 'Settings', icon: Settings },
+        ],
+    },
+]
+
+// Tab page headers
+const PAGE_HEADERS: Record<string, { title: string; description: string } | null> = {
+    overview:   null, // has its own header
+    categories: null, // CategoryManager has its own
+    brackets:   { title: 'Matches', description: 'View and manage tournament brackets.' },
+    athletes:   null, // PlayerRegistration renders its own header
+    checkin:    null,
+    managers:   { title: 'Managers', description: 'Invite and manage tournament administrators.' },
+    history:    null,
+    settings:   null, // TournamentSettings renders its own header
+}
+
+export default function TournamentTabs({
+    tournament, players, pendingManagerInvites = [], publicView = false,
+    totalPlayersCount = 0, userRole, tournamentStats
+}: TournamentTabsProps) {
     const searchParams = useSearchParams()
-    const [activeTab, setActiveTab] = useState<'overview' | 'categories' | 'brackets' | 'athletes' | 'checkin' | 'managers' | 'settings'>(
-        publicView ? 'athletes' : 'overview'
-    )
+    const [activeTab, setActiveTab] = useState<
+        'overview' | 'categories' | 'brackets' | 'athletes' | 'checkin' | 'managers' | 'history' | 'settings'
+    >(publicView ? 'athletes' : 'overview')
     const [playersList, setPlayersList] = useState<PlayerWithCategory[]>(players)
     const [isSidebarOpen, setSidebarOpen] = useState(false)
 
-    // Handle ?tab= query param for deep linking from org dashboard
     useEffect(() => {
         const tabParam = searchParams.get('tab')
-        if (tabParam && ['overview', 'categories', 'brackets', 'athletes', 'checkin', 'managers', 'settings'].includes(tabParam)) {
+        if (tabParam && [
+            'overview', 'categories', 'brackets', 'athletes',
+            'checkin', 'managers', 'history', 'settings'
+        ].includes(tabParam)) {
             setActiveTab(tabParam as any)
         }
     }, [searchParams])
 
-    // Guidelines State
-    const [guidelinesText, setGuidelinesText] = useState(tournament.guidelinesText || tournament.guidelineTemplate?.content || '')
+    const [guidelinesText, setGuidelinesText] = useState(
+        tournament.guidelinesText || tournament.guidelineTemplate?.content || ''
+    )
     const [isSavingGuidelines, setIsSavingGuidelines] = useState(false)
 
-    // Fetch alert count for Matches tab badge
     const { data: alertData } = useQuery({
         queryKey: ['tournament-smart-alerts', tournament.id],
         queryFn: () => getTournamentAlerts(tournament.id),
         enabled: !publicView,
-        staleTime: 1000 * 30
+        staleTime: 1000 * 30,
     })
     const alertCount = alertData?.alerts?.length || 0
 
@@ -107,110 +160,151 @@ export default function TournamentTabs({ tournament, players, pendingManagerInvi
         }
     }
 
-    // Supabase Realtime removed — caused duplicate rendering and unnecessary refetches.
+    const publicTabs = [
+        { id: 'brackets', label: 'Matches',  icon: Trophy },
+        { id: 'athletes', label: 'Athletes', icon: Users  },
+    ]
 
-    let tabs = [
-        { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-        { id: 'categories', label: 'Categories', icon: ClipboardList },
-        { id: 'brackets', label: 'Matches', icon: Trophy },
-        { id: 'athletes', label: 'Athletes', icon: Users },
-        { id: 'checkin', label: 'Check-in', icon: ScanLine },
-        { id: 'managers', label: 'Managers', icon: UserCog },
-        { id: 'settings', label: 'Settings', icon: Settings },
-    ] as const
+    const statusCfg = STATUS_CONFIG[tournament.status] || STATUS_CONFIG.UPCOMING
+    const backHref = userRole === 'ADMIN'
+        ? `/admin${searchParams.get('tenant') ? `?tenant=${searchParams.get('tenant')}` : ''}`
+        : `/organization?tab=events${searchParams.get('tenant') ? `&tenant=${searchParams.get('tenant')}` : ''}`
 
-    if (publicView) {
-        tabs = [
-            // Public can view categories but arguably read-only? For now keeping it simple.
-            // Actually CategoryManager is heavy edit. Let's hide it for public or make it read-only if requested.
-            // User asked for "Details", likely Brackets & Athletes are key.
-            // Let's keep Brackets and Athletes.
-            { id: 'brackets', label: 'Matches', icon: Trophy },
-            { id: 'athletes', label: 'Athletes', icon: Users },
-        ] as any
-    }
+    const resolveTab = (id: string) => setActiveTab(id as any)
 
     return (
-        <div className="flex min-h-screen bg-gray-50">
-            {/* Mobile Sidebar Overlay */}
+        <div className="flex min-h-screen bg-[#f7f8fa]">
+
+            {/* ── Mobile overlay ─────────────────────── */}
             {isSidebarOpen && (
-                <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
+                <div
+                    className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden"
+                    onClick={() => setSidebarOpen(false)}
+                />
             )}
 
-            {/* Sidebar */}
+            {/* ── Sidebar ────────────────────────────── */}
             <aside className={`
-                fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 ease-in-out md:translate-x-0
+                fixed inset-y-0 left-0 z-50 w-60 flex flex-col
+                bg-white border-r border-gray-200/80
+                transform transition-transform duration-200 ease-in-out md:translate-x-0
                 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
             `}>
-                <div className="flex flex-col h-full">
-                    {/* Header */}
-                    <div className="p-4 border-b border-gray-100 bg-gray-50/50">
-                        <Link
-                            href={userRole === 'ADMIN' ? `/admin${searchParams.get('tenant') ? `?tenant=${searchParams.get('tenant')}` : ''}` : `/organization?tab=events${searchParams.get('tenant') ? `&tenant=${searchParams.get('tenant')}` : ''}`}
-                            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-4 group"
-                        >
-                            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                            {userRole === 'ADMIN' ? 'Back to Admin' : 'Back to Events'}
-                        </Link>
+                {/* Back link */}
+                <div className="px-4 pt-5 pb-4 border-b border-gray-100">
+                    <Link
+                        href={backHref}
+                        className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 transition-colors group mb-5"
+                    >
+                        <ArrowLeft size={12} className="group-hover:-translate-x-0.5 transition-transform" />
+                        {userRole === 'ADMIN' ? 'Back to Admin' : 'Back to Events'}
+                    </Link>
 
-                        <div>
-                            <h2 className="font-bold text-gray-900 truncate" title={tournament.name}>{tournament.name}</h2>
-                            <div className="flex items-center gap-1.5 text-xs text-gray-500 mt-1">
-                                <Calendar className="w-3.5 h-3.5" />
-                                {new Date(tournament.startDate).toLocaleDateString()}
-                            </div>
+                    {/* Tournament identity */}
+                    <div className="min-w-0">
+                        <h2
+                            className="text-sm font-bold text-gray-900 leading-tight truncate"
+                            title={tournament.name}
+                        >
+                            {tournament.name}
+                        </h2>
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${statusCfg.bg} ${statusCfg.text}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot} ${tournament.status === 'ONGOING' ? 'animate-pulse' : ''}`} />
+                                {statusCfg.label}
+                            </span>
                         </div>
                     </div>
+                </div>
 
-                    {/* Nav */}
-                    <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-                        {tabs.map((tab) => {
-                            const Icon = tab.icon
-                            const isActive = activeTab === tab.id
-                            return (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => {
-                                        setActiveTab(tab.id as any)
-                                        setSidebarOpen(false)
-                                    }}
-                                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${isActive
-                                        ? 'bg-red-50 text-red-700 shadow-sm'
-                                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                                        }`}
-                                >
-                                    <Icon className={`w-5 h-5 ${isActive ? 'text-red-600' : 'text-gray-400'}`} />
-                                    {tab.label}
-                                    {tab.id === 'brackets' && alertCount > 0 && !publicView && (
-                                        <span className="ml-auto bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-                                            {alertCount}
-                                        </span>
-                                    )}
-                                </button>
-                            )
-                        })}
-                    </nav>
+                {/* Nav */}
+                <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-5">
+                    {publicView ? (
+                        <div className="space-y-0.5">
+                            {publicTabs.map(({ id, label, icon: Icon }) => {
+                                const isActive = activeTab === id
+                                return (
+                                    <NavButton
+                                        key={id}
+                                        id={id}
+                                        label={label}
+                                        icon={Icon}
+                                        isActive={isActive}
+                                        onClick={() => { resolveTab(id); setSidebarOpen(false) }}
+                                    />
+                                )
+                            })}
+                        </div>
+                    ) : (
+                        NAV_SECTIONS.map(section => (
+                            <div key={section.label}>
+                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-3 mb-1">
+                                    {section.label}
+                                </p>
+                                <div className="space-y-0.5">
+                                    {section.items.map(({ id, label, icon: Icon }) => {
+                                        const isActive = activeTab === id
+                                        return (
+                                            <NavButton
+                                                key={id}
+                                                id={id}
+                                                label={label}
+                                                icon={Icon}
+                                                isActive={isActive}
+                                                badge={id === 'brackets' && alertCount > 0 ? alertCount : undefined}
+                                                onClick={() => { resolveTab(id); setSidebarOpen(false) }}
+                                            />
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </nav>
 
-                    {/* Footer Info */}
-                    <div className="p-4 border-t border-gray-100 text-xs text-gray-400">
-                        <p>KTM System v1.0</p>
-                    </div>
+                {/* Footer */}
+                <div className="px-4 py-3 border-t border-gray-100">
+                    <p className="text-[10px] text-gray-400 font-medium">KTM System v1.0</p>
+                    {(tournament as any).tier && (
+                        <p className="text-[10px] text-gray-400">Tier {(tournament as any).tier}</p>
+                    )}
                 </div>
             </aside>
 
-            {/* Main Content */}
-            <div className="flex-1 md:ml-64 min-w-0 flex flex-col min-h-screen">
-                {/* Mobile Header Trigger */}
-                <div className="md:hidden flex items-center p-4 bg-white border-b border-gray-200 sticky top-0 z-30 shadow-sm">
-                    <button onClick={() => setSidebarOpen(true)} className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-lg">
-                        <Menu className="w-6 h-6" />
+            {/* ── Main content ───────────────────────── */}
+            <div className="flex-1 md:ml-60 min-w-0 flex flex-col min-h-screen">
+
+                {/* Mobile top bar */}
+                <div className="md:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 sticky top-0 z-30">
+                    <button
+                        onClick={() => setSidebarOpen(true)}
+                        className="p-2 -ml-1 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                        <Menu size={20} />
                     </button>
-                    <span className="font-semibold ml-2 text-gray-900 truncate">{tournament.name}</span>
+                    <div className="min-w-0">
+                        <p className="text-sm font-bold text-gray-900 truncate">{tournament.name}</p>
+                        <span className={`text-[10px] font-bold ${statusCfg.text}`}>{statusCfg.label}</span>
+                    </div>
                 </div>
 
-                <div className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">
+                {/* Page content */}
+                <div className="flex-1 p-5 md:p-8 max-w-7xl mx-auto w-full">
+
+                    {/* Optional page header */}
+                    {(() => {
+                        const hdr = PAGE_HEADERS[activeTab]
+                        return hdr ? (
+                            <div className="mb-7">
+                                <h1 className="text-2xl font-black text-gray-900 tracking-tight">{hdr.title}</h1>
+                                <p className="text-sm text-gray-500 mt-1">{hdr.description}</p>
+                            </div>
+                        ) : null
+                    })()}
+
+                    {/* ─ Overview ─ */}
                     {activeTab === 'overview' && !publicView && (
-                        <div className="w-full">
+                        <div className="w-full animate-in fade-in duration-300">
                             <TournamentOverview
                                 tournament={tournament}
                                 players={playersList as any}
@@ -220,6 +314,7 @@ export default function TournamentTabs({ tournament, players, pendingManagerInvi
                         </div>
                     )}
 
+                    {/* ─ Categories ─ */}
                     {activeTab === 'categories' && !publicView && (
                         <div className="w-full animate-in fade-in duration-300">
                             <CategoryManager
@@ -229,12 +324,9 @@ export default function TournamentTabs({ tournament, players, pendingManagerInvi
                         </div>
                     )}
 
+                    {/* ─ Matches ─ */}
                     {activeTab === 'brackets' && (
                         <div className="w-full animate-in fade-in duration-300">
-                            <div className="mb-6">
-                                <h1 className="text-2xl font-bold text-gray-900">Matches</h1>
-                                <p className="text-gray-500">View and manage tournament brackets and matches.</p>
-                            </div>
                             <BracketList
                                 categories={tournament.categories.filter(c => (c._count?.players ?? 0) > 0)}
                                 tournamentName={tournament.name}
@@ -243,12 +335,9 @@ export default function TournamentTabs({ tournament, players, pendingManagerInvi
                         </div>
                     )}
 
+                    {/* ─ Athletes ─ */}
                     {activeTab === 'athletes' && (
                         <div className="w-full animate-in fade-in duration-300">
-                            <div className="mb-6">
-                                <h1 className="text-2xl font-bold text-gray-900">Athletes</h1>
-                                <p className="text-gray-500">Manage registered athletes.</p>
-                            </div>
                             <PlayerRegistration
                                 tournamentId={tournament.id}
                                 categories={tournament.categories}
@@ -259,6 +348,7 @@ export default function TournamentTabs({ tournament, players, pendingManagerInvi
                         </div>
                     )}
 
+                    {/* ─ Check-in ─ */}
                     {activeTab === 'checkin' && !publicView && (
                         <div className="w-full animate-in fade-in duration-300">
                             <EventCheckIn
@@ -274,12 +364,9 @@ export default function TournamentTabs({ tournament, players, pendingManagerInvi
                         </div>
                     )}
 
+                    {/* ─ Managers ─ */}
                     {activeTab === 'managers' && !publicView && (
                         <div className="w-full animate-in fade-in duration-300">
-                            <div className="mb-6">
-                                <h1 className="text-2xl font-bold text-gray-900">Managers</h1>
-                                <p className="text-gray-500">Invite and manage tournament administrators.</p>
-                            </div>
                             <TournamentManagers
                                 tournamentId={tournament.id}
                                 managers={tournament.managers}
@@ -290,120 +377,84 @@ export default function TournamentTabs({ tournament, players, pendingManagerInvi
                         </div>
                     )}
 
+                    {/* ─ Resolution History ─ */}
+                    {activeTab === 'history' && !publicView && (
+                        <div className="w-full animate-in fade-in duration-300">
+                            <ResolutionHistory tournamentId={tournament.id} />
+                        </div>
+                    )}
+
+                    {/* ─ Settings ─ */}
                     {activeTab === 'settings' && !publicView && (
-                        <div className="w-full max-w-4xl space-y-8 animate-in fade-in duration-300">
-                            <div>
-                                <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-                                <p className="text-gray-500">Configure tournament details, banner, and status.</p>
-                            </div>
-
-                            {/* Banner & Details */}
+                        <div className="w-full animate-in fade-in duration-300">
                             <TournamentSettings tournament={tournament} />
-
-                            {/* Status Section */}
-                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                                    <Trophy className="w-5 h-5 text-indigo-500" />
-                                    Tournament Status
-                                </h3>
-                                <div className="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                                ${tournament.status === 'ONGOING' ? 'bg-green-100 text-green-800' :
-                                                    tournament.status === 'COMPLETED' ? 'bg-gray-100 text-gray-800' :
-                                                        tournament.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
-                                                            'bg-blue-100 text-blue-800'}`}>
-                                                {tournament.status}
-                                            </span>
-                                        </div>
-                                        <p className="text-xs text-gray-500 mt-1">Controls public visibility and actions.</p>
-                                    </div>
-                                    <TournamentStatusActions
-                                        tournamentId={tournament.id}
-                                        currentStatus={tournament.status}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Data Export Section */}
-                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                                    <ClipboardList className="w-5 h-5 text-indigo-500" />
-                                    Data Management
-                                </h3>
-                                <div className="space-y-4">
-                                    <p className="text-sm text-gray-600">Export tournament data for offline use or backups.</p>
-                                    <DashboardDataExport
-                                        tournamentId={tournament.id}
-                                        tournamentName={tournament.name}
-                                        className="flex-wrap"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Guidelines Section */}
-                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                                    <ClipboardList className="w-5 h-5 text-indigo-500" />
-                                    Tournament Guidelines
-                                </h3>
-                                <div className="space-y-4">
-                                    <p className="text-sm text-gray-600">
-                                        Customize the guidelines for this specific tournament. If left empty, it will default to the selected template.
-                                    </p>
-                                    <div>
-                                        <textarea
-                                            value={guidelinesText}
-                                            onChange={(e) => setGuidelinesText(e.target.value)}
-                                            rows={12}
-                                            className="w-full rounded-lg border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 font-mono text-sm"
-                                            placeholder="# Tournament Guidelines..."
-                                        />
-                                    </div>
-                                    <div className="flex justify-end">
-                                        <button
-                                            onClick={handleSaveGuidelines}
-                                            disabled={isSavingGuidelines}
-                                            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-                                        >
-                                            {isSavingGuidelines ? (
-                                                <>
-                                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                    Saving...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Save className="w-4 h-4 mr-2" />
-                                                    Save Guidelines
-                                                </>
-                                            )}
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Danger Zone */}
-                            <div className="bg-white p-6 rounded-xl shadow-sm border border-red-100">
-                                <h3 className="text-lg font-semibold text-red-600 mb-4 flex items-center gap-2">
-                                    Danger Zone
-                                </h3>
-                                <div className="bg-red-50 p-4 rounded-lg border border-red-100 flex items-center justify-between">
-                                    <div>
-                                        <h4 className="text-sm font-medium text-red-900">Delete Tournament</h4>
-                                        <p className="text-xs text-red-600 mt-1">Permanently remove this tournament and all its data.</p>
-                                    </div>
-                                    <DeleteTournamentButton
-                                        tournamentId={tournament.id}
-                                        tournamentName={tournament.name}
-                                        redirectPath="/organization?tab=events"
-                                    />
-                                </div>
-                            </div>
                         </div>
                     )}
                 </div>
             </div>
+        </div>
+    )
+}
+
+// ─── Shared sub-components ──────────────────────────────────
+
+function NavButton({
+    id, label, icon: Icon, isActive, badge, onClick
+}: {
+    id: string
+    label: string
+    icon: React.ElementType
+    isActive: boolean
+    badge?: number
+    onClick: () => void
+}) {
+    return (
+        <button
+            onClick={onClick}
+            className={`
+                w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold transition-all group
+                ${isActive
+                    ? 'bg-red-600 text-white shadow-md shadow-red-500/20'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                }
+            `}
+        >
+            <Icon
+                size={15}
+                className={isActive ? 'text-white/90' : 'text-gray-400 group-hover:text-gray-600 transition-colors'}
+            />
+            <span className="flex-1 text-left">{label}</span>
+            {badge !== undefined && badge > 0 && (
+                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none ${
+                    isActive ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'
+                }`}>
+                    {badge}
+                </span>
+            )}
+        </button>
+    )
+}
+
+function SettingsCard({
+    title, description, icon: Icon, children
+}: {
+    title: string
+    description: string
+    icon: React.ElementType
+    children: React.ReactNode
+}) {
+    return (
+        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
+                    <Icon size={15} className="text-gray-500" />
+                </div>
+                <div>
+                    <h3 className="text-sm font-bold text-gray-900">{title}</h3>
+                    <p className="text-[11px] text-gray-500 mt-0.5">{description}</p>
+                </div>
+            </div>
+            <div className="px-6 py-5">{children}</div>
         </div>
     )
 }
