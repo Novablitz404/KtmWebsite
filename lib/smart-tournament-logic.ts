@@ -58,6 +58,9 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
             const cat  = group[i]
             const prev = i > 0 ? group[i - 1] : null
 
+            // Uncontested only applies to Kyorugi (sparring)
+            if (cat.type !== 'KYORUGI') continue
+
             const isUncontested   = cat.players.length === 1
             const prevUncontested = prev !== null && prev.players.length === 1
 
@@ -73,6 +76,9 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
     for (const group of catGroups.values()) {
         for (let i = 0; i < group.length; i++) {
             const cat = group[i]
+            // Uncontested only applies to Kyorugi — Poomsae/Kyukpa are scored
+            // individually so a single athlete simply wins their division
+            if (cat.type !== 'KYORUGI') continue
             if (cat.players.length !== 1) continue
             if (willBeFilled.has(cat.id)) continue  // will be resolved by the category below
 
