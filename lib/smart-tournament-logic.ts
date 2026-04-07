@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 
-export type SmartAlertType = 'UNCONTESTED' | 'SPLIT_SUGGESTION' | 'MERGE_SUGGESTION'
+export type SmartAlertType = 'UNCONTESTED' | 'SPLIT_SUGGESTION' | 'MERGE_SUGGESTION' | 'CROSS_DIVISION'
 
 export interface SmartAlert {
     type: SmartAlertType
@@ -72,6 +72,47 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
         }
     }
 
+    // ── Pass 1b: Build cross-division target map ──────────────────────────────
+    // For the LAST/HEAVIEST category in each Kyorugi group that is uncontested
+    // (no next weight sibling), find the matching Heavy category in the next
+    // age division up (same type|subtype|gender|belt|skillLevel, higher age).
+    // These get CROSS_DIVISION alerts instead of plain UNCONTESTED with null target.
+    const crossDivisionTargets = new Map<string, { targetCategoryId: string; targetCategoryName: string }>()
+
+    // Group by base key (everything except minAge|maxAge)
+    type GroupEntry = { minAge: number; maxAge: number; cats: typeof categories }
+    const groupsByBaseKey = new Map<string, GroupEntry[]>()
+    for (const [key, group] of catGroups.entries()) {
+        const parts = key.split('|')
+        const [type, subtype, gender, belt, skillLevel, minAgeStr, maxAgeStr] = parts
+        if (type !== 'KYORUGI') continue
+        const baseKey = `${type}|${subtype}|${gender}|${belt}|${skillLevel}`
+        if (!groupsByBaseKey.has(baseKey)) groupsByBaseKey.set(baseKey, [])
+        groupsByBaseKey.get(baseKey)!.push({
+            minAge: parseInt(minAgeStr),
+            maxAge: parseInt(maxAgeStr),
+            cats: group
+        })
+    }
+    for (const entries of groupsByBaseKey.values()) {
+        entries.sort((a, b) => a.minAge - b.minAge)
+        for (const entry of entries) {
+            const lastCat = entry.cats[entry.cats.length - 1]
+            if (lastCat.players.length !== 1) continue
+            if (willBeFilled.has(lastCat.id)) continue
+            // Only the true last weight (no next sibling within the group)
+            if (entry.cats.length > 1 && lastCat.id !== entry.cats[entry.cats.length - 1].id) continue
+            // Find next age division
+            const nextEntry = entries.find(en => en.minAge > entry.maxAge)
+            if (!nextEntry) continue
+            const targetCat = nextEntry.cats[nextEntry.cats.length - 1]
+            crossDivisionTargets.set(lastCat.id, {
+                targetCategoryId: targetCat.id,
+                targetCategoryName: targetCat.name
+            })
+        }
+    }
+
     // ── Pass 2: Generate UNCONTESTED alerts ───────────────────────────────────
     for (const group of catGroups.values()) {
         for (let i = 0; i < group.length; i++) {
@@ -84,6 +125,10 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
 
             // Find the next sibling (move-up target)
             const next = i < group.length - 1 ? group[i + 1] : null
+
+            // If this is the last weight AND has a cross-division target,
+            // skip here — it will get a CROSS_DIVISION alert in Pass 2b
+            if (next === null && crossDivisionTargets.has(cat.id)) continue
 
             alerts.push({
                 type: 'UNCONTESTED',
@@ -102,6 +147,29 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
                 }
             })
         }
+    }
+
+    // ── Pass 2b: CROSS_DIVISION alerts ────────────────────────────────────────
+    // Uncontested in the highest weight class with a matching division above.
+    for (const [catId, crossTarget] of crossDivisionTargets.entries()) {
+        const cat = categories.find(c => c.id === catId)
+        if (!cat || cat.players.length !== 1) continue
+        alerts.push({
+            type: 'CROSS_DIVISION',
+            categoryId: catId,
+            categoryName: cat.name,
+            message: `Uncontested in highest weight — eligible for cross-division move to ${crossTarget.targetCategoryName}`,
+            details: {
+                playerId:           cat.players[0].id,
+                playerName:         cat.players[0].name,
+                clubId:             cat.players[0].clubId || null,
+                clubName:           cat.players[0].club?.name || 'Unknown Club',
+                clubLogoUrl:        cat.players[0].club?.logoUrl || null,
+                sourceCategoryName: cat.name,
+                targetCategoryId:   crossTarget.targetCategoryId,
+                targetCategoryName: crossTarget.targetCategoryName,
+            }
+        })
     }
 
     // ── Pass 3: Generate MERGE alerts ─────────────────────────────────────────

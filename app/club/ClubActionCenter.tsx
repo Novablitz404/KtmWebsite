@@ -156,6 +156,14 @@ function ClubProposalCard({ proposal, clubId, onVoted }: { proposal: any; clubId
             pillBg: 'bg-amber-100',
             pillText: 'text-amber-800',
         },
+        CROSS_DIVISION: {
+            label: 'Cross Division Move',
+            icon: ArrowRight,
+            accent: 'bg-orange-500',
+            headerBg: 'bg-orange-50',
+            pillBg: 'bg-orange-100',
+            pillText: 'text-orange-800',
+        },
         MERGE: {
             label: 'Merge Proposal',
             icon: Merge,
@@ -215,8 +223,8 @@ function ClubProposalCard({ proposal, clubId, onVoted }: { proposal: any; clubId
                     <p className="text-sm font-bold text-gray-900">{proposal.tournament.name}</p>
                 </div>
 
-                {/* UNCONTESTED details */}
-                {proposal.type === 'UNCONTESTED' && (
+                {/* UNCONTESTED + CROSS_DIVISION details */}
+                {(proposal.type === 'UNCONTESTED' || proposal.type === 'CROSS_DIVISION') && (
                     <>
                         {/* Athlete */}
                         <div>
@@ -234,27 +242,43 @@ function ClubProposalCard({ proposal, clubId, onVoted }: { proposal: any; clubId
                                 {data.sourceCategoryName || '—'}
                             </p>
                             <p className="text-[11px] text-amber-600 font-semibold mt-1">
-                                ⚠ Only athlete in this category — will receive walkover gold if no action is taken.
+                                {proposal.type === 'CROSS_DIVISION'
+                                    ? '⚠ Highest weight class in this division — no heavier category available.'
+                                    : '⚠ Only athlete in this category — will receive walkover gold if no action is taken.'}
                             </p>
                         </div>
 
                         {/* Proposed move */}
                         {data.targetCategoryName ? (
-                            <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3.5">
-                                <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1.5">
-                                    If Moved Up → Target Category
+                            <div className={`rounded-xl p-3.5 border ${
+                                proposal.type === 'CROSS_DIVISION'
+                                    ? 'bg-orange-50 border-orange-200'
+                                    : 'bg-emerald-50 border-emerald-200'
+                            }`}>
+                                <p className={`text-[10px] font-black uppercase tracking-widest mb-1.5 ${
+                                    proposal.type === 'CROSS_DIVISION' ? 'text-orange-600' : 'text-emerald-600'
+                                }`}>
+                                    {proposal.type === 'CROSS_DIVISION'
+                                        ? 'Cross Division Move → Target Category'
+                                        : 'If Moved Up → Target Category'}
                                 </p>
-                                <p className="text-sm font-bold text-emerald-800 leading-snug">
+                                <p className={`text-sm font-bold leading-snug ${
+                                    proposal.type === 'CROSS_DIVISION' ? 'text-orange-800' : 'text-emerald-800'
+                                }`}>
                                     {data.targetCategoryName}
                                 </p>
-                                <p className="text-[11px] text-emerald-600 font-medium mt-1">
-                                    Athlete will compete against existing registered athletes in this category.
+                                <p className={`text-[11px] font-medium mt-1 ${
+                                    proposal.type === 'CROSS_DIVISION' ? 'text-orange-600' : 'text-emerald-600'
+                                }`}>
+                                    {proposal.type === 'CROSS_DIVISION'
+                                        ? 'Athlete will compete in the next age division (up-classing).'
+                                        : 'Athlete will compete against existing registered athletes in this category.'}
                                 </p>
                             </div>
                         ) : (
                             <div className="rounded-xl bg-gray-50 border border-dashed border-gray-200 p-3.5">
                                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Move Up Option</p>
-                                <p className="text-xs text-gray-500 italic">No heavier category available in the same division.</p>
+                                <p className="text-xs text-gray-500 italic">No higher category available. Only Walkover or Withdraw options apply.</p>
                             </div>
                         )}
                     </>
@@ -329,15 +353,20 @@ function ClubProposalCard({ proposal, clubId, onVoted }: { proposal: any; clubId
             {/* ── Actions footer ─────────────────────────────────── */}
             {!myVote && (
                 <div className="px-5 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-2.5">
-                    {proposal.type === 'UNCONTESTED' && (
+                    {(proposal.type === 'UNCONTESTED' || proposal.type === 'CROSS_DIVISION') && (
                         <>
                             {data.targetCategoryName && (
                                 <button
                                     onClick={() => setShowMoveConfirm(true)}
                                     disabled={loading}
-                                    className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black transition-all shadow-sm shadow-amber-200 disabled:opacity-50 flex items-center gap-1.5"
+                                    className={`px-4 py-2.5 text-white rounded-xl text-xs font-black transition-all shadow-sm disabled:opacity-50 flex items-center gap-1.5 ${
+                                        proposal.type === 'CROSS_DIVISION'
+                                            ? 'bg-orange-500 hover:bg-orange-600 shadow-orange-200'
+                                            : 'bg-amber-500 hover:bg-amber-600 shadow-amber-200'
+                                    }`}
                                 >
-                                    <ArrowRight size={13} /> Move Up
+                                    <ArrowRight size={13} />
+                                    {proposal.type === 'CROSS_DIVISION' ? 'Move Up Division' : 'Move Up'}
                                 </button>
                             )}
                             <button

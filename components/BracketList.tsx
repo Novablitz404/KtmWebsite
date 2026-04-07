@@ -22,7 +22,7 @@ export default function BracketList({ categories, tournamentName, publicView = f
     const [activeTab, setActiveTab] = useState<'kyorugi' | 'poomsae' | 'kyukpa'>('kyorugi')
     const [isPending, startTransition] = useTransition()
     const [searchQuery, setSearchQuery] = useState('')
-    const [alertFilter, setAlertFilter] = useState<'all' | 'uncontested' | 'merge' | 'split'>('all')
+    const [alertFilter, setAlertFilter] = useState<'all' | 'uncontested' | 'merge' | 'split' | 'cross_division'>('all')
     const [sendingAll, setSendingAll] = useState(false)
     const [sendingClub, setSendingClub] = useState<string | null>(null)
     const [clubDropdownOpen, setClubDropdownOpen] = useState(false)
@@ -73,7 +73,9 @@ export default function BracketList({ categories, tournamentName, publicView = f
 
     if (alertFilter !== 'all') {
         const targetType = alertFilter === 'uncontested' ? 'UNCONTESTED'
-            : alertFilter === 'merge' ? 'MERGE_SUGGESTION' : 'SPLIT_SUGGESTION'
+            : alertFilter === 'merge'          ? 'MERGE_SUGGESTION'
+            : alertFilter === 'split'          ? 'SPLIT_SUGGESTION'
+            : 'CROSS_DIVISION'
         filteredCategories = filteredCategories.filter(c => {
             const catAlerts = alertsByCategory.get(c.id)
             return catAlerts?.some(a => a.type === targetType)
@@ -94,10 +96,11 @@ export default function BracketList({ categories, tournamentName, publicView = f
         })
     }
 
-    const uncontestedCount = alerts.filter(a => a.type === 'UNCONTESTED').length
-    const mergeCount       = alerts.filter(a => a.type === 'MERGE_SUGGESTION').length
-    const splitCount       = alerts.filter(a => a.type === 'SPLIT_SUGGESTION').length
-    const totalAlerts      = uncontestedCount + mergeCount + splitCount
+    const uncontestedCount  = alerts.filter(a => a.type === 'UNCONTESTED').length
+    const mergeCount         = alerts.filter(a => a.type === 'MERGE_SUGGESTION').length
+    const splitCount         = alerts.filter(a => a.type === 'SPLIT_SUGGESTION').length
+    const crossDivCount      = alerts.filter(a => a.type === 'CROSS_DIVISION').length
+    const totalAlerts        = uncontestedCount + mergeCount + splitCount + crossDivCount
 
 
     // Discipline tab config
@@ -208,6 +211,19 @@ export default function BracketList({ categories, tournamentName, publicView = f
                                     >
                                         <Split size={10} />
                                         {splitCount} Split
+                                    </button>
+                                )}
+                                {crossDivCount > 0 && (
+                                    <button
+                                        onClick={() => setAlertFilter(alertFilter === 'cross_division' ? 'all' : 'cross_division')}
+                                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all border ${
+                                            alertFilter === 'cross_division'
+                                                ? 'bg-orange-500 text-white border-orange-500 shadow-sm scale-105'
+                                                : 'bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-200'
+                                        }`}
+                                    >
+                                        <ArrowRight size={10} />
+                                        {crossDivCount} Cross Div
                                     </button>
                                 )}
                                 {alertFilter !== 'all' && (
@@ -480,6 +496,8 @@ function CollapsibleBracket({
                                         const d = JSON.parse(p.data)
                                         if (p.type === 'UNCONTESTED' && alert.type === 'UNCONTESTED')
                                             return d.playerId === alert.details?.playerId
+                                        if (p.type === 'CROSS_DIVISION' && alert.type === 'CROSS_DIVISION')
+                                            return d.playerId === alert.details?.playerId
                                         if (p.type === 'MERGE' && alert.type === 'MERGE_SUGGESTION')
                                             return d.sourceCategoryId === alert.categoryId
                                         if (p.type === 'SPLIT' && alert.type === 'SPLIT_SUGGESTION')
@@ -507,15 +525,19 @@ function CollapsibleBracket({
                                             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all hover:scale-105 ${
                                                 alert.type === 'UNCONTESTED'
                                                     ? 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100'
+                                                    : alert.type === 'CROSS_DIVISION'
+                                                    ? 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100'
                                                     : alert.type === 'MERGE_SUGGESTION'
                                                     ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
                                                     : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
                                             }`}
                                         >
                                             {alert.type === 'UNCONTESTED'     && <ShieldAlert size={9} />}
+                                            {alert.type === 'CROSS_DIVISION'  && <ArrowRight size={9} />}
                                             {alert.type === 'MERGE_SUGGESTION' && <Merge size={9} />}
                                             {alert.type === 'SPLIT_SUGGESTION' && <Split size={9} />}
-                                            {alert.type === 'UNCONTESTED' ? 'Uncontested'
+                                            {alert.type === 'UNCONTESTED'     ? 'Uncontested'
+                                                : alert.type === 'CROSS_DIVISION'  ? 'Cross Div'
                                                 : alert.type === 'MERGE_SUGGESTION' ? 'Merge' : 'Split'}
                                         </button>
 
@@ -525,7 +547,7 @@ function CollapsibleBracket({
                                                 <Clock size={8} /> Awaiting Club
                                             </span>
                                         )}
-                                        {isPending && hasVotes && alert.type === 'UNCONTESTED' && (
+                                        {isPending && hasVotes && (alert.type === 'UNCONTESTED' || alert.type === 'CROSS_DIVISION') && (
                                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-white border border-gray-200 text-gray-600">
                                                 {moveUp   > 0 && <span className="text-amber-700">{moveUp}↑ Move Up</span>}
                                                 {walkover > 0 && <span className="text-emerald-700">{walkover} Walkover</span>}

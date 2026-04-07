@@ -3653,10 +3653,8 @@ export async function submitClubDecision(
         where: { id: proposalId }
     })
 
-    // 5. If UNCONTESTED, all three club actions are unilateral — execute immediately
-    //    Move Up: club consented via confirmation dialog → move the athlete now
-    //    Walkover / Withdraw: club-side decisions that don't need organizer sign-off
-    if (proposal?.type === 'UNCONTESTED') {
+    // 5. UNCONTESTED and CROSS_DIVISION are unilateral — execute immediately on vote
+    if (proposal?.type === 'UNCONTESTED' || proposal?.type === 'CROSS_DIVISION') {
         if (vote === 'WITHDRAW' || vote === 'WALKOVER' || vote === 'MOVE_UP') {
             await forceExecuteSmartAction(proposalId, vote)
         }
@@ -3795,10 +3793,7 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
         }
         // ───────────────────────────────────────────────────────────────────────
 
-        if (proposal.type === 'UNCONTESTED') {
-            // Uncontested Actions: MOVE_UP, WALKOVER, WITHDRAW
-            // Using the overrideVote as the decision (since this is typically 1 club)
-            // Or fetch the single vote if overrideVote is null
+        if (proposal.type === 'UNCONTESTED' || proposal.type === 'CROSS_DIVISION') {
             let decision = overrideVote
 
             if (!decision) {
@@ -3809,40 +3804,61 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
             if (!decision) return { error: 'No decision made yet' }
 
             if (decision === 'MOVE_UP') {
-                const player = await prisma.player.findUnique({
-                    where: { id: data.playerId },
-                    include: { category: true }
-                })
+                if (proposal.type === 'CROSS_DIVISION') {
+                    // Cross-division: move to the pre-computed target category directly
+                    const targetCategoryId = data.targetCategoryId
+                    if (!targetCategoryId) return { error: 'No target category specified for cross-division move' }
 
-                if (player && player.category) {
-                    const sourceCategoryId = player.categoryId
+                    const sourceCategoryId = data.sourceCategoryId ||
+                        (await prisma.player.findUnique({ where: { id: data.playerId }, select: { categoryId: true } }))?.categoryId
 
-                    // Find next heavier category
-                    const siblings = await prisma.category.findMany({
-                        where: {
-                            tournamentId: player.category.tournamentId,
-                            gender: player.category.gender,
-                            minAge: player.category.minAge,
-                            belt: player.category.belt
-                        },
-                        orderBy: { minWeight: 'asc' }
+                    await prisma.player.update({
+                        where: { id: data.playerId },
+                        data: { categoryId: targetCategoryId }
                     })
 
-                    const currentIdx = siblings.findIndex(c => c.id === player.categoryId)
-                    if (currentIdx !== -1 && currentIdx < siblings.length - 1) {
-                        const target = siblings[currentIdx + 1]
-                        await prisma.player.update({
-                            where: { id: player.id },
-                            data: { categoryId: target.id }
-                        })
-
-                        // Clean fix: delete source category if now empty
+                    // Clean up source category if now empty
+                    if (sourceCategoryId) {
                         const remaining = await prisma.player.count({ where: { categoryId: sourceCategoryId } })
-                        if (remaining === 0 && sourceCategoryId) {
+                        if (remaining === 0) {
                             await prisma.category.delete({ where: { id: sourceCategoryId } })
                         }
-                    } else {
-                        return { error: 'No heavier category found' }
+                    }
+                } else {
+                    // UNCONTESTED: find next heavier sibling in same division
+                    const player = await prisma.player.findUnique({
+                        where: { id: data.playerId },
+                        include: { category: true }
+                    })
+
+                    if (player && player.category) {
+                        const sourceCategoryId = player.categoryId
+
+                        const siblings = await prisma.category.findMany({
+                            where: {
+                                tournamentId: player.category.tournamentId,
+                                gender: player.category.gender,
+                                minAge: player.category.minAge,
+                                belt: player.category.belt
+                            },
+                            orderBy: { minWeight: 'asc' }
+                        })
+
+                        const currentIdx = siblings.findIndex(c => c.id === player.categoryId)
+                        if (currentIdx !== -1 && currentIdx < siblings.length - 1) {
+                            const target = siblings[currentIdx + 1]
+                            await prisma.player.update({
+                                where: { id: player.id },
+                                data: { categoryId: target.id }
+                            })
+
+                            const remaining = await prisma.player.count({ where: { categoryId: sourceCategoryId } })
+                            if (remaining === 0 && sourceCategoryId) {
+                                await prisma.category.delete({ where: { id: sourceCategoryId } })
+                            }
+                        } else {
+                            return { error: 'No heavier category found' }
+                        }
                     }
                 }
             } else if (decision === 'WITHDRAW') {
