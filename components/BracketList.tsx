@@ -633,9 +633,10 @@ function InlineAlertPanel({ alert, proposals, tournamentId, onResolved }: {
 
     const proposal = proposals.find((p: any) => {
         const data = JSON.parse(p.data)
-        if (p.type === 'UNCONTESTED' && alert.type === 'UNCONTESTED') return data.playerId === alert.details?.playerId
-        if (p.type === 'MERGE' && alert.type === 'MERGE_SUGGESTION') return data.sourceCategoryId === alert.categoryId
-        if (p.type === 'SPLIT' && alert.type === 'SPLIT_SUGGESTION') return data.categoryId === alert.categoryId
+        if (p.type === 'UNCONTESTED'    && alert.type === 'UNCONTESTED')    return data.playerId === alert.details?.playerId
+        if (p.type === 'CROSS_DIVISION' && alert.type === 'CROSS_DIVISION') return data.playerId === alert.details?.playerId
+        if (p.type === 'MERGE'          && alert.type === 'MERGE_SUGGESTION') return data.sourceCategoryId === alert.categoryId
+        if (p.type === 'SPLIT'          && alert.type === 'SPLIT_SUGGESTION') return data.categoryId === alert.categoryId
         return false
     })
 
@@ -668,6 +669,17 @@ function InlineAlertPanel({ alert, proposals, tournamentId, onResolved }: {
                         targetCategoryId: alert.details.targetCategoryId || null,
                         targetCategoryName: alert.details.targetCategoryName || null,
                     })
+                } else if (alert.type === 'CROSS_DIVISION') {
+                    await initiateSmartProposal(tournamentId, 'CROSS_DIVISION', {
+                        playerId: alert.details.playerId,
+                        playerName: alert.details.playerName,
+                        sourceCategoryId: alert.categoryId,
+                        sourceCategoryName: alert.details.sourceCategoryName || alert.categoryName,
+                        targetCategoryId: alert.details.targetCategoryId,
+                        targetCategoryName: alert.details.targetCategoryName,
+                        clubId: alert.details.clubId || null,
+                        clubName: alert.details.clubName || null,
+                    })
                 } else if (alert.type === 'MERGE_SUGGESTION') {
                     await initiateSmartProposal(tournamentId, 'MERGE', {
                         sourceCategoryId: alert.categoryId,
@@ -692,10 +704,12 @@ function InlineAlertPanel({ alert, proposals, tournamentId, onResolved }: {
         : [])
 
     const alertColor = alert.type === 'UNCONTESTED'
-        ? { bg: 'bg-amber-100', text: 'text-amber-700', btn: 'bg-amber-500 hover:bg-amber-600', btnPending: 'bg-gray-900 hover:bg-gray-800' }
+        ? { bg: 'bg-amber-100',  text: 'text-amber-700',  btn: 'bg-amber-500 hover:bg-amber-600',   btnPending: 'bg-gray-900 hover:bg-gray-800' }
+        : alert.type === 'CROSS_DIVISION'
+        ? { bg: 'bg-orange-100', text: 'text-orange-700', btn: 'bg-orange-500 hover:bg-orange-600', btnPending: 'bg-gray-900 hover:bg-gray-800' }
         : alert.type === 'MERGE_SUGGESTION'
         ? { bg: 'bg-purple-100', text: 'text-purple-700', btn: 'bg-purple-600 hover:bg-purple-700', btnPending: 'bg-gray-900 hover:bg-gray-800' }
-        : { bg: 'bg-blue-100', text: 'text-blue-700', btn: 'bg-blue-600 hover:bg-blue-700', btnPending: 'bg-gray-900 hover:bg-gray-800' }
+        : { bg: 'bg-blue-100',   text: 'text-blue-700',   btn: 'bg-blue-600 hover:bg-blue-700',     btnPending: 'bg-gray-900 hover:bg-gray-800' }
 
     return (
         <div className="px-5 py-4 border-b border-amber-100/80 last:border-b-0">
@@ -705,11 +719,14 @@ function InlineAlertPanel({ alert, proposals, tournamentId, onResolved }: {
                     {/* Tag row */}
                     <div className="flex items-center gap-2 flex-wrap mb-2">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${alertColor.bg} ${alertColor.text}`}>
-                            {alert.type === 'UNCONTESTED'    && <ShieldAlert size={9} />}
+                            {alert.type === 'UNCONTESTED'     && <ShieldAlert size={9} />}
+                            {alert.type === 'CROSS_DIVISION'  && <ArrowRight size={9} />}
                             {alert.type === 'MERGE_SUGGESTION' && <Merge size={9} />}
                             {alert.type === 'SPLIT_SUGGESTION' && <Split size={9} />}
-                            {alert.type === 'UNCONTESTED' ? 'Uncontested'
-                                : alert.type === 'MERGE_SUGGESTION' ? 'Merge Suggestion' : 'Split Suggestion'}
+                            {alert.type === 'UNCONTESTED'      ? 'Uncontested'
+                                : alert.type === 'CROSS_DIVISION'   ? 'Cross Division'
+                                : alert.type === 'MERGE_SUGGESTION' ? 'Merge Suggestion'
+                                : 'Split Suggestion'}
                         </span>
 
                         {/* Vote state badges */}
@@ -718,7 +735,7 @@ function InlineAlertPanel({ alert, proposals, tournamentId, onResolved }: {
                                 Awaiting Club Response
                             </span>
                         )}
-                        {isPending && voteCount > 0 && alert.type === 'UNCONTESTED' && votes.map((v, i) => {
+                        {isPending && voteCount > 0 && (alert.type === 'UNCONTESTED' || alert.type === 'CROSS_DIVISION') && votes.map((v, i) => {
                             const vl = voteLabel[v.vote] || { text: v.vote, color: 'text-gray-700 bg-gray-100' }
                             return (
                                 <span key={i} className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${vl.color}`}>
@@ -779,7 +796,8 @@ function InlineAlertPanel({ alert, proposals, tournamentId, onResolved }: {
                     >
                         {loading && <Loader2 size={12} className="animate-spin" />}
                         {isPending ? 'Force Execute'
-                            : alert.type === 'UNCONTESTED' ? 'Request Resolution'
+                            : alert.type === 'UNCONTESTED'     ? 'Request Resolution'
+                            : alert.type === 'CROSS_DIVISION'  ? 'Send Cross Div Proposal'
                             : alert.type === 'MERGE_SUGGESTION' ? 'Propose Merge'
                             : 'Propose Split'}
                     </button>
