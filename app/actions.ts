@@ -2126,17 +2126,23 @@ export async function auditTournamentMasterlist(tournamentId: string): Promise<A
                 message: `Player belt (${belt}) does not match the category's required belt (${cat.belt}).` })
         }
 
-        // 11. Skill level mismatch
-        if (cat.skillLevel && skillLevel && cat.skillLevel !== skillLevel) {
-            issues.push({ ...ctx, severity: 'warning', code: 'SKILL_MISMATCH',
-                message: `Derived skill level (${skillLevel}) does not match category skill level (${cat.skillLevel}).` })
-        }
+
 
         // ────────────────────────────────────────────────────────────────────
         // 12. WRONG CATEGORY — re-run placement to see where they SHOULD be
-        // Only check if we have enough data and the category type is KYORUGI
+        // Skip if the player already has a specific metric error (weight/height/age)
+        // that will be enriched with the same fix suggestion — no need to duplicate.
         // ────────────────────────────────────────────────────────────────────
-        if (validAge && birthDate && gender && cat.type === 'KYORUGI') {
+        const METRIC_CODES = new Set([
+            'WEIGHT_TOO_HIGH', 'WEIGHT_TOO_LOW',
+            'HEIGHT_TOO_HIGH', 'HEIGHT_TOO_LOW',
+            'AGE_TOO_OLD', 'AGE_TOO_YOUNG',
+        ])
+        const alreadyHasMetricError = issues.some(
+            i => i.playerId === player.id && METRIC_CODES.has(i.code)
+        )
+
+        if (!alreadyHasMetricError && validAge && birthDate && gender && cat.type === 'KYORUGI') {
             try {
                 const correctCategory = await findCategoryForPlayer(tournamentId, {
                     birthDate,
