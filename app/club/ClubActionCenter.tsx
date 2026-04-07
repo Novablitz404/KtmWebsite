@@ -1,5 +1,10 @@
+'use client'
+
 import { submitClubDecision } from '@/app/actions'
-import { AlertCircle, Check, X, ShieldAlert, Users, Split, Merge, ArrowRight, Clock, Trophy } from 'lucide-react'
+import {
+    AlertCircle, Check, X, ShieldAlert, Users, Split, Merge,
+    ArrowRight, Clock, Trophy, ChevronLeft, ChevronRight, Zap
+} from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
@@ -11,333 +16,429 @@ interface ClubActionCenterModalProps {
     onRefresh: () => void
 }
 
-const ITEMS_PER_PAGE = 10
+const ITEMS_PER_PAGE = 5
 
 export default function ClubActionCenterModal({ isOpen, onClose, clubId, proposals, onRefresh }: ClubActionCenterModalProps) {
     const [page, setPage] = useState(1)
 
     if (!isOpen) return null
 
-    const hasProposals = proposals && proposals.length > 0;
-    const totalPages = Math.ceil(proposals.length / ITEMS_PER_PAGE)
-
-    // Get current page items
-    const currentProposals = proposals.slice(
-        (page - 1) * ITEMS_PER_PAGE,
-        page * ITEMS_PER_PAGE
-    )
+    const hasProposals = proposals && proposals.length > 0
+    const totalPages   = Math.ceil(proposals.length / ITEMS_PER_PAGE)
+    const currentItems = proposals.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE)
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className={`bg-white rounded-2xl shadow-2xl w-full flex flex-col h-[85vh] overflow-hidden transition-all ${hasProposals ? 'max-w-7xl' : 'max-w-md h-auto'}`}>
-                {/* Header */}
-                <div className="px-8 py-6 border-b border-gray-100 flex items-center justify-between bg-white flex-shrink-0">
-                    <div>
-                        <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                            Action Center
-                            {hasProposals && <span className="bg-red-100 text-red-600 text-sm px-2.5 py-0.5 rounded-full font-bold">{proposals.length}</span>}
-                        </h2>
-                        <p className="text-gray-500 mt-1">Manage requests and decisions for upcoming tournaments.</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className={`bg-white rounded-3xl shadow-2xl w-full flex flex-col overflow-hidden transition-all ${hasProposals ? 'max-w-3xl max-h-[90vh]' : 'max-w-md'}`}>
+
+                {/* ── Header ──────────────────────────────────────────────── */}
+                <div className="relative bg-gray-900 px-8 py-6 flex-shrink-0 overflow-hidden">
+                    {/* Decorative glow */}
+                    <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-red-600/20 blur-3xl pointer-events-none" />
+                    <div className="absolute bottom-0 left-0 w-32 h-32 rounded-full bg-white/5 blur-2xl pointer-events-none" />
+
+                    <div className="relative flex items-start justify-between gap-4">
+                        <div>
+                            <div className="flex items-center gap-3 mb-1">
+                                <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center">
+                                    <Zap size={16} className="text-red-400" />
+                                </div>
+                                <h2 className="text-xl font-black text-white tracking-tight">Action Center</h2>
+                                {hasProposals && (
+                                    <span className="bg-red-500 text-white text-xs font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-red-500/30">
+                                        {proposals.length}
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-sm text-white/50 ml-12">
+                                Review and respond to tournament proposals that require your decision.
+                            </p>
+                        </div>
+                        <button
+                            onClick={onClose}
+                            className="flex-shrink-0 mt-0.5 w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+                        >
+                            <X size={16} className="text-white/70" />
+                        </button>
                     </div>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors">
-                        <X className="w-6 h-6" />
-                    </button>
                 </div>
 
-                {/* Content */}
-                <div className="flex-1 overflow-auto bg-gray-50 flex flex-col">
+                {/* ── Content ─────────────────────────────────────────────── */}
+                <div className="flex-1 overflow-y-auto bg-gray-50">
                     {hasProposals ? (
-                        <>
-                            <div className="min-w-[1000px] flex-1">
-                                <table className="w-full text-left border-collapse">
-                                    <thead className="bg-gray-100/50 sticky top-0 z-10 border-b border-gray-200 text-gray-500 font-semibold text-xs uppercase tracking-wider shadow-sm">
-                                        <tr>
-                                            <th className="px-8 py-4 w-48 bg-gray-50">Type</th>
-                                            <th className="px-6 py-4 w-64 bg-gray-50">Tournament</th>
-                                            <th className="px-6 py-4 bg-gray-50">Details</th>
-                                            <th className="px-6 py-4 w-40 text-center bg-gray-50">Status</th>
-                                            <th className="px-8 py-4 w-80 text-right bg-gray-50">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100 bg-white">
-                                        {currentProposals.map((proposal: any) => (
-                                            <ClubProposalRow
-                                                key={proposal.id}
-                                                proposal={proposal}
-                                                clubId={clubId}
-                                                onVoted={onRefresh}
-                                            />
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Pagination */}
-                            {totalPages > 1 && (
-                                <div className="px-6 py-4 border-t border-gray-200 bg-white flex-shrink-0 flex items-center justify-between">
-                                    <button
-                                        onClick={() => setPage(p => Math.max(1, p - 1))}
-                                        disabled={page === 1}
-                                        className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-transparent transition-all"
-                                    >
-                                        Previous
-                                    </button>
-                                    <span className="text-sm font-semibold text-gray-500">
-                                        Page {page} of {totalPages}
-                                    </span>
-                                    <button
-                                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                                        disabled={page === totalPages}
-                                        className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-transparent transition-all"
-                                    >
-                                        Next
-                                    </button>
-                                </div>
-                            )}
-                        </>
+                        <div className="p-6 space-y-4">
+                            {currentItems.map((proposal: any) => (
+                                <ClubProposalCard
+                                    key={proposal.id}
+                                    proposal={proposal}
+                                    clubId={clubId}
+                                    onVoted={onRefresh}
+                                />
+                            ))}
+                        </div>
                     ) : (
-                        <div className="h-full flex flex-col items-center justify-center p-12">
-                            <div className="inline-flex items-center justify-center w-24 h-24 bg-green-50 rounded-full mb-6 ring-8 ring-green-50/50">
-                                <Check size={48} className="text-green-600" strokeWidth={3} />
+                        <div className="flex flex-col items-center justify-center py-20 px-8">
+                            <div className="w-20 h-20 bg-emerald-50 rounded-3xl flex items-center justify-center mb-5 ring-8 ring-emerald-50/60 shadow-xl shadow-emerald-100">
+                                <Check size={36} className="text-emerald-500" strokeWidth={2.5} />
                             </div>
-                            <h4 className="text-gray-900 font-bold text-2xl mb-2">All Caught Up!</h4>
-                            <p className="text-gray-500 max-w-sm text-center leading-relaxed mb-8">
-                                You have no pending actions. We'll notify you when an organizer needs your input on a tournament matter.
+                            <h4 className="text-gray-900 font-black text-2xl mb-2">All Caught Up!</h4>
+                            <p className="text-gray-400 text-sm text-center max-w-xs leading-relaxed mb-8">
+                                No pending actions. You'll be notified when an organizer needs your input.
                             </p>
                             <button
                                 onClick={onClose}
-                                className="px-8 py-3 bg-gray-900 text-white font-bold rounded-xl hover:bg-gray-800 transition-all shadow-xl shadow-gray-200 active:scale-95"
+                                className="px-8 py-3 bg-gray-900 text-white font-bold rounded-2xl hover:bg-gray-800 transition-all shadow-xl shadow-gray-300 active:scale-95 text-sm"
                             >
-                                Close Window
+                                Close
                             </button>
                         </div>
                     )}
                 </div>
+
+                {/* ── Pagination ──────────────────────────────────────────── */}
+                {hasProposals && totalPages > 1 && (
+                    <div className="px-6 py-4 border-t border-gray-100 bg-white flex-shrink-0 flex items-center justify-between">
+                        <button
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={page === 1}
+                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 disabled:opacity-30 transition-all"
+                        >
+                            <ChevronLeft size={15} /> Previous
+                        </button>
+                        <span className="text-sm font-black text-gray-400 tabular-nums">
+                            {page} / {totalPages}
+                        </span>
+                        <button
+                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                            disabled={page === totalPages}
+                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 disabled:opacity-30 transition-all"
+                        >
+                            Next <ChevronRight size={15} />
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     )
 }
 
-function ClubProposalRow({ proposal, clubId, onVoted }: { proposal: any, clubId: string, onVoted: () => void }) {
-    const [loading, setLoading] = useState(false)
-    const [showMoveUpConfirm, setShowMoveUpConfirm] = useState(false)
-    const data = JSON.parse(proposal.data)
-    const myVote = proposal.myVote
+// ─────────────────────────────────────────────────────────────────────────────
+// Proposal Card
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ClubProposalCard({ proposal, clubId, onVoted }: { proposal: any; clubId: string; onVoted: () => void }) {
+    const [loading, setLoading]               = useState(false)
+    const [showMoveConfirm, setShowMoveConfirm] = useState(false)
+
+    const data    = JSON.parse(proposal.data)
+    const myVote  = proposal.myVote
 
     const handleVote = async (vote: string) => {
         setLoading(true)
         try {
             await submitClubDecision(proposal.id, clubId, vote)
-            toast.success("Response recorded")
+            toast.success('Response recorded')
             onVoted()
-        } catch (e) {
-            toast.error("Failed to submit response")
+        } catch {
+            toast.error('Failed to submit response')
         } finally {
             setLoading(false)
         }
     }
 
-    // Colors and Labels helpters
-    const getBadgeInfo = () => {
-        switch (proposal.type) {
-            case 'UNCONTESTED':
-                return { label: 'Uncontested', icon: ShieldAlert, color: 'text-yellow-700 bg-yellow-50 border-yellow-200' }
-            case 'MERGE':
-                return { label: 'Merge Proposal', icon: Merge, color: 'text-purple-700 bg-purple-50 border-purple-200' }
-            case 'SPLIT':
-                return { label: 'Split Proposal', icon: Split, color: 'text-blue-700 bg-blue-50 border-blue-200' }
-            default:
-                return { label: 'Notice', icon: AlertCircle, color: 'text-gray-700 bg-gray-50 border-gray-200' }
-        }
+    // ── Badge config ──────────────────────────────────────────────────────────
+    const BADGE: Record<string, { label: string; icon: React.ElementType; accent: string; headerBg: string; pillBg: string; pillText: string }> = {
+        UNCONTESTED: {
+            label: 'Uncontested Athlete',
+            icon: ShieldAlert,
+            accent: 'bg-amber-400',
+            headerBg: 'bg-amber-50',
+            pillBg: 'bg-amber-100',
+            pillText: 'text-amber-800',
+        },
+        MERGE: {
+            label: 'Merge Proposal',
+            icon: Merge,
+            accent: 'bg-purple-500',
+            headerBg: 'bg-purple-50',
+            pillBg: 'bg-purple-100',
+            pillText: 'text-purple-800',
+        },
+        SPLIT: {
+            label: 'Split Proposal',
+            icon: Split,
+            accent: 'bg-blue-500',
+            headerBg: 'bg-blue-50',
+            pillBg: 'bg-blue-100',
+            pillText: 'text-blue-800',
+        },
     }
 
-    const { label, icon: Icon, color } = getBadgeInfo()
+    const cfg = BADGE[proposal.type] ?? {
+        label: 'Notice', icon: AlertCircle, accent: 'bg-gray-400',
+        headerBg: 'bg-gray-50', pillBg: 'bg-gray-100', pillText: 'text-gray-800',
+    }
+    const BadgeIcon = cfg.icon
 
     return (
-        <tr className="hover:bg-gray-50/80 transition-colors group">
-            {/* Type Column */}
-            <td className="px-8 py-4 align-top">
-                <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border uppercase tracking-wide ${color}`}>
-                    <Icon size={12} />
-                    {label}
-                </span>
-            </td>
+        <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow ${myVote ? 'opacity-70' : ''}`}>
 
-            {/* Tournament Column */}
-            <td className="px-6 py-4 align-top max-w-[200px]">
-                <div className="group/tooltip relative w-fit max-w-full">
-                    <div className="font-bold text-gray-900 text-sm truncate cursor-help">
-                        {proposal.tournament.name}
+            {/* ── Card header ────────────────────────────────────── */}
+            <div className={`${cfg.headerBg} px-5 py-3.5 flex items-center justify-between border-b border-gray-100`}>
+                <div className="flex items-center gap-2.5">
+                    <div className={`w-6 h-6 rounded-lg ${cfg.pillBg} flex items-center justify-center`}>
+                        <BadgeIcon size={13} className={cfg.pillText} />
                     </div>
-                    {/* Custom Tooltip */}
-                    <div className="absolute left-0 bottom-full mb-2 hidden group-hover/tooltip:block w-max max-w-[250px] bg-gray-900 text-white text-xs rounded-lg px-3 py-1.5 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-200 pointer-events-none">
-                        {proposal.tournament.name}
-                        {/* Arrow */}
-                        <div className="absolute left-4 top-full w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-gray-900"></div>
-                    </div>
+                    <span className={`text-xs font-black uppercase tracking-widest ${cfg.pillText}`}>
+                        {cfg.label}
+                    </span>
                 </div>
-            </td>
 
-            {/* Details Column */}
-            <td className="px-6 py-4 align-top">
+                {/* Status badge */}
+                {myVote ? (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-700">
+                        <Check size={11} strokeWidth={3} /> Responded · {myVote.replace('_', ' ')}
+                    </span>
+                ) : (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black bg-amber-100 text-amber-700 animate-pulse">
+                        <Clock size={11} /> Awaiting Response
+                    </span>
+                )}
+            </div>
+
+            {/* ── Card body ──────────────────────────────────────── */}
+            <div className="px-5 py-4 space-y-4">
+
+                {/* Tournament */}
+                <div>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Tournament</p>
+                    <p className="text-sm font-bold text-gray-900">{proposal.tournament.name}</p>
+                </div>
+
+                {/* UNCONTESTED details */}
                 {proposal.type === 'UNCONTESTED' && (
-                    <div className="space-y-1.5">
-                        <p className="text-gray-900 font-semibold text-sm">{data.playerName || 'Unknown Athlete'}</p>
-                        {data.sourceCategoryName && (
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded font-medium truncate max-w-[160px]" title={data.sourceCategoryName}>
-                                    {data.sourceCategoryName}
-                                </span>
-                                {data.targetCategoryName ? (
-                                    <>
-                                        <ArrowRight size={12} className="text-gray-400 flex-shrink-0" />
-                                        <span className="text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded font-bold truncate max-w-[160px]" title={data.targetCategoryName}>
-                                            {data.targetCategoryName}
-                                        </span>
-                                        <span className="text-[10px] text-gray-400 italic">if Move Up</span>
-                                    </>
-                                ) : (
-                                    <span className="text-[10px] text-amber-600 italic">No heavier category available</span>
-                                )}
+                    <>
+                        {/* Athlete */}
+                        <div>
+                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Athlete</p>
+                            <p className="text-base font-black text-gray-900">{data.playerName || 'Unknown'}</p>
+                            {data.clubName && (
+                                <p className="text-xs text-gray-400 mt-0.5">{data.clubName}</p>
+                            )}
+                        </div>
+
+                        {/* Current category */}
+                        <div className="rounded-xl bg-gray-50 border border-gray-100 p-3.5">
+                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Current Category</p>
+                            <p className="text-sm font-bold text-gray-800 leading-snug">
+                                {data.sourceCategoryName || '—'}
+                            </p>
+                            <p className="text-[11px] text-amber-600 font-semibold mt-1">
+                                ⚠ Only athlete in this category — will receive walkover gold if no action is taken.
+                            </p>
+                        </div>
+
+                        {/* Proposed move */}
+                        {data.targetCategoryName ? (
+                            <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3.5">
+                                <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1.5">
+                                    If Moved Up → Target Category
+                                </p>
+                                <p className="text-sm font-bold text-emerald-800 leading-snug">
+                                    {data.targetCategoryName}
+                                </p>
+                                <p className="text-[11px] text-emerald-600 font-medium mt-1">
+                                    Athlete will compete against existing registered athletes in this category.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="rounded-xl bg-gray-50 border border-dashed border-gray-200 p-3.5">
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Move Up Option</p>
+                                <p className="text-xs text-gray-500 italic">No heavier category available in the same division.</p>
                             </div>
                         )}
-                    </div>
+                    </>
                 )}
+
+                {/* MERGE details */}
                 {proposal.type === 'MERGE' && (
-                    <div>
-                        <p className="text-gray-900 font-medium text-sm">Category Merger</p>
-                    </div>
-                )}
-                {proposal.type === 'SPLIT' && (
-                    <div>
-                        <p className="text-gray-900 font-medium text-sm">Category Split</p>
-                    </div>
-                )}
-            </td>
-
-            {/* Status Column */}
-            <td className="px-6 py-4 align-top text-center">
-                {myVote ? (
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${myVote === 'AGREE' || myVote === 'MOVE_UP' || myVote === 'WALKOVER'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-gray-100 text-gray-700'
-                        }`}>
-                        <Check size={12} strokeWidth={3} />
-                        Completed
-                    </span>
-                ) : (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 animate-pulse">
-                        <Clock size={12} />
-                        Pending
-                    </span>
-                )}
-            </td>
-
-            {/* Actions Column */}
-            <td className="px-8 py-4 align-top text-right">
-                {!myVote ? (
-                    <div className="flex justify-end gap-2">
-                        {proposal.type === 'UNCONTESTED' && (
-                            <>
-                                <button
-                                    onClick={() => setShowMoveUpConfirm(true)}
-                                    disabled={loading}
-                                    className="px-3 py-1.5 bg-yellow-100 text-yellow-700 hover:bg-yellow-200 rounded-lg text-xs font-bold transition"
-                                >
-                                    Move Up
-                                </button>
-
-                                {/* Move Up Confirmation Dialog */}
-                                {showMoveUpConfirm && (
-                                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-                                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-in zoom-in-95 duration-200">
-                                            <div className="flex items-center gap-3 mb-4">
-                                                <div className="p-2 bg-yellow-100 rounded-xl">
-                                                    <ArrowRight size={20} className="text-yellow-700" />
-                                                </div>
-                                                <h3 className="text-lg font-bold text-gray-900">Confirm Move Up</h3>
-                                            </div>
-
-                                            <p className="text-sm text-gray-600 mb-5 leading-relaxed">
-                                                <span className="font-semibold text-gray-900">{data.playerName}</span> will be moved to a heavier category.
-                                            </p>
-
-                                            {/* Source → Target */}
-                                            <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mb-6">
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-0.5">From</p>
-                                                    <p className="text-sm font-semibold text-gray-700 truncate" title={data.sourceCategoryName}>
-                                                        {data.sourceCategoryName || 'Current Category'}
-                                                    </p>
-                                                </div>
-                                                <ArrowRight size={18} className="text-gray-400 flex-shrink-0" />
-                                                <div className="flex-1 min-w-0 text-right">
-                                                    <p className="text-[10px] text-green-600 uppercase font-bold tracking-wider mb-0.5">To</p>
-                                                    <p className="text-sm font-bold text-green-700 truncate" title={data.targetCategoryName}>
-                                                        {data.targetCategoryName || 'Next Category'}
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            <div className="flex gap-3">
-                                                <button
-                                                    onClick={() => setShowMoveUpConfirm(false)}
-                                                    className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition"
-                                                >
-                                                    Cancel
-                                                </button>
-                                                <button
-                                                    onClick={() => { setShowMoveUpConfirm(false); handleVote('MOVE_UP') }}
-                                                    disabled={loading}
-                                                    className="flex-1 px-4 py-2.5 rounded-xl bg-yellow-500 hover:bg-yellow-600 text-sm font-bold text-white transition shadow-sm disabled:opacity-50"
-                                                >
-                                                    Proceed
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
+                    <>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="rounded-xl bg-gray-50 border border-gray-100 p-3.5">
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Source Category</p>
+                                <p className="text-sm font-bold text-gray-800 leading-snug">
+                                    {data.sourceCategoryName || '—'}
+                                </p>
+                                {data.players && (
+                                    <p className="text-[11px] text-gray-500 mt-1">{data.players.length} athlete{data.players.length !== 1 ? 's' : ''}</p>
                                 )}
-                                <button
-                                    onClick={() => handleVote('WALKOVER')}
-                                    disabled={loading}
-                                    className="px-3 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg text-xs font-bold transition"
-                                >
-                                    Walkover
-                                </button>
-                                <button
-                                    onClick={() => handleVote('WITHDRAW')}
-                                    disabled={loading}
-                                    className="px-3 py-1.5 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg text-xs font-bold transition"
-                                >
-                                    Withdraw
-                                </button>
-                            </>
+                            </div>
+                            <div className="rounded-xl bg-purple-50 border border-purple-200 p-3.5">
+                                <p className="text-[10px] font-black text-purple-600 uppercase tracking-widest mb-1.5">Merge Into</p>
+                                <p className="text-sm font-bold text-purple-800 leading-snug">
+                                    {data.targetCategoryName || '—'}
+                                </p>
+                                {data.combinedCount && (
+                                    <p className="text-[11px] text-purple-600 mt-1">Combined: {data.combinedCount} athletes</p>
+                                )}
+                            </div>
+                        </div>
+                        {data.players && data.players.length > 0 && (
+                            <div>
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Athletes Affected</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {data.players.map((p: any) => (
+                                        <span key={p.id} className="text-xs font-semibold text-gray-700 bg-gray-100 px-2.5 py-1 rounded-lg">
+                                            {p.name}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
                         )}
-                        {(proposal.type === 'MERGE' || proposal.type === 'SPLIT') && (
-                            <>
-                                <button
-                                    onClick={() => handleVote('AGREE')}
-                                    disabled={loading}
-                                    className="px-4 py-1.5 bg-gray-900 text-white hover:bg-gray-800 rounded-lg text-xs font-bold transition"
-                                >
-                                    Agree
-                                </button>
-                                <button
-                                    onClick={() => handleVote('DISAGREE')}
-                                    disabled={loading}
-                                    className="px-4 py-1.5 border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg text-xs font-bold transition"
-                                >
-                                    Disagree
-                                </button>
-                            </>
-                        )}
-                    </div>
-                ) : (
-                    <div className="text-sm font-medium text-gray-900">
-                        Voted: <span className="font-bold">{myVote}</span>
-                    </div>
+                    </>
                 )}
-            </td>
-        </tr>
+
+                {/* SPLIT details */}
+                {proposal.type === 'SPLIT' && (
+                    <>
+                        <div className="rounded-xl bg-blue-50 border border-blue-200 p-3.5">
+                            <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1.5">Category to Split</p>
+                            <p className="text-sm font-bold text-blue-800 leading-snug">
+                                {proposal.categoryName}
+                            </p>
+                            {data.playerCount && (
+                                <p className="text-[11px] text-blue-600 mt-1">{data.playerCount} athletes — too many for a single bracket.</p>
+                            )}
+                        </div>
+                        {data.players && data.players.length > 0 && (
+                            <div>
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Athletes in This Category</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {data.players.map((p: any) => (
+                                        <span key={p.id} className="text-xs font-semibold text-gray-700 bg-gray-100 px-2.5 py-1 rounded-lg">
+                                            {p.name}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+
+            {/* ── Actions footer ─────────────────────────────────── */}
+            {!myVote && (
+                <div className="px-5 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-2.5">
+                    {proposal.type === 'UNCONTESTED' && (
+                        <>
+                            {data.targetCategoryName && (
+                                <button
+                                    onClick={() => setShowMoveConfirm(true)}
+                                    disabled={loading}
+                                    className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black transition-all shadow-sm shadow-amber-200 disabled:opacity-50 flex items-center gap-1.5"
+                                >
+                                    <ArrowRight size={13} /> Move Up
+                                </button>
+                            )}
+                            <button
+                                onClick={() => handleVote('WALKOVER')}
+                                disabled={loading}
+                                className="px-4 py-2.5 bg-white hover:bg-gray-100 border border-gray-200 text-gray-700 rounded-xl text-xs font-black transition-all"
+                            >
+                                Walkover Gold
+                            </button>
+                            <button
+                                onClick={() => handleVote('WITHDRAW')}
+                                disabled={loading}
+                                className="px-4 py-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 rounded-xl text-xs font-black transition-all"
+                            >
+                                Withdraw
+                            </button>
+                        </>
+                    )}
+                    {(proposal.type === 'MERGE' || proposal.type === 'SPLIT') && (
+                        <>
+                            <button
+                                onClick={() => handleVote('AGREE')}
+                                disabled={loading}
+                                className="px-5 py-2.5 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-xs font-black transition-all shadow-sm"
+                            >
+                                Agree
+                            </button>
+                            <button
+                                onClick={() => handleVote('DISAGREE')}
+                                disabled={loading}
+                                className="px-5 py-2.5 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 rounded-xl text-xs font-black transition-all"
+                            >
+                                Disagree
+                            </button>
+                        </>
+                    )}
+                </div>
+            )}
+
+            {/* ── Move Up Confirmation Dialog ────────────────────── */}
+            {showMoveConfirm && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
+
+                        {/* Dialog header */}
+                        <div className="bg-amber-500 px-6 py-5">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center">
+                                    <ArrowRight size={20} className="text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black text-white">Confirm Move Up</h3>
+                                    <p className="text-xs text-amber-100 mt-0.5">This will reassign the athlete's category</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-6 space-y-5">
+                            {/* Athlete */}
+                            <div>
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Athlete</p>
+                                <p className="text-base font-black text-gray-900">{data.playerName}</p>
+                            </div>
+
+                            {/* From → To */}
+                            <div className="space-y-2">
+                                <div className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3">
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">From</p>
+                                    <p className="text-sm font-bold text-gray-800">{data.sourceCategoryName}</p>
+                                </div>
+                                <div className="flex justify-center">
+                                    <div className="w-7 h-7 bg-amber-100 rounded-full flex items-center justify-center">
+                                        <ArrowRight size={14} className="text-amber-600" />
+                                    </div>
+                                </div>
+                                <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3">
+                                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">To</p>
+                                    <p className="text-sm font-bold text-emerald-800">{data.targetCategoryName}</p>
+                                </div>
+                            </div>
+
+                            {/* Buttons */}
+                            <div className="flex gap-3 pt-1">
+                                <button
+                                    onClick={() => setShowMoveConfirm(false)}
+                                    className="flex-1 px-4 py-2.5 rounded-2xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 transition"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => { setShowMoveConfirm(false); handleVote('MOVE_UP') }}
+                                    disabled={loading}
+                                    className="flex-1 px-4 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-sm font-black text-white transition shadow-sm shadow-amber-200 disabled:opacity-50"
+                                >
+                                    Confirm Move Up
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
     )
 }
