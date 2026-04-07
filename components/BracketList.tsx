@@ -7,7 +7,7 @@ import PoomsaeBracketView from './PoomsaeBracketView'
 import { generateAllBrackets, getTournamentAlerts, initiateSmartProposal, forceExecuteSmartAction } from '@/app/actions'
 import {
     Trophy, Medal, Wand2, Loader2, AlertCircle, Search,
-    ShieldAlert, Split, Merge, Users, X, ChevronDown, Zap, ArrowRight
+    ShieldAlert, Split, Merge, Users, X, ChevronDown, Zap, ArrowRight, Clock
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -373,26 +373,75 @@ function CollapsibleBracket({
                                 </span>
                             )}
 
-                            {/* Alert pills */}
-                            {!publicView && alerts.map((alert: any, i: number) => (
-                                <button
-                                    key={`${alert.type}-${i}`}
-                                    onClick={e => { e.stopPropagation(); setIsAlertOpen(!isAlertOpen) }}
-                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all hover:scale-105 ${
-                                        alert.type === 'UNCONTESTED'
-                                            ? 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100'
-                                            : alert.type === 'MERGE_SUGGESTION'
-                                            ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
-                                            : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                                    }`}
-                                >
-                                    {alert.type === 'UNCONTESTED'    && <ShieldAlert size={9} />}
-                                    {alert.type === 'MERGE_SUGGESTION' && <Merge size={9} />}
-                                    {alert.type === 'SPLIT_SUGGESTION' && <Split size={9} />}
-                                    {alert.type === 'UNCONTESTED' ? 'Uncontested'
-                                        : alert.type === 'MERGE_SUGGESTION' ? 'Merge' : 'Split'}
-                                </button>
-                            ))}
+                            {/* Alert pills + inline proposal status */}
+                            {!publicView && alerts.map((alert: any, i: number) => {
+                                // Match the proposal for this specific alert
+                                const matchedProposal = proposals.find((p: any) => {
+                                    try {
+                                        const d = JSON.parse(p.data)
+                                        if (p.type === 'UNCONTESTED' && alert.type === 'UNCONTESTED')
+                                            return d.playerId === alert.details?.playerId
+                                        if (p.type === 'MERGE' && alert.type === 'MERGE_SUGGESTION')
+                                            return d.sourceCategoryId === alert.categoryId
+                                        if (p.type === 'SPLIT' && alert.type === 'SPLIT_SUGGESTION')
+                                            return d.categoryId === alert.categoryId
+                                    } catch { return false }
+                                    return false
+                                })
+
+                                const isPending  = matchedProposal?.status === 'PENDING'
+                                const votes: { clubId: string; vote: string }[] = matchedProposal?.votes || []
+                                const hasVotes   = votes.length > 0
+
+                                // Vote summary helpers
+                                const moveUp   = votes.filter(v => v.vote === 'MOVE_UP').length
+                                const walkover = votes.filter(v => v.vote === 'WALKOVER').length
+                                const withdraw = votes.filter(v => v.vote === 'WITHDRAW').length
+                                const agrees   = votes.filter(v => v.vote === 'AGREE').length
+                                const disagrees = votes.filter(v => v.vote === 'DISAGREE').length
+
+                                return (
+                                    <span key={`${alert.type}-${i}`} className="inline-flex items-center gap-1 flex-wrap">
+                                        {/* Alert type pill — clickable to open panel */}
+                                        <button
+                                            onClick={e => { e.stopPropagation(); setIsAlertOpen(!isAlertOpen) }}
+                                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all hover:scale-105 ${
+                                                alert.type === 'UNCONTESTED'
+                                                    ? 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100'
+                                                    : alert.type === 'MERGE_SUGGESTION'
+                                                    ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
+                                                    : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                                            }`}
+                                        >
+                                            {alert.type === 'UNCONTESTED'     && <ShieldAlert size={9} />}
+                                            {alert.type === 'MERGE_SUGGESTION' && <Merge size={9} />}
+                                            {alert.type === 'SPLIT_SUGGESTION' && <Split size={9} />}
+                                            {alert.type === 'UNCONTESTED' ? 'Uncontested'
+                                                : alert.type === 'MERGE_SUGGESTION' ? 'Merge' : 'Split'}
+                                        </button>
+
+                                        {/* Inline proposal status — shown only when a proposal exists */}
+                                        {isPending && !hasVotes && (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200 animate-pulse">
+                                                <Clock size={8} /> Awaiting Club
+                                            </span>
+                                        )}
+                                        {isPending && hasVotes && alert.type === 'UNCONTESTED' && (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-white border border-gray-200 text-gray-600">
+                                                {moveUp   > 0 && <span className="text-amber-700">{moveUp}↑ Move Up</span>}
+                                                {walkover > 0 && <span className="text-emerald-700">{walkover} Walkover</span>}
+                                                {withdraw > 0 && <span className="text-red-700">{withdraw} Withdraw</span>}
+                                            </span>
+                                        )}
+                                        {isPending && hasVotes && (alert.type === 'MERGE_SUGGESTION' || alert.type === 'SPLIT_SUGGESTION') && (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-white border border-gray-200 text-gray-600">
+                                                {agrees > 0    && <span className="text-emerald-700">{agrees} Agree</span>}
+                                                {disagrees > 0 && <span className="text-red-700">{disagrees} Disagree</span>}
+                                            </span>
+                                        )}
+                                    </span>
+                                )
+                            })}
                         </div>
                     </div>
 
