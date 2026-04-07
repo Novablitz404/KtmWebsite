@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import GlobalDropdown from '@/components/GlobalDropdown'
 import { calculateAge } from '@/lib/placement'
+import MasterlistAudit from '@/components/MasterlistAudit'
 
 interface PlayerRegistrationProps {
     tournamentId: string
@@ -534,6 +535,11 @@ export default function PlayerRegistration({
                         </button>
                     </form>
                 </div>
+            )}
+
+            {/* ── Masterlist Audit ──────────────────────────────────── */}
+            {!readOnly && (
+                <MasterlistAudit tournamentId={tournamentId} />
             )}
 
             {/* ── Athletes table ───────────────────────────────────── */}

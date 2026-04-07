@@ -346,24 +346,41 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                             <div>
                                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Athlete</p>
                                 {selectedMember ? (
-                                    <div className="flex items-center justify-between px-4 py-3.5 bg-gray-900 rounded-2xl">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0">
-                                                {selectedMember.name?.charAt(0)}
+                                    <>
+                                        <div className="flex items-center justify-between px-4 py-3.5 bg-gray-900 rounded-2xl">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0">
+                                                    {selectedMember.name?.charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <p className="font-black text-white text-sm leading-tight">{selectedMember.name}</p>
+                                                    <p className="text-[11px] text-gray-400 mt-0.5">{selectedMember.email}</p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="font-black text-white text-sm leading-tight">{selectedMember.name}</p>
-                                                <p className="text-[11px] text-gray-400 mt-0.5">{selectedMember.email}</p>
-                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedMember(null)}
+                                                className="text-xs font-bold text-gray-400 hover:text-red-400 px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0"
+                                            >
+                                                Change
+                                            </button>
                                         </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedMember(null)}
-                                            className="text-xs font-bold text-gray-400 hover:text-red-400 px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0"
-                                        >
-                                            Change
-                                        </button>
-                                    </div>
+
+                                        {/* ── No birthday warning (tournament tab only) ── */}
+                                        {!selectedMember.birthDate && activeTab === 'TOURNAMENT' && (
+                                            <div className="flex items-start gap-2.5 px-4 py-3 bg-amber-50 border border-amber-200 rounded-2xl mt-3">
+                                                <div className="w-5 h-5 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                    <span className="text-amber-600 text-[10px] font-black">!</span>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-black text-amber-800 leading-snug">Birthday required</p>
+                                                    <p className="text-[11px] text-amber-700 mt-0.5">
+                                                        {selectedMember.name} has no birthday on file. Update their profile before registering for a tournament.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
                                 ) : (
                                     <div className="relative">
                                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -654,7 +671,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                         <button
                             type="submit"
                             form="add-athlete-form"
-                            disabled={submitting || !selectedMember || (activeTab === 'TOURNAMENT' && !effectiveCategory)}
+                            disabled={submitting || !selectedMember || (activeTab === 'TOURNAMENT' && !effectiveCategory) || (activeTab === 'TOURNAMENT' && !!selectedMember && !selectedMember.birthDate)}
                             className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-black shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center gap-2"
                         >
                             {submitting ? (

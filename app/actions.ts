@@ -1444,6 +1444,11 @@ export async function registerForTournament(input: RegisterForTournamentInput) {
         where: { id: userId }
     })
 
+    // ── Birthday required for category placement ──────────────────────────────
+    if (!user?.birthDate) {
+        return { error: 'This athlete does not have a birthday on file. Please update their profile before registering for a tournament.' }
+    }
+
     // Find club by name (if user belongs to one)
     const club = clubName ? await prisma.club.findFirst({
         where: { name: clubName }
@@ -1942,7 +1947,184 @@ export async function createCategory(tournamentId: string, name: string, type: s
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// MASTERLIST AUDIT
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AuditIssue = {
+    playerId: string
+    playerName: string
+    categoryName: string
+    categoryType: string
+    severity: 'error' | 'warning'
+    code: string
+    message: string
+}
+
+export async function auditTournamentMasterlist(tournamentId: string): Promise<AuditIssue[]> {
+    const { calculateAge } = await import('@/lib/placement')
+
+    // Fetch all players with their user profile and assigned category
+    const players = await prisma.player.findMany({
+        where: { category: { tournamentId } },
+        include: {
+            category: true,
+            user: {
+                select: {
+                    id: true, name: true, birthDate: true, gender: true,
+                    weight: true, height: true, belt: true
+                }
+            }
+        }
+    })
+
+    const issues: AuditIssue[] = []
+
+    for (const player of players) {
+        const cat = player.category
+        if (!cat) continue
+
+        const ctx = {
+            playerId: player.id,
+            playerName: player.name,
+            categoryName: cat.name,
+            categoryType: cat.type,
+        }
+
+        // ── 1. No birthday ────────────────────────────────────────────────────
+        const birthDate = player.user?.birthDate
+        if (!birthDate) {
+            issues.push({
+                ...ctx,
+                severity: 'error',
+                code: 'NO_BIRTHDAY',
+                message: 'No birthday on file — age division cannot be verified.',
+            })
+        }
+
+        // ── 2. No weight (required for KYORUGI) ──────────────────────────────
+        if (cat.type === 'KYORUGI' && (player.weight == null || player.weight <= 0)) {
+            issues.push({
+                ...ctx,
+                severity: 'error',
+                code: 'NO_WEIGHT',
+                message: 'No weight on file — required for Kyorugi weight division.',
+            })
+        }
+
+        // ── 3. No gender ──────────────────────────────────────────────────────
+        if (!player.gender) {
+            issues.push({
+                ...ctx,
+                severity: 'error',
+                code: 'NO_GENDER',
+                message: 'No gender on file — cannot verify category eligibility.',
+            })
+        }
+
+        // ── Skip category rule checks if we're missing critical data ──────────
+        const age = birthDate ? calculateAge(birthDate) : null
+        const weight = player.weight ?? null
+        const height = player.height ?? null
+        const gender = player.gender ?? null
+        const belt = player.belt ?? null
+
+        // ── 4. Age out of range ───────────────────────────────────────────────
+        if (age !== null) {
+            if (cat.minAge && age < cat.minAge) {
+                issues.push({
+                    ...ctx,
+                    severity: 'error',
+                    code: 'AGE_TOO_YOUNG',
+                    message: `Age ${age} is below the category minimum of ${cat.minAge}.`,
+                })
+            }
+            if (cat.maxAge && age > cat.maxAge) {
+                issues.push({
+                    ...ctx,
+                    severity: 'error',
+                    code: 'AGE_TOO_OLD',
+                    message: `Age ${age} exceeds the category maximum of ${cat.maxAge}.`,
+                })
+            }
+        }
+
+        // ── 5. Gender mismatch ────────────────────────────────────────────────
+        if (gender && cat.gender && cat.gender !== 'Both' && cat.gender !== 'Mixed' && cat.gender !== gender) {
+            issues.push({
+                ...ctx,
+                severity: 'error',
+                code: 'GENDER_MISMATCH',
+                message: `Player gender (${gender}) does not match the category gender (${cat.gender}).`,
+            })
+        }
+
+        // ── 6. Weight out of range (KYORUGI) ──────────────────────────────────
+        if (cat.type === 'KYORUGI' && weight !== null && weight > 0) {
+            if (cat.minWeight && weight < cat.minWeight) {
+                issues.push({
+                    ...ctx,
+                    severity: 'error',
+                    code: 'WEIGHT_TOO_LOW',
+                    message: `Weight ${weight}kg is below the category minimum of ${cat.minWeight}kg.`,
+                })
+            }
+            if (cat.maxWeight && weight >= cat.maxWeight) {
+                issues.push({
+                    ...ctx,
+                    severity: 'error',
+                    code: 'WEIGHT_TOO_HIGH',
+                    message: `Weight ${weight}kg meets or exceeds the category limit of ${cat.maxWeight}kg.`,
+                })
+            }
+        }
+
+        // ── 7. Height out of range (age ≤ 11) ────────────────────────────────
+        if (cat.type === 'KYORUGI' && age !== null && age <= 11) {
+            if (cat.minHeight && (height ?? 0) < cat.minHeight) {
+                issues.push({
+                    ...ctx,
+                    severity: 'error',
+                    code: 'HEIGHT_TOO_LOW',
+                    message: `Height ${height ?? 0}cm is below the category minimum of ${cat.minHeight}cm.`,
+                })
+            }
+            if (cat.maxHeight && (height ?? 0) > cat.maxHeight) {
+                issues.push({
+                    ...ctx,
+                    severity: 'error',
+                    code: 'HEIGHT_TOO_HIGH',
+                    message: `Height ${height ?? 0}cm exceeds the category maximum of ${cat.maxHeight}cm.`,
+                })
+            }
+        }
+
+        // ── 8. Belt mismatch (strict belt rule on category) ───────────────────
+        if (cat.belt && belt && cat.belt !== belt) {
+            issues.push({
+                ...ctx,
+                severity: 'warning',
+                code: 'BELT_MISMATCH',
+                message: `Player belt (${belt}) does not match the category's required belt (${cat.belt}).`,
+            })
+        }
+
+        // ── 9. Skill level mismatch ───────────────────────────────────────────
+        if (cat.skillLevel && player.skillLevel && cat.skillLevel !== player.skillLevel) {
+            issues.push({
+                ...ctx,
+                severity: 'warning',
+                code: 'SKILL_MISMATCH',
+                message: `Player skill level (${player.skillLevel}) does not match category skill level (${cat.skillLevel}).`,
+            })
+        }
+    }
+
+    return issues
+}
+
 export async function getTournamentStats(tournamentId: string) {
+
     const [statusGroups, kyorugiCount, poomsaeCount, kyukpaCount, clubPlayers] = await Promise.all([
         // Status breakdown via groupBy
         prisma.player.groupBy({
