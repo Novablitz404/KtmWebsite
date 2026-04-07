@@ -233,7 +233,7 @@ export default function PlayerRegistration({
             setPoomsaeType('INDIVIDUAL'); setTeamId('')
             if (currentPage !== 1) handlePageChange(1)
             else { const refreshed = await getTournamentPlayers(tournamentId, 0, itemsPerPage); setPlayers(refreshed) }
-        } catch { toast.error('Failed to register athlete. Please try again.') }
+        } catch (err: any) { toast.error(err?.message || 'Failed to register athlete. Please try again.') }
         finally { setIsSubmitting(false) }
     }
 

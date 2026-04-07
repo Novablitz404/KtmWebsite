@@ -446,9 +446,6 @@ export async function createPlayer(formData: FormData) {
             name: toTitleCase(name),
             gender: gender || 'Male',
             belt: belt || 'Black',
-            // @ts-ignore: Prisma types delay
-            club: club || '',
-            // @ts-ignore: Prisma types delay
             skillLevel: skillLevel || 'Novice',
             weight: isNaN(weight) ? null : weight,
             poomsaeType: poomsaeType || 'INDIVIDUAL',

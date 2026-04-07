@@ -128,7 +128,7 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
         (await import('@/app/actions')).getTournamentStats(id)
     ])
 
-    // Fetch players - use select for nested relations
+    // Fetch players - first page only (20 per page), pagination handled client-side
     const playersFetch = await prisma.player.findMany({
         where: {
             category: {
@@ -150,7 +150,9 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
             category: {
                 name: 'asc'
             }
-        }
+        },
+        take: 20,
+        skip: 0,
     })
 
     // Type assertion or cleaner casting for the component props
