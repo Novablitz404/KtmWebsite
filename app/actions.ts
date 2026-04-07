@@ -3568,6 +3568,65 @@ export async function initiateSmartProposal(
     return { success: true, proposalId: proposal.id }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// BULK SEND UNCONTESTED PROPOSALS
+// Sends a proposal for every UNCONTESTED alert that doesn't already have a
+// pending proposal. Optionally scoped to a single clubId.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function bulkSendUncontestedProposals(
+    tournamentId: string,
+    clubId?: string   // if provided, only send for that club's athletes
+): Promise<{ sent: number; alreadyPending: number; skipped: number }> {
+    const { detectSmartAlerts } = await import('@/lib/smart-tournament-logic')
+
+    // Fetch live alerts + existing proposals in parallel
+    const [alerts, existingProposals] = await Promise.all([
+        detectSmartAlerts(tournamentId),
+        prisma.smartProposal.findMany({
+            where: { tournamentId, type: 'UNCONTESTED', status: 'PENDING' },
+            select: { data: true }
+        })
+    ])
+
+    // Build a set of playerIds that already have a pending proposal
+    const pendingPlayerIds = new Set<string>()
+    for (const p of existingProposals) {
+        try {
+            const d = JSON.parse(p.data)
+            if (d.playerId) pendingPlayerIds.add(d.playerId)
+        } catch { /* ignore */ }
+    }
+
+    const uncontestedAlerts = alerts.filter(a => a.type === 'UNCONTESTED')
+
+    let sent = 0, alreadyPending = 0, skipped = 0
+
+    for (const alert of uncontestedAlerts) {
+        const playerId  = alert.details?.playerId
+        const alertClub = alert.details?.clubId
+
+        // Scope to club if requested
+        if (clubId && alertClub !== clubId) { skipped++; continue }
+
+        // Skip if a proposal already exists for this player
+        if (pendingPlayerIds.has(playerId)) { alreadyPending++; continue }
+
+        await createSmartProposal(tournamentId, 'UNCONTESTED', {
+            playerId,
+            playerName:         alert.details?.playerName,
+            sourceCategoryId:   alert.categoryId,
+            sourceCategoryName: alert.details?.sourceCategoryName || alert.categoryName,
+            targetCategoryId:   alert.details?.targetCategoryId   || null,
+            targetCategoryName: alert.details?.targetCategoryName || null,
+        })
+        sent++
+    }
+
+    revalidatePath(`/organization`)
+    revalidatePath(`/tournament/${tournamentId}`)
+    return { sent, alreadyPending, skipped }
+}
+
 export async function submitClubDecision(
     proposalId: string,
     clubId: string,

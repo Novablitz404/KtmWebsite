@@ -4,10 +4,10 @@ import { useState, useTransition } from 'react'
 import { Category, Match, PoomsaeMatch } from '@prisma/client'
 import BracketView from './BracketView'
 import PoomsaeBracketView from './PoomsaeBracketView'
-import { generateAllBrackets, getTournamentAlerts, initiateSmartProposal, forceExecuteSmartAction } from '@/app/actions'
+import { generateAllBrackets, getTournamentAlerts, initiateSmartProposal, forceExecuteSmartAction, bulkSendUncontestedProposals } from '@/app/actions'
 import {
     Trophy, Medal, Wand2, Loader2, AlertCircle, Search,
-    ShieldAlert, Split, Merge, Users, X, ChevronDown, Zap, ArrowRight, Clock
+    ShieldAlert, Split, Merge, Users, X, ChevronDown, Zap, ArrowRight, Clock, Send, ChevronRight
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -23,6 +23,9 @@ export default function BracketList({ categories, tournamentName, publicView = f
     const [isPending, startTransition] = useTransition()
     const [searchQuery, setSearchQuery] = useState('')
     const [alertFilter, setAlertFilter] = useState<'all' | 'uncontested' | 'merge' | 'split'>('all')
+    const [sendingAll, setSendingAll] = useState(false)
+    const [sendingClub, setSendingClub] = useState<string | null>(null)
+    const [clubDropdownOpen, setClubDropdownOpen] = useState(false)
 
     const tournamentId = categories[0]?.tournamentId
 
@@ -108,80 +111,176 @@ export default function BracketList({ categories, tournamentName, publicView = f
         <div className="space-y-5">
 
             {/* ── Alert Strip ─────────────────────────────────────── */}
-            {totalAlerts > 0 && !publicView && (
-                <div className="relative overflow-hidden rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-50 px-5 py-4 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
-                    {/* decorative glow */}
-                    <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-amber-200/40 blur-2xl pointer-events-none" />
+            {totalAlerts > 0 && !publicView && (() => {
+                // Build per-club map from uncontested alerts
+                const clubsWithUncontested = new Map<string, { id: string; name: string; logoUrl: string | null; count: number }>()
+                for (const a of alerts) {
+                    if (a.type !== 'UNCONTESTED') continue
+                    const cid  = a.details?.clubId  || 'unaffiliated'
+                    const name = a.details?.clubName || 'Unaffiliated'
+                    const logo = a.details?.clubLogoUrl || null
+                    const cur  = clubsWithUncontested.get(cid)
+                    if (cur) cur.count++
+                    else clubsWithUncontested.set(cid, { id: cid, name, logoUrl: logo, count: 1 })
+                }
+                const clubList = Array.from(clubsWithUncontested.values()).sort((a, b) => a.name.localeCompare(b.name))
 
-                    <div className="flex items-center gap-4 flex-wrap relative">
-                        <div className="flex items-center gap-2.5 flex-shrink-0">
-                            <div className="p-2 bg-amber-100 rounded-xl">
-                                <AlertCircle size={16} className="text-amber-600" />
+                const handleSendAll = async () => {
+                    setSendingAll(true)
+                    try {
+                        const r = await bulkSendUncontestedProposals(tournamentId)
+                        if (r.sent > 0) toast.success(`Sent ${r.sent} proposal${r.sent !== 1 ? 's' : ''} to clubs`)
+                        else toast.info(r.alreadyPending > 0 ? 'All uncontested proposals already sent' : 'No uncontested alerts to send')
+                        queryClient.invalidateQueries({ queryKey: ['tournament-smart-alerts', tournamentId] })
+                    } catch { toast.error('Failed to send proposals') }
+                    finally { setSendingAll(false) }
+                }
+
+                const handleSendClub = async (clubId: string, clubName: string) => {
+                    setSendingClub(clubId)
+                    setClubDropdownOpen(false)
+                    try {
+                        const r = await bulkSendUncontestedProposals(tournamentId, clubId)
+                        if (r.sent > 0) toast.success(`Sent ${r.sent} proposal${r.sent !== 1 ? 's' : ''} to ${clubName}`)
+                        else toast.info(`No new uncontested proposals for ${clubName}`)
+                        queryClient.invalidateQueries({ queryKey: ['tournament-smart-alerts', tournamentId] })
+                    } catch { toast.error('Failed to send proposals') }
+                    finally { setSendingClub(null) }
+                }
+
+                return (
+                    <div className="relative overflow-hidden rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-50 px-5 py-4 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-amber-200/40 blur-2xl pointer-events-none" />
+
+                        {/* Row 1: label + filter pills */}
+                        <div className="flex items-center gap-4 flex-wrap relative">
+                            <div className="flex items-center gap-2.5 flex-shrink-0">
+                                <div className="p-2 bg-amber-100 rounded-xl">
+                                    <AlertCircle size={16} className="text-amber-600" />
+                                </div>
+                                <div>
+                                    <p className="text-xs font-black text-amber-900 uppercase tracking-wide">
+                                        {totalAlerts} Alert{totalAlerts !== 1 ? 's' : ''} Pending
+                                    </p>
+                                    <p className="text-[10px] text-amber-600 font-medium">
+                                        Resolve before generating brackets
+                                    </p>
+                                </div>
                             </div>
-                            <div>
-                                <p className="text-xs font-black text-amber-900 uppercase tracking-wide">
-                                    {totalAlerts} Alert{totalAlerts !== 1 ? 's' : ''} Pending
-                                </p>
-                                <p className="text-[10px] text-amber-600 font-medium">
-                                    Resolve before generating brackets
-                                </p>
+
+                            <div className="h-5 w-px bg-amber-200 hidden sm:block" />
+
+                            <div className="flex items-center gap-2 flex-wrap">
+                                {uncontestedCount > 0 && (
+                                    <button
+                                        onClick={() => setAlertFilter(alertFilter === 'uncontested' ? 'all' : 'uncontested')}
+                                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all border ${
+                                            alertFilter === 'uncontested'
+                                                ? 'bg-yellow-400 text-yellow-900 border-yellow-400 shadow-sm scale-105'
+                                                : 'bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200'
+                                        }`}
+                                    >
+                                        <ShieldAlert size={10} />
+                                        {uncontestedCount} Uncontested
+                                    </button>
+                                )}
+                                {mergeCount > 0 && (
+                                    <button
+                                        onClick={() => setAlertFilter(alertFilter === 'merge' ? 'all' : 'merge')}
+                                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all border ${
+                                            alertFilter === 'merge'
+                                                ? 'bg-purple-500 text-white border-purple-500 shadow-sm scale-105'
+                                                : 'bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-200'
+                                        }`}
+                                    >
+                                        <Merge size={10} />
+                                        {mergeCount} Merge
+                                    </button>
+                                )}
+                                {splitCount > 0 && (
+                                    <button
+                                        onClick={() => setAlertFilter(alertFilter === 'split' ? 'all' : 'split')}
+                                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all border ${
+                                            alertFilter === 'split'
+                                                ? 'bg-blue-500 text-white border-blue-500 shadow-sm scale-105'
+                                                : 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200'
+                                        }`}
+                                    >
+                                        <Split size={10} />
+                                        {splitCount} Split
+                                    </button>
+                                )}
+                                {alertFilter !== 'all' && (
+                                    <button
+                                        onClick={() => setAlertFilter('all')}
+                                        className="text-amber-700 text-[11px] font-semibold hover:underline px-1"
+                                    >
+                                        Clear
+                                    </button>
+                                )}
                             </div>
                         </div>
 
-                        <div className="h-5 w-px bg-amber-200 hidden sm:block" />
+                        {/* Row 2: bulk send actions (uncontested only) */}
+                        {uncontestedCount > 0 && (
+                            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-amber-200/60 flex-wrap">
+                                <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider mr-1">Send Uncontested:</p>
 
-                        <div className="flex items-center gap-2 flex-wrap">
-                            {uncontestedCount > 0 && (
+                                {/* Send All */}
                                 <button
-                                    onClick={() => setAlertFilter(alertFilter === 'uncontested' ? 'all' : 'uncontested')}
-                                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all border ${
-                                        alertFilter === 'uncontested'
-                                            ? 'bg-yellow-400 text-yellow-900 border-yellow-400 shadow-sm scale-105'
-                                            : 'bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200'
-                                    }`}
+                                    onClick={handleSendAll}
+                                    disabled={sendingAll || !!sendingClub}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black bg-amber-600 hover:bg-amber-700 text-white transition-all shadow-sm shadow-amber-300 disabled:opacity-50 active:scale-95"
                                 >
-                                    <ShieldAlert size={10} />
-                                    {uncontestedCount} Uncontested
+                                    {sendingAll ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
+                                    Send All ({uncontestedCount})
                                 </button>
-                            )}
-                            {mergeCount > 0 && (
-                                <button
-                                    onClick={() => setAlertFilter(alertFilter === 'merge' ? 'all' : 'merge')}
-                                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all border ${
-                                        alertFilter === 'merge'
-                                            ? 'bg-purple-500 text-white border-purple-500 shadow-sm scale-105'
-                                            : 'bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-200'
-                                    }`}
-                                >
-                                    <Merge size={10} />
-                                    {mergeCount} Merge
-                                </button>
-                            )}
-                            {splitCount > 0 && (
-                                <button
-                                    onClick={() => setAlertFilter(alertFilter === 'split' ? 'all' : 'split')}
-                                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold transition-all border ${
-                                        alertFilter === 'split'
-                                            ? 'bg-blue-500 text-white border-blue-500 shadow-sm scale-105'
-                                            : 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200'
-                                    }`}
-                                >
-                                    <Split size={10} />
-                                    {splitCount} Split
-                                </button>
-                            )}
-                            {alertFilter !== 'all' && (
-                                <button
-                                    onClick={() => setAlertFilter('all')}
-                                    className="text-amber-700 text-[11px] font-semibold hover:underline px-1"
-                                >
-                                    Clear
-                                </button>
-                            )}
-                        </div>
+
+                                {/* Per Club dropdown */}
+                                {clubList.length > 1 && (
+                                    <div className="relative">
+                                        <button
+                                            onClick={() => setClubDropdownOpen(o => !o)}
+                                            disabled={sendingAll || !!sendingClub}
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black bg-white hover:bg-amber-50 border border-amber-300 text-amber-800 transition-all shadow-sm disabled:opacity-50 active:scale-95"
+                                        >
+                                            {sendingClub ? <Loader2 size={11} className="animate-spin" /> : <Users size={11} />}
+                                            Per Club
+                                            <ChevronDown size={11} className={`transition-transform ${clubDropdownOpen ? 'rotate-180' : ''}`} />
+                                        </button>
+
+                                        {clubDropdownOpen && (
+                                            <div className="absolute left-0 top-full mt-1.5 z-50 bg-white rounded-2xl border border-gray-200 shadow-xl shadow-amber-100/50 min-w-[220px] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 pt-3 pb-1.5">Clubs with Uncontested Athletes</p>
+                                                {clubList.map(club => (
+                                                    <button
+                                                        key={club.id}
+                                                        onClick={() => handleSendClub(club.id, club.name)}
+                                                        className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-amber-50 transition-colors text-left group"
+                                                    >
+                                                        {club.logoUrl ? (
+                                                            <img src={club.logoUrl} alt="" className="w-6 h-6 rounded-full object-cover ring-1 ring-gray-200 flex-shrink-0" />
+                                                        ) : (
+                                                            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center text-[9px] font-black text-white flex-shrink-0">
+                                                                {club.name[0]}
+                                                            </div>
+                                                        )}
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-xs font-bold text-gray-900 truncate">{club.name}</p>
+                                                            <p className="text-[10px] text-gray-400">{club.count} uncontested athlete{club.count !== 1 ? 's' : ''}</p>
+                                                        </div>
+                                                        <ChevronRight size={12} className="text-gray-300 group-hover:text-amber-500 flex-shrink-0" />
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
-                </div>
-            )}
+                )
+            })()}
 
             {/* ── Toolbar Card ────────────────────────────────────── */}
             <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">

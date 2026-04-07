@@ -87,6 +87,7 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
                 details: {
                     playerId:           cat.players[0].id,
                     playerName:         cat.players[0].name,
+                    clubId:             cat.players[0].clubId || null,
                     clubName:           cat.players[0].club?.name || 'Unknown Club',
                     clubLogoUrl:        cat.players[0].club?.logoUrl || null,
                     sourceCategoryName: cat.name,
