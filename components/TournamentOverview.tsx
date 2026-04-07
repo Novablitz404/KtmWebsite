@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import { Category, Match, Player, Tournament } from '@prisma/client'
-import { Users, Trophy, ClipboardList, Calendar, TrendingUp, CheckCircle2, Clock, XCircle, FileDown, Loader2 } from 'lucide-react'
-import { getClubRosterForTournament } from '@/app/actions'
+import { Users, Trophy, ClipboardList, Calendar, TrendingUp, CheckCircle2, Clock, XCircle, FileDown, Loader2, Eye, EyeOff, ChevronDown } from 'lucide-react'
+import { getClubRosterForTournament, ClubRosterPlayer } from '@/app/actions'
 import { downloadClubRosterPdf } from '@/lib/club-roster-pdf'
 
 type TournamentWithData = Tournament & {
@@ -45,6 +45,22 @@ export default function TournamentOverview({
     tournament, players, totalPlayersCount, stats
 }: TournamentOverviewProps) {
     const [downloadingClub, setDownloadingClub] = useState<string | null>(null)
+    const [viewingClub,    setViewingClub]    = useState<string | null>(null)
+    const [loadingView,    setLoadingView]    = useState<string | null>(null)
+    const [rosterCache,    setRosterCache]    = useState<Record<string, ClubRosterPlayer[]>>({})
+
+    async function handleViewRoster(clubId: string) {
+        if (viewingClub === clubId) { setViewingClub(null); return }
+        setViewingClub(clubId)
+        if (rosterCache[clubId]) return
+        setLoadingView(clubId)
+        try {
+            const data = await getClubRosterForTournament(tournament.id, clubId)
+            setRosterCache(prev => ({ ...prev, [clubId]: data.players }))
+        } finally {
+            setLoadingView(null)
+        }
+    }
     const approvedCount  = stats?.approved ?? players.filter(p => p.registrationStatus === 'APPROVED').length
     const pendingCount   = stats?.pending  ?? players.filter(p => p.registrationStatus === 'PENDING').length
     const rejectedCount  = stats?.rejected ?? players.filter(p => p.registrationStatus === 'REJECTED').length
@@ -291,7 +307,7 @@ export default function TournamentOverview({
                 </div>
 
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left min-w-[540px]">
+                    <table className="w-full text-left min-w-[580px]">
                         <thead>
                             <tr className="bg-gray-50/80">
                                 {['#', 'Club / Team', 'Registered', 'Approved', 'Pending', 'Share', ''].map(h => (
@@ -307,83 +323,193 @@ export default function TournamentOverview({
                         <tbody>
                             {clubStats.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-400">
+                                    <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-400">
                                         No clubs have registered athletes yet.
                                     </td>
                                 </tr>
                             ) : (
                                 clubStats.map((club, i) => {
-                                    const sharePercent = totalPlayersCount > 0 ? (club.count / totalPlayersCount) * 100 : 0
+                                    const sharePercent  = totalPlayersCount > 0 ? (club.count / totalPlayersCount) * 100 : 0
+                                    const isExpanded    = viewingClub === club.id
+                                    const isLoadingThis = loadingView === club.id
+                                    const rosterPlayers = club.id ? (rosterCache[club.id] ?? null) : null
+
+                                    // Group by category for the inline view
+                                    const groupedRoster = rosterPlayers
+                                        ? rosterPlayers.reduce((acc, p) => {
+                                            if (!acc[p.categoryName]) acc[p.categoryName] = { type: p.categoryType, players: [] }
+                                            acc[p.categoryName].players.push(p)
+                                            return acc
+                                          }, {} as Record<string, { type: string; players: ClubRosterPlayer[] }>)
+                                        : null
+
+                                    const TYPE_COLOR: Record<string, string> = {
+                                        KYORUGI: 'bg-red-500',
+                                        POOMSAE: 'bg-blue-500',
+                                        KYUKPA:  'bg-purple-500',
+                                    }
+                                    const STATUS_STYLE: Record<string, string> = {
+                                        APPROVED: 'text-emerald-600 font-bold',
+                                        PENDING:  'text-amber-600 font-bold',
+                                        REJECTED: 'text-red-500 font-bold',
+                                    }
+
                                     return (
-                                        <tr key={i} className="border-t border-gray-50 hover:bg-gray-50/60 transition-colors">
-                                            <td className="px-6 py-3.5 text-xs font-bold text-gray-300">{i + 1}</td>
-                                            <td className="px-6 py-3.5">
-                                                <div className="flex items-center gap-3">
-                                                    {club.logoUrl ? (
-                                                        <img
-                                                            src={club.logoUrl}
-                                                            alt=""
-                                                            className="w-8 h-8 rounded-xl object-cover border border-gray-100 shadow-sm"
-                                                        />
-                                                    ) : (
-                                                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-xs font-black text-gray-500">
-                                                            {club.name.charAt(0).toUpperCase()}
-                                                        </div>
-                                                    )}
-                                                    <span className="text-sm font-semibold text-gray-900">{club.name}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-3.5 text-center">
-                                                <span className="text-sm font-bold text-gray-900">{club.count}</span>
-                                            </td>
-                                            <td className="px-6 py-3.5 text-center">
-                                                <span className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-600">
-                                                    {club.approved}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-3.5 text-center">
-                                                <span className={`text-sm font-semibold ${club.pending > 0 ? 'text-amber-600' : 'text-gray-300'}`}>
-                                                    {club.pending}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-3.5">
-                                                <div className="flex items-center gap-2.5">
-                                                    <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                                        <div
-                                                            className="h-full bg-red-500 rounded-full transition-all duration-500"
-                                                            style={{ width: `${sharePercent}%` }}
-                                                        />
+                                        <>
+                                            <tr
+                                                key={`row-${i}`}
+                                                className={`border-t border-gray-50 transition-colors ${
+                                                    isExpanded ? 'bg-indigo-50/60' : 'hover:bg-gray-50/60'
+                                                }`}
+                                            >
+                                                <td className="px-6 py-3.5 text-xs font-bold text-gray-300">{i + 1}</td>
+                                                <td className="px-6 py-3.5">
+                                                    <div className="flex items-center gap-3">
+                                                        {club.logoUrl ? (
+                                                            <img src={club.logoUrl} alt="" className="w-8 h-8 rounded-xl object-cover border border-gray-100 shadow-sm" />
+                                                        ) : (
+                                                            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-xs font-black text-gray-500">
+                                                                {club.name.charAt(0).toUpperCase()}
+                                                            </div>
+                                                        )}
+                                                        <span className="text-sm font-semibold text-gray-900">{club.name}</span>
                                                     </div>
-                                                    <span className="text-xs font-bold text-gray-400 w-8 text-right">
-                                                        {Math.round(sharePercent)}%
+                                                </td>
+                                                <td className="px-6 py-3.5 text-center">
+                                                    <span className="text-sm font-bold text-gray-900">{club.count}</span>
+                                                </td>
+                                                <td className="px-6 py-3.5 text-center">
+                                                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-600">{club.approved}</span>
+                                                </td>
+                                                <td className="px-6 py-3.5 text-center">
+                                                    <span className={`text-sm font-semibold ${club.pending > 0 ? 'text-amber-600' : 'text-gray-300'}`}>
+                                                        {club.pending}
                                                     </span>
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-3.5">
-                                                <button
-                                                    type="button"
-                                                    title={`Download ${club.name} roster PDF`}
-                                                    disabled={!club.id || downloadingClub === club.id}
-                                                    onClick={async () => {
-                                                        if (!club.id) return
-                                                        setDownloadingClub(club.id)
-                                                        try {
-                                                            const data = await getClubRosterForTournament(tournament.id, club.id)
-                                                            downloadClubRosterPdf(data)
-                                                        } finally {
-                                                            setDownloadingClub(null)
-                                                        }
-                                                    }}
-                                                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                                                >
-                                                    {downloadingClub === club.id
-                                                        ? <Loader2 size={11} className="animate-spin" />
-                                                        : <FileDown size={11} />
-                                                    }
-                                                    PDF
-                                                </button>
-                                            </td>
-                                        </tr>
+                                                </td>
+                                                <td className="px-6 py-3.5">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                                            <div className="h-full bg-red-500 rounded-full transition-all duration-500" style={{ width: `${sharePercent}%` }} />
+                                                        </div>
+                                                        <span className="text-xs font-bold text-gray-400 w-8 text-right">{Math.round(sharePercent)}%</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3.5">
+                                                    <div className="flex items-center gap-1.5">
+                                                        {/* View athletes */}
+                                                        <button
+                                                            type="button"
+                                                            disabled={!club.id}
+                                                            onClick={() => club.id && handleViewRoster(club.id)}
+                                                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition-colors ${
+                                                                isExpanded
+                                                                    ? 'bg-indigo-600 text-white'
+                                                                    : 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100'
+                                                            } disabled:opacity-40 disabled:cursor-not-allowed`}
+                                                        >
+                                                            {isLoadingThis
+                                                                ? <Loader2 size={11} className="animate-spin" />
+                                                                : isExpanded
+                                                                ? <EyeOff size={11} />
+                                                                : <Eye size={11} />}
+                                                            View
+                                                        </button>
+                                                        {/* PDF */}
+                                                        <button
+                                                            type="button"
+                                                            title={`Download ${club.name} roster PDF`}
+                                                            disabled={!club.id || downloadingClub === club.id}
+                                                            onClick={async () => {
+                                                                if (!club.id) return
+                                                                setDownloadingClub(club.id)
+                                                                try {
+                                                                    const data = await getClubRosterForTournament(tournament.id, club.id)
+                                                                    downloadClubRosterPdf(data)
+                                                                } finally {
+                                                                    setDownloadingClub(null)
+                                                                }
+                                                            }}
+                                                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black text-gray-500 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                                        >
+                                                            {downloadingClub === club.id ? <Loader2 size={11} className="animate-spin" /> : <FileDown size={11} />}
+                                                            PDF
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+
+                                            {/* ── Inline roster panel ── */}
+                                            {isExpanded && (
+                                                <tr key={`roster-${i}`}>
+                                                    <td colSpan={7} className="px-0 py-0 bg-gray-50/80 border-t border-indigo-100">
+                                                        <div className="px-6 py-5">
+                                                            {isLoadingThis || !groupedRoster ? (
+                                                                <div className="flex items-center justify-center py-8 gap-2 text-sm text-gray-400">
+                                                                    <Loader2 size={14} className="animate-spin" />
+                                                                    Loading roster…
+                                                                </div>
+                                                            ) : Object.keys(groupedRoster).length === 0 ? (
+                                                                <p className="text-sm text-gray-400 text-center py-6">No athletes found for this club.</p>
+                                                            ) : (
+                                                                <div className="space-y-4">
+                                                                    {Object.entries(groupedRoster).map(([catName, { type, players: catPlayers }]) => (
+                                                                        <div key={catName}>
+                                                                            {/* Category header */}
+                                                                            <div className={`flex items-center justify-between px-3 py-1.5 rounded-lg mb-1.5 ${
+                                                                                type === 'KYORUGI' ? 'bg-red-500' :
+                                                                                type === 'POOMSAE' ? 'bg-blue-500' : 'bg-purple-500'
+                                                                            }`}>
+                                                                                <span className="text-[11px] font-black text-white uppercase tracking-wide">{catName}</span>
+                                                                                <span className="text-[10px] text-white/70 font-semibold">
+                                                                                    {catPlayers.length} athlete{catPlayers.length !== 1 ? 's' : ''}
+                                                                                </span>
+                                                                            </div>
+                                                                            {/* Athletes table */}
+                                                                            <div className="overflow-x-auto rounded-xl border border-gray-100">
+                                                                                <table className="w-full text-left min-w-[560px]">
+                                                                                    <thead>
+                                                                                        <tr className="bg-white border-b border-gray-100">
+                                                                                            {['#','Name','Birthday','Age','Gender','Weight','Height','Belt','Status'].map(h => (
+                                                                                                <th key={h} className="px-3 py-2 text-[9px] font-black text-gray-400 uppercase tracking-widest">{h}</th>
+                                                                                            ))}
+                                                                                        </tr>
+                                                                                    </thead>
+                                                                                    <tbody>
+                                                                                        {catPlayers.map((p, pi) => (
+                                                                                            <tr key={pi} className={`border-t border-gray-50 ${pi % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'}`}>
+                                                                                                <td className="px-3 py-2 text-[10px] text-gray-300 font-bold">{pi + 1}</td>
+                                                                                                <td className="px-3 py-2 text-xs font-bold text-gray-900">{p.name}</td>
+                                                                                                <td className="px-3 py-2 text-[11px] text-gray-500">
+                                                                                                    {p.birthDate ? p.birthDate.split('-').slice(1).reverse().join('/') + '/' + p.birthDate.split('-')[0] : '—'}
+                                                                                                </td>
+                                                                                                <td className="px-3 py-2 text-[11px] text-gray-600">{p.age ?? '—'}</td>
+                                                                                                <td className="px-3 py-2 text-[11px] text-gray-600">{p.gender ?? '—'}</td>
+                                                                                                <td className="px-3 py-2 text-[11px] text-gray-600">{p.weight ? `${p.weight}kg` : '—'}</td>
+                                                                                                <td className="px-3 py-2 text-[11px] text-gray-600">{p.height ? `${p.height}cm` : '—'}</td>
+                                                                                                <td className="px-3 py-2 text-[11px] text-gray-600">{p.belt ?? '—'}</td>
+                                                                                                <td className="px-3 py-2">
+                                                                                                    <span className={`text-[10px] ${
+                                                                                                        p.registrationStatus === 'APPROVED' ? 'text-emerald-600 font-bold' :
+                                                                                                        p.registrationStatus === 'PENDING'  ? 'text-amber-600 font-bold' :
+                                                                                                        'text-red-500 font-bold'
+                                                                                                    }`}>
+                                                                                                        {p.registrationStatus.charAt(0) + p.registrationStatus.slice(1).toLowerCase()}
+                                                                                                    </span>
+                                                                                                </td>
+                                                                                            </tr>
+                                                                                        ))}
+                                                                                    </tbody>
+                                                                                </table>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </>
                                     )
                                 })
                             )}
