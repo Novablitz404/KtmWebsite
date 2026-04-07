@@ -62,7 +62,7 @@ export async function findCategoryForPlayer(
         if (targetType === 'KYORUGI') {
             // Weight (truthy check: skip when 0/null, used for height-based divisions)
             if (cat.minWeight && player.weight < cat.minWeight) return false
-            if (cat.maxWeight && player.weight >= cat.maxWeight) return false
+            if (cat.maxWeight && player.weight > cat.maxWeight) return false
 
             // Height (truthy check: skip when 0/null, used for weight-based divisions)
             if (cat.minHeight && (player.height || 0) < cat.minHeight) return false
