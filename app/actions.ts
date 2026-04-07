@@ -2325,6 +2325,79 @@ export async function fixAuditIssues(
     return result
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CLUB ROSTER FOR TOURNAMENT PDF
+// ─────────────────────────────────────────────────────────────────────────────
+export type ClubRosterPlayer = {
+    name: string
+    birthDate: string | null   // ISO date string
+    age: number | null
+    gender: string | null
+    weight: number | null
+    height: number | null
+    belt: string | null
+    categoryName: string
+    categoryType: string
+    registrationStatus: string
+}
+
+export async function getClubRosterForTournament(
+    tournamentId: string,
+    clubId: string
+): Promise<{ clubName: string; tournamentName: string; players: ClubRosterPlayer[] }> {
+    const { calculateAge } = await import('@/lib/placement')
+
+    const [tournament, players] = await Promise.all([
+        prisma.tournament.findUnique({
+            where: { id: tournamentId },
+            select: { name: true }
+        }),
+        prisma.player.findMany({
+            where: { category: { tournamentId }, clubId },
+            include: {
+                category: { select: { name: true, type: true } },
+                club:     { select: { name: true } },
+                user:     { select: { birthDate: true, gender: true, weight: true, height: true, belt: true } },
+            },
+            orderBy: [
+                { category: { name: 'asc' } },
+                { name: 'asc' },
+            ]
+        })
+    ])
+
+    const clubName = players[0]?.club?.name ?? 'Unknown Club'
+
+    const roster: ClubRosterPlayer[] = players.map(p => {
+        // User profile is source of truth; fallback to Player record for guests
+        const birthDate = p.user?.birthDate ?? null
+        const age       = birthDate ? calculateAge(birthDate) : null
+        const gender    = p.user?.gender ?? p.gender ?? null
+        const weight    = p.user?.weight ?? p.weight ?? null
+        const height    = p.user?.height ?? p.height ?? null
+        const belt      = p.user?.belt   ?? p.belt   ?? null
+
+        return {
+            name: p.name,
+            birthDate: birthDate ? birthDate.toISOString().slice(0, 10) : null,
+            age,
+            gender,
+            weight,
+            height,
+            belt,
+            categoryName: p.category?.name ?? '—',
+            categoryType: p.category?.type ?? '—',
+            registrationStatus: p.registrationStatus,
+        }
+    })
+
+    return {
+        clubName,
+        tournamentName: tournament?.name ?? 'Tournament',
+        players: roster,
+    }
+}
+
 export async function getTournamentStats(tournamentId: string) {
 
     const [statusGroups, kyorugiCount, poomsaeCount, kyukpaCount, clubPlayers] = await Promise.all([
@@ -2355,7 +2428,7 @@ export async function getTournamentStats(tournamentId: string) {
     const total    = approved + pending + rejected
 
     // Aggregate clubs in JS (minimal data already fetched)
-    const clubMap = new Map<string, { name: string; logoUrl: string | null; count: number; approved: number; pending: number }>()
+    const clubMap = new Map<string, { id: string | null; name: string; logoUrl: string | null; count: number; approved: number; pending: number }>()
     for (const player of clubPlayers) {
         const key  = player.clubId || 'unaffiliated'
         const name = player.club?.name || 'Unaffiliated'
@@ -2366,6 +2439,7 @@ export async function getTournamentStats(tournamentId: string) {
             if (player.registrationStatus === 'PENDING')  existing.pending++
         } else {
             clubMap.set(key, {
+                id: player.club?.id || null,
                 name,
                 logoUrl: player.club?.logoUrl || null,
                 count: 1,

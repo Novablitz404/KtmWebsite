@@ -1,8 +1,10 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Category, Match, Player, Tournament } from '@prisma/client'
-import { Users, Trophy, ClipboardList, Calendar, TrendingUp, CheckCircle2, Clock, XCircle } from 'lucide-react'
+import { Users, Trophy, ClipboardList, Calendar, TrendingUp, CheckCircle2, Clock, XCircle, FileDown, Loader2 } from 'lucide-react'
+import { getClubRosterForTournament } from '@/app/actions'
+import { downloadClubRosterPdf } from '@/lib/club-roster-pdf'
 
 type TournamentWithData = Tournament & {
     categories: (Category & { matches: Match[], poomsaeMatches: any[], _count?: { players: number } })[]
@@ -21,7 +23,7 @@ type TournamentStats = {
     kyorugi: number
     poomsae: number
     kyukpa: number
-    clubs: { name: string; logoUrl: string | null; count: number; approved: number; pending: number }[]
+    clubs: { id?: string | null; name: string; logoUrl: string | null; count: number; approved: number; pending: number }[]
 }
 
 interface TournamentOverviewProps {
@@ -42,6 +44,7 @@ const STATUS_CONFIG: Record<string, { label: string; dot: string; gradient: stri
 export default function TournamentOverview({
     tournament, players, totalPlayersCount, stats
 }: TournamentOverviewProps) {
+    const [downloadingClub, setDownloadingClub] = useState<string | null>(null)
     const approvedCount  = stats?.approved ?? players.filter(p => p.registrationStatus === 'APPROVED').length
     const pendingCount   = stats?.pending  ?? players.filter(p => p.registrationStatus === 'PENDING').length
     const rejectedCount  = stats?.rejected ?? players.filter(p => p.registrationStatus === 'REJECTED').length
@@ -64,7 +67,7 @@ export default function TournamentOverview({
 
     const clubStats = useMemo(() => {
         if (stats?.clubs) return stats.clubs
-        const map = new Map<string, { name: string; logoUrl: string | null; count: number; approved: number; pending: number }>()
+        const map = new Map<string, { id: string | null; name: string; logoUrl: string | null; count: number; approved: number; pending: number }>()
         players.forEach(player => {
             const clubName = player.club?.name || 'Unaffiliated'
             const clubKey  = player.club?.id || clubName
@@ -75,6 +78,7 @@ export default function TournamentOverview({
                 if (player.registrationStatus === 'PENDING')  existing.pending++
             } else {
                 map.set(clubKey, {
+                    id: player.club?.id || null,
                     name: typeof clubName === 'string' ? clubName : 'Unaffiliated',
                     logoUrl: player.club?.logoUrl || null,
                     count: 1,
@@ -290,10 +294,10 @@ export default function TournamentOverview({
                     <table className="w-full text-left min-w-[540px]">
                         <thead>
                             <tr className="bg-gray-50/80">
-                                {['#', 'Club / Team', 'Registered', 'Approved', 'Pending', 'Share'].map(h => (
+                                {['#', 'Club / Team', 'Registered', 'Approved', 'Pending', 'Share', ''].map(h => (
                                     <th
                                         key={h}
-                                        className={`px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest ${h !== '#' && h !== 'Club / Team' && h !== 'Share' ? 'text-center' : ''}`}
+                                        className={`px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest ${h !== '#' && h !== 'Club / Team' && h !== '' ? 'text-center' : ''}`}
                                     >
                                         {h}
                                     </th>
@@ -354,6 +358,30 @@ export default function TournamentOverview({
                                                         {Math.round(sharePercent)}%
                                                     </span>
                                                 </div>
+                                            </td>
+                                            <td className="px-4 py-3.5">
+                                                <button
+                                                    type="button"
+                                                    title={`Download ${club.name} roster PDF`}
+                                                    disabled={!club.id || downloadingClub === club.id}
+                                                    onClick={async () => {
+                                                        if (!club.id) return
+                                                        setDownloadingClub(club.id)
+                                                        try {
+                                                            const data = await getClubRosterForTournament(tournament.id, club.id)
+                                                            downloadClubRosterPdf(data)
+                                                        } finally {
+                                                            setDownloadingClub(null)
+                                                        }
+                                                    }}
+                                                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                                >
+                                                    {downloadingClub === club.id
+                                                        ? <Loader2 size={11} className="animate-spin" />
+                                                        : <FileDown size={11} />
+                                                    }
+                                                    PDF
+                                                </button>
                                             </td>
                                         </tr>
                                     )

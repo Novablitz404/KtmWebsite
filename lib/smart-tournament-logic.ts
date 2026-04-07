@@ -29,10 +29,10 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
     const alerts: SmartAlert[] = []
 
     // Pre-build group map (needed for UNCONTESTED target lookup + merge detection)
-    // Key: "Type|Subtype|Gender|Belt|MinAge|MaxAge" -> categories sorted by weight
+    // Key: "Type|Subtype|Gender|Belt|SkillLevel|MinAge|MaxAge" → categories sorted by weight
     const catGroups = new Map<string, typeof categories>()
     for (const cat of categories) {
-        const key = `${cat.type}|${cat.subtype}|${cat.gender}|${cat.belt || 'Any'}|${cat.minAge}|${cat.maxAge}`
+        const key = `${cat.type}|${cat.subtype}|${cat.gender}|${cat.belt || 'Any'}|${cat.skillLevel || 'Any'}|${cat.minAge}|${cat.maxAge}`
         if (!catGroups.has(key)) catGroups.set(key, [])
         catGroups.get(key)!.push(cat)
     }
@@ -46,7 +46,7 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
 
     for (const cat of categories) {
         // Build groupKey first (needed for both uncontested tracking and merge grouping)
-        const groupKey = `${cat.type}|${cat.subtype}|${cat.gender}|${cat.belt || 'Any'}|${cat.minAge}|${cat.maxAge}`
+        const groupKey = `${cat.type}|${cat.subtype}|${cat.gender}|${cat.belt || 'Any'}|${cat.skillLevel || 'Any'}|${cat.minAge}|${cat.maxAge}`
 
         // 1. Uncontested Logic
         if (cat.players.length === 1) {
