@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client'
+import { deriveSkillLevel } from '../lib/skill-logic'
 
 const prisma = new PrismaClient()
 
@@ -14,14 +15,6 @@ function calculateAge(birthDate: Date | string): number {
     return age
 }
 
-// ── Skill level derivation (mirrored from lib/skill-logic.ts) ────────────────
-function deriveSkillLevel(belt: string): string {
-    const lower = belt.toLowerCase()
-    if (['white', 'white belt'].includes(lower)) return 'Novice'
-    if (['yellow', 'yellow belt', 'green', 'green belt'].includes(lower)) return 'Intermediate'
-    if (['blue', 'blue belt', 'red', 'red belt', 'black', 'black belt', 'poom', 'dan'].includes(lower)) return 'Advance'
-    return 'Novice'
-}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type AuditIssue = {
@@ -72,13 +65,13 @@ async function main() {
             categoryType: cat.type,
         }
 
-        // ALL DATA FROM USER PROFILE (source of truth)
+        // DATA: User profile (source of truth) → Player record (fallback for guest/orphaned)
         const user = player.user
         const birthDate = user?.birthDate ?? null
-        const gender = user?.gender ?? null
-        const weight = user?.weight ?? 0
-        const height = user?.height ?? 0
-        const belt = user?.belt ?? null
+        const gender = user?.gender ?? player.gender ?? null
+        const weight = user?.weight ?? player.weight ?? 0
+        const height = user?.height ?? player.height ?? 0
+        const belt = user?.belt ?? player.belt ?? null
         const skillLevel = belt ? deriveSkillLevel(belt) : null
 
         // Category metric detection

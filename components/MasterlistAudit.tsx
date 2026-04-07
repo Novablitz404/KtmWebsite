@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { auditTournamentMasterlist, AuditIssue } from '@/app/actions'
+import { auditTournamentMasterlist, fixAuditIssues, AuditIssue } from '@/app/actions'
 import {
     ShieldCheck, AlertTriangle, AlertCircle, Loader2,
-    ChevronDown, ChevronUp, ClipboardList, CheckCircle2, X
+    ChevronDown, ChevronUp, ClipboardList, CheckCircle2, Wrench, ArrowRight
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface MasterlistAuditProps {
     tournamentId: string
@@ -40,6 +41,7 @@ const TYPE_BADGE: Record<string, string> = {
 export default function MasterlistAudit({ tournamentId }: MasterlistAuditProps) {
     const [isOpen, setIsOpen]       = useState(false)
     const [isRunning, setIsRunning] = useState(false)
+    const [isFixing, setIsFixing]   = useState(false)
     const [issues, setIssues]       = useState<AuditIssue[] | null>(null)
     const [expandedCodes, setExpandedCodes] = useState<Set<string>>(new Set())
 
@@ -50,11 +52,46 @@ export default function MasterlistAudit({ tournamentId }: MasterlistAuditProps) 
             const result = await auditTournamentMasterlist(tournamentId)
             setIssues(result)
             setIsOpen(true)
-            // auto-expand all groups in the results
             const codes = new Set(result.map(i => i.code))
             setExpandedCodes(codes)
         } finally {
             setIsRunning(false)
+        }
+    }
+
+    const handleFixAll = async () => {
+        if (!issues) return
+        const fixable = issues.filter(
+            i => i.fixable && i.suggestedCategoryId && i.suggestedCategoryName
+        )
+        // Deduplicate by playerId — one fix per player
+        const seen = new Set<string>()
+        const uniqueFixes = fixable.filter(i => {
+            if (seen.has(i.playerId)) return false
+            seen.add(i.playerId)
+            return true
+        }).map(i => ({
+            playerId: i.playerId,
+            playerName: i.playerName,
+            currentCategoryName: i.categoryName,
+            suggestedCategoryId: i.suggestedCategoryId!,
+            suggestedCategoryName: i.suggestedCategoryName!,
+        }))
+
+        if (uniqueFixes.length === 0) return
+        setIsFixing(true)
+        try {
+            const result = await fixAuditIssues(tournamentId, uniqueFixes)
+            toast.success(`Fixed ${result.fixed} athlete${result.fixed !== 1 ? 's' : ''}`, {
+                description: result.details.map(d => `${d.playerName}: ${d.from} → ${d.to}`).join('\n'),
+                duration: 8000,
+            })
+            // Re-run audit to refresh results
+            await runAudit()
+        } catch (err: any) {
+            toast.error(err?.message || 'Failed to apply fixes')
+        } finally {
+            setIsFixing(false)
         }
     }
 
@@ -74,7 +111,6 @@ export default function MasterlistAudit({ tournamentId }: MasterlistAuditProps) 
                 return acc
             }, {})
           ).sort(([a], [b]) => {
-              // errors before warnings
               const aHasError = issues.some(i => i.code === a && i.severity === 'error')
               const bHasError = issues.some(i => i.code === b && i.severity === 'error')
               return (bHasError ? 1 : 0) - (aHasError ? 1 : 0)
@@ -84,6 +120,12 @@ export default function MasterlistAudit({ tournamentId }: MasterlistAuditProps) 
     const errorCount   = issues?.filter(i => i.severity === 'error').length   ?? 0
     const warningCount = issues?.filter(i => i.severity === 'warning').length ?? 0
     const isClean      = issues !== null && issues.length === 0
+
+    // Count unique fixable players
+    const fixablePlayerIds = new Set(
+        issues?.filter(i => i.fixable && i.suggestedCategoryId).map(i => i.playerId) ?? []
+    )
+    const fixableCount = fixablePlayerIds.size
 
     return (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden animate-in fade-in duration-300">
@@ -101,7 +143,7 @@ export default function MasterlistAudit({ tournamentId }: MasterlistAuditProps) 
                 </div>
 
                 <div className="flex items-center gap-2">
-                    {/* Summary badges – shown after first run */}
+                    {/* Summary badges */}
                     {issues !== null && (
                         <div className="flex items-center gap-1.5">
                             {isClean ? (
@@ -125,11 +167,26 @@ export default function MasterlistAudit({ tournamentId }: MasterlistAuditProps) 
                         </div>
                     )}
 
+                    {/* Fix All button — only when fixable issues exist */}
+                    {fixableCount > 0 && (
+                        <button
+                            type="button"
+                            onClick={handleFixAll}
+                            disabled={isFixing || isRunning}
+                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm shadow-emerald-500/20 hover:-translate-y-0.5"
+                        >
+                            {isFixing
+                                ? <><Loader2 size={13} className="animate-spin" /> Fixing...</>
+                                : <><Wrench size={13} /> Fix {fixableCount} Athlete{fixableCount !== 1 ? 's' : ''}</>
+                            }
+                        </button>
+                    )}
+
                     {/* Run audit button */}
                     <button
                         type="button"
                         onClick={runAudit}
-                        disabled={isRunning}
+                        disabled={isRunning || isFixing}
                         className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm shadow-indigo-500/20 hover:-translate-y-0.5"
                     >
                         {isRunning
@@ -138,7 +195,7 @@ export default function MasterlistAudit({ tournamentId }: MasterlistAuditProps) 
                         }
                     </button>
 
-                    {/* Collapse toggle (only when there are results) */}
+                    {/* Collapse toggle */}
                     {issues !== null && issues.length > 0 && (
                         <button
                             type="button"
@@ -168,6 +225,10 @@ export default function MasterlistAudit({ tournamentId }: MasterlistAuditProps) 
                     {grouped.map(([code, groupIssues]) => {
                         const isError = groupIssues[0].severity === 'error'
                         const expanded = expandedCodes.has(code)
+                        const groupFixableCount = new Set(
+                            groupIssues.filter(i => i.fixable).map(i => i.playerId)
+                        ).size
+
                         return (
                             <div key={code}>
                                 {/* Group header */}
@@ -189,6 +250,12 @@ export default function MasterlistAudit({ tournamentId }: MasterlistAuditProps) 
                                         }`}>
                                             {groupIssues.length}
                                         </span>
+                                        {/* Fixable badge */}
+                                        {groupFixableCount > 0 && (
+                                            <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                                                <Wrench size={9} /> {groupFixableCount} fixable
+                                            </span>
+                                        )}
                                     </div>
                                     {expanded
                                         ? <ChevronUp size={13} className="text-gray-400" />
@@ -215,8 +282,20 @@ export default function MasterlistAudit({ tournamentId }: MasterlistAuditProps) 
                                                     <p className={`text-xs mt-1 font-medium ${isError ? 'text-red-600' : 'text-amber-700'}`}>
                                                         {iss.message}
                                                     </p>
+
+                                                    {/* Suggested category */}
+                                                    {iss.fixable && iss.suggestedCategoryName && (
+                                                        <div className="flex items-center gap-1.5 mt-1.5">
+                                                            <ArrowRight size={11} className="text-emerald-500 flex-shrink-0" />
+                                                            <span className="text-[11px] text-emerald-700 font-semibold">
+                                                                Will move to: {iss.suggestedCategoryName}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-2 ${isError ? 'bg-red-500' : 'bg-amber-400'}`} />
+                                                <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-2 ${
+                                                    iss.fixable ? 'bg-emerald-400' : isError ? 'bg-red-500' : 'bg-amber-400'
+                                                }`} />
                                             </div>
                                         ))}
                                     </div>

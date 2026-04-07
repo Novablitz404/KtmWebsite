@@ -223,8 +223,10 @@ export default function PlayerRegistration({
         formData.set('categoryId', effectiveCategory.id)
         formData.set('belt', belt)
         formData.set('weight', weight)
+        formData.set('height', height)
         formData.set('skillLevel', belt === 'Black' ? 'Advance' : 'Novice')
         formData.set('poomsaeType', eventType === 'POOMSAE' ? poomsaeType : 'INDIVIDUAL')
+        if (selectedAthlete?.id) formData.set('userId', selectedAthlete.id)
         if (selectedAthlete?.gender) formData.set('gender', selectedAthlete.gender)
         try {
             await createPlayer(formData)

@@ -374,7 +374,9 @@ export async function createPlayer(formData: FormData) {
     const gender = formData.get('gender') as string
     const belt = formData.get('belt') as string
     const weight = parseFloat(formData.get('weight') as string)
+    const height = parseFloat(formData.get('height') as string)
     const club = formData.get('club') as string
+    const userId = formData.get('userId') as string | null
     const skillLevel = formData.get('skillLevel') as string
     const categoryId = formData.get('categoryId') as string
     const poomsaeType = formData.get('poomsaeType') as string
@@ -425,6 +427,13 @@ export async function createPlayer(formData: FormData) {
         }
     }
 
+    // ─── Resolve club by name ───
+    let clubId: string | null = null
+    if (club) {
+        const clubRecord = await prisma.club.findFirst({ where: { name: club } })
+        clubId = clubRecord?.id || null
+    }
+
     // Generate unique 9-digit player ID
     const generatePlayerId = async (): Promise<string> => {
         let attempts = 0
@@ -448,8 +457,12 @@ export async function createPlayer(formData: FormData) {
             belt: belt || 'Black',
             skillLevel: skillLevel || 'Novice',
             weight: isNaN(weight) ? null : weight,
+            height: isNaN(height) ? null : height,
             poomsaeType: poomsaeType || 'INDIVIDUAL',
             categoryId,
+            userId: userId || null,
+            clubId,
+            registrationStatus: isPrivileged ? 'APPROVED' : 'PENDING',
         },
     })
 
@@ -1959,7 +1972,20 @@ export type AuditIssue = {
     severity: 'error' | 'warning'
     code: string
     message: string
+    // Auto-fix fields
+    fixable?: boolean
+    suggestedCategoryId?: string
+    suggestedCategoryName?: string
 }
+
+// Codes the placement engine can fix by reassigning to a correct category
+const FIXABLE_CODES = new Set([
+    'AGE_TOO_OLD', 'AGE_TOO_YOUNG',
+    'WEIGHT_TOO_HIGH', 'WEIGHT_TOO_LOW',
+    'HEIGHT_TOO_HIGH', 'HEIGHT_TOO_LOW',
+    'WRONG_CATEGORY',
+    'BELT_MISMATCH', // Poomsae only — resolved by placing on correct belt-based category
+])
 
 export async function auditTournamentMasterlist(tournamentId: string): Promise<AuditIssue[]> {
     const { calculateAge, findCategoryForPlayer } = await import('@/lib/placement')
@@ -1993,15 +2019,16 @@ export async function auditTournamentMasterlist(tournamentId: string): Promise<A
         }
 
         // ══════════════════════════════════════════════════════════════════════
-        // ALL DATA COMES FROM THE USER PROFILE (source of truth)
-        // The Player model only provides categoryId
+        // DATA RESOLUTION: User profile (source of truth) → Player record (fallback)
+        // Some players have userId = null (guest registrations, orphaned records)
+        // In that case, we use whatever data is on the Player record itself.
         // ══════════════════════════════════════════════════════════════════════
         const user = player.user
         const birthDate = user?.birthDate ?? null
-        const gender = user?.gender ?? null
-        const weight = user?.weight ?? 0
-        const height = user?.height ?? 0
-        const belt = user?.belt ?? null
+        const gender = user?.gender ?? player.gender ?? null
+        const weight = user?.weight ?? player.weight ?? 0
+        const height = user?.height ?? player.height ?? 0
+        const belt = user?.belt ?? player.belt ?? null
         const skillLevel = belt ? deriveSkillLevel(belt) : null
 
         // Determine which metric matters from the category's own fields
@@ -2123,7 +2150,11 @@ export async function auditTournamentMasterlist(tournamentId: string): Promise<A
 
                 if (correctCategory && correctCategory.id !== cat.id) {
                     issues.push({ ...ctx, severity: 'error', code: 'WRONG_CATEGORY',
-                        message: `Should be in "${correctCategory.name}" based on current profile data.` })
+                        message: `Should be in "${correctCategory.name}" based on current profile data.`,
+                        fixable: !player.manualOverride,
+                        suggestedCategoryId: correctCategory.id,
+                        suggestedCategoryName: correctCategory.name,
+                    })
                 }
             } catch {
                 // Placement engine failed — skip this check
@@ -2131,7 +2162,161 @@ export async function auditTournamentMasterlist(tournamentId: string): Promise<A
         }
     }
 
+    // ── Enrich fixable errors with placement suggestions ──────────────────────
+    // For issues not covered by WRONG_CATEGORY (age/weight/height range violations),
+    // run the placement engine and attach a suggestion if a valid target is found.
+    const NEEDS_PLACEMENT_LOOKUP = new Set([
+        'AGE_TOO_OLD', 'AGE_TOO_YOUNG',
+        'WEIGHT_TOO_HIGH', 'WEIGHT_TOO_LOW',
+        'HEIGHT_TOO_HIGH', 'HEIGHT_TOO_LOW',
+    ])
+
+    // Build a per-player map so we only call placement once per player
+    const playerMap = new Map(players.map(p => [p.id, p]))
+    const processedPlayers = new Set<string>()
+
+    for (const issue of issues) {
+        if (!NEEDS_PLACEMENT_LOOKUP.has(issue.code)) continue
+        if (processedPlayers.has(issue.playerId)) continue
+        processedPlayers.add(issue.playerId)
+
+        const player = playerMap.get(issue.playerId)
+        if (!player || player.manualOverride) continue
+
+        const user = player.user
+        const birthDate = user?.birthDate ?? null
+        const gender = user?.gender ?? player.gender ?? null
+        const weight = user?.weight ?? player.weight ?? 0
+        const height = user?.height ?? player.height ?? 0
+        const belt = user?.belt ?? player.belt ?? null
+        const skillLevel = belt ? deriveSkillLevel(belt) : undefined
+        const cat = player.category
+
+        // Skip if missing essential data or height looks like bad entry (< 50cm)
+        if (!birthDate || !gender || !cat) continue
+        if (cat.type === 'KYORUGI' && height > 0 && height < 50) continue
+
+        try {
+            const suggestion = await findCategoryForPlayer(tournamentId, {
+                birthDate,
+                gender,
+                weight,
+                height: height > 0 ? height : undefined,
+                belt: belt ?? undefined,
+                type: cat.type,
+                skillLevel: skillLevel ?? undefined,
+            })
+
+            if (suggestion && suggestion.id !== cat.id) {
+                // Attach the suggestion to ALL issues for this player with a fixable code
+                for (const iss of issues) {
+                    if (iss.playerId === issue.playerId && NEEDS_PLACEMENT_LOOKUP.has(iss.code)) {
+                        iss.fixable = true
+                        iss.suggestedCategoryId = suggestion.id
+                        iss.suggestedCategoryName = suggestion.name
+                    }
+                }
+            }
+        } catch {
+            // placement engine failed — leave as not fixable
+        }
+    }
+
+    // ── Enrich POOMSAE BELT_MISMATCH with placement suggestions ──────────────
+    // For Poomsae athletes whose belt doesn't match their category's required belt,
+    // run the placement engine with their actual belt to find the correct category.
+    // Kyukpa is intentionally excluded from this fix.
+    const processedPoomsaePlayers = new Set<string>()
+
+    for (const issue of issues) {
+        if (issue.code !== 'BELT_MISMATCH') continue
+
+        const player = playerMap.get(issue.playerId)
+        if (!player || player.manualOverride) continue
+        if (player.category?.type !== 'POOMSAE') continue
+        if (processedPoomsaePlayers.has(issue.playerId)) continue
+        processedPoomsaePlayers.add(issue.playerId)
+
+        const user = player.user
+        const birthDate = user?.birthDate ?? null
+        const gender = user?.gender ?? player.gender ?? null
+        const belt = user?.belt ?? player.belt ?? null
+        const cat = player.category
+
+        if (!birthDate || !gender || !belt || !cat) continue
+
+        try {
+            const suggestion = await findCategoryForPlayer(tournamentId, {
+                birthDate,
+                gender,
+                belt,
+                weight: 0, // weight is irrelevant for Poomsae placement
+                type: 'POOMSAE',
+                poomsaeType: cat.subtype ?? 'INDIVIDUAL',
+            })
+
+            if (suggestion && suggestion.id !== cat.id) {
+                for (const iss of issues) {
+                    if (iss.playerId === issue.playerId && iss.code === 'BELT_MISMATCH') {
+                        iss.fixable = true
+                        iss.suggestedCategoryId = suggestion.id
+                        iss.suggestedCategoryName = suggestion.name
+                    }
+                }
+            }
+        } catch {
+            // placement engine failed — leave as not fixable
+        }
+    }
+
     return issues
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FIX AUDIT ISSUES — bulk-reassign players to their correct categories
+// ─────────────────────────────────────────────────────────────────────────────
+export type FixResult = {
+    fixed: number
+    skipped: number
+    details: Array<{ playerName: string; from: string; to: string }>
+}
+
+export async function fixAuditIssues(
+    tournamentId: string,
+    fixes: Array<{ playerId: string; suggestedCategoryId: string; suggestedCategoryName: string; currentCategoryName: string; playerName: string }>
+): Promise<FixResult> {
+    const dbUser = await getAuthUser()
+    if (!dbUser) throw new Error('Not authenticated')
+
+    const result: FixResult = { fixed: 0, skipped: 0, details: [] }
+
+    for (const fix of fixes) {
+        // Verify the player exists and doesn't have manualOverride
+        const player = await prisma.player.findUnique({
+            where: { id: fix.playerId },
+            select: { id: true, manualOverride: true, categoryId: true }
+        })
+
+        if (!player) { result.skipped++; continue }
+        if (player.manualOverride) { result.skipped++; continue }
+        // Already in the right category (race condition guard)
+        if (player.categoryId === fix.suggestedCategoryId) { result.skipped++; continue }
+
+        await prisma.player.update({
+            where: { id: fix.playerId },
+            data: { categoryId: fix.suggestedCategoryId }
+        })
+
+        result.fixed++
+        result.details.push({
+            playerName: fix.playerName,
+            from: fix.currentCategoryName,
+            to: fix.suggestedCategoryName,
+        })
+    }
+
+    revalidatePath(`/tournament/${tournamentId}`)
+    return result
 }
 
 export async function getTournamentStats(tournamentId: string) {
