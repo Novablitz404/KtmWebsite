@@ -120,11 +120,17 @@ export async function findCategoryForPlayer(
         return true
     })
 
-    // Return the best match (or first)
-    // If multiple matches? (e.g. Open weight vs specific)
-    // Sort by specificity?
-    // For now return first.
-    return matches[0] || null
+    // Return the most specific match.
+    // Score each category by how many constraints it defines — more constraints = better fit.
+    // This ensures weight/age-bounded categories always beat catch-all/exhibition ones.
+    const scored = matches.sort((a, b) => {
+        const score = (c: typeof a) =>
+            (c.minWeight ? 1 : 0) + (c.maxWeight ? 1 : 0) +
+            (c.minAge    ? 1 : 0) + (c.maxAge    ? 1 : 0) +
+            (c.minHeight ? 1 : 0) + (c.maxHeight ? 1 : 0)
+        return score(b) - score(a) // highest score first
+    })
+    return scored[0] || null
 }
 
 /**
