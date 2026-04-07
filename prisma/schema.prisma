@@ -217,6 +217,7 @@ model Player {
   division String? // NEW: "Cadet", "Junior", etc.
 
   registrationStatus String  @default("PENDING") // PENDING, APPROVED, REJECTED
+  manualOverride     Boolean @default(false)      // When true, auto-reassignment is skipped
   skillLevel         String? @default("Novice")
   medal              String? // Gold, Silver, Bronze, QF, R16
 

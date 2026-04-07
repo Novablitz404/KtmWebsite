@@ -45,9 +45,9 @@ export async function updateAdminProfile(fullName: string) {
         data: { name: fullName }
     });
 
-    // Cascade name change to all registration records
-    const { cascadeUserName } = await import('@/lib/cascadeUserName')
-    await cascadeUserName(dbUser.id, fullName)
+    // Cascade all profile changes (name) to related records
+    const { cascadeUserProfile } = await import('@/lib/cascadeUserProfile')
+    cascadeUserProfile(dbUser.id).catch(console.error)
 
     revalidatePath('/admin/profile');
     revalidatePath('/admin'); // Update sidebar name too

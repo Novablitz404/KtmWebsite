@@ -1388,9 +1388,9 @@ export async function updateProfile(formData: FormData) {
         }
     })
 
-    // Cascade name change to all registration records
-    const { cascadeUserName } = await import('@/lib/cascadeUserName')
-    await cascadeUserName(userId, name)
+    // Cascade all profile changes (name, belt, placement) to related records
+    const { cascadeUserProfile } = await import('@/lib/cascadeUserProfile')
+    cascadeUserProfile(userId).catch(console.error)
 
     // Upload image to Supabase Storage if provided
     if (imageFile && imageFile.size > 0) {
@@ -1962,9 +1962,10 @@ export type AuditIssue = {
 }
 
 export async function auditTournamentMasterlist(tournamentId: string): Promise<AuditIssue[]> {
-    const { calculateAge } = await import('@/lib/placement')
+    const { calculateAge, findCategoryForPlayer } = await import('@/lib/placement')
+    const { deriveSkillLevel } = await import('@/lib/skill-logic')
 
-    // Fetch all players with their user profile and assigned category
+    // Fetch all players with their User profile (source of truth) and assigned category
     const players = await prisma.player.findMany({
         where: { category: { tournamentId } },
         include: {
@@ -1991,132 +1992,142 @@ export async function auditTournamentMasterlist(tournamentId: string): Promise<A
             categoryType: cat.type,
         }
 
-        // ── 1. No birthday ────────────────────────────────────────────────────
-        const birthDate = player.user?.birthDate
+        // ══════════════════════════════════════════════════════════════════════
+        // ALL DATA COMES FROM THE USER PROFILE (source of truth)
+        // The Player model only provides categoryId
+        // ══════════════════════════════════════════════════════════════════════
+        const user = player.user
+        const birthDate = user?.birthDate ?? null
+        const gender = user?.gender ?? null
+        const weight = user?.weight ?? 0
+        const height = user?.height ?? 0
+        const belt = user?.belt ?? null
+        const skillLevel = belt ? deriveSkillLevel(belt) : null
+
+        // Determine which metric matters from the category's own fields
+        // Height-based categories: minHeight/maxHeight > 0 (Supertoddler/Toddler/Grade School)
+        // Weight-based categories: minWeight/maxWeight > 0 (Cadet/Junior/Senior)
+        const usesHeight = (cat.minHeight != null && cat.minHeight > 0) || (cat.maxHeight != null && cat.maxHeight > 0)
+        const usesWeight = (cat.minWeight != null && cat.minWeight > 0) || (cat.maxWeight != null && cat.maxWeight > 0)
+
+        // ────────────────────────────────────────────────────────────────────
+        // PROFILE DATA COMPLETENESS CHECKS
+        // ────────────────────────────────────────────────────────────────────
+
+        // 1. No birthday
         if (!birthDate) {
-            issues.push({
-                ...ctx,
-                severity: 'error',
-                code: 'NO_BIRTHDAY',
-                message: 'No birthday on file — age division cannot be verified.',
-            })
+            issues.push({ ...ctx, severity: 'error', code: 'NO_BIRTHDAY',
+                message: 'No birthday on file — age division cannot be verified.' })
         }
 
-        // ── 2. No weight (required for KYORUGI) ──────────────────────────────
-        if (cat.type === 'KYORUGI' && (player.weight == null || player.weight <= 0)) {
-            issues.push({
-                ...ctx,
-                severity: 'error',
-                code: 'NO_WEIGHT',
-                message: 'No weight on file — required for Kyorugi weight division.',
-            })
-        }
-
-        // ── 3. No gender ──────────────────────────────────────────────────────
-        if (!player.gender) {
-            issues.push({
-                ...ctx,
-                severity: 'error',
-                code: 'NO_GENDER',
-                message: 'No gender on file — cannot verify category eligibility.',
-            })
-        }
-
-        // ── Skip category rule checks if we're missing critical data ──────────
+        // 2. Invalid birthday (future date / impossibly old)
         const age = birthDate ? calculateAge(birthDate) : null
-        const weight = player.weight ?? null
-        const height = player.height ?? null
-        const gender = player.gender ?? null
-        const belt = player.belt ?? null
+        const validAge = age !== null && age > 0 && age <= 100
 
-        // ── 4. Age out of range ───────────────────────────────────────────────
-        if (age !== null) {
-            if (cat.minAge && age < cat.minAge) {
-                issues.push({
-                    ...ctx,
-                    severity: 'error',
-                    code: 'AGE_TOO_YOUNG',
-                    message: `Age ${age} is below the category minimum of ${cat.minAge}.`,
-                })
+        if (age !== null && !validAge) {
+            issues.push({ ...ctx, severity: 'error', code: 'INVALID_BIRTHDAY',
+                message: `Birthday ${birthDate!.toISOString().slice(0, 10)} is invalid (calculated age: ${age}). Likely a future date or typo.` })
+        }
+
+        // 3. No gender
+        if (!gender) {
+            issues.push({ ...ctx, severity: 'error', code: 'NO_GENDER',
+                message: 'No gender on file — cannot verify category eligibility.' })
+        }
+
+        // 4. No weight — ONLY for weight-based categories (Cadet/Junior/Senior, age 12+)
+        if (cat.type === 'KYORUGI' && usesWeight && weight <= 0) {
+            issues.push({ ...ctx, severity: 'error', code: 'NO_WEIGHT',
+                message: 'No weight on file — required for this weight-based division.' })
+        }
+
+        // 5. No height — ONLY for height-based categories (Supertoddler/Toddler/Grade School, age ≤11)
+        if (cat.type === 'KYORUGI' && usesHeight && height <= 0) {
+            issues.push({ ...ctx, severity: 'error', code: 'NO_HEIGHT',
+                message: 'No height on file — required for this height-based division.' })
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // CATEGORY RULE CHECKS (mirrors placement.ts logic exactly)
+        // ────────────────────────────────────────────────────────────────────
+
+        // 6. Age out of range
+        if (validAge) {
+            if (cat.minAge && age! < cat.minAge) {
+                issues.push({ ...ctx, severity: 'error', code: 'AGE_TOO_YOUNG',
+                    message: `Age ${age} is below the category minimum of ${cat.minAge}.` })
             }
-            if (cat.maxAge && age > cat.maxAge) {
-                issues.push({
-                    ...ctx,
-                    severity: 'error',
-                    code: 'AGE_TOO_OLD',
-                    message: `Age ${age} exceeds the category maximum of ${cat.maxAge}.`,
-                })
+            if (cat.maxAge && age! > cat.maxAge) {
+                issues.push({ ...ctx, severity: 'error', code: 'AGE_TOO_OLD',
+                    message: `Age ${age} exceeds the category maximum of ${cat.maxAge}.` })
             }
         }
 
-        // ── 5. Gender mismatch ────────────────────────────────────────────────
+        // 7. Gender mismatch
         if (gender && cat.gender && cat.gender !== 'Both' && cat.gender !== 'Mixed' && cat.gender !== gender) {
-            issues.push({
-                ...ctx,
-                severity: 'error',
-                code: 'GENDER_MISMATCH',
-                message: `Player gender (${gender}) does not match the category gender (${cat.gender}).`,
-            })
+            issues.push({ ...ctx, severity: 'error', code: 'GENDER_MISMATCH',
+                message: `Player gender (${gender}) does not match the category gender (${cat.gender}).` })
         }
 
-        // ── 6. Weight out of range (KYORUGI) ──────────────────────────────────
-        if (cat.type === 'KYORUGI' && weight !== null && weight > 0) {
+        // 8. Weight out of range — ONLY for weight-based categories
+        if (cat.type === 'KYORUGI' && usesWeight && weight > 0) {
             if (cat.minWeight && weight < cat.minWeight) {
-                issues.push({
-                    ...ctx,
-                    severity: 'error',
-                    code: 'WEIGHT_TOO_LOW',
-                    message: `Weight ${weight}kg is below the category minimum of ${cat.minWeight}kg.`,
-                })
+                issues.push({ ...ctx, severity: 'error', code: 'WEIGHT_TOO_LOW',
+                    message: `Weight ${weight}kg is below the category minimum of ${cat.minWeight}kg.` })
             }
             if (cat.maxWeight && weight >= cat.maxWeight) {
-                issues.push({
-                    ...ctx,
-                    severity: 'error',
-                    code: 'WEIGHT_TOO_HIGH',
-                    message: `Weight ${weight}kg meets or exceeds the category limit of ${cat.maxWeight}kg.`,
-                })
+                issues.push({ ...ctx, severity: 'error', code: 'WEIGHT_TOO_HIGH',
+                    message: `Weight ${weight}kg meets or exceeds the category limit of ${cat.maxWeight}kg.` })
             }
         }
 
-        // ── 7. Height out of range (age ≤ 11) ────────────────────────────────
-        if (cat.type === 'KYORUGI' && age !== null && age <= 11) {
-            if (cat.minHeight && (height ?? 0) < cat.minHeight) {
-                issues.push({
-                    ...ctx,
-                    severity: 'error',
-                    code: 'HEIGHT_TOO_LOW',
-                    message: `Height ${height ?? 0}cm is below the category minimum of ${cat.minHeight}cm.`,
-                })
+        // 9. Height out of range — ONLY for height-based categories
+        if (cat.type === 'KYORUGI' && usesHeight && height > 0) {
+            if (cat.minHeight && height < cat.minHeight) {
+                issues.push({ ...ctx, severity: 'error', code: 'HEIGHT_TOO_LOW',
+                    message: `Height ${height}cm is below the category minimum of ${cat.minHeight}cm.` })
             }
-            if (cat.maxHeight && (height ?? 0) > cat.maxHeight) {
-                issues.push({
-                    ...ctx,
-                    severity: 'error',
-                    code: 'HEIGHT_TOO_HIGH',
-                    message: `Height ${height ?? 0}cm exceeds the category maximum of ${cat.maxHeight}cm.`,
-                })
+            if (cat.maxHeight && height > cat.maxHeight) {
+                issues.push({ ...ctx, severity: 'error', code: 'HEIGHT_TOO_HIGH',
+                    message: `Height ${height}cm exceeds the category maximum of ${cat.maxHeight}cm.` })
             }
         }
 
-        // ── 8. Belt mismatch (strict belt rule on category) ───────────────────
+        // 10. Belt mismatch (POOMSAE / KYUKPA categories with strict belt rule)
         if (cat.belt && belt && cat.belt !== belt) {
-            issues.push({
-                ...ctx,
-                severity: 'warning',
-                code: 'BELT_MISMATCH',
-                message: `Player belt (${belt}) does not match the category's required belt (${cat.belt}).`,
-            })
+            issues.push({ ...ctx, severity: 'warning', code: 'BELT_MISMATCH',
+                message: `Player belt (${belt}) does not match the category's required belt (${cat.belt}).` })
         }
 
-        // ── 9. Skill level mismatch ───────────────────────────────────────────
-        if (cat.skillLevel && player.skillLevel && cat.skillLevel !== player.skillLevel) {
-            issues.push({
-                ...ctx,
-                severity: 'warning',
-                code: 'SKILL_MISMATCH',
-                message: `Player skill level (${player.skillLevel}) does not match category skill level (${cat.skillLevel}).`,
-            })
+        // 11. Skill level mismatch
+        if (cat.skillLevel && skillLevel && cat.skillLevel !== skillLevel) {
+            issues.push({ ...ctx, severity: 'warning', code: 'SKILL_MISMATCH',
+                message: `Derived skill level (${skillLevel}) does not match category skill level (${cat.skillLevel}).` })
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // 12. WRONG CATEGORY — re-run placement to see where they SHOULD be
+        // Only check if we have enough data and the category type is KYORUGI
+        // ────────────────────────────────────────────────────────────────────
+        if (validAge && birthDate && gender && cat.type === 'KYORUGI') {
+            try {
+                const correctCategory = await findCategoryForPlayer(tournamentId, {
+                    birthDate,
+                    gender,
+                    weight,
+                    height: height > 0 ? height : undefined,
+                    belt: belt ?? undefined,
+                    type: cat.type,
+                    skillLevel: skillLevel ?? undefined
+                })
+
+                if (correctCategory && correctCategory.id !== cat.id) {
+                    issues.push({ ...ctx, severity: 'error', code: 'WRONG_CATEGORY',
+                        message: `Should be in "${correctCategory.name}" based on current profile data.` })
+                }
+            } catch {
+                // Placement engine failed — skip this check
+            }
         }
     }
 
@@ -3180,15 +3191,10 @@ export async function updateClubMember(memberId: string, data: { name?: string, 
             }
         })
 
-        if (data.name && oldUser?.name !== data.name) {
-            const { cascadeUserName } = await import('@/lib/cascadeUserName')
-            await cascadeUserName(memberId, data.name)
-        }
+        // Cascade all profile changes (name, belt, placement) to related records
+        const { cascadeUserProfile } = await import('@/lib/cascadeUserProfile')
+        cascadeUserProfile(memberId).catch(console.error)
 
-        if (data.belt && oldUser?.belt !== data.belt) {
-            const { cascadeUserBelt } = await import('@/lib/cascadeUserBelt')
-            cascadeUserBelt(memberId, data.belt).catch(console.error)
-        }
         return { success: true }
     } catch (error) {
         console.error('Error updating member:', error)

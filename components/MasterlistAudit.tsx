@@ -13,18 +13,21 @@ interface MasterlistAuditProps {
 
 // ── Issue code → human label ─────────────────────────────────────────────────
 const CODE_LABEL: Record<string, string> = {
-    NO_BIRTHDAY:    'Missing Birthday',
-    NO_WEIGHT:      'Missing Weight',
-    NO_GENDER:      'Missing Gender',
-    AGE_TOO_YOUNG:  'Age Below Minimum',
-    AGE_TOO_OLD:    'Age Above Maximum',
-    GENDER_MISMATCH:'Gender Mismatch',
-    WEIGHT_TOO_LOW: 'Weight Below Minimum',
-    WEIGHT_TOO_HIGH:'Weight Above Maximum',
-    HEIGHT_TOO_LOW: 'Height Below Minimum',
-    HEIGHT_TOO_HIGH:'Height Above Maximum',
-    BELT_MISMATCH:  'Belt Mismatch',
-    SKILL_MISMATCH: 'Skill Level Mismatch',
+    NO_BIRTHDAY:      'Missing Birthday',
+    INVALID_BIRTHDAY: 'Invalid Birthday',
+    NO_WEIGHT:        'Missing Weight',
+    NO_HEIGHT:        'Missing Height',
+    NO_GENDER:        'Missing Gender',
+    AGE_TOO_YOUNG:    'Age Below Minimum',
+    AGE_TOO_OLD:      'Age Above Maximum',
+    GENDER_MISMATCH:  'Gender Mismatch',
+    WEIGHT_TOO_LOW:   'Weight Below Minimum',
+    WEIGHT_TOO_HIGH:  'Weight Above Maximum',
+    HEIGHT_TOO_LOW:   'Height Below Minimum',
+    HEIGHT_TOO_HIGH:  'Height Above Maximum',
+    BELT_MISMATCH:    'Belt Mismatch',
+    SKILL_MISMATCH:   'Skill Level Mismatch',
+    WRONG_CATEGORY:   'Wrong Category',
 }
 
 // ── Discipline pill colour ────────────────────────────────────────────────────
