@@ -74,9 +74,9 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
 
     // ── Pass 1b: Build cross-division target map ──────────────────────────────
     // For the LAST/HEAVIEST category in each Kyorugi group that is uncontested
-    // (no next weight sibling), find the matching Heavy category in the next
-    // age division up (same type|subtype|gender|belt|skillLevel, higher age).
-    // These get CROSS_DIVISION alerts instead of plain UNCONTESTED with null target.
+    // (no next weight sibling), find the matching category in the next
+    // age division up (same type|subtype|gender|belt|skillLevel, higher age)
+    // by checking where the player's weight actually fits.
     const crossDivisionTargets = new Map<string, { targetCategoryId: string; targetCategoryName: string }>()
 
     // Group by base key (everything except minAge|maxAge)
@@ -105,12 +105,28 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
             // Find next age division
             const nextEntry = entries.find(en => en.minAge > entry.maxAge)
             if (!nextEntry) continue
-            const targetCat = nextEntry.cats[nextEntry.cats.length - 1]
+
+            // Find the correct category in the next division by checking where
+            // the player's weight fits, just like uncontested does within its
+            // own division. Fall back to the heaviest category if no match.
+            const playerWeight = lastCat.players[0]?.weight || 0
+            const targetCat = nextEntry.cats.find(c =>
+                playerWeight >= (c.minWeight || 0) && playerWeight < (c.maxWeight || 999)
+            ) || nextEntry.cats[nextEntry.cats.length - 1] // fallback to heaviest
+
             crossDivisionTargets.set(lastCat.id, {
                 targetCategoryId: targetCat.id,
                 targetCategoryName: targetCat.name
             })
         }
+    }
+
+    // ── Mark cross-division targets as "will be filled" ──────────────────────
+    // Just like uncontested chain suppression within a division: if we're moving
+    // someone INTO a category via cross-div, that target should NOT generate its
+    // own UNCONTESTED or CROSS_DIVISION alert — it's about to receive a player.
+    for (const [, crossTarget] of crossDivisionTargets) {
+        willBeFilled.add(crossTarget.targetCategoryId)
     }
 
     // ── Pass 2: Generate UNCONTESTED alerts ───────────────────────────────────
