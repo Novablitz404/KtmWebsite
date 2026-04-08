@@ -4638,7 +4638,7 @@ export async function previewAllBrackets(tournamentId: string, type: string) {
             players: {
                 include: {
                     club: { select: { id: true, name: true, logoUrl: true } },
-                    user: { select: { birthDate: true } }
+                    user: { select: { birthDate: true, weight: true, height: true, belt: true } }
                 }
             }
         },
@@ -4674,9 +4674,9 @@ export async function previewAllBrackets(tournamentId: string, type: string) {
                 clubId:      p.clubId,
                 clubName:    (p as any).club?.name    || null,
                 clubLogoUrl: (p as any).club?.logoUrl || null,
-                belt:        p.belt        || null,
-                height:      p.height      ?? null,
-                weight:      p.weight      ?? null,
+                belt:        (p as any).user?.belt   ?? p.belt   ?? null,
+                height:      (p as any).user?.height ?? p.height ?? null,
+                weight:      (p as any).user?.weight ?? p.weight ?? null,
                 division:    p.division    || null,
                 birthDate:   (p as any).user?.birthDate?.toISOString() || null,
             })),
@@ -4712,7 +4712,7 @@ export async function previewCategoryBracket(categoryId: string) {
             players: {
                 include: {
                     club: { select: { id: true, name: true, logoUrl: true } },
-                    user: { select: { birthDate: true } }
+                    user: { select: { birthDate: true, weight: true, height: true, belt: true } }
                 }
             }
         },
@@ -4744,9 +4744,9 @@ export async function previewCategoryBracket(categoryId: string) {
             clubId:      p.clubId,
             clubName:    (p as any).club?.name    || null,
             clubLogoUrl: (p as any).club?.logoUrl || null,
-            belt:        p.belt        || null,
-            height:      p.height      ?? null,
-            weight:      p.weight      ?? null,
+            belt:        (p as any).user?.belt   ?? p.belt   ?? null,
+            height:      (p as any).user?.height ?? p.height ?? null,
+            weight:      (p as any).user?.weight ?? p.weight ?? null,
             division:    p.division    || null,
             birthDate:   (p as any).user?.birthDate?.toISOString() || null,
         })),

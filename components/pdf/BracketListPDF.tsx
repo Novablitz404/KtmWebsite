@@ -81,8 +81,7 @@ const styles = StyleSheet.create({
     colName:   { flex: 1,   fontSize: 8, color: '#0f172a', fontFamily: 'Helvetica-Bold' },
     colBday:   { width: 62, fontSize: 7, color: '#475569' },
     colAge:    { width: 22, fontSize: 7, color: '#475569', textAlign: 'center' },
-    colWeight: { width: 44, fontSize: 7, color: '#475569', textAlign: 'right' },
-    colHeight: { width: 44, fontSize: 7, color: '#475569', textAlign: 'right' },
+    colMeasure:{ width: 44, fontSize: 7, color: '#475569', textAlign: 'right' },
     colBelt:   { width: 50, fontSize: 7, color: '#475569' },
     colClub:   { width: 80, fontSize: 7, color: '#475569' },
     // ── Footer ──
@@ -157,6 +156,12 @@ function formatDate(birthDate: string | null): string {
     return `${day}/${month}/${year}`
 }
 
+// Show height for young divisions, weight for older ones
+function isHeightBased(categoryName: string): boolean {
+    const n = categoryName.toLowerCase()
+    return /supertoddler|super.?toddler|toddler|grade.?school|gradeschool/.test(n)
+}
+
 function disciplineLabel(d: string): string {
     if (d === 'KYORUGI') return 'Sparring (Kyorugi)'
     if (d === 'POOMSAE') return 'Forms (Poomsae)'
@@ -194,6 +199,8 @@ export default function BracketListPDF({ tournamentName, discipline, categories,
                 {/* ── Category blocks ── */}
                 {categories.map((cat, catIdx) => {
                     const players = [...cat.players].sort((a, b) => a.name.localeCompare(b.name))
+                    const heightOnly = isHeightBased(cat.categoryName)
+                    const measureLabel = heightOnly ? 'Height' : 'Weight'
                     return (
                         <View key={cat.categoryId} style={styles.categoryBlock} wrap={false}>
 
@@ -215,8 +222,7 @@ export default function BracketListPDF({ tournamentName, discipline, categories,
                                 <Text style={styles.colName}>Name</Text>
                                 <Text style={styles.colBday}>Birthday</Text>
                                 <Text style={styles.colAge}>Age</Text>
-                                <Text style={styles.colWeight}>Weight</Text>
-                                <Text style={styles.colHeight}>Height</Text>
+                                <Text style={styles.colMeasure}>{measureLabel}</Text>
                                 <Text style={styles.colBelt}>Belt</Text>
                                 <Text style={styles.colClub}>Club</Text>
                             </View>
@@ -232,8 +238,12 @@ export default function BracketListPDF({ tournamentName, discipline, categories,
                                     <Text style={styles.colName}>{p.name}</Text>
                                     <Text style={styles.colBday}>{formatDate(p.birthDate)}</Text>
                                     <Text style={styles.colAge}>{calcAge(p.birthDate)}</Text>
-                                    <Text style={styles.colWeight}>{p.weight ? `${p.weight}kg` : '-'}</Text>
-                                    <Text style={styles.colHeight}>{p.height ? `${p.height}cm` : '-'}</Text>
+                                    <Text style={styles.colMeasure}>
+                                        {heightOnly
+                                            ? (p.height ? `${p.height}cm` : '-')
+                                            : (p.weight ? `${p.weight}kg` : '-')
+                                        }
+                                    </Text>
                                     <Text style={styles.colBelt}>{p.belt || '-'}</Text>
                                     <Text style={styles.colClub}>{p.clubName || '-'}</Text>
                                 </View>

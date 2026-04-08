@@ -517,7 +517,13 @@ export default function TournamentOverview({
                                                                 <p className="text-sm text-gray-400 text-center py-6">No athletes found for this club.</p>
                                                             ) : (
                                                                 <div className="space-y-4">
-                                                                    {Object.entries(groupedRoster).map(([catName, { type, players: catPlayers }]) => (
+                                                                    {Object.entries(groupedRoster).map(([catName, { type, players: catPlayers }]) => {
+                                                                        // Determine which measurement this category uses
+                                                                        const catLower = catName.toLowerCase()
+                                                                        const isHeightBased = /supertoddler|super.?toddler|toddler|grade.?school|gradeschool/.test(catLower)
+                                                                        const measureLabel = isHeightBased ? 'Height' : 'Weight'
+
+                                                                        return (
                                                                         <div key={catName}>
                                                                             {/* Category header */}
                                                                             <div className={`flex items-center justify-between px-3 py-1.5 rounded-lg mb-1.5 ${
@@ -534,7 +540,7 @@ export default function TournamentOverview({
                                                                                 <table className="w-full text-left min-w-[560px]">
                                                                                     <thead>
                                                                                         <tr className="bg-white border-b border-gray-100">
-                                                                                            {['#','Name','Birthday','Age','Gender','Weight','Height','Belt','Status',''].map(h => (
+                                                                                            {['#','Name','Birthday','Age','Gender', measureLabel,'Belt','Status',''].map(h => (
                                                                                                 <th key={h} className="px-3 py-2 text-[9px] font-black text-gray-400 uppercase tracking-widest">{h}</th>
                                                                                             ))}
                                                                                         </tr>
@@ -550,8 +556,12 @@ export default function TournamentOverview({
                                                                                                 </td>
                                                                                                 <td className="px-3 py-2 text-[11px] text-gray-600">{p.age ?? '—'}</td>
                                                                                                 <td className="px-3 py-2 text-[11px] text-gray-600">{p.gender ?? '—'}</td>
-                                                                                                <td className="px-3 py-2 text-[11px] text-gray-600">{p.weight ? `${p.weight}kg` : '—'}</td>
-                                                                                                <td className="px-3 py-2 text-[11px] text-gray-600">{p.height ? `${p.height}cm` : '—'}</td>
+                                                                                                <td className="px-3 py-2 text-[11px] text-gray-600">
+                                                                                                    {isHeightBased
+                                                                                                        ? (p.height ? `${p.height}cm` : '—')
+                                                                                                        : (p.weight ? `${p.weight}kg` : '—')
+                                                                                                    }
+                                                                                                </td>
                                                                                                 <td className="px-3 py-2 text-[11px] text-gray-600">{p.belt ?? '—'}</td>
                                                                                                 <td className="px-3 py-2">
                                                                                                     <span className={`text-[10px] ${
@@ -651,7 +661,8 @@ export default function TournamentOverview({
                                                                                 </table>
                                                                             </div>
                                                                         </div>
-                                                                    ))}
+                                                                        )
+                                                                    })}
                                                                 </div>
                                                             )}
                                                         </div>

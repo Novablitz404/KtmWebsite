@@ -40,8 +40,14 @@ const CONTENT_START = HEADER_H_P1 + 8   // page 1: first table content y
 // Column widths — MUST sum to exactly CONTENT_W (180 mm)
 // #    Name  DOB   Age  Gender  Wt   Ht   Belt  Status
 // 7  + 54  + 22  + 10 + 14   + 12 + 12  + 24  + 25 = 180 ✓
-const COLS    = [7, 54, 22, 10, 14, 12, 12, 24, 25] as const
-const HEADERS = ['#', 'Name', 'Birthday', 'Age', 'Gender', 'Wt', 'Ht', 'Belt', 'Status']
+const COLS    = [7, 54, 22, 10, 14, 14, 24, 25] as const
+const HEADERS_BASE = ['#', 'Name', 'Birthday', 'Age', 'Gender', 'Wt/Ht', 'Belt', 'Status']
+
+// Whether a category uses height (young) vs weight (older) as the classification metric
+function isHeightBasedCategory(categoryName: string): boolean {
+    const n = categoryName.toLowerCase()
+    return /supertoddler|super.?toddler|toddler|grade.?school|gradeschool/.test(n)
+}
 
 function fmt(v: number | null, unit: string): string {
     return (v == null || v === 0) ? '—' : `${v}${unit}`
@@ -178,14 +184,17 @@ export function downloadClubRosterPdf(data: {
 
         currentY += CAT_H + 1.5
 
+        const heightBased = isHeightBasedCategory(categoryName)
+        const measureHeader = heightBased ? 'Height' : 'Weight'
+        const HEADERS = [...HEADERS_BASE.slice(0, 5), measureHeader, ...HEADERS_BASE.slice(6)]
+
         const rows = players.map((p, i) => [
             String(i + 1),
             p.name,
             fmtDate(p.birthDate),
             p.age != null ? String(p.age) : '—',
             p.gender ?? '—',
-            fmt(p.weight, 'kg'),
-            fmt(p.height, 'cm'),
+            heightBased ? fmt(p.height, 'cm') : fmt(p.weight, 'kg'),
             p.belt ?? '—',
             STATUS_LABEL[p.registrationStatus] ?? p.registrationStatus,
         ])
@@ -210,7 +219,6 @@ export function downloadClubRosterPdf(data: {
                 5: { cellWidth: COLS[5], halign: 'center', fontSize: 6 },
                 6: { cellWidth: COLS[6], halign: 'center', fontSize: 6 },
                 7: { cellWidth: COLS[7], halign: 'center', fontSize: 6 },
-                8: { cellWidth: COLS[8], halign: 'center', fontSize: 6 },
             },
             headStyles: {
                 fillColor:   [240, 240, 240],
@@ -231,7 +239,7 @@ export function downloadClubRosterPdf(data: {
             showHead: 'everyPage',
 
             didParseCell(h) {
-                if (h.section === 'body' && h.column.index === 8) {
+                if (h.section === 'body' && h.column.index === 7) {
                     const val = h.cell.raw as string
                     if      (val === 'Approved') { h.cell.styles.textColor = [22,  163, 74];  h.cell.styles.fontStyle = 'bold' }
                     else if (val === 'Pending')  { h.cell.styles.textColor = [217, 119, 6];   h.cell.styles.fontStyle = 'bold' }
