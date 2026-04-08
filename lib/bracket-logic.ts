@@ -145,11 +145,17 @@ export interface BracketMatchSpec {
  * - Round 3 (Finals): 1 match
  * Total: 5 matches (not 7 with BYE matches)
  */
-export function generateSingleEliminationBracket(players: Player[], startMatchId: number = 1): BracketMatchSpec[] {
+export function generateSingleEliminationBracket(
+    players: Player[],
+    startMatchId: number = 1,
+    preOrderedPlayers?: Player[]
+): BracketMatchSpec[] {
     if (players.length < 2) return [];
 
-    // Step 0: Shuffle players randomly for fair draw
-    const shuffledPlayers = shuffleArray(players);
+    // Step 0: Use pre-ordered list if provided (from preview), otherwise random shuffle
+    const shuffledPlayers = preOrderedPlayers && preOrderedPlayers.length === players.length
+        ? preOrderedPlayers
+        : shuffleArray(players);
 
     const bracketSize = nextPowerOf2(shuffledPlayers.length);
     const totalRounds = Math.log2(bracketSize);

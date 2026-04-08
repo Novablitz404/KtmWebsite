@@ -3,10 +3,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
     X, Search, Loader2, Eye, RefreshCw, ChevronDown,
-    ArrowRightLeft, Shuffle, Trophy, Users, Zap, Scale, Ruler, Shield
+    ArrowRightLeft, Shuffle, Trophy, Shield
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { previewAllBrackets, previewCategoryBracket, movePlayerToCategory } from '@/app/actions'
+import { previewAllBrackets, previewCategoryBracket, movePlayerToCategory, generateAllBracketsFromPreview } from '@/app/actions'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,15 +33,28 @@ interface PreviewMatch {
     isFinal: boolean
 }
 
+interface PoomsaePreviewSlot {
+    round: number
+    performanceNumber: number
+    playerId: string | null
+    playerName: string | null
+    displayName: string | null
+    memberNames: string | null
+    targetRank: number | null
+    assignedForms: string | null
+}
+
 interface PreviewCategoryData {
     categoryId: string
     categoryName: string
     gender: string | null
     skillLevel: string | null
     type: string
+    subtype?: string | null
     playerCount: number
     players: PreviewPlayer[]
     specs: PreviewMatch[]
+    poomsaeSpecs?: PoomsaePreviewSlot[]
 }
 
 interface SelectedSlot {
@@ -111,6 +124,31 @@ function getBeltColor(belt: string | null): string {
     return 'bg-gray-200 text-gray-700'
 }
 
+function getPoomsaeRoundLabel(round: number): string {
+    if (round === 1) return 'Preliminary'
+    if (round === 2) return 'Semi-Final'
+    return 'Final'
+}
+
+// ─── Extract seed order from R1 specs ─────────────────────────────────────────
+// Returns the player IDs in the order they appear in Round 1 matches
+function extractSeedOrder(specs: PreviewMatch[]): string[] {
+    const r1 = specs.filter(s => s.round === 1).sort((a, b) => a.id - b.id)
+    const ids: string[] = []
+    for (const m of r1) {
+        if (m.player1) ids.push(m.player1.id)
+        if (m.player2) ids.push(m.player2.id)
+    }
+    // Also grab BYE recipients from higher rounds (players placed directly in R2+)
+    const r1PlayerIds = new Set(ids)
+    const allRounds = specs.filter(s => s.round > 1).sort((a, b) => a.round - b.round || a.id - b.id)
+    for (const m of allRounds) {
+        if (m.player1 && !r1PlayerIds.has(m.player1.id)) { ids.push(m.player1.id); r1PlayerIds.add(m.player1.id) }
+        if (m.player2 && !r1PlayerIds.has(m.player2.id)) { ids.push(m.player2.id); r1PlayerIds.add(m.player2.id) }
+    }
+    return ids
+}
+
 // ─── Main Modal ───────────────────────────────────────────────────────────────
 
 interface Props {
@@ -124,6 +162,7 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
     const [data, setData]               = useState<PreviewCategoryData[]>([])
     const [localSpecs, setLocalSpecs]   = useState<Map<string, PreviewMatch[]>>(new Map())
     const [loading, setLoading]         = useState(false)
+    const [generating, setGenerating]   = useState(false)
     const [reshuffling, setReshuffling] = useState<string | null>(null)
     const [selected, setSelected]       = useState<SelectedSlot | null>(null)
     const [movePicker, setMovePicker]   = useState<MovePicker | null>(null)
@@ -201,6 +240,32 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
         finally { setMovingPlayer(false) }
     }
 
+    async function handleGenerateFromPreview() {
+        setGenerating(true)
+        try {
+            // Build seed orders from current preview state (Kyorugi/Kyukpa only)
+            const seedOrders: Record<string, string[]> = {}
+            if (disciplineType !== 'POOMSAE') {
+                for (const [catId, specs] of localSpecs.entries()) {
+                    const order = extractSeedOrder(specs)
+                    if (order.length > 0) seedOrders[catId] = order
+                }
+            }
+
+            const result = await generateAllBracketsFromPreview(tournamentId, disciplineType, seedOrders)
+            if (result?.success) {
+                toast.success(`Generated ${result.count} ${disciplineType.toLowerCase()} brackets from preview!`)
+                onClose()
+            } else {
+                toast.error(result?.message || 'Generation failed')
+            }
+        } catch {
+            toast.error('Generation failed')
+        } finally {
+            setGenerating(false)
+        }
+    }
+
     function toggleExpanded(catId: string) {
         setExpanded(prev => {
             const next = new Set(prev)
@@ -247,9 +312,25 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
                                         style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' }}>
                                         {filtered.length} categories
                                     </span>
+                                    {filtered.length > 0 && (() => {
+                                        const cats = filtered.filter(c => c.playerCount >= 1)
+                                        const totalGold = cats.length
+                                        const totalSilver = cats.length
+                                        const totalBronze = cats.reduce((sum, c) => sum + (c.playerCount > 3 ? 2 : 1), 0)
+                                        return (
+                                            <span className="inline-flex items-center gap-2 text-[11px] font-black px-2.5 py-1 rounded-full"
+                                                style={{ background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.2)' }}>
+                                                <span style={{ color: '#fbbf24' }}>🥇{totalGold}</span>
+                                                <span style={{ color: '#94a3b8' }}>🥈{totalSilver}</span>
+                                                <span style={{ color: '#cd7f32' }}>🥉{totalBronze}</span>
+                                            </span>
+                                        )
+                                    })()}
                                 </div>
                                 <p className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                                    Click two players in the same category to swap seeds · ⇆ Move transfers between categories (saves to DB)
+                                    {disciplineType === 'POOMSAE'
+                                        ? 'Preview performance order · Reshuffle to re-randomize'
+                                        : 'Click two players in the same category to swap seeds · ⇆ Move transfers between categories'}
                                 </p>
                             </div>
                         </div>
@@ -323,7 +404,7 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
                 <div className="flex-shrink-0 px-6 py-3 border-t flex items-center justify-between"
                     style={{ borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(15,23,42,0.8)' }}>
                     <div className="flex items-center gap-4 flex-wrap">
-                        {[
+                        {disciplineType !== 'POOMSAE' && [
                             { color: '#6366f1', label: 'Select + click another to swap' },
                             { color: '#a855f7', label: '⇆ Move saves to DB' },
                             { color: '#f59e0b', label: 'Gold = Final match' },
@@ -334,11 +415,21 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
                             </div>
                         ))}
                     </div>
-                    <button onClick={onClose}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors"
-                        style={{ color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.06)' }}>
-                        <X size={11} /> Close
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button onClick={onClose}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors"
+                            style={{ color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.06)' }}>
+                            Close
+                        </button>
+                        <button
+                            onClick={handleGenerateFromPreview}
+                            disabled={generating || loading || data.length === 0}
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all hover:scale-105 disabled:opacity-40 disabled:hover:scale-100"
+                            style={{ background: 'linear-gradient(135deg, #16a34a, #15803d)', color: 'white', boxShadow: '0 2px 12px rgba(22,163,74,0.3)' }}>
+                            {generating ? <Loader2 size={12} className="animate-spin" /> : <Trophy size={12} />}
+                            {generating ? 'Generating…' : 'Confirm & Generate All'}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -368,7 +459,8 @@ function CategoryCard({
     allCategories: PreviewCategoryData[]
 }) {
     const skill = getSkillColor(cat.skillLevel)
-    const isSwappable = cat.type === 'KYORUGI' && cat.playerCount >= 2
+    const isKyorugiBracket = (cat.type === 'KYORUGI' || cat.type === 'KYUKPA') && cat.playerCount >= 2
+    const isPoomsae = cat.type === 'POOMSAE'
     const maxRound = localSpecs.length > 0 ? Math.max(...localSpecs.map(s => s.round)) : 0
     const rounds = Array.from(new Set(localSpecs.map(s => s.round))).sort((a, b) => a - b)
     const hasSelection = selected?.catId === cat.categoryId
@@ -380,13 +472,23 @@ function CategoryCard({
     const playerMap = new Map<string, PreviewPlayer>()
     for (const p of cat.players) playerMap.set(p.id, p)
 
+    // Poomsae: group by round
+    const poomsaeRounds = isPoomsae && cat.poomsaeSpecs
+        ? Array.from(new Set(cat.poomsaeSpecs.map(s => s.round))).sort((a, b) => a - b)
+        : []
+
+    // Count specs for display
+    const specCount = isPoomsae
+        ? (cat.poomsaeSpecs?.length || 0)
+        : localSpecs.length
+
     return (
-        <div className={`rounded-2xl border-l-4 overflow-hidden transition-all duration-200 ${skill.border}`}
+        <div className="rounded-2xl overflow-hidden transition-all duration-200"
             style={{
                 background: 'rgba(255,255,255,0.04)',
                 border: '1px solid rgba(255,255,255,0.08)',
                 borderLeftWidth: '4px',
-                borderLeftColor: skill.border.replace('border-l-', '').replace('-500', ''),
+                borderLeftColor: cat.type === 'POOMSAE' ? '#8b5cf6' : cat.type === 'KYUKPA' ? '#f59e0b' : (skill.dot === 'bg-red-500' ? '#ef4444' : skill.dot === 'bg-blue-500' ? '#3b82f6' : '#10b981'),
             }}>
 
             {/* Card Header */}
@@ -417,16 +519,25 @@ function CategoryCard({
                                 {cat.gender}
                             </span>
                         )}
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1"
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md"
                             style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' }}>
-                            <Users size={8} /> {cat.playerCount} athletes
+                            {cat.playerCount} athletes
                         </span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1"
-                            style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' }}>
-                            {heightBased ? <Ruler size={8} /> : <Scale size={8} />}
-                            {heightBased ? 'Height-based' : 'Weight-based'}
-                        </span>
-                        {cat.playerCount < 2 && (
+                        {cat.playerCount >= 1 && (
+                            <span className="inline-flex items-center gap-1.5 text-[10px] font-black px-2 py-0.5 rounded-md"
+                                style={{ background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)' }}>
+                                <span style={{ color: '#fbbf24' }}>🥇1</span>
+                                <span style={{ color: '#94a3b8' }}>🥈1</span>
+                                <span style={{ color: '#cd7f32' }}>🥉{cat.playerCount > 3 ? 2 : 1}</span>
+                            </span>
+                        )}
+                        {isPoomsae && cat.subtype && cat.subtype !== 'INDIVIDUAL' && (
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md"
+                                style={{ background: 'rgba(139,92,246,0.2)', color: '#c4b5fd' }}>
+                                {cat.subtype}
+                            </span>
+                        )}
+                        {!isPoomsae && cat.playerCount < 2 && (
                             <span className="text-[10px] font-black px-2 py-0.5 rounded-md"
                                 style={{ background: 'rgba(245,158,11,0.15)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.3)' }}>
                                 ⚠ Needs 2+ players
@@ -437,7 +548,7 @@ function CategoryCard({
 
                 {/* Right stats */}
                 <div className="flex items-center gap-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                    {isSwappable && (
+                    {(isKyorugiBracket || isPoomsae) && (
                         <button onClick={onReshuffle} disabled={isReshuffling}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black transition-all hover:scale-105 disabled:opacity-40"
                             style={{ background: 'rgba(99,102,241,0.2)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.25)' }}>
@@ -446,8 +557,10 @@ function CategoryCard({
                         </button>
                     )}
                     <div className="text-right">
-                        <div className="text-2xl font-black text-white/80 leading-none">{localSpecs.length}</div>
-                        <div className="text-[9px] font-black uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.3)' }}>matches</div>
+                        <div className="text-2xl font-black text-white/80 leading-none">{specCount}</div>
+                        <div className="text-[9px] font-black uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                            {isPoomsae ? 'slots' : 'matches'}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -456,8 +569,8 @@ function CategoryCard({
             {isExpanded && (
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
 
-                    {/* Move Picker */}
-                    {movePicker && (
+                    {/* Move Picker (Kyorugi/Kyukpa only) */}
+                    {movePicker && !isPoomsae && (
                         <div className="px-4 py-3" style={{ background: 'rgba(168,85,247,0.08)', borderBottom: '1px solid rgba(168,85,247,0.15)' }}>
                             <div className="flex items-start justify-between gap-3">
                                 <div className="flex-1">
@@ -490,12 +603,124 @@ function CategoryCard({
                         </div>
                     )}
 
-                    {/* Bracket */}
-                    {localSpecs.length === 0 ? (
+                    {/* ── POOMSAE DISPLAY ───────────────────────────────── */}
+                    {isPoomsae && cat.poomsaeSpecs && cat.poomsaeSpecs.length > 0 ? (
+                        <div className="px-4 py-4 overflow-x-auto">
+                            <div className="flex gap-4 min-w-max pb-2">
+                                {poomsaeRounds.map(roundNum => {
+                                    const roundSlots = cat.poomsaeSpecs!.filter(s => s.round === roundNum)
+                                    const isStartRound = roundNum === poomsaeRounds[0]
+                                    const isFinal      = roundNum === 3
+                                    const roundLabel   = getPoomsaeRoundLabel(roundNum)
+
+                                    return (
+                                        <div key={roundNum} className="flex flex-col gap-1.5 flex-shrink-0" style={{ minWidth: 260 }}>
+                                            {/* Round header */}
+                                            <div className="flex items-center justify-between px-3 py-2 rounded-xl"
+                                                style={{
+                                                    background: isFinal
+                                                        ? 'linear-gradient(135deg, #f59e0b, #eab308)'
+                                                        : roundNum === 2
+                                                            ? 'linear-gradient(135deg, #f97316, #ea580c)'
+                                                            : 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                                                }}>
+                                                <span className={`text-[11px] font-black uppercase tracking-wider ${isFinal ? 'text-amber-900' : 'text-white'}`}>
+                                                    {roundLabel}
+                                                </span>
+                                                <span className={`text-[10px] font-bold opacity-75 ${isFinal ? 'text-amber-900' : 'text-white'}`}>
+                                                    {roundSlots.length} slot{roundSlots.length !== 1 ? 's' : ''}
+                                                </span>
+                                            </div>
+
+                                            {/* Performance slots */}
+                                            {roundSlots.sort((a, b) => a.performanceNumber - b.performanceNumber).map((slot, idx) => {
+                                                const pInfo = slot.playerId ? playerMap.get(slot.playerId) : null
+                                                const displayLabel = slot.displayName || slot.playerName || (slot.targetRank ? `Rank #${slot.targetRank}` : 'TBD')
+                                                const hasPlayer = !!slot.playerId || !!slot.displayName
+
+                                                return (
+                                                    <div key={idx} className="rounded-xl px-3 py-2.5"
+                                                        style={{
+                                                            background: hasPlayer ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
+                                                            border: `1px solid ${hasPlayer ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)'}`,
+                                                        }}>
+                                                        <div className="flex items-start gap-3">
+                                                            {/* Number badge */}
+                                                            <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-[11px] font-black"
+                                                                style={{
+                                                                    background: hasPlayer ? 'rgba(139,92,246,0.2)' : 'rgba(255,255,255,0.06)',
+                                                                    color: hasPlayer ? '#c4b5fd' : 'rgba(255,255,255,0.25)',
+                                                                }}>
+                                                                {slot.performanceNumber}
+                                                            </div>
+
+                                                            <div className="flex-1 min-w-0">
+                                                                {/* Name */}
+                                                                <div className="text-sm font-bold break-words"
+                                                                    style={{ color: hasPlayer ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.25)', wordBreak: 'break-word' }}>
+                                                                    {displayLabel}
+                                                                </div>
+
+                                                                {/* Club + member names */}
+                                                                {pInfo?.clubName && (
+                                                                    <div className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                                                                        {pInfo.clubName}
+                                                                    </div>
+                                                                )}
+                                                                {slot.memberNames && (
+                                                                    <div className="text-[10px] mt-0.5 italic" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                                                                        {slot.memberNames}
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Tags */}
+                                                                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                                                    {pInfo?.belt && (
+                                                                        <span className={`inline-block text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wide ${getBeltColor(pInfo.belt)}`}>
+                                                                            {pInfo.belt}
+                                                                        </span>
+                                                                    )}
+                                                                    {pInfo && calcAge(pInfo.birthDate) !== null && (
+                                                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+                                                                            style={{ background: 'rgba(59,130,246,0.2)', color: '#93c5fd' }}>
+                                                                            {calcAge(pInfo.birthDate)}y
+                                                                        </span>
+                                                                    )}
+                                                                    {slot.assignedForms && (
+                                                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+                                                                            style={{ background: 'rgba(139,92,246,0.15)', color: '#a78bfa' }}>
+                                                                            {slot.assignedForms}
+                                                                        </span>
+                                                                    )}
+                                                                    {!isStartRound && slot.targetRank && (
+                                                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+                                                                            style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24' }}>
+                                                                            Rank #{slot.targetRank}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    ) : isPoomsae ? (
+                        <div className="py-10 text-center text-sm" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                            No players registered in this category.
+                        </div>
+                    ) : null}
+
+                    {/* ── KYORUGI / KYUKPA BRACKET ──────────────────────── */}
+                    {!isPoomsae && localSpecs.length === 0 ? (
                         <div className="py-10 text-center text-sm" style={{ color: 'rgba(255,255,255,0.25)' }}>
                             Not enough players to generate a bracket.
                         </div>
-                    ) : (
+                    ) : !isPoomsae ? (
                         <div className="px-4 py-4 overflow-x-auto">
                             <div className="flex gap-4 min-w-max pb-2">
                                 {rounds.map(roundNum => {
@@ -540,7 +765,7 @@ function CategoryCard({
                             </div>
 
                             {/* Hint text */}
-                            {isSwappable && !hasSelection && (
+                            {isKyorugiBracket && !hasSelection && (
                                 <p className="text-[10px] text-center mt-2" style={{ color: 'rgba(255,255,255,0.2)' }}>
                                     Click any Round 1 player to select · click another player to swap their seed positions
                                 </p>
@@ -553,14 +778,14 @@ function CategoryCard({
                                 </p>
                             )}
                         </div>
-                    )}
+                    ) : null}
                 </div>
             )}
         </div>
     )
 }
 
-// ─── Match Card ───────────────────────────────────────────────────────────────
+// ─── Match Card (Kyorugi / Kyukpa) ───────────────────────────────────────────
 
 function MatchCard({
     match, catId, isFirstRound, isFinalRound, selected, onPlayerClick,
@@ -589,41 +814,25 @@ function MatchCard({
                 boxShadow: isFinalRound ? '0 0 20px rgba(251,191,36,0.06)' : '0 1px 6px rgba(0,0,0,0.3)',
             }}>
             <PlayerSlot
-                player={match.player1}
-                slot="player1"
-                matchId={match.id}
-                catId={catId}
-                isClickable={isFirstRound && !!match.player1}
-                isSelected={isP1Selected}
-                isOtherSelected={hasCatSelected && !isP1Selected}
-                onPlayerClick={onPlayerClick}
-                onMoveRequest={onMoveRequest}
-                hasMovePickerOpen={hasMovePickerOpen}
-                playerInfo={match.player1 ? playerMap.get(match.player1.id) ?? null : null}
-                heightBased={heightBased}
-                isFirst={true}
+                player={match.player1} slot="player1" matchId={match.id} catId={catId}
+                isClickable={isFirstRound && !!match.player1} isSelected={isP1Selected}
+                isOtherSelected={hasCatSelected && !isP1Selected} onPlayerClick={onPlayerClick}
+                onMoveRequest={onMoveRequest} hasMovePickerOpen={hasMovePickerOpen}
+                playerInfo={match.player1 ? playerMap.get(match.player1.id) ?? null : null} heightBased={heightBased}
             />
             <div style={{ height: 1, background: 'rgba(255,255,255,0.06)' }} />
             <PlayerSlot
-                player={match.player2}
-                slot="player2"
-                matchId={match.id}
-                catId={catId}
-                isClickable={isFirstRound && !!match.player2}
-                isSelected={isP2Selected}
-                isOtherSelected={hasCatSelected && !isP2Selected}
-                onPlayerClick={onPlayerClick}
-                onMoveRequest={onMoveRequest}
-                hasMovePickerOpen={hasMovePickerOpen}
-                playerInfo={match.player2 ? playerMap.get(match.player2.id) ?? null : null}
-                heightBased={heightBased}
-                isFirst={false}
+                player={match.player2} slot="player2" matchId={match.id} catId={catId}
+                isClickable={isFirstRound && !!match.player2} isSelected={isP2Selected}
+                isOtherSelected={hasCatSelected && !isP2Selected} onPlayerClick={onPlayerClick}
+                onMoveRequest={onMoveRequest} hasMovePickerOpen={hasMovePickerOpen}
+                playerInfo={match.player2 ? playerMap.get(match.player2.id) ?? null : null} heightBased={heightBased}
             />
         </div>
     )
 }
 
-// ─── Player Slot ──────────────────────────────────────────────────────────────
+// ─── Player Slot (Kyorugi / Kyukpa) ──────────────────────────────────────────
 
 function PlayerSlot({
     player, slot, matchId, catId, isClickable, isSelected, isOtherSelected,
@@ -641,7 +850,6 @@ function PlayerSlot({
     hasMovePickerOpen: boolean
     playerInfo: PreviewPlayer | null
     heightBased: boolean
-    isFirst: boolean
 }) {
     if (!player) {
         return (
@@ -713,12 +921,11 @@ function PlayerSlot({
                         </span>
                     )}
                     {metric && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-0.5"
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
                             style={{
                                 background: heightBased ? 'rgba(16,185,129,0.15)' : 'rgba(234,88,12,0.15)',
                                 color:      heightBased ? '#6ee7b7' : '#fdba74',
                             }}>
-                            {heightBased ? <Ruler size={8} /> : <Scale size={8} />}
                             {metric}
                         </span>
                     )}

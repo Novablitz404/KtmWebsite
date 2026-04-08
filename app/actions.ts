@@ -4649,9 +4649,19 @@ export async function previewAllBrackets(tournamentId: string, type: string) {
     })
 
     return categories.map(cat => {
-        const specs = cat.type === 'KYORUGI' && cat.players.length >= 2
-            ? generateSingleEliminationBracket(cat.players as any)
-            : []
+        // Determine which bracket engine to use
+        let kyorugiSpecs: ReturnType<typeof generateSingleEliminationBracket> = []
+        let poomsaeSpecs: ReturnType<typeof generatePoomsaeBracket> = []
+
+        if (cat.type === 'POOMSAE') {
+            poomsaeSpecs = generatePoomsaeBracket(
+                cat.players as any,
+                cat.subtype || 'INDIVIDUAL',
+                cat.poomsaeForms
+            )
+        } else if ((cat.type === 'KYORUGI' || cat.type === 'KYUKPA') && cat.players.length >= 2) {
+            kyorugiSpecs = generateSingleEliminationBracket(cat.players as any)
+        }
 
         return {
             categoryId:   cat.id,
@@ -4659,6 +4669,7 @@ export async function previewAllBrackets(tournamentId: string, type: string) {
             gender:       cat.gender,
             skillLevel:   cat.skillLevel,
             type:         cat.type,
+            subtype:      cat.subtype,
             playerCount:  cat.players.length,
             players: cat.players.map(p => ({
                 id:          p.id,
@@ -4672,7 +4683,8 @@ export async function previewAllBrackets(tournamentId: string, type: string) {
                 division:    p.division    || null,
                 birthDate:   (p as any).user?.birthDate?.toISOString() || null,
             })),
-            specs: specs.map(s => ({
+            // Kyorugi / Kyukpa specs (single-elimination bracket)
+            specs: kyorugiSpecs.map(s => ({
                 id:            s.id,
                 round:         s.round,
                 player1:       s.player1 ? { id: s.player1.id, name: s.player1.name } : null,
@@ -4680,6 +4692,17 @@ export async function previewAllBrackets(tournamentId: string, type: string) {
                 nextMatchId:   s.nextMatchId,
                 nextMatchSlot: s.nextMatchSlot,
                 isFinal:       s.isFinal,
+            })),
+            // Poomsae specs (performance slots)
+            poomsaeSpecs: poomsaeSpecs.map(s => ({
+                round:             s.round,
+                performanceNumber: s.performanceNumber,
+                playerId:          s.playerId || null,
+                playerName:        s.player?.name || null,
+                displayName:       s.displayName || null,
+                memberNames:       s.memberNames || null,
+                targetRank:        s.targetRank ?? null,
+                assignedForms:     s.assignedForms || null,
             })),
         }
     })
@@ -4697,13 +4720,26 @@ export async function previewCategoryBracket(categoryId: string) {
             }
         },
     })
-    if (!cat || cat.type !== 'KYORUGI' || cat.players.length < 2) return null
+    if (!cat) return null
 
-    const specs = generateSingleEliminationBracket(cat.players as any)
+    let kyorugiSpecs: ReturnType<typeof generateSingleEliminationBracket> = []
+    let poomsaeSpecs: ReturnType<typeof generatePoomsaeBracket> = []
+
+    if (cat.type === 'POOMSAE') {
+        poomsaeSpecs = generatePoomsaeBracket(
+            cat.players as any,
+            cat.subtype || 'INDIVIDUAL',
+            cat.poomsaeForms
+        )
+    } else if ((cat.type === 'KYORUGI' || cat.type === 'KYUKPA') && cat.players.length >= 2) {
+        kyorugiSpecs = generateSingleEliminationBracket(cat.players as any)
+    }
 
     return {
         categoryId:   cat.id,
         categoryName: cat.name,
+        type:         cat.type,
+        subtype:      cat.subtype,
         playerCount:  cat.players.length,
         players: cat.players.map(p => ({
             id:          p.id,
@@ -4717,7 +4753,7 @@ export async function previewCategoryBracket(categoryId: string) {
             division:    p.division    || null,
             birthDate:   (p as any).user?.birthDate?.toISOString() || null,
         })),
-        specs: specs.map(s => ({
+        specs: kyorugiSpecs.map(s => ({
             id:            s.id,
             round:         s.round,
             player1:       s.player1 ? { id: s.player1.id, name: s.player1.name } : null,
@@ -4726,5 +4762,199 @@ export async function previewCategoryBracket(categoryId: string) {
             nextMatchSlot: s.nextMatchSlot,
             isFinal:       s.isFinal,
         })),
+        poomsaeSpecs: poomsaeSpecs.map(s => ({
+            round:             s.round,
+            performanceNumber: s.performanceNumber,
+            playerId:          s.playerId || null,
+            playerName:        s.player?.name || null,
+            displayName:       s.displayName || null,
+            memberNames:       s.memberNames || null,
+            targetRank:        s.targetRank ?? null,
+            assignedForms:     s.assignedForms || null,
+        })),
     }
 }
+
+// ─────────────────────────────────────────────────────────────
+// GENERATE ALL FROM PREVIEW (deterministic — uses the exact
+// player order from the preview modal instead of reshuffling)
+// ─────────────────────────────────────────────────────────────
+
+export async function generateAllBracketsFromPreview(
+    tournamentId: string,
+    type: 'KYORUGI' | 'POOMSAE' | 'KYUKPA',
+    seedOrders: Record<string, string[]> // categoryId → [playerId, playerId, ...]
+) {
+    if (!tournamentId) return { success: false, message: 'Missing tournament ID' }
+
+    // 1. Fetch categories + players
+    const categories = await prisma.category.findMany({
+        where: { tournamentId, type },
+        include: { players: { include: { club: true } } }
+    })
+    if (categories.length === 0) return { success: false, message: 'No categories found.' }
+
+    const validCategories = categories.filter(c => c.players.length > 0)
+    const validCategoryIds = validCategories.map(c => c.id)
+
+    // 2. Delete existing matches
+    if (type === 'POOMSAE') {
+        await prisma.poomsaeMatch.deleteMany({ where: { categoryRefId: { in: validCategoryIds } } })
+    } else {
+        await prisma.match.deleteMany({ where: { categoryRefId: { in: validCategoryIds } } })
+    }
+
+    // 3. Get next match ID
+    const getNextMatchId = async (tId: string, t: string) => {
+        if (t === 'POOMSAE') {
+            const max = await prisma.poomsaeMatch.findFirst({
+                where: { categoryRef: { tournamentId: tId } },
+                orderBy: { matchId: 'desc' }, select: { matchId: true }
+            })
+            return (max?.matchId || 0) + 1
+        }
+        const max = await prisma.match.findFirst({
+            where: { categoryRef: { tournamentId: tId } },
+            orderBy: { matchId: 'desc' }, select: { matchId: true }
+        })
+        return (max?.matchId || 0) + 1
+    }
+
+    // 4. Generate
+    if (type === 'POOMSAE') {
+        let currentGlobalMatchId = await getNextMatchId(tournamentId, 'POOMSAE')
+        for (const category of validCategories) {
+            const poomsaeSpecs = generatePoomsaeBracket(
+                category.players as any,
+                category.subtype || 'INDIVIDUAL',
+                category.poomsaeForms
+            )
+            const distinctGroupIndices = Array.from(new Set(poomsaeSpecs.map(s => s.roundGroupIndex))).sort((a, b) => a - b)
+            const groupMapping = new Map<number, number>()
+            distinctGroupIndices.forEach(idx => { groupMapping.set(idx, currentGlobalMatchId++) })
+            const displayName = category.belt && !category.name.toLowerCase().includes(category.belt.toLowerCase())
+                ? `${category.name} ${category.belt}` : category.name
+            const createPromises = poomsaeSpecs.map(spec => {
+                const sharedMatchId = groupMapping.get(spec.roundGroupIndex) || 0
+                const nextGroupSharedId = groupMapping.get(spec.roundGroupIndex + 1) || null
+                return prisma.poomsaeMatch.create({
+                    data: {
+                        categoryRefId: category.id, category: displayName,
+                        round: spec.round, matchId: sharedMatchId, nextMatchId: nextGroupSharedId,
+                        targetRank: spec.targetRank, performanceNumber: spec.performanceNumber,
+                        playerId: spec.playerId || undefined,
+                        displayName: spec.displayName || undefined,
+                        memberIds: spec.memberIds || undefined,
+                        memberNames: spec.memberNames || undefined,
+                        assignedForms: spec.assignedForms, status: 'Pending',
+                        court: category.court || "Unassigned"
+                    }
+                })
+            })
+            await Promise.all(createPromises)
+        }
+    } else {
+        // KYORUGI / KYUKPA — use deterministic seed orders from preview
+        let currentMatchNumber = await getNextMatchId(tournamentId, 'KYORUGI')
+
+        const skillPriority: Record<string, number> = { 'novice': 1, 'intermediate': 2, 'advance': 3, 'advanced': 3 }
+
+        type SpecWithCategory = ReturnType<typeof generateSingleEliminationBracket>[number] & {
+            categoryId: string; categoryName: string; court: string;
+            catMinAge: number; catMinWeight: number; catMinHeight: number;
+            catSkillPriority: number; deferFinals: boolean;
+        }
+
+        const allSpecs: SpecWithCategory[] = []
+
+        for (const category of validCategories) {
+            if (category.players.length < 2) continue
+
+            // Build pre-ordered player list from seed orders (if available)
+            let preOrdered: typeof category.players | undefined = undefined
+            const order = seedOrders[category.id]
+            if (order && order.length > 0) {
+                const playerMap = new Map(category.players.map(p => [p.id, p]))
+                const ordered = order.map(id => playerMap.get(id)).filter(Boolean) as typeof category.players
+                // Only use if all players are accounted for
+                if (ordered.length === category.players.length) {
+                    preOrdered = ordered
+                }
+            }
+
+            const specs = generateSingleEliminationBracket(category.players, 1, preOrdered)
+
+            const catMinAge = category.minAge ?? 999
+            const catMinWeight = category.minWeight ?? 999
+            const catMinHeight = category.minHeight ?? 999
+            const catSkillPriority = skillPriority[(category.skillLevel || 'novice').toLowerCase()] || 1
+
+            specs.forEach(s => {
+                allSpecs.push({
+                    ...s, categoryId: category.id, categoryName: category.name,
+                    court: category.court || "Unassigned", catMinAge, catMinWeight, catMinHeight,
+                    catSkillPriority, deferFinals: category.deferFinals,
+                })
+            })
+        }
+
+        // Sort (same logic as generateAllBrackets)
+        allSpecs.sort((a, b) => {
+            const aDef = a.isFinal && a.deferFinals
+            const bDef = b.isFinal && b.deferFinals
+            if (aDef && !bDef) return 1
+            if (!aDef && bDef) return -1
+            const aGroup = !a.deferFinals
+            const bGroup = !b.deferFinals
+            if (aGroup && bGroup) {
+                if (a.catMinAge !== b.catMinAge) return a.catMinAge - b.catMinAge
+                if (a.catMinWeight !== b.catMinWeight) return a.catMinWeight - b.catMinWeight
+                if (a.catMinHeight !== b.catMinHeight) return a.catMinHeight - b.catMinHeight
+                if (a.catSkillPriority !== b.catSkillPriority) return a.catSkillPriority - b.catSkillPriority
+                if (a.round !== b.round) return a.round - b.round
+                return a.id - b.id
+            }
+            if (!aGroup && !bGroup) {
+                if (a.round !== b.round) return a.round - b.round
+                if (a.catMinAge !== b.catMinAge) return a.catMinAge - b.catMinAge
+                if (a.catMinWeight !== b.catMinWeight) return a.catMinWeight - b.catMinWeight
+                if (a.catMinHeight !== b.catMinHeight) return a.catMinHeight - b.catMinHeight
+                if (a.catSkillPriority !== b.catSkillPriority) return a.catSkillPriority - b.catSkillPriority
+                return a.id - b.id
+            }
+            return aGroup ? -1 : 1
+        })
+
+        // Insert
+        const idLookup = new Map<string, number>()
+        for (const spec of allSpecs) {
+            const createdMatch = await prisma.match.create({
+                data: {
+                    categoryRefId: spec.categoryId, category: spec.categoryName,
+                    round: spec.round, matchId: currentMatchNumber++,
+                    player1: spec.player1?.name || "TBD", player2: spec.player2?.name || "TBD",
+                    winner: null, nextMatchSlot: spec.nextMatchSlot, court: spec.court
+                }
+            })
+            idLookup.set(`${spec.categoryId}:${spec.id}`, createdMatch.id)
+        }
+
+        // Link
+        const linkUpdates = []
+        for (const spec of allSpecs) {
+            if (spec.nextMatchId !== null) {
+                const actualId = idLookup.get(`${spec.categoryId}:${spec.id}`)
+                const actualNextId = idLookup.get(`${spec.categoryId}:${spec.nextMatchId}`)
+                if (actualId && actualNextId) {
+                    linkUpdates.push(prisma.match.update({ where: { id: actualId }, data: { nextMatchId: actualNextId } }))
+                }
+            }
+        }
+        await Promise.all(linkUpdates)
+        await prisma.tournament.update({ where: { id: tournamentId }, data: { match_count: currentMatchNumber - 1 } })
+    }
+
+    revalidatePath(`/tournament/${tournamentId}`)
+    return { success: true, count: validCategories.length }
+}
+
