@@ -629,7 +629,8 @@ function CollapsibleBracket({
 function InlineAlertPanel({ alert, proposals, tournamentId, onResolved }: {
     alert: any, proposals: any[], tournamentId: string, onResolved: () => void
 }) {
-    const [loading, setLoading] = useState(false)
+    const [loading,       setLoading]       = useState(false)
+    const [forceDecision, setForceDecision] = useState(false)
 
     const proposal = proposals.find((p: any) => {
         const data = JSON.parse(p.data)
@@ -652,11 +653,11 @@ function InlineAlertPanel({ alert, proposals, tournamentId, onResolved }: {
         DISAGREE: { text: 'Disagree', color: 'text-gray-700 bg-gray-100' },
     }
 
-    async function handleAction() {
+    async function handleAction(decision?: string) {
         setLoading(true)
         try {
             if (isPending && proposal) {
-                const result = await forceExecuteSmartAction(proposal.id)
+                const result = await forceExecuteSmartAction(proposal.id, decision)
                 if (result?.error) toast.error(result.error)
                 else { toast.success('Action executed'); onResolved() }
             } else {
@@ -787,20 +788,72 @@ function InlineAlertPanel({ alert, proposals, tournamentId, onResolved }: {
 
                 {/* Right: action button */}
                 <div className="flex-shrink-0 self-start">
-                    <button
-                        onClick={handleAction}
-                        disabled={loading}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0 ${
-                            isPending ? alertColor.btnPending : alertColor.btn
-                        }`}
-                    >
-                        {loading && <Loader2 size={12} className="animate-spin" />}
-                        {isPending ? 'Force Execute'
-                            : alert.type === 'UNCONTESTED'     ? 'Request Resolution'
-                            : alert.type === 'CROSS_DIVISION'  ? 'Send Cross Div Proposal'
-                            : alert.type === 'MERGE_SUGGESTION' ? 'Propose Merge'
-                            : 'Propose Split'}
-                    </button>
+                    {/* UNCONTESTED / CROSS_DIVISION with no votes yet → show decision picker */}
+                    {isPending && voteCount === 0 && (alert.type === 'UNCONTESTED' || alert.type === 'CROSS_DIVISION') ? (
+                        forceDecision ? (
+                            <div className="flex flex-col gap-1.5">
+                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Choose outcome:</p>
+                                <div className="flex gap-1.5 flex-wrap">
+                                    <button
+                                        onClick={() => handleAction('MOVE_UP')}
+                                        disabled={loading}
+                                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black text-white bg-amber-500 hover:bg-amber-600 transition-all shadow-sm disabled:opacity-50"
+                                    >
+                                        {loading ? <Loader2 size={11} className="animate-spin" /> : '↑'}
+                                        Move Up
+                                    </button>
+                                    <button
+                                        onClick={() => handleAction('WALKOVER')}
+                                        disabled={loading}
+                                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black text-white bg-emerald-500 hover:bg-emerald-600 transition-all shadow-sm disabled:opacity-50"
+                                    >
+                                        {loading ? <Loader2 size={11} className="animate-spin" /> : '✓'}
+                                        Walkover
+                                    </button>
+                                    <button
+                                        onClick={() => handleAction('WITHDRAW')}
+                                        disabled={loading}
+                                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black text-white bg-red-500 hover:bg-red-600 transition-all shadow-sm disabled:opacity-50"
+                                    >
+                                        {loading ? <Loader2 size={11} className="animate-spin" /> : '✕'}
+                                        Withdraw
+                                    </button>
+                                    <button
+                                        onClick={() => setForceDecision(false)}
+                                        disabled={loading}
+                                        className="px-2 py-2 rounded-xl text-xs font-black text-gray-400 hover:text-gray-600 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => setForceDecision(true)}
+                                disabled={loading}
+                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0 ${alertColor.btnPending}`}
+                            >
+                                {loading && <Loader2 size={12} className="animate-spin" />}
+                                Force Execute
+                            </button>
+                        )
+                    ) : (
+                        /* Default: MERGE/SPLIT force execute, or UNCONTESTED/CROSS_DIVISION with existing vote */
+                        <button
+                            onClick={() => handleAction()}
+                            disabled={loading}
+                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0 ${
+                                isPending ? alertColor.btnPending : alertColor.btn
+                            }`}
+                        >
+                            {loading && <Loader2 size={12} className="animate-spin" />}
+                            {isPending ? 'Force Execute'
+                                : alert.type === 'UNCONTESTED'     ? 'Request Resolution'
+                                : alert.type === 'CROSS_DIVISION'  ? 'Send Cross Div Proposal'
+                                : alert.type === 'MERGE_SUGGESTION' ? 'Propose Merge'
+                                : 'Propose Split'}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
