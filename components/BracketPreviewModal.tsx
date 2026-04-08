@@ -533,10 +533,12 @@ function CategoryCard({
                         <h3 className="text-sm font-black text-white/90">{cat.categoryName}</h3>
                     </div>
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                        <span className={`inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md border ${skill.badge}`}>
-                            <div className={`w-1.5 h-1.5 rounded-full ${skill.dot}`} />
-                            {cat.skillLevel || 'Novice'}
-                        </span>
+                        {!isPoomsae && (
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md border ${skill.badge}`}>
+                                <div className={`w-1.5 h-1.5 rounded-full ${skill.dot}`} />
+                                {cat.skillLevel || 'Novice'}
+                            </span>
+                        )}
                         {cat.gender && (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-md"
                                 style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' }}>
