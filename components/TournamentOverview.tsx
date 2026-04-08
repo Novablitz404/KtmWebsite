@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { Category, Match, Player, Tournament } from '@prisma/client'
-import { Users, Trophy, ClipboardList, Calendar, TrendingUp, CheckCircle2, Clock, XCircle, FileDown, Loader2, Eye, EyeOff, ChevronDown } from 'lucide-react'
+import { Users, Trophy, ClipboardList, Calendar, TrendingUp, CheckCircle2, Clock, XCircle, FileDown, Loader2, Eye, EyeOff, ChevronDown, ShieldAlert } from 'lucide-react'
 import { getClubRosterForTournament, ClubRosterPlayer } from '@/app/actions'
 import { downloadClubRosterPdf } from '@/lib/club-roster-pdf'
 
@@ -80,6 +80,29 @@ export default function TournamentOverview({
 
     const approvalPct = totalPlayersCount > 0 ? Math.round((approvedCount / totalPlayersCount) * 100) : 0
     const pendingPct  = totalPlayersCount > 0 ? Math.round((pendingCount / totalPlayersCount) * 100) : 0
+
+    // Compute uncontested per club: KYORUGI categories that have exactly 1 player
+    const uncontestedByClub = useMemo(() => {
+        const kyorugiPlayers = players.filter(p => (p.category as any)?.type === 'KYORUGI')
+        // Count players per category
+        const catCount = new Map<string, { players: PlayerWithClub[] }>()
+        for (const p of kyorugiPlayers) {
+            const cid = p.categoryId
+            if (!cid) continue
+            if (!catCount.has(cid)) catCount.set(cid, { players: [] })
+            catCount.get(cid)!.players.push(p)
+        }
+        // Build per-club uncontested count
+        const clubUncontested = new Map<string, number>()
+        for (const { players: catPlayers } of catCount.values()) {
+            if (catPlayers.length === 1) {
+                const p = catPlayers[0]
+                const key = p.club?.id || p.club?.name || 'Unaffiliated'
+                clubUncontested.set(key, (clubUncontested.get(key) || 0) + 1)
+            }
+        }
+        return clubUncontested
+    }, [players])
 
     const clubStats = useMemo(() => {
         if (stats?.clubs) return stats.clubs
@@ -310,10 +333,14 @@ export default function TournamentOverview({
                     <table className="w-full text-left min-w-[580px]">
                         <thead>
                             <tr className="bg-gray-50/80">
-                                {['#', 'Club / Team', 'Registered', 'Approved', 'Pending', 'Share', ''].map(h => (
+                                {['#', 'Club / Team', 'Registered', 'Approved', 'Pending', 'Uncontested', 'Share', ''].map(h => (
                                     <th
                                         key={h}
-                                        className={`px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest ${h !== '#' && h !== 'Club / Team' && h !== '' ? 'text-center' : ''}`}
+                                        className={`px-6 py-3 text-[10px] font-black uppercase tracking-widest ${
+                                            h === 'Uncontested' ? 'text-center text-amber-500'
+                                            : h !== '#' && h !== 'Club / Team' && h !== '' ? 'text-center text-gray-400'
+                                            : 'text-gray-400'
+                                        }`}
                                     >
                                         {h}
                                     </th>
@@ -323,16 +350,18 @@ export default function TournamentOverview({
                         <tbody>
                             {clubStats.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-400">
+                                    <td colSpan={8} className="px-6 py-12 text-center text-sm text-gray-400">
                                         No clubs have registered athletes yet.
                                     </td>
                                 </tr>
                             ) : (
                                 clubStats.map((club, i) => {
-                                    const sharePercent  = totalPlayersCount > 0 ? (club.count / totalPlayersCount) * 100 : 0
-                                    const isExpanded    = viewingClub === club.id
-                                    const isLoadingThis = loadingView === club.id
-                                    const rosterPlayers = club.id ? (rosterCache[club.id] ?? null) : null
+                                    const sharePercent    = totalPlayersCount > 0 ? (club.count / totalPlayersCount) * 100 : 0
+                                    const isExpanded      = viewingClub === club.id
+                                    const isLoadingThis   = loadingView === club.id
+                                    const rosterPlayers   = club.id ? (rosterCache[club.id] ?? null) : null
+                                    const clubKey         = club.id || club.name
+                                    const uncontestedCount = uncontestedByClub.get(clubKey) || 0
 
                                     // Group by category for the inline view
                                     const groupedRoster = rosterPlayers
@@ -385,6 +414,16 @@ export default function TournamentOverview({
                                                     <span className={`text-sm font-semibold ${club.pending > 0 ? 'text-amber-600' : 'text-gray-300'}`}>
                                                         {club.pending}
                                                     </span>
+                                                </td>
+                                                <td className="px-6 py-3.5 text-center">
+                                                    {uncontestedCount > 0 ? (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-700 border border-amber-200">
+                                                            <ShieldAlert size={9} />
+                                                            {uncontestedCount}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-gray-200 text-sm font-bold">—</span>
+                                                    )}
                                                 </td>
                                                 <td className="px-6 py-3.5">
                                                     <div className="flex items-center gap-2.5">
@@ -441,7 +480,7 @@ export default function TournamentOverview({
                                             {/* ── Inline roster panel ── */}
                                             {isExpanded && (
                                                 <tr key={`roster-${i}`}>
-                                                    <td colSpan={7} className="px-0 py-0 bg-gray-50/80 border-t border-indigo-100">
+                                                    <td colSpan={8} className="px-0 py-0 bg-gray-50/80 border-t border-indigo-100">
                                                         <div className="px-6 py-5">
                                                             {isLoadingThis || !groupedRoster ? (
                                                                 <div className="flex items-center justify-center py-8 gap-2 text-sm text-gray-400">
