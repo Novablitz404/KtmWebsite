@@ -438,6 +438,7 @@ export default function BracketList({ categories, tournamentName, publicView = f
         {!publicView && (
             <BracketPreviewModal
                 tournamentId={tournamentId}
+                tournamentName={tournamentName || ''}
                 disciplineType={activeTab === 'kyorugi' ? 'KYORUGI' : activeTab === 'poomsae' ? 'POOMSAE' : 'KYUKPA'}
                 open={previewOpen}
                 onClose={() => setPreviewOpen(false)}

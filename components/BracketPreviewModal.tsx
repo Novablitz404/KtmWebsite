@@ -3,10 +3,17 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
     X, Search, Loader2, Eye, RefreshCw, ChevronDown,
-    ArrowRightLeft, Shuffle, Trophy, Shield
+    ArrowRightLeft, Shuffle, Trophy, Shield, Download
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { previewAllBrackets, previewCategoryBracket, movePlayerToCategory, generateAllBracketsFromPreview } from '@/app/actions'
+import dynamic from 'next/dynamic'
+import BracketListPDF from '@/components/pdf/BracketListPDF'
+
+const PDFDownloadLink = dynamic(
+    () => import('@react-pdf/renderer').then(mod => ({ default: mod.PDFDownloadLink })),
+    { ssr: false }
+)
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -169,12 +176,13 @@ function extractSeedOrder(specs: PreviewMatch[]): string[] {
 
 interface Props {
     tournamentId: string
+    tournamentName: string
     disciplineType: 'KYORUGI' | 'POOMSAE' | 'KYUKPA'
     open: boolean
     onClose: () => void
 }
 
-export default function BracketPreviewModal({ tournamentId, disciplineType, open, onClose }: Props) {
+export default function BracketPreviewModal({ tournamentId, tournamentName, disciplineType, open, onClose }: Props) {
     const [data, setData]               = useState<PreviewCategoryData[]>([])
     const [localSpecs, setLocalSpecs]   = useState<Map<string, PreviewMatch[]>>(new Map())
     const [loading, setLoading]         = useState(false)
@@ -534,6 +542,31 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
                             style={{ color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.06)' }}>
                             Close
                         </button>
+                        {/* Download PDF */}
+                        {data.length > 0 && (
+                            <PDFDownloadLink
+                                document={
+                                    <BracketListPDF
+                                        tournamentName={tournamentName}
+                                        discipline={activeDiscipline}
+                                        categories={filtered}
+                                        generatedAt={new Date().toLocaleString()}
+                                    />
+                                }
+                                fileName={`${(tournamentName || 'tournament').replace(/\s+/g, '-')}-${activeDiscipline.toLowerCase()}-bracket-list.pdf`}
+                            >
+                                {({ loading: pdfLoading }: { loading: boolean }) => (
+                                    <button
+                                        disabled={pdfLoading}
+                                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all hover:scale-105 disabled:opacity-40"
+                                        style={{ background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', color: 'white', boxShadow: '0 2px 12px rgba(14,165,233,0.3)' }}
+                                    >
+                                        {pdfLoading ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                                        {pdfLoading ? 'Preparing…' : 'Download List'}
+                                    </button>
+                                )}
+                            </PDFDownloadLink>
+                        )}
                         <button
                             onClick={handleGenerateFromPreview}
                             disabled={generating || loading || data.length === 0}
