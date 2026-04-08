@@ -4628,3 +4628,79 @@ export async function rejectAthleteCardPayment(userId: string) {
         return { error: 'Failed to reject athlete card.' }
     }
 }
+
+// ─────────────────────────────────────────────────────────────
+// BRACKET PREVIEW (no DB writes — pure computation for visual
+// confirmation before the organiser triggers Generate All)
+// ─────────────────────────────────────────────────────────────
+
+export async function previewAllBrackets(tournamentId: string, type: string) {
+    const categories = await prisma.category.findMany({
+        where:   { tournamentId, type },
+        include: { players: { include: { club: { select: { id: true, name: true, logoUrl: true } } } } },
+        orderBy: [{ gender: 'asc' }, { minAge: 'asc' }, { name: 'asc' }],
+    })
+
+    return categories.map(cat => {
+        const specs = cat.type === 'KYORUGI' && cat.players.length >= 2
+            ? generateSingleEliminationBracket(cat.players as any)
+            : []
+
+        return {
+            categoryId:   cat.id,
+            categoryName: cat.name,
+            gender:       cat.gender,
+            skillLevel:   cat.skillLevel,
+            type:         cat.type,
+            playerCount:  cat.players.length,
+            players: cat.players.map(p => ({
+                id:          p.id,
+                name:        p.name,
+                clubId:      p.clubId,
+                clubName:    (p as any).club?.name    || null,
+                clubLogoUrl: (p as any).club?.logoUrl || null,
+            })),
+            specs: specs.map(s => ({
+                id:            s.id,
+                round:         s.round,
+                player1:       s.player1 ? { id: s.player1.id, name: s.player1.name } : null,
+                player2:       s.player2 ? { id: s.player2.id, name: s.player2.name } : null,
+                nextMatchId:   s.nextMatchId,
+                nextMatchSlot: s.nextMatchSlot,
+                isFinal:       s.isFinal,
+            })),
+        }
+    })
+}
+
+export async function previewCategoryBracket(categoryId: string) {
+    const cat = await prisma.category.findUnique({
+        where:   { id: categoryId },
+        include: { players: { include: { club: { select: { id: true, name: true, logoUrl: true } } } } },
+    })
+    if (!cat || cat.type !== 'KYORUGI' || cat.players.length < 2) return null
+
+    const specs = generateSingleEliminationBracket(cat.players as any)
+
+    return {
+        categoryId:   cat.id,
+        categoryName: cat.name,
+        playerCount:  cat.players.length,
+        players: cat.players.map(p => ({
+            id:          p.id,
+            name:        p.name,
+            clubId:      p.clubId,
+            clubName:    (p as any).club?.name    || null,
+            clubLogoUrl: (p as any).club?.logoUrl || null,
+        })),
+        specs: specs.map(s => ({
+            id:            s.id,
+            round:         s.round,
+            player1:       s.player1 ? { id: s.player1.id, name: s.player1.name } : null,
+            player2:       s.player2 ? { id: s.player2.id, name: s.player2.name } : null,
+            nextMatchId:   s.nextMatchId,
+            nextMatchSlot: s.nextMatchSlot,
+            isFinal:       s.isFinal,
+        })),
+    }
+}

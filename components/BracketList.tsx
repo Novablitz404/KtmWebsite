@@ -4,10 +4,11 @@ import { useState, useTransition } from 'react'
 import { Category, Match, PoomsaeMatch } from '@prisma/client'
 import BracketView from './BracketView'
 import PoomsaeBracketView from './PoomsaeBracketView'
+import BracketPreviewModal from './BracketPreviewModal'
 import { generateAllBrackets, getTournamentAlerts, initiateSmartProposal, forceExecuteSmartAction, bulkSendUncontestedProposals } from '@/app/actions'
 import {
     Trophy, Medal, Wand2, Loader2, AlertCircle, Search,
-    ShieldAlert, Split, Merge, Users, X, ChevronDown, Zap, ArrowRight, Clock, Send, ChevronRight
+    ShieldAlert, Split, Merge, Users, X, ChevronDown, Zap, ArrowRight, Clock, Send, ChevronRight, Eye
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -26,6 +27,7 @@ export default function BracketList({ categories, tournamentName, publicView = f
     const [sendingAll, setSendingAll] = useState(false)
     const [sendingClub, setSendingClub] = useState<string | null>(null)
     const [clubDropdownOpen, setClubDropdownOpen] = useState(false)
+    const [previewOpen, setPreviewOpen] = useState(false)
 
     const tournamentId = categories[0]?.tournamentId
 
@@ -111,6 +113,7 @@ export default function BracketList({ categories, tournamentName, publicView = f
     ]
 
     return (
+        <>
         <div className="space-y-5">
 
             {/* ── Alert Strip ─────────────────────────────────────── */}
@@ -356,6 +359,19 @@ export default function BracketList({ categories, tournamentName, publicView = f
                                         Resolve {totalAlerts} alert{totalAlerts !== 1 ? 's' : ''} first
                                     </span>
                                 )}
+                                {/* Preview All */}
+                                <button
+                                    onClick={() => setPreviewOpen(true)}
+                                    disabled={displayedCategories.length === 0}
+                                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all
+                                        bg-gradient-to-br from-indigo-500 to-purple-600
+                                        shadow-md shadow-indigo-500/20
+                                        hover:shadow-lg hover:shadow-indigo-500/30 hover:-translate-y-0.5
+                                        disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:translate-y-0"
+                                >
+                                    <Eye size={15} /> Preview All
+                                </button>
+                                {/* Generate All */}
                                 <button
                                     onClick={handleGenerateAll}
                                     disabled={isPending || displayedCategories.length === 0 || totalAlerts > 0}
@@ -417,6 +433,17 @@ export default function BracketList({ categories, tournamentName, publicView = f
                 )}
             </div>
         </div>
+
+        {/* Bracket Preview Modal */}
+        {!publicView && (
+            <BracketPreviewModal
+                tournamentId={tournamentId}
+                disciplineType={activeTab === 'kyorugi' ? 'KYORUGI' : activeTab === 'poomsae' ? 'POOMSAE' : 'KYUKPA'}
+                open={previewOpen}
+                onClose={() => setPreviewOpen(false)}
+            />
+        )}
+        </>
     )
 }
 
