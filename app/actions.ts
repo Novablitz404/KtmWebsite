@@ -3930,21 +3930,46 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
             const { categoryId } = data
             const category = await prisma.category.findUnique({
                 where: { id: categoryId },
-                include: { players: true }
+                include: {
+                    players: {
+                        include: { user: { select: { height: true, weight: true } }, club: { select: { id: true } } }
+                    }
+                }
             })
 
             if (category) {
                 const baseName = category.name
 
-                // Sort players by weight ascending so the split is meaningful
-                const sortedPlayers = [...category.players].sort((a, b) => ((a as any).weight || 0) - ((b as any).weight || 0))
+                // ── Determine sort metric ─────────────────────────────────────
+                // Height-based divisions: Super Toddler, Toddler, Grade School
+                // Detected by:
+                //   1. Category name contains 'toddler' or 'grade school'
+                //   2. Category has minHeight explicitly set (> 0)
+                //   3. maxAge <= 9  (covers young divisions regardless of name)
+                const nameLower = baseName.toLowerCase()
+                const isHeightBased =
+                    nameLower.includes('toddler') ||
+                    nameLower.includes('grade school') ||
+                    (category.minHeight != null && (category.minHeight ?? 0) > 0) ||
+                    (category.maxAge != null && category.maxAge <= 9)
+
+                const getMetric = (p: any): number => {
+                    if (isHeightBased) {
+                        return p.user?.height ?? p.height ?? 0
+                    }
+                    return p.user?.weight ?? p.weight ?? 0
+                }
+
+                // Sort ascending by the relevant metric
+                const sortedPlayers = [...category.players].sort((a, b) => getMetric(a) - getMetric(b))
                 const midIndex = Math.floor(sortedPlayers.length / 2)
 
-                // Derive weight-aware group labels when weights are available
-                const lightMax  = (sortedPlayers[midIndex - 1] as any)?.weight
-                const heavyMin  = (sortedPlayers[midIndex] as any)?.weight
-                const nameA = lightMax  ? `${baseName} (≤${lightMax}kg)` : `${baseName} (Group A)`
-                const nameB = heavyMin  ? `${baseName} (>${lightMax ?? '?'}kg)` : `${baseName} (Group B)`
+                // ── Derive group labels ───────────────────────────────────────
+                const metricA = getMetric(sortedPlayers[midIndex - 1])
+                const metricB = getMetric(sortedPlayers[midIndex])
+                const unit    = isHeightBased ? 'cm' : 'kg'
+                const nameA = metricA ? `${baseName} (≤${metricA}${unit})` : `${baseName} (Group A)`
+                const nameB = metricB ? `${baseName} (>${metricA ?? '?'}${unit})` : `${baseName} (Group B)`
 
                 const [cA, cB] = await prisma.$transaction([
                     prisma.category.create({
@@ -3955,19 +3980,47 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
                     })
                 ])
 
-                // Assign lighter half → Group A, heavier half → Group B
-                const updates = sortedPlayers.map((p, i) =>
-                    prisma.player.update({
-                        where: { id: p.id },
-                        data: { categoryId: i < midIndex ? cA.id : cB.id }
-                    })
-                )
+                // ── Club-aware serpentine draft ───────────────────────────────
+                // Assigns players to groups ensuring the same club is spread
+                // evenly across both groups. Iterates sorted players and places
+                // each into the group with fewer of that club's players so far,
+                // using overall group size as a tiebreaker to keep groups balanced.
+                const groupA: typeof sortedPlayers = []
+                const groupB: typeof sortedPlayers = []
+                const clubCountA = new Map<string, number>()
+                const clubCountB = new Map<string, number>()
+
+                for (const player of sortedPlayers) {
+                    const clubKey = (player as any).club?.id || player.clubId || 'none'
+                    const inA = clubCountA.get(clubKey) ?? 0
+                    const inB = clubCountB.get(clubKey) ?? 0
+
+                    // Prefer the group with fewer players from this club.
+                    // Tiebreak: prefer the smaller group overall.
+                    const preferA =
+                        inA < inB ||
+                        (inA === inB && groupA.length <= groupB.length)
+
+                    if (preferA) {
+                        groupA.push(player)
+                        clubCountA.set(clubKey, inA + 1)
+                    } else {
+                        groupB.push(player)
+                        clubCountB.set(clubKey, inB + 1)
+                    }
+                }
+
+                const updates = [
+                    ...groupA.map(p => prisma.player.update({ where: { id: p.id }, data: { categoryId: cA.id } })),
+                    ...groupB.map(p => prisma.player.update({ where: { id: p.id }, data: { categoryId: cB.id } })),
+                ]
 
                 await prisma.$transaction(updates)
                 // Keep the original category (now empty) — it persists as a
                 // template so the organiser can merge Group A + Group B back
                 // into it later using the Move Division feature.
                 // The empty category is hidden from the bracket view automatically.
+
             }
         }
 
