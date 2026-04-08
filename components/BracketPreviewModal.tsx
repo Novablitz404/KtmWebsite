@@ -331,7 +331,7 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
                                     {filtered.length > 0 && (() => {
                                         const cats = filtered.filter(c => {
                                             const cc = getCompetitorCount(c.playerCount, c.subtype)
-                                            return disciplineType === 'POOMSAE' ? cc >= 1 : cc >= 2
+                                            return (disciplineType === 'POOMSAE' || disciplineType === 'KYUKPA') ? cc >= 1 : cc >= 2
                                         })
                                         const totalGold = cats.reduce((sum, c) => sum + getMedalMultiplier(c.subtype), 0)
                                         const totalSilver = cats.filter(c => getCompetitorCount(c.playerCount, c.subtype) >= 2)
