@@ -1,10 +1,12 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Category, Match, Player, Tournament } from '@prisma/client'
-import { Users, Trophy, ClipboardList, Calendar, TrendingUp, CheckCircle2, Clock, XCircle, FileDown, Loader2, Eye, EyeOff, ChevronDown, ShieldAlert } from 'lucide-react'
-import { getClubRosterForTournament, ClubRosterPlayer } from '@/app/actions'
+import { Users, Trophy, ClipboardList, Calendar, TrendingUp, CheckCircle2, Clock, XCircle, FileDown, Loader2, Eye, EyeOff, ChevronDown, ShieldAlert, ArrowLeftRight, X, Check } from 'lucide-react'
+import { getClubRosterForTournament, ClubRosterPlayer, getTournamentAlerts, movePlayerToCategory } from '@/app/actions'
 import { downloadClubRosterPdf } from '@/lib/club-roster-pdf'
+import { useQuery } from '@tanstack/react-query'
+import { toast } from 'sonner'
 
 type TournamentWithData = Tournament & {
     categories: (Category & { matches: Match[], poomsaeMatches: any[], _count?: { players: number } })[]
@@ -48,6 +50,18 @@ export default function TournamentOverview({
     const [viewingClub,    setViewingClub]    = useState<string | null>(null)
     const [loadingView,    setLoadingView]    = useState<string | null>(null)
     const [rosterCache,    setRosterCache]    = useState<Record<string, ClubRosterPlayer[]>>({})
+    const [movingPlayer,   setMovingPlayer]   = useState<string | null>(null)  // playerId being moved
+    const [moveSearch,     setMoveSearch]     = useState('')
+    const [movingLoading,  setMovingLoading]  = useState(false)
+
+    const tournamentId = tournament.id
+
+    // Fetch smart alerts — same source as the Brackets tab
+    const { data: alertData } = useQuery({
+        queryKey: ['tournament-smart-alerts', tournamentId],
+        queryFn:  () => getTournamentAlerts(tournamentId),
+        staleTime: 1000 * 30,
+    })
 
     async function handleViewRoster(clubId: string) {
         if (viewingClub === clubId) { setViewingClub(null); return }
@@ -81,28 +95,33 @@ export default function TournamentOverview({
     const approvalPct = totalPlayersCount > 0 ? Math.round((approvedCount / totalPlayersCount) * 100) : 0
     const pendingPct  = totalPlayersCount > 0 ? Math.round((pendingCount / totalPlayersCount) * 100) : 0
 
-    // Compute uncontested per club: KYORUGI categories that have exactly 1 player
+    // Compute uncontested per club from smart alerts (same source as Brackets tab).
+    // Also tracks whether a proposal has already been sent for each player.
     const uncontestedByClub = useMemo(() => {
-        const kyorugiPlayers = players.filter(p => (p.category as any)?.type === 'KYORUGI')
-        // Count players per category
-        const catCount = new Map<string, { players: PlayerWithClub[] }>()
-        for (const p of kyorugiPlayers) {
-            const cid = p.categoryId
-            if (!cid) continue
-            if (!catCount.has(cid)) catCount.set(cid, { players: [] })
-            catCount.get(cid)!.players.push(p)
+        const alerts    = alertData?.alerts    || []
+        const proposals = alertData?.proposals || []
+
+        // Build set of playerIds that already have a pending UNCONTESTED proposal
+        const sentPlayerIds = new Set<string>()
+        for (const p of proposals) {
+            if (p.type !== 'UNCONTESTED' && p.type !== 'CROSS_DIVISION') continue
+            try {
+                const d = JSON.parse(p.data)
+                if (d.playerId) sentPlayerIds.add(d.playerId)
+            } catch { /* ignore */ }
         }
-        // Build per-club uncontested count
-        const clubUncontested = new Map<string, number>()
-        for (const { players: catPlayers } of catCount.values()) {
-            if (catPlayers.length === 1) {
-                const p = catPlayers[0]
-                const key = p.club?.id || p.club?.name || 'Unaffiliated'
-                clubUncontested.set(key, (clubUncontested.get(key) || 0) + 1)
-            }
+
+        const map = new Map<string, { total: number; sent: number }>()
+        for (const a of alerts) {
+            if (a.type !== 'UNCONTESTED' && a.type !== 'CROSS_DIVISION') continue
+            const clubKey = a.details?.clubId || 'Unaffiliated'
+            const cur     = map.get(clubKey) || { total: 0, sent: 0 }
+            cur.total++
+            if (sentPlayerIds.has(a.details?.playerId)) cur.sent++
+            map.set(clubKey, cur)
         }
-        return clubUncontested
-    }, [players])
+        return map
+    }, [alertData])
 
     const clubStats = useMemo(() => {
         if (stats?.clubs) return stats.clubs
@@ -356,12 +375,14 @@ export default function TournamentOverview({
                                 </tr>
                             ) : (
                                 clubStats.map((club, i) => {
-                                    const sharePercent    = totalPlayersCount > 0 ? (club.count / totalPlayersCount) * 100 : 0
-                                    const isExpanded      = viewingClub === club.id
-                                    const isLoadingThis   = loadingView === club.id
-                                    const rosterPlayers   = club.id ? (rosterCache[club.id] ?? null) : null
-                                    const clubKey         = club.id || club.name
-                                    const uncontestedCount = uncontestedByClub.get(clubKey) || 0
+                                    const sharePercent     = totalPlayersCount > 0 ? (club.count / totalPlayersCount) * 100 : 0
+                                    const isExpanded       = viewingClub === club.id
+                                    const isLoadingThis    = loadingView === club.id
+                                    const rosterPlayers    = club.id ? (rosterCache[club.id] ?? null) : null
+                                    const clubKey          = club.id || club.name
+                                    const uncontestedData  = uncontestedByClub.get(clubKey)
+                                    const uncontestedCount = uncontestedData?.total || 0
+                                    const sentCount        = uncontestedData?.sent  || 0
 
                                     // Group by category for the inline view
                                     const groupedRoster = rosterPlayers
@@ -420,6 +441,11 @@ export default function TournamentOverview({
                                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-700 border border-amber-200">
                                                             <ShieldAlert size={9} />
                                                             {uncontestedCount}
+                                                            {sentCount > 0 && (
+                                                                <span className="ml-1 text-[9px] font-bold text-amber-500">
+                                                                    ({sentCount} sent)
+                                                                </span>
+                                                            )}
                                                         </span>
                                                     ) : (
                                                         <span className="text-gray-200 text-sm font-bold">—</span>
@@ -508,14 +534,15 @@ export default function TournamentOverview({
                                                                                 <table className="w-full text-left min-w-[560px]">
                                                                                     <thead>
                                                                                         <tr className="bg-white border-b border-gray-100">
-                                                                                            {['#','Name','Birthday','Age','Gender','Weight','Height','Belt','Status'].map(h => (
+                                                                                            {['#','Name','Birthday','Age','Gender','Weight','Height','Belt','Status',''].map(h => (
                                                                                                 <th key={h} className="px-3 py-2 text-[9px] font-black text-gray-400 uppercase tracking-widest">{h}</th>
                                                                                             ))}
                                                                                         </tr>
                                                                                     </thead>
                                                                                     <tbody>
                                                                                         {catPlayers.map((p, pi) => (
-                                                                                            <tr key={pi} className={`border-t border-gray-50 ${pi % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'}`}>
+                                                                                            <React.Fragment key={pi}>
+                                                                                            <tr className={`border-t border-gray-50 ${pi % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'}`}>
                                                                                                 <td className="px-3 py-2 text-[10px] text-gray-300 font-bold">{pi + 1}</td>
                                                                                                 <td className="px-3 py-2 text-xs font-bold text-gray-900">{p.name}</td>
                                                                                                 <td className="px-3 py-2 text-[11px] text-gray-500">
@@ -535,7 +562,86 @@ export default function TournamentOverview({
                                                                                                         {p.registrationStatus.charAt(0) + p.registrationStatus.slice(1).toLowerCase()}
                                                                                                     </span>
                                                                                                 </td>
+                                                                                                <td className="px-3 py-2">
+                                                                                                    <button
+                                                                                                        onClick={() => {
+                                                                                                            setMovingPlayer(movingPlayer === p.id ? null : p.id)
+                                                                                                            setMoveSearch('')
+                                                                                                        }}
+                                                                                                        title="Change division"
+                                                                                                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black transition-colors ${
+                                                                                                            movingPlayer === p.id
+                                                                                                                ? 'bg-indigo-600 text-white'
+                                                                                                                : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+                                                                                                        }`}
+                                                                                                    >
+                                                                                                        <ArrowLeftRight size={9} />
+                                                                                                        Move
+                                                                                                    </button>
+                                                                                                </td>
                                                                                             </tr>
+                                                                                            {/* Inline move picker */}
+                                                                                            {movingPlayer === p.id && (() => {
+                                                                                                const availableCats = tournament.categories
+                                                                                                    .filter(c => (c as any).type === type && c.id !== p.categoryId)
+                                                                                                    .filter(c => c.name.toLowerCase().includes(moveSearch.toLowerCase()))
+                                                                                                    .sort((a, b) => a.name.localeCompare(b.name))
+                                                                                                return (
+                                                                                                    <tr className="border-t border-indigo-100 bg-indigo-50/40">
+                                                                                                        <td colSpan={10} className="px-4 py-3">
+                                                                                                            <div className="flex items-center gap-2 mb-2">
+                                                                                                                <ArrowLeftRight size={11} className="text-indigo-500 flex-shrink-0" />
+                                                                                                                <span className="text-[10px] font-black text-indigo-700 uppercase tracking-wide">Move {p.name} to:</span>
+                                                                                                                <button onClick={() => setMovingPlayer(null)} className="ml-auto text-gray-400 hover:text-gray-600"><X size={12} /></button>
+                                                                                                            </div>
+                                                                                                            <input
+                                                                                                                type="text"
+                                                                                                                placeholder="Search category…"
+                                                                                                                value={moveSearch}
+                                                                                                                onChange={e => setMoveSearch(e.target.value)}
+                                                                                                                className="w-full mb-2 px-3 py-1.5 text-xs border border-indigo-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                                                                                                                autoFocus
+                                                                                                            />
+                                                                                                            <div className="max-h-48 overflow-y-auto space-y-0.5 rounded-lg border border-indigo-100 bg-white">
+                                                                                                                {availableCats.length === 0 ? (
+                                                                                                                    <p className="text-xs text-gray-400 text-center py-4">No categories found.</p>
+                                                                                                                ) : availableCats.map(cat => (
+                                                                                                                    <button
+                                                                                                                        key={cat.id}
+                                                                                                                        disabled={movingLoading}
+                                                                                                                        onClick={async () => {
+                                                                                                                            setMovingLoading(true)
+                                                                                                                            try {
+                                                                                                                                const result = await movePlayerToCategory(p.id, cat.id, tournament.id)
+                                                                                                                                if ('error' in result) {
+                                                                                                                                    toast.error(result.error)
+                                                                                                                                } else {
+                                                                                                                                    toast.success(`${p.name} moved to ${cat.name}`)
+                                                                                                                                    setMovingPlayer(null)
+                                                                                                                                    // Refresh roster cache for this club
+                                                                                                                                    if (club.id) {
+                                                                                                                                        setLoadingView(club.id)
+                                                                                                                                        const data = await getClubRosterForTournament(tournament.id, club.id)
+                                                                                                                                        setRosterCache(prev => ({ ...prev, [club.id!]: data.players }))
+                                                                                                                                        setLoadingView(null)
+                                                                                                                                    }
+                                                                                                                                }
+                                                                                                                            } finally {
+                                                                                                                                setMovingLoading(false)
+                                                                                                                            }
+                                                                                                                        }}
+                                                                                                                        className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-indigo-50 flex items-center justify-between group disabled:opacity-50"
+                                                                                                                    >
+                                                                                                                        <span>{cat.name}</span>
+                                                                                                                        <Check size={11} className="text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                                                                                    </button>
+                                                                                                                ))}
+                                                                                                            </div>
+                                                                                                        </td>
+                                                                                                    </tr>
+                                                                                                )
+                                                                                            })()}
+                                                                                            </React.Fragment>
                                                                                         ))}
                                                                                     </tbody>
                                                                                 </table>

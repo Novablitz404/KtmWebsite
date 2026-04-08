@@ -2329,6 +2329,8 @@ export async function fixAuditIssues(
 // CLUB ROSTER FOR TOURNAMENT PDF
 // ─────────────────────────────────────────────────────────────────────────────
 export type ClubRosterPlayer = {
+    id: string
+    categoryId: string
     name: string
     birthDate: string | null   // ISO date string
     age: number | null
@@ -2378,6 +2380,8 @@ export async function getClubRosterForTournament(
         const belt      = p.user?.belt   ?? p.belt   ?? null
 
         return {
+            id: p.id,
+            categoryId: p.categoryId ?? '',
             name: p.name,
             birthDate: birthDate ? birthDate.toISOString().slice(0, 10) : null,
             age,
@@ -2396,6 +2400,41 @@ export async function getClubRosterForTournament(
         tournamentName: tournament?.name ?? 'Tournament',
         players: roster,
     }
+}
+
+export async function movePlayerToCategory(
+    playerId: string,
+    targetCategoryId: string,
+    tournamentId: string
+) {
+    const dbUser = await getAuthUser()
+    if (!dbUser) return { error: 'Unauthorized' }
+
+    // Verify the player belongs to this tournament
+    const player = await prisma.player.findUnique({
+        where: { id: playerId },
+        include: { category: { select: { tournamentId: true } } }
+    })
+    if (!player || player.category?.tournamentId !== tournamentId) {
+        return { error: 'Player not found in this tournament' }
+    }
+
+    // Verify the target category belongs to this tournament
+    const target = await prisma.category.findUnique({
+        where: { id: targetCategoryId },
+        select: { tournamentId: true, name: true }
+    })
+    if (!target || target.tournamentId !== tournamentId) {
+        return { error: 'Target category not found in this tournament' }
+    }
+
+    await prisma.player.update({
+        where: { id: playerId },
+        data: { categoryId: targetCategoryId }
+    })
+
+    revalidatePath(`/tournament/${tournamentId}`)
+    return { success: true, targetCategoryName: target.name }
 }
 
 export async function getTournamentStats(tournamentId: string) {
