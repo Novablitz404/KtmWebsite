@@ -3885,9 +3885,13 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
                         const siblings = await prisma.category.findMany({
                             where: {
                                 tournamentId: player.category.tournamentId,
-                                gender: player.category.gender,
-                                minAge: player.category.minAge,
-                                belt: player.category.belt
+                                type:         player.category.type,
+                                subtype:      player.category.subtype,
+                                gender:       player.category.gender,
+                                belt:         player.category.belt,
+                                skillLevel:   player.category.skillLevel,
+                                minAge:       player.category.minAge,
+                                maxAge:       player.category.maxAge,
                             },
                             orderBy: { minWeight: 'asc' }
                         })
@@ -3900,7 +3904,7 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
                                 data: { categoryId: target.id }
                             })
                         } else {
-                            return { error: 'No heavier category found' }
+                            return { error: 'No heavier category found in the same division' }
                         }
                     }
                 }
