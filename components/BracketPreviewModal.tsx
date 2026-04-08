@@ -139,6 +139,13 @@ function getCompetitorCount(playerCount: number, subtype?: string | null): numbe
     return playerCount
 }
 
+// Each team member gets a medal: PAIR = 2 medals per placement, TEAM = 3
+function getMedalMultiplier(subtype?: string | null): number {
+    if (subtype === 'PAIR') return 2
+    if (subtype === 'TEAM') return 3
+    return 1
+}
+
 // ─── Extract seed order from R1 specs ─────────────────────────────────────────
 // Returns the player IDs in the order they appear in Round 1 matches
 function extractSeedOrder(specs: PreviewMatch[]): string[] {
@@ -326,11 +333,13 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
                                             const cc = getCompetitorCount(c.playerCount, c.subtype)
                                             return disciplineType === 'POOMSAE' ? cc >= 1 : cc >= 2
                                         })
-                                        const totalGold = cats.length
-                                        const totalSilver = cats.filter(c => getCompetitorCount(c.playerCount, c.subtype) >= 2).length
+                                        const totalGold = cats.reduce((sum, c) => sum + getMedalMultiplier(c.subtype), 0)
+                                        const totalSilver = cats.filter(c => getCompetitorCount(c.playerCount, c.subtype) >= 2)
+                                            .reduce((sum, c) => sum + getMedalMultiplier(c.subtype), 0)
                                         const totalBronze = cats.reduce((sum, c) => {
                                             const cc = getCompetitorCount(c.playerCount, c.subtype)
-                                            return sum + (cc > 3 ? 2 : cc === 3 ? 1 : 0)
+                                            const m = getMedalMultiplier(c.subtype)
+                                            return sum + (cc > 3 ? 2 * m : cc === 3 ? 1 * m : 0)
                                         }, 0)
                                         return (
                                             <span className="inline-flex items-center gap-2 text-[11px] font-black px-2.5 py-1 rounded-full"
@@ -540,14 +549,15 @@ function CategoryCard({
                         </span>
                         {(() => {
                             const cc = getCompetitorCount(cat.playerCount, cat.subtype)
+                            const m = getMedalMultiplier(cat.subtype)
                             const showMedals = isPoomsae ? cc >= 1 : cc >= 2
                             if (!showMedals) return null
                             return (
                                 <span className="inline-flex items-center gap-1.5 text-[10px] font-black px-2 py-0.5 rounded-md"
                                     style={{ background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)' }}>
-                                    <span style={{ color: '#fbbf24' }}>🥇1</span>
-                                    {cc >= 2 && <span style={{ color: '#94a3b8' }}>🥈1</span>}
-                                    {cc >= 3 && <span style={{ color: '#cd7f32' }}>🥉{cc > 3 ? 2 : 1}</span>}
+                                    <span style={{ color: '#fbbf24' }}>🥇{1 * m}</span>
+                                    {cc >= 2 && <span style={{ color: '#94a3b8' }}>🥈{1 * m}</span>}
+                                    {cc >= 3 && <span style={{ color: '#cd7f32' }}>🥉{(cc > 3 ? 2 : 1) * m}</span>}
                                 </span>
                             )
                         })()}
