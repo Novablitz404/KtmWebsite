@@ -3,12 +3,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
     X, Search, Loader2, Eye, RefreshCw, ChevronDown,
-    ArrowRightLeft, Users, Shield, Shuffle
+    ArrowRightLeft, Shuffle, Trophy, Users, Zap, Scale, Ruler, Shield
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { previewAllBrackets, previewCategoryBracket, movePlayerToCategory } from '@/app/actions'
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface PreviewPlayer {
     id: string
@@ -16,6 +16,11 @@ interface PreviewPlayer {
     clubId: string | null
     clubName: string | null
     clubLogoUrl: string | null
+    belt: string | null
+    height: number | null
+    weight: number | null
+    division: string | null
+    birthDate: string | null
 }
 
 interface PreviewMatch {
@@ -52,7 +57,22 @@ interface MovePicker {
     sourceCategoryId: string
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function calcAge(birthDate: string | null): number | null {
+    if (!birthDate) return null
+    const today = new Date()
+    const birth = new Date(birthDate)
+    let age = today.getFullYear() - birth.getFullYear()
+    const m = today.getMonth() - birth.getMonth()
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--
+    return age
+}
+
+function isHeightBased(categoryName: string): boolean {
+    const n = categoryName.toLowerCase()
+    return n.includes('toddler') || n.includes('grade school') || n.includes('supertoddler')
+}
 
 function getRoundLabel(round: number, maxRound: number): string {
     if (maxRound === 1) return 'Final'
@@ -60,6 +80,35 @@ function getRoundLabel(round: number, maxRound: number): string {
     if (round === maxRound - 1) return 'Semifinal'
     if (round === maxRound - 2) return 'Quarterfinal'
     return `Round ${round}`
+}
+
+function getRoundStyle(round: number, maxRound: number) {
+    if (round === maxRound) return { bg: 'bg-gradient-to-r from-amber-500 to-yellow-400', text: 'text-amber-900', border: 'border-amber-300' }
+    if (round === maxRound - 1) return { bg: 'bg-gradient-to-r from-orange-500 to-orange-400', text: 'text-white', border: 'border-orange-300' }
+    if (round === maxRound - 2) return { bg: 'bg-gradient-to-r from-blue-600 to-blue-500', text: 'text-white', border: 'border-blue-400' }
+    return { bg: 'bg-gradient-to-r from-slate-600 to-slate-500', text: 'text-white', border: 'border-slate-400' }
+}
+
+function getSkillColor(skillLevel: string | null) {
+    const s = (skillLevel || '').toLowerCase()
+    if (s === 'advance' || s === 'advanced') return { border: 'border-l-red-500', badge: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' }
+    if (s === 'intermediate') return { border: 'border-l-blue-500', badge: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' }
+    return { border: 'border-l-emerald-500', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' }
+}
+
+function getBeltColor(belt: string | null): string {
+    const b = (belt || '').toLowerCase()
+    if (b.includes('black'))  return 'bg-gray-900 text-white'
+    if (b.includes('red'))    return 'bg-red-600 text-white'
+    if (b.includes('brown'))  return 'bg-amber-800 text-white'
+    if (b.includes('maroon')) return 'bg-rose-800 text-white'
+    if (b.includes('blue'))   return 'bg-blue-600 text-white'
+    if (b.includes('green'))  return 'bg-green-600 text-white'
+    if (b.includes('purple')) return 'bg-purple-600 text-white'
+    if (b.includes('orange')) return 'bg-orange-500 text-white'
+    if (b.includes('yellow')) return 'bg-yellow-400 text-yellow-900'
+    if (b.includes('white'))  return 'bg-white text-gray-700 border border-gray-200'
+    return 'bg-gray-200 text-gray-700'
 }
 
 // ─── Main Modal ───────────────────────────────────────────────────────────────
@@ -72,14 +121,14 @@ interface Props {
 }
 
 export default function BracketPreviewModal({ tournamentId, disciplineType, open, onClose }: Props) {
-    const [data, setData]             = useState<PreviewCategoryData[]>([])
-    const [localSpecs, setLocalSpecs] = useState<Map<string, PreviewMatch[]>>(new Map())
-    const [loading, setLoading]       = useState(false)
+    const [data, setData]               = useState<PreviewCategoryData[]>([])
+    const [localSpecs, setLocalSpecs]   = useState<Map<string, PreviewMatch[]>>(new Map())
+    const [loading, setLoading]         = useState(false)
     const [reshuffling, setReshuffling] = useState<string | null>(null)
-    const [selected, setSelected]     = useState<SelectedSlot | null>(null)
-    const [movePicker, setMovePicker] = useState<MovePicker | null>(null)
+    const [selected, setSelected]       = useState<SelectedSlot | null>(null)
+    const [movePicker, setMovePicker]   = useState<MovePicker | null>(null)
     const [movingPlayer, setMovingPlayer] = useState(false)
-    const [expanded, setExpanded]     = useState<Set<string>>(new Set())
+    const [expanded, setExpanded]       = useState<Set<string>>(new Set())
     const [searchQuery, setSearchQuery] = useState('')
 
     const loadPreview = useCallback(async () => {
@@ -103,22 +152,14 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
         if (open) loadPreview()
     }, [open, loadPreview])
 
-    // ── Swap players within the same category ────────────────────────────────
     function handlePlayerClick(catId: string, matchId: number, slot: 'player1' | 'player2', player: { id: string; name: string }) {
-        // Deselect same slot
         if (selected?.catId === catId && selected.matchId === matchId && selected.slot === slot) {
-            setSelected(null)
-            return
+            setSelected(null); return
         }
-        // No selection yet → select this player
-        if (!selected) {
-            setSelected({ catId, matchId, slot, player })
-            return
-        }
-        // Different category → not swappable here
+        if (!selected) { setSelected({ catId, matchId, slot, player }); return }
         if (selected.catId !== catId) {
             setSelected({ catId, matchId, slot, player })
-            toast.info('To transfer between categories, use the ⇆ Move button instead.')
+            toast.info('Use the ⇆ Move button to transfer between categories.')
             return
         }
         // Swap within same category
@@ -127,52 +168,37 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
             const matchA = specs.find(s => s.id === selected!.matchId)
             const matchB = specs.find(s => s.id === matchId)
             if (!matchA || !matchB) return prev
-
-            const playerA = selected!.slot === 'player1' ? matchA.player1 : matchA.player2
-            const playerB = slot === 'player1' ? matchB.player1 : matchB.player2
-
-            if (selected!.slot === 'player1') matchA.player1 = playerB
-            else matchA.player2 = playerB
-            if (slot === 'player1') matchB.player1 = playerA
-            else matchB.player2 = playerA
-
+            const pA = selected!.slot === 'player1' ? matchA.player1 : matchA.player2
+            const pB = slot === 'player1' ? matchB.player1 : matchB.player2
+            if (selected!.slot === 'player1') matchA.player1 = pB
+            else matchA.player2 = pB
+            if (slot === 'player1') matchB.player1 = pA
+            else matchB.player2 = pA
             return new Map(prev).set(catId, specs)
         })
         setSelected(null)
     }
 
-    // ── Reshuffle one category bracket ───────────────────────────────────────
     async function handleReshuffle(categoryId: string) {
         setReshuffling(categoryId)
         try {
             const result = await previewCategoryBracket(categoryId)
-            if (result) {
-                setLocalSpecs(prev => new Map(prev).set(categoryId, result.specs))
-                setSelected(null)
-            }
-        } catch {
-            toast.error('Failed to reshuffle')
-        } finally {
-            setReshuffling(null)
-        }
+            if (result) { setLocalSpecs(prev => new Map(prev).set(categoryId, result.specs)); setSelected(null) }
+        } catch { toast.error('Failed to reshuffle') }
+        finally { setReshuffling(null) }
     }
 
-    // ── Move player to another category (saves to DB) ────────────────────────
     async function handleMove(targetCategoryId: string) {
         if (!movePicker) return
         setMovingPlayer(true)
         try {
             const result = await movePlayerToCategory(movePicker.playerId, targetCategoryId, tournamentId)
             if (result?.error) { toast.error(result.error); return }
-            toast.success(`${movePicker.playerName} moved`)
-            setMovePicker(null)
-            setSelected(null)
+            toast.success(`${movePicker.playerName} moved successfully`)
+            setMovePicker(null); setSelected(null)
             await loadPreview()
-        } catch {
-            toast.error('Move failed')
-        } finally {
-            setMovingPlayer(false)
-        }
+        } catch { toast.error('Move failed') }
+        finally { setMovingPlayer(false) }
     }
 
     function toggleExpanded(catId: string) {
@@ -186,126 +212,132 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
 
     if (!open) return null
 
-    const filteredData = searchQuery.trim()
+    const filtered = searchQuery.trim()
         ? data.filter(c => c.categoryName.toLowerCase().includes(searchQuery.toLowerCase()))
         : data
 
+    const disciplineLabels: Record<string, string> = { KYORUGI: 'Sparring', POOMSAE: 'Forms', KYUKPA: 'Board Breaking' }
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
             {/* Backdrop */}
-            <div
-                className="absolute inset-0 bg-black/75 backdrop-blur-sm"
-                onClick={onClose}
-            />
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={onClose} />
 
-            {/* Modal box */}
-            <div className="relative z-10 w-full max-w-6xl mx-4 h-[92vh] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+            {/* Modal */}
+            <div className="relative z-10 w-full max-w-7xl mx-0 sm:mx-4 h-[96vh] sm:h-[92vh] flex flex-col rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl"
+                style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' }}>
 
-                {/* ── Header ──────────────────────────────────────────── */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-slate-50 to-white flex-shrink-0">
-                    <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
-                            <Eye size={16} className="text-white" />
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h2 className="text-base font-black text-gray-900">Bracket Preview</h2>
-                                <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full">
-                                    {disciplineType}
-                                </span>
-                                <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                                    {data.length} categories
-                                </span>
+                {/* ── DARK HEADER ────────────────────────────────────────── */}
+                <div className="flex-shrink-0 px-6 py-5 border-b border-white/10">
+                    <div className="flex items-center justify-between gap-4">
+                        {/* Left: Title */}
+                        <div className="flex items-center gap-4">
+                            <div className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0"
+                                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+                                <Eye size={18} className="text-white" />
                             </div>
-                            <p className="text-[11px] text-gray-500 mt-0.5">
-                                Preview only · Swaps within a category are visual · Use ⇆ Move to change a player's category · Click <strong>Generate All</strong> when ready
-                            </p>
+                            <div>
+                                <div className="flex items-center gap-2.5 flex-wrap">
+                                    <h2 className="text-lg font-black text-white tracking-tight">Bracket Preview</h2>
+                                    <span className="text-[11px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full"
+                                        style={{ background: 'rgba(99,102,241,0.25)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.3)' }}>
+                                        {disciplineType} · {disciplineLabels[disciplineType]}
+                                    </span>
+                                    <span className="text-[11px] font-bold px-2 py-1 rounded-full"
+                                        style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' }}>
+                                        {filtered.length} categories
+                                    </span>
+                                </div>
+                                <p className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                                    Click two players in the same category to swap seeds · ⇆ Move transfers between categories (saves to DB)
+                                </p>
+                            </div>
                         </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="relative">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={12} />
-                            <input
-                                type="text"
-                                placeholder="Search category…"
-                                value={searchQuery}
-                                onChange={e => setSearchQuery(e.target.value)}
-                                className="pl-7 pr-3 py-2 text-xs font-medium bg-gray-100 rounded-xl w-44 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 border-0"
-                            />
+
+                        {/* Right: Controls */}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            <div className="relative hidden sm:block">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2" size={12} style={{ color: 'rgba(255,255,255,0.35)' }} />
+                                <input
+                                    type="text"
+                                    placeholder="Search category…"
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                    className="pl-8 pr-3 py-2 text-xs font-medium rounded-xl w-44 border-0 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                                    style={{ background: 'rgba(255,255,255,0.08)', color: 'white' }}
+                                />
+                            </div>
+                            <button onClick={loadPreview} disabled={loading} title="Reload"
+                                className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105"
+                                style={{ background: 'rgba(255,255,255,0.08)' }}>
+                                <RefreshCw size={13} className={loading ? 'animate-spin text-indigo-400' : 'text-white/50'} />
+                            </button>
+                            <button onClick={onClose}
+                                className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105"
+                                style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                                <X size={14} className="text-red-400" />
+                            </button>
                         </div>
-                        <button
-                            onClick={loadPreview}
-                            disabled={loading}
-                            className="w-8 h-8 rounded-xl bg-gray-100 hover:bg-indigo-50 hover:text-indigo-600 flex items-center justify-center transition-colors"
-                            title="Reload preview"
-                        >
-                            <RefreshCw size={13} className={loading ? 'animate-spin text-indigo-500' : 'text-gray-500'} />
-                        </button>
-                        <button
-                            onClick={onClose}
-                            className="w-8 h-8 rounded-xl bg-gray-100 hover:bg-red-50 hover:text-red-600 flex items-center justify-center transition-colors"
-                        >
-                            <X size={14} />
-                        </button>
                     </div>
                 </div>
 
-                {/* ── Content ─────────────────────────────────────────── */}
-                {loading ? (
-                    <div className="flex-1 flex items-center justify-center">
-                        <div className="text-center">
-                            <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center mx-auto mb-3">
-                                <Loader2 size={24} className="animate-spin text-indigo-500" />
+                {/* ── CONTENT ────────────────────────────────────────────── */}
+                <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3"
+                    style={{ background: 'linear-gradient(180deg, #111827 0%, #0f172a 100%)' }}>
+
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center h-full">
+                            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
+                                style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.2)' }}>
+                                <Loader2 size={26} className="animate-spin text-indigo-400" />
                             </div>
-                            <p className="text-sm font-semibold text-gray-600">Computing brackets…</p>
-                            <p className="text-xs text-gray-400 mt-1">Running the draw for all {disciplineType} categories</p>
+                            <p className="text-sm font-bold text-white/70">Computing brackets…</p>
+                            <p className="text-xs text-white/30 mt-1">Running the draw for all {disciplineType} categories</p>
                         </div>
-                    </div>
-                ) : (
-                    <div className="flex-1 overflow-y-auto p-5 space-y-2">
-                        {filteredData.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-20 text-center">
-                                <p className="text-sm text-gray-400">No categories found.</p>
+                    ) : filtered.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full">
+                            <p className="text-sm text-white/40">No matching categories found.</p>
+                        </div>
+                    ) : filtered.map(cat => (
+                        <CategoryCard
+                            key={cat.categoryId}
+                            cat={cat}
+                            localSpecs={localSpecs.get(cat.categoryId) || cat.specs}
+                            isExpanded={expanded.has(cat.categoryId)}
+                            onToggle={() => toggleExpanded(cat.categoryId)}
+                            selected={selected}
+                            onPlayerClick={handlePlayerClick}
+                            isReshuffling={reshuffling === cat.categoryId}
+                            onReshuffle={() => handleReshuffle(cat.categoryId)}
+                            movePicker={movePicker?.sourceCategoryId === cat.categoryId ? movePicker : null}
+                            onMoveRequest={(pId, pName) => setMovePicker({ playerId: pId, playerName: pName, sourceCategoryId: cat.categoryId })}
+                            onMoveTo={handleMove}
+                            onMoveCancel={() => setMovePicker(null)}
+                            movingPlayer={movingPlayer}
+                            allCategories={data}
+                        />
+                    ))}
+                </div>
+
+                {/* ── FOOTER ─────────────────────────────────────────────── */}
+                <div className="flex-shrink-0 px-6 py-3 border-t flex items-center justify-between"
+                    style={{ borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(15,23,42,0.8)' }}>
+                    <div className="flex items-center gap-4 flex-wrap">
+                        {[
+                            { color: '#6366f1', label: 'Select + click another to swap' },
+                            { color: '#a855f7', label: '⇆ Move saves to DB' },
+                            { color: '#f59e0b', label: 'Gold = Final match' },
+                        ].map(item => (
+                            <div key={item.label} className="flex items-center gap-1.5">
+                                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: item.color }} />
+                                <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.35)' }}>{item.label}</span>
                             </div>
-                        ) : filteredData.map(cat => (
-                            <CategoryPreviewCard
-                                key={cat.categoryId}
-                                cat={cat}
-                                localSpecs={localSpecs.get(cat.categoryId) || cat.specs}
-                                isExpanded={expanded.has(cat.categoryId)}
-                                onToggle={() => toggleExpanded(cat.categoryId)}
-                                selected={selected}
-                                onPlayerClick={handlePlayerClick}
-                                isReshuffling={reshuffling === cat.categoryId}
-                                onReshuffle={() => handleReshuffle(cat.categoryId)}
-                                movePicker={movePicker?.sourceCategoryId === cat.categoryId ? movePicker : null}
-                                onMoveRequest={(playerId, playerName) => setMovePicker({ playerId, playerName, sourceCategoryId: cat.categoryId })}
-                                onMoveTo={handleMove}
-                                onMoveCancel={() => setMovePicker(null)}
-                                movingPlayer={movingPlayer}
-                                allCategories={data}
-                            />
                         ))}
                     </div>
-                )}
-
-                {/* ── Footer ──────────────────────────────────────────── */}
-                <div className="flex-shrink-0 border-t border-gray-100 px-6 py-3 bg-gray-50/80 flex items-center justify-between">
-                    <div className="flex items-center gap-4 text-[11px] text-gray-500">
-                        <span className="flex items-center gap-1.5">
-                            <span className="w-3 h-3 rounded-full bg-indigo-400 inline-block" />
-                            Click two players in the same category to swap seeds (visual only)
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                            <span className="w-3 h-3 rounded-full bg-purple-400 inline-block" />
-                            ⇆ Move saves to database and reloads preview
-                        </span>
-                    </div>
-                    <button
-                        onClick={onClose}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-gray-600 hover:text-gray-900 hover:bg-gray-200 transition-colors"
-                    >
-                        <X size={12} /> Close Preview
+                    <button onClick={onClose}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors"
+                        style={{ color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.06)' }}>
+                        <X size={11} /> Close
                     </button>
                 </div>
             </div>
@@ -315,7 +347,7 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
 
 // ─── Category Card ────────────────────────────────────────────────────────────
 
-function CategoryPreviewCard({
+function CategoryCard({
     cat, localSpecs, isExpanded, onToggle, selected, onPlayerClick,
     isReshuffling, onReshuffle, movePicker, onMoveRequest, onMoveTo,
     onMoveCancel, movingPlayer, allCategories
@@ -329,157 +361,177 @@ function CategoryPreviewCard({
     isReshuffling: boolean
     onReshuffle: () => void
     movePicker: MovePicker | null
-    onMoveRequest: (playerId: string, playerName: string) => void
-    onMoveTo: (targetCategoryId: string) => void
+    onMoveRequest: (pId: string, pName: string) => void
+    onMoveTo: (targetId: string) => void
     onMoveCancel: () => void
     movingPlayer: boolean
     allCategories: PreviewCategoryData[]
 }) {
-    const isR1Swappable = cat.type === 'KYORUGI' && cat.playerCount >= 2
+    const skill = getSkillColor(cat.skillLevel)
+    const isSwappable = cat.type === 'KYORUGI' && cat.playerCount >= 2
     const maxRound = localSpecs.length > 0 ? Math.max(...localSpecs.map(s => s.round)) : 0
     const rounds = Array.from(new Set(localSpecs.map(s => s.round))).sort((a, b) => a - b)
-
     const hasSelection = selected?.catId === cat.categoryId
+    const heightBased = isHeightBased(cat.categoryName)
 
-    const otherCategories = allCategories.filter(c =>
-        c.categoryId !== cat.categoryId && c.type === cat.type
-    )
+    const otherCategories = allCategories.filter(c => c.categoryId !== cat.categoryId && c.type === cat.type)
+
+    // Build player lookup for rich info display
+    const playerMap = new Map<string, PreviewPlayer>()
+    for (const p of cat.players) playerMap.set(p.id, p)
 
     return (
-        <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all duration-200 ${
-            hasSelection ? 'border-indigo-300 shadow-indigo-100' : 'border-gray-200 hover:border-gray-300'
-        }`}>
-            {/* Card header */}
-            <div
-                className="flex items-center gap-3 px-4 py-3 cursor-pointer select-none hover:bg-gray-50/60 transition-colors"
-                onClick={onToggle}
-            >
+        <div className={`rounded-2xl border-l-4 overflow-hidden transition-all duration-200 ${skill.border}`}
+            style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderLeftWidth: '4px',
+                borderLeftColor: skill.border.replace('border-l-', '').replace('-500', ''),
+            }}>
+
+            {/* Card Header */}
+            <div className="flex items-center gap-3 px-4 py-3.5 cursor-pointer select-none"
+                style={{ background: isExpanded ? 'rgba(255,255,255,0.04)' : 'transparent' }}
+                onClick={onToggle}>
+
+                {/* Chevron */}
                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all ${
-                    isExpanded ? 'bg-indigo-50 border border-indigo-200' : 'bg-gray-100 border border-gray-200'
-                }`}>
-                    <ChevronDown
-                        size={13}
-                        className={`transition-transform duration-200 ${isExpanded ? 'rotate-180 text-indigo-500' : 'text-gray-400'}`}
-                    />
+                    isExpanded ? 'rotate-180' : ''}`}
+                    style={{ background: 'rgba(255,255,255,0.08)' }}>
+                    <ChevronDown size={13} className="text-white/50" />
                 </div>
 
+                {/* Title */}
                 <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-bold text-gray-900 truncate">{cat.categoryName}</h3>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md">
-                            <Users size={8} className="inline mr-1" />{cat.playerCount} players
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-sm font-black text-white/90">{cat.categoryName}</h3>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md border ${skill.badge}`}>
+                            <div className={`w-1.5 h-1.5 rounded-full ${skill.dot}`} />
+                            {cat.skillLevel || 'Novice'}
                         </span>
-                        {cat.skillLevel && (
-                            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
-                                {cat.skillLevel}
-                            </span>
-                        )}
                         {cat.gender && (
-                            <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md"
+                                style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' }}>
                                 {cat.gender}
                             </span>
                         )}
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1"
+                            style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' }}>
+                            <Users size={8} /> {cat.playerCount} athletes
+                        </span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1"
+                            style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' }}>
+                            {heightBased ? <Ruler size={8} /> : <Scale size={8} />}
+                            {heightBased ? 'Height-based' : 'Weight-based'}
+                        </span>
                         {cat.playerCount < 2 && (
-                            <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md"
+                                style={{ background: 'rgba(245,158,11,0.15)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.3)' }}>
                                 ⚠ Needs 2+ players
                             </span>
                         )}
                     </div>
                 </div>
 
+                {/* Right stats */}
                 <div className="flex items-center gap-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                    {isR1Swappable && (
-                        <button
-                            onClick={onReshuffle}
-                            disabled={isReshuffling}
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all disabled:opacity-50"
-                            title="Randomise this category's draw again"
-                        >
-                            {isReshuffling
-                                ? <Loader2 size={10} className="animate-spin" />
-                                : <Shuffle size={10} />
-                            }
+                    {isSwappable && (
+                        <button onClick={onReshuffle} disabled={isReshuffling}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black transition-all hover:scale-105 disabled:opacity-40"
+                            style={{ background: 'rgba(99,102,241,0.2)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.25)' }}>
+                            {isReshuffling ? <Loader2 size={10} className="animate-spin" /> : <Shuffle size={10} />}
                             Reshuffle
                         </button>
                     )}
                     <div className="text-right">
-                        <div className="text-lg font-black text-gray-800 leading-none">{localSpecs.length}</div>
-                        <div className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">matches</div>
+                        <div className="text-2xl font-black text-white/80 leading-none">{localSpecs.length}</div>
+                        <div className="text-[9px] font-black uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.3)' }}>matches</div>
                     </div>
                 </div>
             </div>
 
-            {/* Expanded bracket + move picker */}
+            {/* Expanded Content */}
             {isExpanded && (
-                <div className="border-t border-gray-100 animate-in fade-in duration-150">
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
 
-                    {/* Move picker panel */}
+                    {/* Move Picker */}
                     {movePicker && (
-                        <div className="px-5 py-3 bg-purple-50 border-b border-purple-100">
+                        <div className="px-4 py-3" style={{ background: 'rgba(168,85,247,0.08)', borderBottom: '1px solid rgba(168,85,247,0.15)' }}>
                             <div className="flex items-start justify-between gap-3">
                                 <div className="flex-1">
-                                    <p className="text-xs font-black text-purple-800 flex items-center gap-1.5 mb-2">
+                                    <p className="text-xs font-black mb-2 flex items-center gap-2" style={{ color: '#c084fc' }}>
                                         <ArrowRightLeft size={12} />
-                                        Move <span className="bg-purple-200 px-1.5 py-0.5 rounded-md">{movePicker.playerName}</span> to:
+                                        Move <span className="px-2 py-0.5 rounded-md text-[11px]"
+                                            style={{ background: 'rgba(168,85,247,0.2)', color: '#e879f9' }}>
+                                            {movePicker.playerName}
+                                        </span> to:
                                     </p>
-                                    <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                                    <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
                                         {otherCategories.length === 0 ? (
-                                            <p className="text-xs text-purple-500">No other categories available.</p>
+                                            <p className="text-xs" style={{ color: 'rgba(168,85,247,0.6)' }}>No other categories available.</p>
                                         ) : otherCategories.map(target => (
-                                            <button
-                                                key={target.categoryId}
-                                                onClick={() => onMoveTo(target.categoryId)}
+                                            <button key={target.categoryId} onClick={() => onMoveTo(target.categoryId)}
                                                 disabled={movingPlayer}
-                                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-white border border-purple-200 text-purple-800 hover:bg-purple-100 hover:border-purple-400 transition-all shadow-sm disabled:opacity-50"
-                                            >
-                                                {movingPlayer
-                                                    ? <Loader2 size={10} className="animate-spin" />
-                                                    : <Shield size={9} />
-                                                }
-                                                <span className="truncate max-w-[180px]">{target.categoryName}</span>
-                                                <span className="text-purple-400 text-[10px]">({target.playerCount})</span>
+                                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all hover:scale-105 disabled:opacity-40"
+                                                style={{ background: 'rgba(168,85,247,0.15)', color: '#d946ef', border: '1px solid rgba(168,85,247,0.25)' }}>
+                                                {movingPlayer ? <Loader2 size={9} className="animate-spin" /> : <Shield size={9} />}
+                                                {target.categoryName}
+                                                <span style={{ color: 'rgba(168,85,247,0.6)' }}>({target.playerCount})</span>
                                             </button>
                                         ))}
                                     </div>
                                 </div>
-                                <button
-                                    onClick={onMoveCancel}
-                                    className="text-purple-400 hover:text-purple-700 transition-colors mt-0.5"
-                                >
+                                <button onClick={onMoveCancel} className="text-purple-400/60 hover:text-purple-300 transition-colors mt-0.5">
                                     <X size={14} />
                                 </button>
                             </div>
                         </div>
                     )}
 
-                    {/* Bracket rounds */}
+                    {/* Bracket */}
                     {localSpecs.length === 0 ? (
-                        <div className="px-5 py-6 text-center text-xs text-gray-400">
+                        <div className="py-10 text-center text-sm" style={{ color: 'rgba(255,255,255,0.25)' }}>
                             Not enough players to generate a bracket.
                         </div>
                     ) : (
-                        <div className="px-5 py-4 overflow-x-auto">
-                            <div className="flex gap-3 min-w-max pb-2">
+                        <div className="px-4 py-4 overflow-x-auto">
+                            <div className="flex gap-4 min-w-max pb-2">
                                 {rounds.map(roundNum => {
                                     const roundMatches = localSpecs.filter(s => s.round === roundNum)
+                                    const roundStyle   = getRoundStyle(roundNum, maxRound)
+                                    const label        = getRoundLabel(roundNum, maxRound)
                                     const isFirstRound = roundNum === 1
+                                    const isFinalRound = roundNum === maxRound
+
                                     return (
-                                        <div key={roundNum} className="flex flex-col gap-2 w-52 flex-shrink-0">
-                                            {/* Round label */}
-                                            <div className="text-[10px] font-black text-gray-400 uppercase tracking-wider text-center py-1 bg-gray-50 rounded-lg border border-gray-100">
-                                                {getRoundLabel(roundNum, maxRound)}
+                                        <div key={roundNum} className="flex flex-col gap-3 flex-shrink-0" style={{ minWidth: 260 }}>
+                                            {/* Round header */}
+                                            <div className={`flex items-center justify-between px-3 py-2 rounded-xl ${roundStyle.bg}`}>
+                                                <div className="flex items-center gap-2">
+                                                    {isFinalRound && <Trophy size={12} className="text-amber-900" />}
+                                                    <span className={`text-[11px] font-black uppercase tracking-wider ${roundStyle.text}`}>{label}</span>
+                                                </div>
+                                                <span className={`text-[10px] font-bold opacity-75 ${roundStyle.text}`}>
+                                                    {roundMatches.length} match{roundMatches.length !== 1 ? 'es' : ''}
+                                                </span>
                                             </div>
-                                            {/* Matches */}
+
+                                            {/* Matches in this round */}
                                             {roundMatches.map(match => (
-                                                <MatchPreviewCard
+                                                <MatchCard
                                                     key={match.id}
                                                     match={match}
                                                     catId={cat.categoryId}
                                                     isFirstRound={isFirstRound}
+                                                    isFinalRound={isFinalRound}
                                                     selected={selected}
                                                     onPlayerClick={onPlayerClick}
                                                     onMoveRequest={onMoveRequest}
                                                     hasMovePickerOpen={!!movePicker}
+                                                    playerMap={playerMap}
+                                                    heightBased={heightBased}
                                                 />
                                             ))}
                                         </div>
@@ -487,18 +539,17 @@ function CategoryPreviewCard({
                                 })}
                             </div>
 
-                            {/* Swap hint */}
-                            {isR1Swappable && !hasSelection && (
-                                <p className="text-[10px] text-gray-400 mt-2 text-center">
-                                    Click any Round 1 player to select · click another to swap seeds
+                            {/* Hint text */}
+                            {isSwappable && !hasSelection && (
+                                <p className="text-[10px] text-center mt-2" style={{ color: 'rgba(255,255,255,0.2)' }}>
+                                    Click any Round 1 player to select · click another player to swap their seed positions
                                 </p>
                             )}
                             {hasSelection && (
-                                <p className="text-[10px] text-indigo-600 font-semibold mt-2 text-center animate-pulse">
-                                    <span className="bg-indigo-100 px-2 py-0.5 rounded-md">
+                                <p className="text-[11px] text-center mt-2 font-semibold animate-pulse" style={{ color: '#818cf8' }}>
+                                    <span className="px-2 py-0.5 rounded-md" style={{ background: 'rgba(99,102,241,0.15)' }}>
                                         {selected!.player.name}
-                                    </span>{' '}
-                                    selected — click another Round 1 player to swap
+                                    </span>{' '}selected — click another Round 1 player to swap
                                 </p>
                             )}
                         </div>
@@ -509,27 +560,34 @@ function CategoryPreviewCard({
     )
 }
 
-// ─── Individual Match Card ────────────────────────────────────────────────────
+// ─── Match Card ───────────────────────────────────────────────────────────────
 
-function MatchPreviewCard({
-    match, catId, isFirstRound, selected, onPlayerClick, onMoveRequest, hasMovePickerOpen
+function MatchCard({
+    match, catId, isFirstRound, isFinalRound, selected, onPlayerClick,
+    onMoveRequest, hasMovePickerOpen, playerMap, heightBased
 }: {
     match: PreviewMatch
     catId: string
     isFirstRound: boolean
+    isFinalRound: boolean
     selected: SelectedSlot | null
     onPlayerClick: (catId: string, matchId: number, slot: 'player1' | 'player2', player: { id: string; name: string }) => void
-    onMoveRequest: (playerId: string, playerName: string) => void
+    onMoveRequest: (pId: string, pName: string) => void
     hasMovePickerOpen: boolean
+    playerMap: Map<string, PreviewPlayer>
+    heightBased: boolean
 }) {
     const isP1Selected = selected?.catId === catId && selected.matchId === match.id && selected.slot === 'player1'
     const isP2Selected = selected?.catId === catId && selected.matchId === match.id && selected.slot === 'player2'
-    const hasAnySelected = !!selected && selected.catId === catId
+    const hasCatSelected = !!selected && selected.catId === catId
 
     return (
-        <div className={`rounded-xl border overflow-hidden transition-all duration-150 ${
-            (isP1Selected || isP2Selected) ? 'border-indigo-300 shadow-md shadow-indigo-100' : 'border-gray-200'
-        }`}>
+        <div className="rounded-xl overflow-hidden"
+            style={{
+                background: isFinalRound ? 'rgba(251,191,36,0.05)' : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${isFinalRound ? 'rgba(251,191,36,0.2)' : 'rgba(255,255,255,0.07)'}`,
+                boxShadow: isFinalRound ? '0 0 20px rgba(251,191,36,0.06)' : '0 1px 6px rgba(0,0,0,0.3)',
+            }}>
             <PlayerSlot
                 player={match.player1}
                 slot="player1"
@@ -537,12 +595,15 @@ function MatchPreviewCard({
                 catId={catId}
                 isClickable={isFirstRound && !!match.player1}
                 isSelected={isP1Selected}
-                isOtherSelected={hasAnySelected && !isP1Selected}
+                isOtherSelected={hasCatSelected && !isP1Selected}
                 onPlayerClick={onPlayerClick}
                 onMoveRequest={onMoveRequest}
                 hasMovePickerOpen={hasMovePickerOpen}
+                playerInfo={match.player1 ? playerMap.get(match.player1.id) ?? null : null}
+                heightBased={heightBased}
+                isFirst={true}
             />
-            <div className="h-px bg-gray-100" />
+            <div style={{ height: 1, background: 'rgba(255,255,255,0.06)' }} />
             <PlayerSlot
                 player={match.player2}
                 slot="player2"
@@ -550,18 +611,23 @@ function MatchPreviewCard({
                 catId={catId}
                 isClickable={isFirstRound && !!match.player2}
                 isSelected={isP2Selected}
-                isOtherSelected={hasAnySelected && !isP2Selected}
+                isOtherSelected={hasCatSelected && !isP2Selected}
                 onPlayerClick={onPlayerClick}
                 onMoveRequest={onMoveRequest}
                 hasMovePickerOpen={hasMovePickerOpen}
+                playerInfo={match.player2 ? playerMap.get(match.player2.id) ?? null : null}
+                heightBased={heightBased}
+                isFirst={false}
             />
         </div>
     )
 }
 
+// ─── Player Slot ──────────────────────────────────────────────────────────────
+
 function PlayerSlot({
     player, slot, matchId, catId, isClickable, isSelected, isOtherSelected,
-    onPlayerClick, onMoveRequest, hasMovePickerOpen
+    onPlayerClick, onMoveRequest, hasMovePickerOpen, playerInfo, heightBased
 }: {
     player: { id: string; name: string } | null
     slot: 'player1' | 'player2'
@@ -571,52 +637,102 @@ function PlayerSlot({
     isSelected: boolean
     isOtherSelected: boolean
     onPlayerClick: (catId: string, matchId: number, slot: 'player1' | 'player2', player: { id: string; name: string }) => void
-    onMoveRequest: (playerId: string, playerName: string) => void
+    onMoveRequest: (pId: string, pName: string) => void
     hasMovePickerOpen: boolean
+    playerInfo: PreviewPlayer | null
+    heightBased: boolean
+    isFirst: boolean
 }) {
     if (!player) {
         return (
-            <div className="px-3 py-2 text-[11px] text-gray-300 font-medium italic">
-                Winner advances
+            <div className="px-3 py-2.5 text-[11px] italic" style={{ color: 'rgba(255,255,255,0.2)' }}>
+                ↑ Winner advances
             </div>
         )
     }
 
+    const age       = calcAge(playerInfo?.birthDate ?? null)
+    const beltClass = getBeltColor(playerInfo?.belt ?? null)
+    const metric    = heightBased
+        ? (playerInfo?.height ? `${playerInfo.height}cm` : null)
+        : (playerInfo?.weight ? `${playerInfo.weight}kg` : null)
+
     return (
-        <div className={`group flex items-center gap-2 px-3 py-2 transition-all ${
-            isSelected
-                ? 'bg-indigo-600 text-white'
-                : isOtherSelected
-                    ? 'bg-indigo-50 hover:bg-indigo-100 cursor-pointer'
-                    : isClickable
-                        ? 'hover:bg-gray-50 cursor-pointer'
-                        : ''
-        }`}>
-            {/* Initial badge */}
-            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black flex-shrink-0 ${
-                isSelected ? 'bg-white/30 text-white' : 'bg-gradient-to-br from-red-500 to-red-600 text-white'
-            }`}>
-                {player.name.charAt(0).toUpperCase()}
+        <div
+            className={`group flex items-start gap-3 px-3 py-2.5 transition-all ${isClickable ? 'cursor-pointer' : ''}`}
+            style={{
+                background: isSelected
+                    ? 'rgba(99,102,241,0.25)'
+                    : isOtherSelected
+                        ? 'rgba(99,102,241,0.06)'
+                        : 'transparent',
+                borderLeft: isSelected ? '2px solid #6366f1' : '2px solid transparent',
+            }}
+            onClick={() => isClickable && onPlayerClick(catId, matchId, slot, player)}
+        >
+            {/* Club logo / initial */}
+            <div className="flex-shrink-0 mt-0.5">
+                {playerInfo?.clubLogoUrl ? (
+                    <img src={playerInfo.clubLogoUrl} alt={playerInfo.clubName || ''}
+                        className="w-8 h-8 rounded-full object-cover border"
+                        style={{ borderColor: 'rgba(255,255,255,0.1)' }} />
+                ) : (
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black text-white"
+                        style={{ background: 'linear-gradient(135deg, #ef4444, #b91c1c)' }}>
+                        {(playerInfo?.clubName || player.name).charAt(0).toUpperCase()}
+                    </div>
+                )}
             </div>
 
-            {/* Name */}
-            <span
-                className={`text-[11px] font-semibold truncate flex-1 ${
-                    isSelected ? 'text-white' : 'text-gray-800'
-                }`}
-                onClick={() => isClickable && onPlayerClick(catId, matchId, slot, player)}
-            >
-                {player.name}
-            </span>
+            {/* Info column */}
+            <div className="flex-1 min-w-0">
+                {/* Full name — NO TRUNCATION */}
+                <div className="text-sm font-bold leading-snug text-white/90 break-words"
+                    style={{ wordBreak: 'break-word', overflowWrap: 'break-word', color: isSelected ? 'white' : undefined }}>
+                    {player.name}
+                </div>
+
+                {/* Club name */}
+                {playerInfo?.clubName && (
+                    <div className="text-[11px] font-medium mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                        {playerInfo.clubName}
+                    </div>
+                )}
+
+                {/* Tags: belt, age, metric */}
+                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                    {playerInfo?.belt && (
+                        <span className={`inline-block text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wide ${beltClass}`}>
+                            {playerInfo.belt}
+                        </span>
+                    )}
+                    {age !== null && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+                            style={{ background: 'rgba(59,130,246,0.2)', color: '#93c5fd' }}>
+                            {age}y
+                        </span>
+                    )}
+                    {metric && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-0.5"
+                            style={{
+                                background: heightBased ? 'rgba(16,185,129,0.15)' : 'rgba(234,88,12,0.15)',
+                                color:      heightBased ? '#6ee7b7' : '#fdba74',
+                            }}>
+                            {heightBased ? <Ruler size={8} /> : <Scale size={8} />}
+                            {metric}
+                        </span>
+                    )}
+                </div>
+            </div>
 
             {/* Move button */}
-            {!isSelected && !hasMovePickerOpen && (
+            {!isSelected && !hasMovePickerOpen && isClickable && (
                 <button
                     onClick={e => { e.stopPropagation(); onMoveRequest(player.id, player.name) }}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 p-0.5 rounded-md hover:bg-purple-100 text-purple-500"
-                    title={`Move ${player.name} to another category`}
-                >
-                    <ArrowRightLeft size={10} />
+                    className="opacity-0 group-hover:opacity-100 flex-shrink-0 transition-all hover:scale-110 mt-0.5 p-1 rounded-lg"
+                    style={{ background: 'rgba(168,85,247,0.2)', color: '#c084fc' }}
+                    title={`Move ${player.name} to another category`}>
+                    <ArrowRightLeft size={11} />
                 </button>
             )}
         </div>

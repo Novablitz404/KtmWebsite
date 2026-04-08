@@ -4637,7 +4637,14 @@ export async function rejectAthleteCardPayment(userId: string) {
 export async function previewAllBrackets(tournamentId: string, type: string) {
     const categories = await prisma.category.findMany({
         where:   { tournamentId, type, players: { some: {} } },
-        include: { players: { include: { club: { select: { id: true, name: true, logoUrl: true } } } } },
+        include: {
+            players: {
+                include: {
+                    club: { select: { id: true, name: true, logoUrl: true } },
+                    user: { select: { birthDate: true } }
+                }
+            }
+        },
         orderBy: [{ gender: 'asc' }, { minAge: 'asc' }, { name: 'asc' }],
     })
 
@@ -4659,6 +4666,11 @@ export async function previewAllBrackets(tournamentId: string, type: string) {
                 clubId:      p.clubId,
                 clubName:    (p as any).club?.name    || null,
                 clubLogoUrl: (p as any).club?.logoUrl || null,
+                belt:        p.belt        || null,
+                height:      p.height      ?? null,
+                weight:      p.weight      ?? null,
+                division:    p.division    || null,
+                birthDate:   (p as any).user?.birthDate?.toISOString() || null,
             })),
             specs: specs.map(s => ({
                 id:            s.id,
@@ -4676,7 +4688,14 @@ export async function previewAllBrackets(tournamentId: string, type: string) {
 export async function previewCategoryBracket(categoryId: string) {
     const cat = await prisma.category.findUnique({
         where:   { id: categoryId },
-        include: { players: { include: { club: { select: { id: true, name: true, logoUrl: true } } } } },
+        include: {
+            players: {
+                include: {
+                    club: { select: { id: true, name: true, logoUrl: true } },
+                    user: { select: { birthDate: true } }
+                }
+            }
+        },
     })
     if (!cat || cat.type !== 'KYORUGI' || cat.players.length < 2) return null
 
@@ -4692,6 +4711,11 @@ export async function previewCategoryBracket(categoryId: string) {
             clubId:      p.clubId,
             clubName:    (p as any).club?.name    || null,
             clubLogoUrl: (p as any).club?.logoUrl || null,
+            belt:        p.belt        || null,
+            height:      p.height      ?? null,
+            weight:      p.weight      ?? null,
+            division:    p.division    || null,
+            birthDate:   (p as any).user?.birthDate?.toISOString() || null,
         })),
         specs: specs.map(s => ({
             id:            s.id,
