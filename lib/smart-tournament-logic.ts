@@ -207,18 +207,30 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
             const next    = group[i + 1]
 
             // Effective count: actual players + 1 if an athlete is incoming from below
-            const effectiveCount = current.players.length + (willBeFilled.has(current.id) ? 1 : 0)
+            const effectiveCount     = current.players.length + (willBeFilled.has(current.id) ? 1 : 0)
+            const effectiveNextCount = next.players.length    + (willBeFilled.has(next.id)    ? 1 : 0)
 
+            // Skip: source is empty or already large enough
             if (effectiveCount === 0 || effectiveCount >= MERGE_THRESHOLD) continue
 
-            const combinedCount = effectiveCount + next.players.length
+            // Skip: target (next) is empty — merging into an empty category doesn't give an opponent
+            if (effectiveNextCount === 0) continue
+
+            const combinedCount = effectiveCount + effectiveNextCount
 
             // Guard: merged result must not exceed split threshold
             if (combinedCount > SPLIT_THRESHOLD) continue
 
-            // Guard: weight gap between classes must be reasonable
+            // Guard: weight gap between adjacent classes must be reasonable
             const weightGap = (next.minWeight || 0) - (current.maxWeight || current.minWeight || 0)
             if (weightGap > MAX_MERGE_WEIGHT_GAP) continue
+
+            // If BOTH current and next are small, they should merge together (preferred).
+            // In this case do NOT emit a separate alert for next → next+1 (handled by the
+            // combined alert here). Skip the pair only if next is already a merge source
+            // in the iteration (i+1 will be skipped naturally since next may also be small,
+            // but that's fine — we want the combined alert here).
+            const bothSmall = effectiveNextCount < MERGE_THRESHOLD
 
             // The merge target (next) may itself be uncontested — merging resolves it
             isMergeTarget.add(next.id)
@@ -226,16 +238,21 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
             // Build effective player list (actual + note about incoming)
             const effectivePlayers = [...current.players]
 
+            const mergeNote = bothSmall
+                ? `Small categories (${effectiveCount} + ${effectiveNextCount} athletes). Merge "${current.name}" into "${next.name}" — combined: ${combinedCount}.`
+                : `Small category (${effectiveCount} athlete${effectiveCount !== 1 ? 's' : ''}). Safe to merge into "${next.name}" — combined: ${combinedCount}.`
+
             alerts.push({
                 type: 'MERGE_SUGGESTION',
                 categoryId: current.id,
                 categoryName: current.name,
-                message: `Small category (${effectiveCount} athlete${effectiveCount !== 1 ? 's' : ''}). Safe to merge into "${next.name}" — combined: ${combinedCount}.`,
+                message: mergeNote,
                 details: {
                     targetCategoryId:   next.id,
                     targetCategoryName: next.name,
                     effectiveCount,
                     combinedCount,
+                    bothSmall,
                     incomingFromBelow:  willBeFilled.has(current.id),
                     players: effectivePlayers.map(p => ({
                         id: p.id, name: p.name,
@@ -244,6 +261,10 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
                     }))
                 }
             })
+
+            // If both are small they merge together — skip evaluating next as a source
+            // so we don't emit a second alert for next → next+1
+            if (bothSmall) i++
         }
     }
 
