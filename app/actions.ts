@@ -2413,7 +2413,7 @@ export async function movePlayerToCategory(
     // Verify the player belongs to this tournament
     const player = await prisma.player.findUnique({
         where: { id: playerId },
-        include: { category: { select: { tournamentId: true } } }
+        include: { category: { select: { tournamentId: true, type: true } } }
     })
     if (!player || player.category?.tournamentId !== tournamentId) {
         return { error: 'Player not found in this tournament' }
@@ -2428,13 +2428,35 @@ export async function movePlayerToCategory(
         return { error: 'Target category not found in this tournament' }
     }
 
+    const sourceCategoryId = player.categoryId!
+    const disciplineType   = (player.category?.type ?? 'KYORUGI') as 'KYORUGI' | 'POOMSAE' | 'KYUKPA'
+
+    // Check if ANY bracket exists for this discipline in the tournament
+    // (moving a player invalidates match numbering across the whole discipline)
+    const existingMatchCount = disciplineType === 'POOMSAE'
+        ? await prisma.poomsaeMatch.count({ where: { categoryRef: { tournamentId } } })
+        : await prisma.match.count({ where: { categoryRef: { tournamentId }, categoryRefId: { not: null } } })
+
+    const bracketsAffected = existingMatchCount > 0
+
+    // Move the player
     await prisma.player.update({
         where: { id: playerId },
         data: { categoryId: targetCategoryId }
     })
 
+    // Regenerate ALL brackets for this discipline to keep match numbers sequential
+    if (bracketsAffected) {
+        await generateAllBrackets(tournamentId, disciplineType)
+    }
+
     revalidatePath(`/tournament/${tournamentId}`)
-    return { success: true, targetCategoryName: target.name }
+    return {
+        success: true,
+        targetCategoryName: target.name,
+        bracketsRegenerated: bracketsAffected,
+        disciplineRegenerated: bracketsAffected ? disciplineType : null,
+    }
 }
 
 export async function getTournamentStats(tournamentId: string) {

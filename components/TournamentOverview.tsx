@@ -616,7 +616,11 @@ export default function TournamentOverview({
                                                                                                                                 if ('error' in result) {
                                                                                                                                     toast.error(result.error)
                                                                                                                                 } else {
-                                                                                                                                    toast.success(`${p.name} moved to ${cat.name}`)
+                                                                                                                                    toast.success(
+                                                                                                                                        result.bracketsRegenerated
+                                                                                                                                            ? `${p.name} moved to ${cat.name} · All ${result.disciplineRegenerated} brackets regenerated`
+                                                                                                                                            : `${p.name} moved to ${cat.name}`
+                                                                                                                                    )
                                                                                                                                     setMovingPlayer(null)
                                                                                                                                     // Refresh roster cache for this club
                                                                                                                                     if (club.id) {
