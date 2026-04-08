@@ -11,7 +11,7 @@ export interface SmartAlert {
 }
 
 // Configurable thresholds
-const SPLIT_THRESHOLD      = 15  // > 15 players        → suggest split
+const SPLIT_THRESHOLD      = 8   // > 8 players         → suggest split
 const MERGE_THRESHOLD      = 4   // < 4 players          → candidate for merge
 const MAX_MERGE_WEIGHT_GAP = 15  // max kg gap between adjacent weight classes
 

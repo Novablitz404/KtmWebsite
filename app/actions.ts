@@ -3964,7 +3964,10 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
                 )
 
                 await prisma.$transaction(updates)
-                await prisma.category.delete({ where: { id: categoryId } })
+                // Keep the original category (now empty) — it persists as a
+                // template so the organiser can merge Group A + Group B back
+                // into it later using the Move Division feature.
+                // The empty category is hidden from the bracket view automatically.
             }
         }
 
