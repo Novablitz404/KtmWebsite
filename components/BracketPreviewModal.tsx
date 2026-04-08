@@ -130,6 +130,15 @@ function getPoomsaeRoundLabel(round: number): string {
     return 'Final'
 }
 
+// Returns the number of competing units (teams or individuals)
+// PAIR = 2 players per team, TEAM = 3 players per team
+function getCompetitorCount(playerCount: number, subtype?: string | null): number {
+    if (!subtype || subtype === 'INDIVIDUAL') return playerCount
+    if (subtype === 'PAIR') return Math.floor(playerCount / 2)
+    if (subtype === 'TEAM') return Math.floor(playerCount / 3)
+    return playerCount
+}
+
 // ─── Extract seed order from R1 specs ─────────────────────────────────────────
 // Returns the player IDs in the order they appear in Round 1 matches
 function extractSeedOrder(specs: PreviewMatch[]): string[] {
@@ -313,10 +322,16 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
                                         {filtered.length} categories
                                     </span>
                                     {filtered.length > 0 && (() => {
-                                        const cats = filtered.filter(c => c.playerCount >= 2)
+                                        const cats = filtered.filter(c => {
+                                            const cc = getCompetitorCount(c.playerCount, c.subtype)
+                                            return disciplineType === 'POOMSAE' ? cc >= 1 : cc >= 2
+                                        })
                                         const totalGold = cats.length
-                                        const totalSilver = cats.length
-                                        const totalBronze = cats.reduce((sum, c) => sum + (c.playerCount > 3 ? 2 : c.playerCount === 3 ? 1 : 0), 0)
+                                        const totalSilver = cats.filter(c => getCompetitorCount(c.playerCount, c.subtype) >= 2).length
+                                        const totalBronze = cats.reduce((sum, c) => {
+                                            const cc = getCompetitorCount(c.playerCount, c.subtype)
+                                            return sum + (cc > 3 ? 2 : cc === 3 ? 1 : 0)
+                                        }, 0)
                                         return (
                                             <span className="inline-flex items-center gap-2 text-[11px] font-black px-2.5 py-1 rounded-full"
                                                 style={{ background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.2)' }}>
@@ -523,16 +538,19 @@ function CategoryCard({
                             style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' }}>
                             {cat.playerCount} athletes
                         </span>
-                        {cat.playerCount >= 2 && (
-                            <span className="inline-flex items-center gap-1.5 text-[10px] font-black px-2 py-0.5 rounded-md"
-                                style={{ background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)' }}>
-                                <span style={{ color: '#fbbf24' }}>🥇1</span>
-                                <span style={{ color: '#94a3b8' }}>🥈1</span>
-                                {cat.playerCount >= 3 && (
-                                    <span style={{ color: '#cd7f32' }}>🥉{cat.playerCount > 3 ? 2 : 1}</span>
-                                )}
-                            </span>
-                        )}
+                        {(() => {
+                            const cc = getCompetitorCount(cat.playerCount, cat.subtype)
+                            const showMedals = isPoomsae ? cc >= 1 : cc >= 2
+                            if (!showMedals) return null
+                            return (
+                                <span className="inline-flex items-center gap-1.5 text-[10px] font-black px-2 py-0.5 rounded-md"
+                                    style={{ background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)' }}>
+                                    <span style={{ color: '#fbbf24' }}>🥇1</span>
+                                    {cc >= 2 && <span style={{ color: '#94a3b8' }}>🥈1</span>}
+                                    {cc >= 3 && <span style={{ color: '#cd7f32' }}>🥉{cc > 3 ? 2 : 1}</span>}
+                                </span>
+                            )
+                        })()}
                         {isPoomsae && cat.subtype && cat.subtype !== 'INDIVIDUAL' && (
                             <span className="text-[10px] font-black px-2 py-0.5 rounded-md"
                                 style={{ background: 'rgba(139,92,246,0.2)', color: '#c4b5fd' }}>
