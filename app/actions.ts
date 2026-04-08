@@ -4636,7 +4636,7 @@ export async function rejectAthleteCardPayment(userId: string) {
 
 export async function previewAllBrackets(tournamentId: string, type: string) {
     const categories = await prisma.category.findMany({
-        where:   { tournamentId, type },
+        where:   { tournamentId, type, players: { some: {} } },
         include: { players: { include: { club: { select: { id: true, name: true, logoUrl: true } } } } },
         orderBy: [{ gender: 'asc' }, { minAge: 'asc' }, { name: 'asc' }],
     })
