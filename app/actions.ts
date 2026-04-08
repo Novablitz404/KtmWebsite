@@ -495,7 +495,7 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
     // We query the database for the max existing matchId after deletion to know where to start
     // UPDATED: Now independent per type (Kyorugi vs Poomsae)
     const getNextMatchId = async (tId: string, type: 'KYORUGI' | 'POOMSAE' | 'KYUKPA') => {
-        if (type === 'POOMSAE') {
+        if (type === 'POOMSAE' || type === 'KYUKPA') {
             const maxPoomsae = await prisma.poomsaeMatch.findFirst({
                 where: { categoryRef: { tournamentId: tId } },
                 orderBy: { matchId: 'desc' },
@@ -516,24 +516,21 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
 
     // 3. Delete Existing Matches (Bulk)
     const validCategoryIds = validCategories.map(c => c.id)
-    if (type === 'POOMSAE') {
+    if (type === 'POOMSAE' || type === 'KYUKPA') {
         await prisma.poomsaeMatch.deleteMany({
             where: { categoryRefId: { in: validCategoryIds } }
         })
-
-        // REMOVED: Global sequence reset (unsafe for multi-tenant and unnecessary)
     } else {
         await prisma.match.deleteMany({
             where: { categoryRefId: { in: validCategoryIds } }
         })
-        // REMOVED: Global sequence reset (unsafe for multi-tenant)
     }
 
     // 4. In-Memory Generation & Parallel DB Writes
     // We'll collect all creation operations and run them transactionally or in parallel batches
 
-    if (type === 'POOMSAE') {
-        // --- POOMSAE GENERATION ---
+    if (type === 'POOMSAE' || type === 'KYUKPA') {
+        // --- POOMSAE / KYUKPA GENERATION ---
 
         // We need to execute sequentially or manage the shared ID counter carefully
         // Since we are inside one action, we can just increment the local variable `currentGlobalMatchId`
@@ -759,8 +756,8 @@ export async function generateBracketsForCategory(categoryId: string, court?: st
     const category = await prisma.category.findUnique({ where: { id: categoryId } })
     if (!category) return
 
-    // POOMSAE LOGIC
-    if (category.type === 'POOMSAE') {
+    // POOMSAE / KYUKPA LOGIC (performance slots)
+    if (category.type === 'POOMSAE' || category.type === 'KYUKPA') {
         if (players.length < 1) return
 
         await prisma.poomsaeMatch.deleteMany({
@@ -4653,13 +4650,13 @@ export async function previewAllBrackets(tournamentId: string, type: string) {
         let kyorugiSpecs: ReturnType<typeof generateSingleEliminationBracket> = []
         let poomsaeSpecs: ReturnType<typeof generatePoomsaeBracket> = []
 
-        if (cat.type === 'POOMSAE') {
+        if (cat.type === 'POOMSAE' || cat.type === 'KYUKPA') {
             poomsaeSpecs = generatePoomsaeBracket(
                 cat.players as any,
                 cat.subtype || 'INDIVIDUAL',
                 cat.poomsaeForms
             )
-        } else if ((cat.type === 'KYORUGI' || cat.type === 'KYUKPA') && cat.players.length >= 2) {
+        } else if (cat.type === 'KYORUGI' && cat.players.length >= 2) {
             kyorugiSpecs = generateSingleEliminationBracket(cat.players as any)
         }
 
@@ -4725,13 +4722,13 @@ export async function previewCategoryBracket(categoryId: string) {
     let kyorugiSpecs: ReturnType<typeof generateSingleEliminationBracket> = []
     let poomsaeSpecs: ReturnType<typeof generatePoomsaeBracket> = []
 
-    if (cat.type === 'POOMSAE') {
+    if (cat.type === 'POOMSAE' || cat.type === 'KYUKPA') {
         poomsaeSpecs = generatePoomsaeBracket(
             cat.players as any,
             cat.subtype || 'INDIVIDUAL',
             cat.poomsaeForms
         )
-    } else if ((cat.type === 'KYORUGI' || cat.type === 'KYUKPA') && cat.players.length >= 2) {
+    } else if (cat.type === 'KYORUGI' && cat.players.length >= 2) {
         kyorugiSpecs = generateSingleEliminationBracket(cat.players as any)
     }
 
@@ -4798,7 +4795,7 @@ export async function generateAllBracketsFromPreview(
     const validCategoryIds = validCategories.map(c => c.id)
 
     // 2. Delete existing matches
-    if (type === 'POOMSAE') {
+    if (type === 'POOMSAE' || type === 'KYUKPA') {
         await prisma.poomsaeMatch.deleteMany({ where: { categoryRefId: { in: validCategoryIds } } })
     } else {
         await prisma.match.deleteMany({ where: { categoryRefId: { in: validCategoryIds } } })
@@ -4806,7 +4803,7 @@ export async function generateAllBracketsFromPreview(
 
     // 3. Get next match ID
     const getNextMatchId = async (tId: string, t: string) => {
-        if (t === 'POOMSAE') {
+        if (t === 'POOMSAE' || t === 'KYUKPA') {
             const max = await prisma.poomsaeMatch.findFirst({
                 where: { categoryRef: { tournamentId: tId } },
                 orderBy: { matchId: 'desc' }, select: { matchId: true }
@@ -4821,8 +4818,8 @@ export async function generateAllBracketsFromPreview(
     }
 
     // 4. Generate
-    if (type === 'POOMSAE') {
-        let currentGlobalMatchId = await getNextMatchId(tournamentId, 'POOMSAE')
+    if (type === 'POOMSAE' || type === 'KYUKPA') {
+        let currentGlobalMatchId = await getNextMatchId(tournamentId, type)
         for (const category of validCategories) {
             const poomsaeSpecs = generatePoomsaeBracket(
                 category.players as any,

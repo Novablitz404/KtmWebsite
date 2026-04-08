@@ -483,8 +483,8 @@ function CategoryCard({
     allCategories: PreviewCategoryData[]
 }) {
     const skill = getSkillColor(cat.skillLevel)
-    const isKyorugiBracket = (cat.type === 'KYORUGI' || cat.type === 'KYUKPA') && cat.playerCount >= 2
-    const isPoomsae = cat.type === 'POOMSAE'
+    const isKyorugiBracket = cat.type === 'KYORUGI' && cat.playerCount >= 2
+    const isPoomsae = cat.type === 'POOMSAE' || cat.type === 'KYUKPA'
     const maxRound = localSpecs.length > 0 ? Math.max(...localSpecs.map(s => s.round)) : 0
     const rounds = Array.from(new Set(localSpecs.map(s => s.round))).sort((a, b) => a - b)
     const hasSelection = selected?.catId === cat.categoryId
