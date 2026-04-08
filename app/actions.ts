@@ -3941,17 +3941,14 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
                 const baseName = category.name
 
                 // ── Determine sort metric ─────────────────────────────────────
-                // Height-based divisions: Super Toddler, Toddler, Grade School
-                // Detected by:
-                //   1. Category name contains 'toddler' or 'grade school'
-                //   2. Category has minHeight explicitly set (> 0)
-                //   3. maxAge <= 9  (covers young divisions regardless of name)
+                // Height-based: Super Toddler, Toddler, Grade School
+                // Detected by category name or explicit minHeight on the category.
+                // Weight-based: Cadet, Junior, Senior (everything else)
                 const nameLower = baseName.toLowerCase()
                 const isHeightBased =
                     nameLower.includes('toddler') ||
                     nameLower.includes('grade school') ||
-                    (category.minHeight != null && (category.minHeight ?? 0) > 0) ||
-                    (category.maxAge != null && category.maxAge <= 9)
+                    (category.minHeight != null && (category.minHeight ?? 0) > 0)
 
                 const getMetric = (p: any): number => {
                     if (isHeightBased) {
