@@ -184,14 +184,19 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
     const [movePicker, setMovePicker]   = useState<MovePicker | null>(null)
     const [movingPlayer, setMovingPlayer] = useState(false)
     const [expanded, setExpanded]       = useState<Set<string>>(new Set())
-    const [searchQuery, setSearchQuery] = useState('')
+    const [searchQuery, setSearchQuery]   = useState('')
+    const [divisionFilter, setDivisionFilter] = useState<string>('All')
+    const [skillFilter, setSkillFilter]       = useState<string>('All')
+    const [activeDiscipline, setActiveDiscipline] = useState<'KYORUGI' | 'POOMSAE' | 'KYUKPA'>(disciplineType)
 
     const loadPreview = useCallback(async () => {
         setLoading(true)
         setSelected(null)
         setMovePicker(null)
+        setDivisionFilter('All')
+        setSkillFilter('All')
         try {
-            const result = await previewAllBrackets(tournamentId, disciplineType)
+            const result = await previewAllBrackets(tournamentId, activeDiscipline)
             setData(result)
             const map = new Map<string, PreviewMatch[]>()
             for (const cat of result) map.set(cat.categoryId, cat.specs)
@@ -201,7 +206,7 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
         } finally {
             setLoading(false)
         }
-    }, [tournamentId, disciplineType])
+    }, [tournamentId, activeDiscipline])
 
     useEffect(() => {
         if (open) loadPreview()
@@ -261,16 +266,16 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
         try {
             // Build seed orders from current preview state (Kyorugi/Kyukpa only)
             const seedOrders: Record<string, string[]> = {}
-            if (disciplineType !== 'POOMSAE') {
+            if (activeDiscipline !== 'POOMSAE') {
                 for (const [catId, specs] of localSpecs.entries()) {
                     const order = extractSeedOrder(specs)
                     if (order.length > 0) seedOrders[catId] = order
                 }
             }
 
-            const result = await generateAllBracketsFromPreview(tournamentId, disciplineType, seedOrders)
+            const result = await generateAllBracketsFromPreview(tournamentId, activeDiscipline, seedOrders)
             if (result?.success) {
-                toast.success(`Generated ${result.count} ${disciplineType.toLowerCase()} brackets from preview!`)
+                toast.success(`Generated ${result.count} ${activeDiscipline.toLowerCase()} brackets from preview!`)
                 onClose()
             } else {
                 toast.error(result?.message || 'Generation failed')
@@ -293,9 +298,29 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
 
     if (!open) return null
 
-    const filtered = searchQuery.trim()
-        ? data.filter(c => c.categoryName.toLowerCase().includes(searchQuery.toLowerCase()))
-        : data
+    // Extract unique divisions from category names (e.g. "Toddler", "Grade School", "Cadet", "Junior", "Senior (Under 30)")
+    const divisions = ['All', ...Array.from(new Set(data.map(c => {
+        const parts = c.categoryName.split(' ')
+        const genderIdx = parts.findIndex(p => ['Male', 'Female', 'Mixed'].includes(p))
+        return genderIdx > 0 ? parts.slice(0, genderIdx).join(' ') : parts[0]
+    }))).sort()]
+
+    const skillLevels = ['All', 'Novice', 'Intermediate', 'Advance']
+
+    const filtered = data.filter(c => {
+        if (searchQuery.trim() && !c.categoryName.toLowerCase().includes(searchQuery.toLowerCase())) return false
+        if (divisionFilter !== 'All') {
+            const parts = c.categoryName.split(' ')
+            const genderIdx = parts.findIndex(p => ['Male', 'Female', 'Mixed'].includes(p))
+            const div = genderIdx > 0 ? parts.slice(0, genderIdx).join(' ') : parts[0]
+            if (div !== divisionFilter) return false
+        }
+        if (skillFilter !== 'All' && activeDiscipline !== 'POOMSAE') {
+            const sl = (c.skillLevel || 'Novice').toLowerCase()
+            if (sl !== skillFilter.toLowerCase()) return false
+        }
+        return true
+    })
 
     const disciplineLabels: Record<string, string> = { KYORUGI: 'Sparring', POOMSAE: 'Forms', KYUKPA: 'Board Breaking' }
 
@@ -320,10 +345,21 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
                             <div>
                                 <div className="flex items-center gap-2.5 flex-wrap">
                                     <h2 className="text-lg font-black text-white tracking-tight">Bracket Preview</h2>
-                                    <span className="text-[11px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full"
-                                        style={{ background: 'rgba(99,102,241,0.25)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.3)' }}>
-                                        {disciplineType} · {disciplineLabels[disciplineType]}
-                                    </span>
+                                    <div className="flex items-center gap-1">
+                                        {(['KYORUGI', 'POOMSAE', 'KYUKPA'] as const).map(d => (
+                                            <button
+                                                key={d}
+                                                onClick={() => setActiveDiscipline(d)}
+                                                className="text-[11px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full transition-all hover:scale-105"
+                                                style={activeDiscipline === d
+                                                    ? { background: 'rgba(99,102,241,0.30)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.4)', boxShadow: '0 2px 8px rgba(99,102,241,0.3)' }
+                                                    : { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.08)' }
+                                                }
+                                            >
+                                                {d === 'KYORUGI' ? '⚔️' : d === 'POOMSAE' ? '🥋' : '🪵'} {disciplineLabels[d]}
+                                            </button>
+                                        ))}
+                                    </div>
                                     <span className="text-[11px] font-bold px-2 py-1 rounded-full"
                                         style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' }}>
                                         {filtered.length} categories
@@ -331,7 +367,7 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
                                     {filtered.length > 0 && (() => {
                                         const cats = filtered.filter(c => {
                                             const cc = getCompetitorCount(c.playerCount, c.subtype)
-                                            return (disciplineType === 'POOMSAE' || disciplineType === 'KYUKPA') ? cc >= 1 : cc >= 2
+                                            return (activeDiscipline === 'POOMSAE' || activeDiscipline === 'KYUKPA') ? cc >= 1 : cc >= 2
                                         })
                                         const totalGold = cats.reduce((sum, c) => sum + getMedalMultiplier(c.subtype), 0)
                                         const totalSilver = cats.filter(c => getCompetitorCount(c.playerCount, c.subtype) >= 2)
@@ -352,7 +388,7 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
                                     })()}
                                 </div>
                                 <p className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                                    {disciplineType === 'POOMSAE'
+                                    {activeDiscipline === 'POOMSAE'
                                         ? 'Preview performance order · Reshuffle to re-randomize'
                                         : 'Click two players in the same category to swap seeds · ⇆ Move transfers between categories'}
                                 </p>
@@ -386,6 +422,59 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
                     </div>
                 </div>
 
+                {/* ── FILTER CHIPS ────────────────────────────────────────── */}
+                <div className="flex-shrink-0 px-5 py-2.5 border-b space-y-2" style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.2)' }}>
+                    {/* Division filter */}
+                    <div className="flex items-center gap-2 overflow-x-auto pb-0.5 scrollbar-hide flex-nowrap">
+                        <span className="text-[10px] font-black uppercase tracking-wider flex-shrink-0" style={{ color: 'rgba(255,255,255,0.3)' }}>Division</span>
+                        {divisions.map(div => (
+                            <button
+                                key={div}
+                                onClick={() => setDivisionFilter(div)}
+                                className="flex-shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all hover:scale-105"
+                                style={divisionFilter === div
+                                    ? { background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', boxShadow: '0 2px 8px rgba(99,102,241,0.4)' }
+                                    : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.45)' }
+                                }
+                            >
+                                {div}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Skill level filter — Kyorugi only */}
+                    {activeDiscipline === 'KYORUGI' && (
+                        <div className="flex items-center gap-2 overflow-x-auto pb-0.5 scrollbar-hide flex-nowrap">
+                            <span className="text-[10px] font-black uppercase tracking-wider flex-shrink-0" style={{ color: 'rgba(255,255,255,0.3)' }}>Skill</span>
+                            {skillLevels.map(sk => {
+                                const colors: Record<string, { active: string; dot: string }> = {
+                                    All:          { active: 'linear-gradient(135deg, #6366f1, #8b5cf6)', dot: '' },
+                                    Novice:       { active: 'linear-gradient(135deg, #10b981, #059669)', dot: '#10b981' },
+                                    Intermediate: { active: 'linear-gradient(135deg, #3b82f6, #2563eb)', dot: '#3b82f6' },
+                                    Advance:      { active: 'linear-gradient(135deg, #ef4444, #dc2626)', dot: '#ef4444' },
+                                }
+                                const c = colors[sk]
+                                return (
+                                    <button
+                                        key={sk}
+                                        onClick={() => setSkillFilter(sk)}
+                                        className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all hover:scale-105"
+                                        style={skillFilter === sk
+                                            ? { background: c.active, color: 'white', boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }
+                                            : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.45)' }
+                                        }
+                                    >
+                                        {sk !== 'All' && (
+                                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: skillFilter === sk ? 'rgba(255,255,255,0.7)' : c.dot }} />
+                                        )}
+                                        {sk}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    )}
+                </div>
+
                 {/* ── CONTENT ────────────────────────────────────────────── */}
                 <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3"
                     style={{ background: 'linear-gradient(180deg, #111827 0%, #0f172a 100%)' }}>
@@ -397,7 +486,7 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
                                 <Loader2 size={26} className="animate-spin text-indigo-400" />
                             </div>
                             <p className="text-sm font-bold text-white/70">Computing brackets…</p>
-                            <p className="text-xs text-white/30 mt-1">Running the draw for all {disciplineType} categories</p>
+                            <p className="text-xs text-white/30 mt-1">Running the draw for all {activeDiscipline} categories</p>
                         </div>
                     ) : filtered.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-full">
@@ -428,7 +517,7 @@ export default function BracketPreviewModal({ tournamentId, disciplineType, open
                 <div className="flex-shrink-0 px-6 py-3 border-t flex items-center justify-between"
                     style={{ borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(15,23,42,0.8)' }}>
                     <div className="flex items-center gap-4 flex-wrap">
-                        {disciplineType !== 'POOMSAE' && [
+                        {activeDiscipline !== 'POOMSAE' && [
                             { color: '#6366f1', label: 'Select + click another to swap' },
                             { color: '#a855f7', label: '⇆ Move saves to DB' },
                             { color: '#f59e0b', label: 'Gold = Final match' },
