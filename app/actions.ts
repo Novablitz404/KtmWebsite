@@ -3809,21 +3809,10 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
                     const targetCategoryId = data.targetCategoryId
                     if (!targetCategoryId) return { error: 'No target category specified for cross-division move' }
 
-                    const sourceCategoryId = data.sourceCategoryId ||
-                        (await prisma.player.findUnique({ where: { id: data.playerId }, select: { categoryId: true } }))?.categoryId
-
                     await prisma.player.update({
                         where: { id: data.playerId },
                         data: { categoryId: targetCategoryId }
                     })
-
-                    // Clean up source category if now empty
-                    if (sourceCategoryId) {
-                        const remaining = await prisma.player.count({ where: { categoryId: sourceCategoryId } })
-                        if (remaining === 0) {
-                            await prisma.category.delete({ where: { id: sourceCategoryId } })
-                        }
-                    }
                 } else {
                     // UNCONTESTED: find next heavier sibling in same division
                     const player = await prisma.player.findUnique({
@@ -3832,8 +3821,6 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
                     })
 
                     if (player && player.category) {
-                        const sourceCategoryId = player.categoryId
-
                         const siblings = await prisma.category.findMany({
                             where: {
                                 tournamentId: player.category.tournamentId,
@@ -3851,11 +3838,6 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
                                 where: { id: player.id },
                                 data: { categoryId: target.id }
                             })
-
-                            const remaining = await prisma.player.count({ where: { categoryId: sourceCategoryId } })
-                            if (remaining === 0 && sourceCategoryId) {
-                                await prisma.category.delete({ where: { id: sourceCategoryId } })
-                            }
                         } else {
                             return { error: 'No heavier category found' }
                         }
