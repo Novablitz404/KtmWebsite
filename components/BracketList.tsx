@@ -135,20 +135,35 @@ export default function BracketList({ categories, tournamentName, publicView = f
         for (const cat of displayedCategories) {
             const isPoomsaeCat = activeTab === 'poomsae'
             if (isPoomsaeCat) {
+                // Group poomsae performances by matchId (multiple performers share one matchId)
+                const grouped = new Map<number, { names: string[]; round: number; court: string; scheduledDay: number | null }>()
                 for (const m of (cat.poomsaeMatches || [])) {
                     if ((m as any).scheduledDay === dayFilter) {
-                        dayScheduleRows.push({
-                            matchId: (m as any).matchId,
-                            categoryName: cat.name,
-                            categoryId: cat.id,
-                            round: (m as any).round,
-                            court: (m as any).court || 'Unassigned',
-                            isFinal: (m as any).round === 3,
-                            scheduledDay: (m as any).scheduledDay,
-                            player1Name: (m as any).player?.name || (m as any).displayName || '',
-                            player2Name: '',
-                        })
+                        const mid = (m as any).matchId as number
+                        if (!grouped.has(mid)) {
+                            grouped.set(mid, {
+                                names: [],
+                                round: (m as any).round,
+                                court: (m as any).court || 'Unassigned',
+                                scheduledDay: (m as any).scheduledDay,
+                            })
+                        }
+                        const name = (m as any).player?.name || (m as any).displayName || ''
+                        if (name) grouped.get(mid)!.names.push(name)
                     }
+                }
+                for (const [mid, g] of grouped) {
+                    dayScheduleRows.push({
+                        matchId: mid,
+                        categoryName: cat.name,
+                        categoryId: cat.id,
+                        round: g.round,
+                        court: g.court,
+                        isFinal: g.round === 3,
+                        scheduledDay: g.scheduledDay,
+                        player1Name: g.names.join(', '),
+                        player2Name: '',
+                    })
                 }
             } else {
                 for (const m of cat.matches) {
