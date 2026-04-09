@@ -5,7 +5,7 @@ import {
     Camera, CameraOff, CheckCircle2, XCircle, AlertTriangle,
     Loader2, ScanLine, ChevronDown, RotateCcw, Usb,
     Zap, History, Trash2, Users, Search, Shield, Clock, UserCheck,
-    Monitor, FolderOpen, FileSignature, Send, PenLine, Wifi, ChevronUp, Tag
+    Monitor, FolderOpen, FileSignature, Send, PenLine, Wifi, ChevronUp, Tag, Smartphone, QrCode, X
 } from 'lucide-react'
 
 // ============================================
@@ -139,12 +139,19 @@ export default function EventCheckIn({
     const [nfcPanelOpen, setNfcPanelOpen] = useState(true)
     const [nfcWriteResult, setNfcWriteResult] = useState<'success' | 'error' | null>(null)
 
+    // Mobile QR code
+    const [showMobileQr, setShowMobileQr] = useState(false)
+    const [mobileUrl, setMobileUrl] = useState('')
+    const mobileQrRef = useRef<HTMLCanvasElement>(null)
+
     // ---- Init ----
     useEffect(() => {
         onGetStats(eventId).then(setStats)
         refreshCheckedIn()
         // Detect Web NFC support
         setNfcSupported('NDEFReader' in window)
+        // Capture page URL for mobile QR
+        setMobileUrl(window.location.href)
     }, [eventId])
 
     // ---- Poll NFC queue every 3s ----
@@ -159,6 +166,13 @@ export default function EventCheckIn({
         const interval = setInterval(fetchQueue, 3000)
         return () => clearInterval(interval)
     }, [eventId])
+
+    // ---- Draw QR code canvas when modal opens ----
+    useEffect(() => {
+        if (!showMobileQr || !mobileUrl || !mobileQrRef.current) return
+        // Use a simple QR via Google Charts API rendered into an img — draw it
+        // We'll render via an <img> tag directly in the modal instead
+    }, [showMobileQr, mobileUrl])
 
     const refreshCheckedIn = async () => {
         setLoadingCheckedIn(true)
@@ -485,6 +499,22 @@ export default function EventCheckIn({
         addToHistory(res, id)
         afterCheckIn()
         setSearchQuery(''); setSearchResults([]); setIsLoading(false)
+
+        // Trigger waiver flow if check-in successful and display is connected
+        if (res.success && !res.alreadyCheckedIn && displayConnected && onSaveWaiver) {
+            channelRef.current?.postMessage({
+                type: 'CHECKED_IN',
+                data: {
+                    id: res.player?.id || '',
+                    name: res.player?.name || '',
+                    category: res.player?.category,
+                    club: res.player?.club,
+                    eventName,
+                    eventType
+                }
+            })
+            setTimeout(() => startWaiverFlow(res.player ?? undefined), 2600)
+        }
     }
 
     // ============================================
@@ -577,6 +607,57 @@ export default function EventCheckIn({
                 </div>
             )}
 
+            {/* ══ MOBILE QR MODAL ══ */}
+            {showMobileQr && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl shadow-2xl overflow-hidden w-full max-w-sm animate-in zoom-in-95 duration-200">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-violet-600 to-indigo-600 px-6 py-5">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                                        <Smartphone className="w-5 h-5 text-white" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-white font-black text-sm">Open on Android</h3>
+                                        <p className="text-white/70 text-xs">Scan to access NFC writer</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setShowMobileQr(false)}
+                                    className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+                                >
+                                    <X className="w-4 h-4 text-white" />
+                                </button>
+                            </div>
+                        </div>
+                        {/* QR Code */}
+                        <div className="p-8 flex flex-col items-center gap-4">
+                            <div className="p-3 bg-white rounded-2xl border-2 border-gray-100 shadow-inner">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(mobileUrl)}&margin=0&color=111827&bgcolor=FFFFFF`}
+                                    alt="QR code for mobile NFC writer"
+                                    className="w-[220px] h-[220px] rounded-lg"
+                                />
+                            </div>
+                            <div className="text-center">
+                                <p className="text-sm font-black text-gray-900">Scan with Android Chrome</p>
+                                <p className="text-xs text-gray-400 mt-1">Then scroll to the NFC Writer panel at the bottom</p>
+                            </div>
+                            <div className="w-full p-3 bg-amber-50 border border-amber-100 rounded-2xl flex items-start gap-2">
+                                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+                                <p className="text-[10px] text-amber-700 font-medium">Web NFC only works in Chrome on Android. iOS is not supported.</p>
+                            </div>
+                            <div className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl">
+                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">URL</p>
+                                <p className="text-[10px] font-mono text-gray-600 break-all">{mobileUrl}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ══ HERO HEADER ══ */}
             <div className="bg-gray-900 rounded-3xl p-6 md:p-8 relative overflow-hidden">
                 <div className="absolute top-0 right-0 -mr-8 -mt-8 w-40 h-40 bg-white/[0.03] rounded-full blur-2xl" />
@@ -590,9 +671,18 @@ export default function EventCheckIn({
                             </div>
                             <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight leading-tight">{eventName}</h1>
                         </div>
-                        <div className="flex items-center gap-2 px-4 py-1.5 bg-white/10 rounded-full backdrop-blur-sm self-start md:self-auto">
-                            <div className={`w-2 h-2 rounded-full ${percentage >= 100 ? 'bg-emerald-400' : 'bg-emerald-400 animate-pulse'}`} />
-                            <span className="text-xs font-black text-white uppercase tracking-wider">{eventType === 'tournament' ? 'Tournament' : 'Seminar'}</span>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setShowMobileQr(true)}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/30 text-violet-300 rounded-full transition-colors text-xs font-bold"
+                            >
+                                <QrCode className="w-3.5 h-3.5" />
+                                Open on Mobile
+                            </button>
+                            <div className="flex items-center gap-2 px-4 py-1.5 bg-white/10 rounded-full backdrop-blur-sm">
+                                <div className={`w-2 h-2 rounded-full ${percentage >= 100 ? 'bg-emerald-400' : 'bg-emerald-400 animate-pulse'}`} />
+                                <span className="text-xs font-black text-white uppercase tracking-wider">{eventType === 'tournament' ? 'Tournament' : 'Seminar'}</span>
+                            </div>
                         </div>
                     </div>
 
