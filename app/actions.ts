@@ -569,6 +569,14 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
                 const sharedMatchId = groupMapping.get(spec.roundGroupIndex) || 0
                 const nextGroupSharedId = groupMapping.get(spec.roundGroupIndex + 1) || null
 
+                // Compute scheduledDay for this poomsae match
+                const poomsaeTotalRounds = Math.max(...poomsaeSpecs.map(s => s.round))
+                const isFinalRound = spec.round === poomsaeTotalRounds
+                const isSemiOrFinal = spec.round >= poomsaeTotalRounds - 1
+                const catDay = category.scheduleDay ?? 1
+                const specDay = (category.deferSemisToDay && isSemiOrFinal) ? category.deferSemisToDay
+                    : (isFinalRound && category.deferFinalsToDay) ? category.deferFinalsToDay : catDay
+
                 return prisma.poomsaeMatch.create({
                     data: {
                         categoryRefId: category.id,
@@ -584,7 +592,8 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
                         memberNames: spec.memberNames || undefined,
                         assignedForms: spec.assignedForms,
                         status: 'Pending',
-                        court: category.court || "Unassigned"
+                        court: category.court || "Unassigned",
+                        scheduledDay: specDay,
                     }
                 })
             })
@@ -832,7 +841,8 @@ export async function generateBracketsForCategory(categoryId: string, court?: st
                     memberNames: spec.memberNames || undefined,
                     assignedForms: spec.assignedForms,
                     status: 'Pending',
-                    court: category.court || "Unassigned"
+                    court: category.court || "Unassigned",
+                    scheduledDay: category.scheduleDay ?? 1,
                 }
             })
         }
@@ -5039,7 +5049,15 @@ export async function generateAllBracketsFromPreview(
                         memberIds: spec.memberIds || undefined,
                         memberNames: spec.memberNames || undefined,
                         assignedForms: spec.assignedForms, status: 'Pending',
-                        court: category.court || "Unassigned"
+                        court: category.court || "Unassigned",
+                        scheduledDay: (() => {
+                            const pTotalRounds = Math.max(...poomsaeSpecs.map(s => s.round))
+                            const isFinal = spec.round === pTotalRounds
+                            const isSemiOrFinal = spec.round >= pTotalRounds - 1
+                            const catDay = category.scheduleDay ?? 1
+                            return (category.deferSemisToDay && isSemiOrFinal) ? category.deferSemisToDay
+                                : (isFinal && category.deferFinalsToDay) ? category.deferFinalsToDay : catDay
+                        })(),
                     }
                 })
             })
