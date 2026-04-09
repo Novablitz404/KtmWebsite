@@ -139,6 +139,7 @@ model Category {
   // Multi-day scheduling
   scheduleDay      Int? // Which day this whole category plays: 1, 2, 3. Null = unassigned (treated as Day 1)
   deferFinalsToDay Int? // Override day for finals only (works alongside deferFinals). Null = same as scheduleDay
+  deferSemisToDay  Int? // When set, semis + finals are deferred to this day (overrides deferFinalsToDay for those rounds)
 
   // Auto-Detection Rules (Copied from Template)
   minAge    Int?

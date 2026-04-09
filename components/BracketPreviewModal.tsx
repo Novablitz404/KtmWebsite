@@ -650,6 +650,7 @@ function CategoryCard({
     const [localScheduleDay, setLocalScheduleDay] = useState<number|null>(cat.scheduleDay ?? null)
     const [localDeferFinals, setLocalDeferFinals] = useState<boolean>(cat.deferFinals ?? true)
     const [localDeferDay, setLocalDeferDay] = useState<number|null>(cat.deferFinalsToDay ?? null)
+    const [localDeferSemisToDay, setLocalDeferSemisToDay] = useState<number|null>((cat as any).deferSemisToDay ?? null)
 
     const skill = getSkillColor(cat.skillLevel)
     const isKyorugiBracket = cat.type === 'KYORUGI' && cat.playerCount >= 2
@@ -769,27 +770,44 @@ function CategoryCard({
                         </select>
                         {isKyorugiBracket && (
                             <select
-                                value={!localDeferFinals ? 'seq' : localDeferDay ? localDeferDay.toString() : 'end'}
+                                value={
+                                    !localDeferFinals ? 'seq'
+                                    : localDeferSemisToDay === 2 ? 'semis-d2'
+                                    : localDeferSemisToDay === 3 ? 'semis-d3'
+                                    : localDeferDay === 2 ? 'finals-d2'
+                                    : localDeferDay === 3 ? 'finals-d3'
+                                    : 'end'
+                                }
                                 onChange={e => {
-                                    const val = e.target.value;
-                                    let newDeferFinals = true;
-                                    let newDeferDay: number | null = null;
-                                    if (val === 'seq') { newDeferFinals = false; newDeferDay = null; }
-                                    else if (val === 'end') { newDeferFinals = true; newDeferDay = null; }
-                                    else { newDeferFinals = true; newDeferDay = parseInt(val); }
-                                    
-                                    setLocalDeferFinals(newDeferFinals);
-                                    setLocalDeferDay(newDeferDay);
-                                    startDayTransition(async () => { await updateCategoryDaySettings(cat.categoryId, localScheduleDay, newDeferFinals, newDeferDay); })
+                                    const val = e.target.value
+                                    let newDeferFinals = true
+                                    let newDeferDay: number | null = null
+                                    let newDeferSemisToDay: number | null = null
+
+                                    if (val === 'seq')       { newDeferFinals = false }
+                                    else if (val === 'end')  { newDeferFinals = true }
+                                    else if (val === 'finals-d2') { newDeferFinals = true; newDeferDay = 2 }
+                                    else if (val === 'finals-d3') { newDeferFinals = true; newDeferDay = 3 }
+                                    else if (val === 'semis-d2')  { newDeferFinals = true; newDeferSemisToDay = 2 }
+                                    else if (val === 'semis-d3')  { newDeferFinals = true; newDeferSemisToDay = 3 }
+
+                                    setLocalDeferFinals(newDeferFinals)
+                                    setLocalDeferDay(newDeferDay)
+                                    setLocalDeferSemisToDay(newDeferSemisToDay)
+                                    startDayTransition(async () => {
+                                        await updateCategoryDaySettings(cat.categoryId, localScheduleDay, newDeferFinals, newDeferDay, newDeferSemisToDay)
+                                    })
                                 }}
                                 disabled={savingDay || !localScheduleDay}
                                 className="text-[10px] font-bold bg-[#1e293b] text-amber-300 border border-amber-500/30 rounded-lg px-2 py-1.5 cursor-pointer hover:bg-[#334155] focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:opacity-50"
-                                title="Finals handling"
+                                title="Finals / Semis handling"
                             >
                                 <option value="seq">Sequential</option>
                                 <option value="end">End of Day</option>
-                                <option value="2">Finals → D2</option>
-                                <option value="3">Finals → D3</option>
+                                <option value="finals-d2">Finals → Day 2</option>
+                                <option value="finals-d3">Finals → Day 3</option>
+                                <option value="semis-d2">Semis + Finals → Day 2</option>
+                                <option value="semis-d3">Semis + Finals → Day 3</option>
                             </select>
                         )}
                         {savingDay && <Loader2 size={12} className="animate-spin text-gray-400" />}

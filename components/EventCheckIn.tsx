@@ -7,6 +7,7 @@ import {
     Zap, History, Trash2, Users, Search, Shield, Clock, UserCheck,
     Monitor, FolderOpen, FileSignature, Send, PenLine, Wifi, ChevronUp, Tag, Smartphone, QrCode, X
 } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 
 // ============================================
 // TYPES
@@ -646,13 +647,17 @@ export default function EventCheckIn({
                         </div>
                         {/* QR Code */}
                         <div className="p-8 flex flex-col items-center gap-4">
-                            <div className="p-3 bg-white rounded-2xl border-2 border-gray-100 shadow-inner">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(mobileUrl)}&margin=0&color=111827&bgcolor=FFFFFF`}
-                                    alt="QR code for mobile NFC writer"
-                                    className="w-[220px] h-[220px] rounded-lg"
-                                />
+                            <div className="p-4 bg-white rounded-2xl border-2 border-gray-100 shadow-inner">
+                                {mobileUrl && (
+                                    <QRCodeSVG
+                                        value={mobileUrl}
+                                        size={220}
+                                        fgColor="#111827"
+                                        bgColor="#FFFFFF"
+                                        level="M"
+                                        includeMargin={false}
+                                    />
+                                )}
                             </div>
                             <div className="text-center">
                                 <p className="text-sm font-black text-gray-900">Scan with Android Chrome</p>

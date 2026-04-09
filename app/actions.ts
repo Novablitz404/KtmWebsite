@@ -619,6 +619,8 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
             deferFinals: boolean;
             scheduleDay: number;
             deferFinalsToDay: number | null;
+            deferSemisToDay:  number | null;
+            totalRounds:      number;
         };
 
         const allSpecs: SpecWithCategory[] = [];
@@ -633,6 +635,7 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
             const catMinHeight = category.minHeight ?? 999;
             const catSkillPriority = skillPriority[(category.skillLevel || 'novice').toLowerCase()] || 1;
 
+            const catTotalRounds = specs.length > 0 ? Math.max(...specs.map(s => s.round)) : 1;
             specs.forEach(s => {
                 allSpecs.push({
                     ...s,
@@ -643,28 +646,34 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
                     catMinWeight,
                     catMinHeight,
                     catSkillPriority,
-                    deferFinals: category.deferFinals,
+                    deferFinals:      category.deferFinals,
                     scheduleDay:      category.scheduleDay      ?? 1,
                     deferFinalsToDay: category.deferFinalsToDay ?? null,
+                    deferSemisToDay:  (category as any).deferSemisToDay  ?? null,
+                    totalRounds:      catTotalRounds,
                 });
             });
         }
 
         // Step 2: Sort globally — day first, then existing ordering within each day
         allSpecs.sort((a, b) => {
-            // Compute effective day for each spec
-            const aDay = (a.isFinal && a.deferFinalsToDay) ? a.deferFinalsToDay : a.scheduleDay
-            const bDay = (b.isFinal && b.deferFinalsToDay) ? b.deferFinalsToDay : b.scheduleDay
+            // Compute effective day (semis+finals deferral takes priority over finals-only)
+            const aIsSemiOrFinal = a.round >= a.totalRounds - 1
+            const bIsSemiOrFinal = b.round >= b.totalRounds - 1
+            const aDay = (a.deferSemisToDay && aIsSemiOrFinal) ? a.deferSemisToDay
+                : (a.isFinal && a.deferFinalsToDay) ? a.deferFinalsToDay : a.scheduleDay
+            const bDay = (b.deferSemisToDay && bIsSemiOrFinal) ? b.deferSemisToDay
+                : (b.isFinal && b.deferFinalsToDay) ? b.deferFinalsToDay : b.scheduleDay
             if (aDay !== bDay) return aDay - bDay
 
-            // Within the same day: deferred finals go to the very end of that day
-            const aDef = a.isFinal && a.deferFinals && !a.deferFinalsToDay
-            const bDef = b.isFinal && b.deferFinals && !b.deferFinalsToDay
+            // Within same day: deferred-finals-only (end of day) go last
+            const aDef = a.isFinal && a.deferFinals && !a.deferFinalsToDay && !a.deferSemisToDay
+            const bDef = b.isFinal && b.deferFinals && !b.deferFinalsToDay && !b.deferSemisToDay
             if (aDef && !bDef) return 1
             if (!aDef && bDef) return -1
 
-            const aGroupByCategory = !a.deferFinals
-            const bGroupByCategory = !b.deferFinals
+            const aGroupByCategory = !a.deferFinals && !a.deferSemisToDay
+            const bGroupByCategory = !b.deferFinals && !b.deferSemisToDay
 
             if (aGroupByCategory && bGroupByCategory) {
                 if (a.catMinAge !== b.catMinAge) return a.catMinAge - b.catMinAge
@@ -686,12 +695,12 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
         })
 
         // Step 3: Insert matches (Pass 1)
-        // Build a per-category ID mapping: (categoryId:tempId) → dbId
         const idLookup = new Map<string, number>();
 
         for (const spec of allSpecs) {
-            // Compute which day this specific match belongs to
-            const specDay = (spec.isFinal && spec.deferFinalsToDay) ? spec.deferFinalsToDay : spec.scheduleDay
+            const isSemiOrFinal = spec.round >= spec.totalRounds - 1
+            const specDay = (spec.deferSemisToDay && isSemiOrFinal) ? spec.deferSemisToDay
+                : (spec.isFinal && spec.deferFinalsToDay) ? spec.deferFinalsToDay : spec.scheduleDay
             const createdMatch = await prisma.match.create({
                 data: {
                     categoryRefId: spec.categoryId,
@@ -980,12 +989,13 @@ export async function updateCategoryDaySettings(
     categoryId: string,
     scheduleDay: number | null,
     deferFinals: boolean,
-    deferFinalsToDay: number | null
+    deferFinalsToDay: number | null,
+    deferSemisToDay: number | null = null
 ) {
     try {
         await prisma.category.update({
             where: { id: categoryId },
-            data: { scheduleDay, deferFinals, deferFinalsToDay }
+            data: { scheduleDay, deferFinals, deferFinalsToDay, deferSemisToDay } as any
         })
         return { success: true }
     } catch (error) {
@@ -4880,7 +4890,8 @@ export async function simulateMatchSequence(
 
         type SpecWithCategory = ReturnType<typeof generateSingleEliminationBracket>[number] & {
             categoryId: string; catMinAge: number; catMinWeight: number; catMinHeight: number;
-            catSkillPriority: number; deferFinals: boolean; scheduleDay: number; deferFinalsToDay: number | null;
+            catSkillPriority: number; deferFinals: boolean; scheduleDay: number;
+            deferFinalsToDay: number | null; deferSemisToDay: number | null; totalRounds: number;
         }
 
         const allSpecs: SpecWithCategory[] = []
@@ -4896,26 +4907,35 @@ export async function simulateMatchSequence(
             }
             const specs = generateSingleEliminationBracket(category.players, 1, preOrdered)
 
+            const catTotalRounds = specs.length > 0 ? Math.max(...specs.map(s => s.round)) : 1
             specs.forEach(s => {
                 allSpecs.push({
                     ...s, categoryId: category.id,
                     catMinAge: category.minAge ?? 999, catMinWeight: category.minWeight ?? 999, catMinHeight: category.minHeight ?? 999,
                     catSkillPriority: skillPriority[(category.skillLevel || 'novice').toLowerCase()] || 1,
-                    deferFinals: category.deferFinals, scheduleDay: category.scheduleDay ?? 1, deferFinalsToDay: category.deferFinalsToDay ?? null,
+                    deferFinals: category.deferFinals, scheduleDay: category.scheduleDay ?? 1,
+                    deferFinalsToDay: category.deferFinalsToDay ?? null,
+                    deferSemisToDay:  (category as any).deferSemisToDay  ?? null,
+                    totalRounds:      catTotalRounds,
                 })
             })
         }
 
         allSpecs.sort((a, b) => {
-            const aDay = (a.isFinal && a.deferFinalsToDay) ? a.deferFinalsToDay : a.scheduleDay
-            const bDay = (b.isFinal && b.deferFinalsToDay) ? b.deferFinalsToDay : b.scheduleDay
+            const aIsSemiOrFinal = a.round >= a.totalRounds - 1
+            const bIsSemiOrFinal = b.round >= b.totalRounds - 1
+            const aDay = (a.deferSemisToDay && aIsSemiOrFinal) ? a.deferSemisToDay
+                : (a.isFinal && a.deferFinalsToDay) ? a.deferFinalsToDay : a.scheduleDay
+            const bDay = (b.deferSemisToDay && bIsSemiOrFinal) ? b.deferSemisToDay
+                : (b.isFinal && b.deferFinalsToDay) ? b.deferFinalsToDay : b.scheduleDay
             if (aDay !== bDay) return aDay - bDay
 
-            const aDef = a.isFinal && a.deferFinals && !a.deferFinalsToDay
-            const bDef = b.isFinal && b.deferFinals && !b.deferFinalsToDay
+            const aDef = a.isFinal && a.deferFinals && !a.deferFinalsToDay && !a.deferSemisToDay
+            const bDef = b.isFinal && b.deferFinals && !b.deferFinalsToDay && !b.deferSemisToDay
             if (aDef && !bDef) return 1
             if (!aDef && bDef) return -1
-            const aGroup = !a.deferFinals; const bGroup = !b.deferFinals;
+            const aGroup = !a.deferFinals && !a.deferSemisToDay
+            const bGroup = !b.deferFinals && !b.deferSemisToDay
             if (aGroup && bGroup) {
                 if (a.catMinAge !== b.catMinAge) return a.catMinAge - b.catMinAge
                 if (a.catMinWeight !== b.catMinWeight) return a.catMinWeight - b.catMinWeight
@@ -4937,7 +4957,9 @@ export async function simulateMatchSequence(
 
         allSpecs.forEach(spec => {
             if (!result[spec.categoryId]) result[spec.categoryId] = {}
-            const specDay = (spec.isFinal && spec.deferFinalsToDay) ? spec.deferFinalsToDay : spec.scheduleDay
+            const isSemiOrFinal = spec.round >= spec.totalRounds - 1
+            const specDay = (spec.deferSemisToDay && isSemiOrFinal) ? spec.deferSemisToDay
+                : (spec.isFinal && spec.deferFinalsToDay) ? spec.deferFinalsToDay : spec.scheduleDay
             result[spec.categoryId][spec.id] = { globalId: currentMatchNumber++, day: specDay }
         })
     }
@@ -5034,6 +5056,7 @@ export async function generateAllBracketsFromPreview(
             catMinAge: number; catMinWeight: number; catMinHeight: number;
             catSkillPriority: number; deferFinals: boolean;
             scheduleDay: number; deferFinalsToDay: number | null;
+            deferSemisToDay: number | null; totalRounds: number;
         }
 
         const allSpecs: SpecWithCategory[] = []
@@ -5060,6 +5083,7 @@ export async function generateAllBracketsFromPreview(
             const catMinHeight = category.minHeight ?? 999
             const catSkillPriority = skillPriority[(category.skillLevel || 'novice').toLowerCase()] || 1
 
+            const catTotalRounds = specs.length > 0 ? Math.max(...specs.map(s => s.round)) : 1
             specs.forEach(s => {
                 allSpecs.push({
                     ...s, categoryId: category.id, categoryName: category.name,
@@ -5067,22 +5091,28 @@ export async function generateAllBracketsFromPreview(
                     catSkillPriority, deferFinals: category.deferFinals,
                     scheduleDay:      category.scheduleDay      ?? 1,
                     deferFinalsToDay: category.deferFinalsToDay ?? null,
+                    deferSemisToDay:  (category as any).deferSemisToDay  ?? null,
+                    totalRounds:      catTotalRounds,
                 })
             })
         }
 
         // Sort — day first, then existing logic within each day
         allSpecs.sort((a, b) => {
-            const aDay = (a.isFinal && a.deferFinalsToDay) ? a.deferFinalsToDay : a.scheduleDay
-            const bDay = (b.isFinal && b.deferFinalsToDay) ? b.deferFinalsToDay : b.scheduleDay
+            const aIsSemiOrFinal = a.round >= a.totalRounds - 1
+            const bIsSemiOrFinal = b.round >= b.totalRounds - 1
+            const aDay = (a.deferSemisToDay && aIsSemiOrFinal) ? a.deferSemisToDay
+                : (a.isFinal && a.deferFinalsToDay) ? a.deferFinalsToDay : a.scheduleDay
+            const bDay = (b.deferSemisToDay && bIsSemiOrFinal) ? b.deferSemisToDay
+                : (b.isFinal && b.deferFinalsToDay) ? b.deferFinalsToDay : b.scheduleDay
             if (aDay !== bDay) return aDay - bDay
 
-            const aDef = a.isFinal && a.deferFinals && !a.deferFinalsToDay
-            const bDef = b.isFinal && b.deferFinals && !b.deferFinalsToDay
+            const aDef = a.isFinal && a.deferFinals && !a.deferFinalsToDay && !a.deferSemisToDay
+            const bDef = b.isFinal && b.deferFinals && !b.deferFinalsToDay && !b.deferSemisToDay
             if (aDef && !bDef) return 1
             if (!aDef && bDef) return -1
-            const aGroup = !a.deferFinals
-            const bGroup = !b.deferFinals
+            const aGroup = !a.deferFinals && !a.deferSemisToDay
+            const bGroup = !b.deferFinals && !b.deferSemisToDay
             if (aGroup && bGroup) {
                 if (a.catMinAge !== b.catMinAge) return a.catMinAge - b.catMinAge
                 if (a.catMinWeight !== b.catMinWeight) return a.catMinWeight - b.catMinWeight
@@ -5105,7 +5135,9 @@ export async function generateAllBracketsFromPreview(
         // Insert
         const idLookup = new Map<string, number>()
         for (const spec of allSpecs) {
-            const specDay = (spec.isFinal && spec.deferFinalsToDay) ? spec.deferFinalsToDay : spec.scheduleDay
+            const isSemiOrFinal = spec.round >= spec.totalRounds - 1
+            const specDay = (spec.deferSemisToDay && isSemiOrFinal) ? spec.deferSemisToDay
+                : (spec.isFinal && spec.deferFinalsToDay) ? spec.deferFinalsToDay : spec.scheduleDay
             const createdMatch = await prisma.match.create({
                 data: {
                     categoryRefId: spec.categoryId, category: spec.categoryName,
