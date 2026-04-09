@@ -500,8 +500,10 @@ export default function EventCheckIn({
         afterCheckIn()
         setSearchQuery(''); setSearchResults([]); setIsLoading(false)
 
-        // Trigger waiver flow if check-in successful and display is connected
-        if (res.success && !res.alreadyCheckedIn && displayConnected && onSaveWaiver) {
+        if (!res.success || res.alreadyCheckedIn) return
+
+        if (displayConnected && onSaveWaiver) {
+            // Display is connected — trigger waiver flow, which pushes to NFC queue on submit
             channelRef.current?.postMessage({
                 type: 'CHECKED_IN',
                 data: {
@@ -514,6 +516,17 @@ export default function EventCheckIn({
                 }
             })
             setTimeout(() => startWaiverFlow(res.player ?? undefined), 2600)
+        } else if (res.player?.id) {
+            // No display/waiver flow — push directly to NFC queue so the writer panel gets it
+            fetch('/api/nfc-queue', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tournamentId: eventId,
+                    playerId: res.player.id,
+                    playerName: res.player.name,
+                }),
+            }).catch(console.error)
         }
     }
 
