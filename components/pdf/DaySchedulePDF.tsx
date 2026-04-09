@@ -69,13 +69,6 @@ const styles = StyleSheet.create({
         paddingVertical: 5,
         borderRadius: 3,
     },
-    tableHeaderText: {
-        fontSize: 7,
-        fontFamily: 'Helvetica-Bold',
-        color: '#ffffff',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-    },
     tableRow: {
         flexDirection: 'row',
         borderBottom: '1px solid #f1f5f9',
@@ -96,13 +89,30 @@ const styles = StyleSheet.create({
         paddingVertical: 4,
         backgroundColor: '#fffbeb',
     },
-    colMatch:    { width: 36,  fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#4f46e5', textAlign: 'center' },
-    colCategory: { flex: 1.5,  fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#0f172a', paddingRight: 6 },
-    colPlayer1:  { flex: 1,    fontSize: 8, color: '#334155', paddingRight: 6 },
-    colVs:       { width: 16,  fontSize: 7, color: '#94a3b8', textAlign: 'center', fontFamily: 'Helvetica-Bold' },
-    colPlayer2:  { flex: 1,    fontSize: 8, color: '#334155', paddingRight: 6 },
-    colRound:    { width: 48,  fontSize: 7, color: '#475569', textAlign: 'center' },
-    colCourt:    { width: 44,  fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#ea580c', textAlign: 'center' },
+    // ── Column LAYOUTS (width/flex/alignment only — NO colors) ──
+    layoutMatch:    { width: 36,  textAlign: 'center' as const },
+    layoutCategory: { flex: 1.5,  paddingRight: 6 },
+    layoutPlayer1:  { flex: 1,    paddingRight: 6 },
+    layoutVs:       { width: 16,  textAlign: 'center' as const },
+    layoutPlayer2:  { flex: 1,    paddingRight: 6 },
+    layoutAthlete:  { flex: 2,    paddingRight: 6 },
+    layoutRound:    { width: 48,  textAlign: 'center' as const },
+    layoutCourt:    { width: 44,  textAlign: 'center' as const },
+    // ── Header text (white on dark) ──
+    th: {
+        fontSize: 7,
+        fontFamily: 'Helvetica-Bold',
+        color: '#ffffff',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    // ── Body text styles ──
+    tdMatch:    { fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#4f46e5' },
+    tdCategory: { fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#0f172a' },
+    tdPlayer:   { fontSize: 8, color: '#334155' },
+    tdVs:       { fontSize: 7, color: '#94a3b8', fontFamily: 'Helvetica-Bold' },
+    tdRound:    { fontSize: 7, color: '#475569' },
+    tdCourt:    { fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#ea580c' },
     // ── Footer ──
     footer: {
         position: 'absolute',
@@ -131,6 +141,7 @@ export interface DayScheduleMatch {
     court: string
     player1Name: string
     player2Name: string
+    isPoomsae?: boolean
 }
 
 interface DaySchedulePDFProps {
@@ -138,11 +149,12 @@ interface DaySchedulePDFProps {
     day: number
     matches: DayScheduleMatch[]
     generatedAt?: string
+    isPoomsae?: boolean
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export default function DaySchedulePDF({ tournamentName, day, matches, generatedAt }: DaySchedulePDFProps) {
+export default function DaySchedulePDF({ tournamentName, day, matches, generatedAt, isPoomsae = false }: DaySchedulePDFProps) {
     const now = generatedAt || new Date().toLocaleString()
 
     // Summary stats
@@ -158,7 +170,9 @@ export default function DaySchedulePDF({ tournamentName, day, matches, generated
                 <View style={styles.pageHeader} fixed>
                     <View>
                         <Text style={styles.title}>{tournamentName}</Text>
-                        <Text style={styles.subtitle}>Match Schedule — Sorted by Match Number</Text>
+                        <Text style={styles.subtitle}>
+                            {isPoomsae ? 'Poomsae Schedule' : 'Match Schedule'} — Sorted by Match Number
+                        </Text>
                     </View>
                     <Text style={styles.dayBadge}>Day {day}</Text>
                 </View>
@@ -167,7 +181,7 @@ export default function DaySchedulePDF({ tournamentName, day, matches, generated
                 <View style={styles.summaryStrip}>
                     <View style={styles.summaryItem}>
                         <Text style={styles.summaryValue}>{totalMatches}</Text>
-                        <Text style={styles.summaryLabel}>Matches</Text>
+                        <Text style={styles.summaryLabel}>{isPoomsae ? 'Performances' : 'Matches'}</Text>
                     </View>
                     <View style={styles.summaryItem}>
                         <Text style={styles.summaryValue}>{courts.length}</Text>
@@ -181,13 +195,19 @@ export default function DaySchedulePDF({ tournamentName, day, matches, generated
 
                 {/* ── Table header ── */}
                 <View style={styles.tableHeader} fixed>
-                    <Text style={{ ...styles.tableHeaderText, ...styles.colMatch }}>#</Text>
-                    <Text style={{ ...styles.tableHeaderText, ...styles.colCategory }}>Category</Text>
-                    <Text style={{ ...styles.tableHeaderText, ...styles.colPlayer1 }}>Player 1 (Blue)</Text>
-                    <Text style={{ ...styles.tableHeaderText, ...styles.colVs }}>VS</Text>
-                    <Text style={{ ...styles.tableHeaderText, ...styles.colPlayer2 }}>Player 2 (Red)</Text>
-                    <Text style={{ ...styles.tableHeaderText, ...styles.colRound }}>Round</Text>
-                    <Text style={{ ...styles.tableHeaderText, ...styles.colCourt }}>Court</Text>
+                    <Text style={{ ...styles.th, ...styles.layoutMatch }}>#</Text>
+                    <Text style={{ ...styles.th, ...styles.layoutCategory }}>Category</Text>
+                    {isPoomsae ? (
+                        <Text style={{ ...styles.th, ...styles.layoutAthlete }}>Athlete / Team</Text>
+                    ) : (
+                        <>
+                            <Text style={{ ...styles.th, ...styles.layoutPlayer1 }}>Player 1 (Blue)</Text>
+                            <Text style={{ ...styles.th, ...styles.layoutVs }}>VS</Text>
+                            <Text style={{ ...styles.th, ...styles.layoutPlayer2 }}>Player 2 (Red)</Text>
+                        </>
+                    )}
+                    <Text style={{ ...styles.th, ...styles.layoutRound }}>Round</Text>
+                    <Text style={{ ...styles.th, ...styles.layoutCourt }}>Court</Text>
                 </View>
 
                 {/* ── Rows ── */}
@@ -197,13 +217,19 @@ export default function DaySchedulePDF({ tournamentName, day, matches, generated
                         style={m.isFinal ? styles.tableRowFinal : (idx % 2 === 0 ? styles.tableRow : styles.tableRowAlt)}
                         wrap={false}
                     >
-                        <Text style={styles.colMatch}>#{m.matchId ?? '—'}</Text>
-                        <Text style={styles.colCategory}>{m.categoryName}</Text>
-                        <Text style={styles.colPlayer1}>{m.player1Name || 'TBD'}</Text>
-                        <Text style={styles.colVs}>vs</Text>
-                        <Text style={styles.colPlayer2}>{m.player2Name || 'TBD'}</Text>
-                        <Text style={styles.colRound}>{m.roundLabel}</Text>
-                        <Text style={styles.colCourt}>{m.court || '—'}</Text>
+                        <Text style={{ ...styles.tdMatch, ...styles.layoutMatch }}>#{m.matchId ?? '—'}</Text>
+                        <Text style={{ ...styles.tdCategory, ...styles.layoutCategory }}>{m.categoryName}</Text>
+                        {isPoomsae ? (
+                            <Text style={{ ...styles.tdPlayer, ...styles.layoutAthlete }}>{m.player1Name || 'TBD'}</Text>
+                        ) : (
+                            <>
+                                <Text style={{ ...styles.tdPlayer, ...styles.layoutPlayer1 }}>{m.player1Name || 'TBD'}</Text>
+                                <Text style={{ ...styles.tdVs, ...styles.layoutVs }}>vs</Text>
+                                <Text style={{ ...styles.tdPlayer, ...styles.layoutPlayer2 }}>{m.player2Name || 'TBD'}</Text>
+                            </>
+                        )}
+                        <Text style={{ ...styles.tdRound, ...styles.layoutRound }}>{m.roundLabel}</Text>
+                        <Text style={{ ...styles.tdCourt, ...styles.layoutCourt }}>{m.court || '—'}</Text>
                     </View>
                 ))}
 

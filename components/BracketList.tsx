@@ -619,9 +619,10 @@ export default function BracketList({ categories, tournamentName, publicView = f
                                                 day={dayFilter}
                                                 matches={dayPdfMatches}
                                                 generatedAt={new Date().toLocaleString()}
+                                                isPoomsae={activeTab === 'poomsae'}
                                             />
                                         }
-                                        fileName={`${(tournamentName || 'tournament').replace(/\s+/g, '-')}-day-${dayFilter}-schedule.pdf`}
+                                        fileName={`${(tournamentName || 'tournament').replace(/\s+/g, '-')}-day-${dayFilter}-${activeTab}-schedule.pdf`}
                                     >
                                         {({ loading: pdfLoading }: { loading: boolean }) => (
                                             <button
@@ -642,7 +643,10 @@ export default function BracketList({ categories, tournamentName, publicView = f
                                     <table className="w-full text-left">
                                         <thead>
                                             <tr className="bg-gray-50 border-b border-gray-100">
-                                                {['#','Category','Player 1','','Player 2','Round','Court'].map(h => (
+                                                {(activeTab === 'poomsae'
+                                                    ? ['#','Category','Athlete / Team','Round','Court']
+                                                    : ['#','Category','Player 1','','Player 2','Round','Court']
+                                                ).map(h => (
                                                     <th key={h} className="px-4 py-2.5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{h}</th>
                                                 ))}
                                             </tr>
@@ -658,15 +662,23 @@ export default function BracketList({ categories, tournamentName, publicView = f
                                                     <td className="px-4 py-2.5">
                                                         <span className="text-xs font-semibold text-gray-800">{row.categoryName}</span>
                                                     </td>
-                                                    <td className="px-4 py-2.5">
-                                                        <span className="text-xs text-gray-700">{row.player1Name || 'TBD'}</span>
-                                                    </td>
-                                                    <td className="px-4 py-2.5">
-                                                        <span className="text-[10px] font-bold text-gray-300">vs</span>
-                                                    </td>
-                                                    <td className="px-4 py-2.5">
-                                                        <span className="text-xs text-gray-700">{row.player2Name || 'TBD'}</span>
-                                                    </td>
+                                                    {activeTab === 'poomsae' ? (
+                                                        <td className="px-4 py-2.5">
+                                                            <span className="text-xs text-gray-700">{row.player1Name || 'TBD'}</span>
+                                                        </td>
+                                                    ) : (
+                                                        <>
+                                                            <td className="px-4 py-2.5">
+                                                                <span className="text-xs text-gray-700">{row.player1Name || 'TBD'}</span>
+                                                            </td>
+                                                            <td className="px-4 py-2.5">
+                                                                <span className="text-[10px] font-bold text-gray-300">vs</span>
+                                                            </td>
+                                                            <td className="px-4 py-2.5">
+                                                                <span className="text-xs text-gray-700">{row.player2Name || 'TBD'}</span>
+                                                            </td>
+                                                        </>
+                                                    )}
                                                     <td className="px-4 py-2.5">
                                                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
                                                             row.isFinal ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-200' :
@@ -761,7 +773,21 @@ function CollapsibleBracket({
 }) {
     const [isOpen, setIsOpen] = useState(false)
     const [isAlertOpen, setIsAlertOpen] = useState(false)
+    const [localCourt, setLocalCourt] = useState(category.court || '')
+    const [savingCourt, setSavingCourt] = useState(false)
     const matchCount = isPoomsae ? (category.poomsaeMatches?.length || 0) : category.matches.length
+
+    async function handleCourtBlur() {
+        const trimmed = localCourt.trim()
+        if (trimmed === (category.court || '')) return
+        setSavingCourt(true)
+        try {
+            const r = await bulkUpdateCourts([{ categoryId: category.id, court: trimmed }], tournamentId)
+            if (r.success) toast.success(`Court updated to "${trimmed || 'None'}"`);
+            else toast.error('Failed to update court');
+        } catch { toast.error('Failed to update court') }
+        finally { setSavingCourt(false) }
+    }
 
     const hasAlert  = alerts.some(a => a.type === 'UNCONTESTED')
     const hasMerge  = alerts.some(a => a.type === 'MERGE_SUGGESTION')
@@ -810,11 +836,27 @@ function CollapsibleBracket({
                             </span>
 
                             {/* Court */}
-                            {category.court && (
+                            {!publicView ? (
+                                <div className="inline-flex items-center gap-1 bg-orange-50 border border-orange-100 rounded-md px-1.5 py-0.5">
+                                    <MapPin size={8} className="text-orange-400 flex-shrink-0" />
+                                    <input
+                                        type="text"
+                                        placeholder="Court"
+                                        value={localCourt}
+                                        onClick={e => e.stopPropagation()}
+                                        onChange={e => setLocalCourt(e.target.value)}
+                                        onBlur={handleCourtBlur}
+                                        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                                        disabled={savingCourt}
+                                        className="w-12 text-[10px] font-bold text-orange-700 bg-transparent border-none outline-none placeholder:text-orange-300 disabled:opacity-50"
+                                    />
+                                    {savingCourt && <Loader2 size={8} className="animate-spin text-orange-400" />}
+                                </div>
+                            ) : category.court ? (
                                 <span className="text-[10px] font-bold text-orange-700 bg-orange-50 border border-orange-100 px-2 py-0.5 rounded-md uppercase">
                                     Court {category.court}
                                 </span>
-                            )}
+                            ) : null}
 
                             {/* Alert pills + inline proposal status */}
                             {!publicView && alerts.map((alert: any, i: number) => {
