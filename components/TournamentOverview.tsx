@@ -2,8 +2,8 @@
 
 import React, { useMemo, useState } from 'react'
 import { Category, Match, Player, Tournament } from '@prisma/client'
-import { Users, Trophy, ClipboardList, Calendar, TrendingUp, CheckCircle2, Clock, XCircle, FileDown, Loader2, Eye, EyeOff, ChevronDown, ShieldAlert, ArrowLeftRight, X, Check } from 'lucide-react'
-import { getClubRosterForTournament, ClubRosterPlayer, getTournamentAlerts, movePlayerToCategory } from '@/app/actions'
+import { Users, Trophy, ClipboardList, Calendar, TrendingUp, CheckCircle2, Clock, XCircle, FileDown, Loader2, Eye, EyeOff, ChevronDown, ShieldAlert, ArrowLeftRight, X, Check, Trash2 } from 'lucide-react'
+import { getClubRosterForTournament, ClubRosterPlayer, getTournamentAlerts, movePlayerToCategory, removePlayerFromTournament } from '@/app/actions'
 import { downloadClubRosterPdf } from '@/lib/club-roster-pdf'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -53,6 +53,8 @@ export default function TournamentOverview({
     const [movingPlayer,   setMovingPlayer]   = useState<string | null>(null)  // playerId being moved
     const [moveSearch,     setMoveSearch]     = useState('')
     const [movingLoading,  setMovingLoading]  = useState(false)
+    const [deletingPlayer, setDeletingPlayer] = useState<string | null>(null)  // playerId confirm-delete
+    const [deleteLoading,  setDeleteLoading]  = useState(false)
 
     const tournamentId = tournament.id
 
@@ -73,6 +75,28 @@ export default function TournamentOverview({
             setRosterCache(prev => ({ ...prev, [clubId]: data.players }))
         } finally {
             setLoadingView(null)
+        }
+    }
+
+    async function handleDeletePlayer(p: ClubRosterPlayer, clubId: string) {
+        setDeleteLoading(true)
+        try {
+            const result = await removePlayerFromTournament(p.id, tournament.id)
+            if ('error' in result) {
+                toast.error(result.error)
+            } else {
+                toast.success(
+                    result.bracketsRegenerated
+                        ? `${result.playerName} removed · ${result.disciplineRegenerated} brackets regenerated`
+                        : `${result.playerName} removed`
+                )
+                setDeletingPlayer(null)
+                // Refresh roster cache for this club
+                const data = await getClubRosterForTournament(tournament.id, clubId)
+                setRosterCache(prev => ({ ...prev, [clubId]: data.players }))
+            }
+        } finally {
+            setDeleteLoading(false)
         }
     }
     const approvedCount  = stats?.approved ?? players.filter(p => p.registrationStatus === 'APPROVED').length
@@ -573,21 +597,39 @@ export default function TournamentOverview({
                                                                                                     </span>
                                                                                                 </td>
                                                                                                 <td className="px-3 py-2">
-                                                                                                    <button
-                                                                                                        onClick={() => {
-                                                                                                            setMovingPlayer(movingPlayer === p.id ? null : p.id)
-                                                                                                            setMoveSearch('')
-                                                                                                        }}
-                                                                                                        title="Change division"
-                                                                                                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black transition-colors ${
-                                                                                                            movingPlayer === p.id
-                                                                                                                ? 'bg-indigo-600 text-white'
-                                                                                                                : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
-                                                                                                        }`}
-                                                                                                    >
-                                                                                                        <ArrowLeftRight size={9} />
-                                                                                                        Move
-                                                                                                    </button>
+                                                                                                    <div className="flex items-center gap-1">
+                                                                                                        <button
+                                                                                                            onClick={() => {
+                                                                                                                setMovingPlayer(movingPlayer === p.id ? null : p.id)
+                                                                                                                setDeletingPlayer(null)
+                                                                                                                setMoveSearch('')
+                                                                                                            }}
+                                                                                                            title="Change division"
+                                                                                                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black transition-colors ${
+                                                                                                                movingPlayer === p.id
+                                                                                                                    ? 'bg-indigo-600 text-white'
+                                                                                                                    : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+                                                                                                            }`}
+                                                                                                        >
+                                                                                                            <ArrowLeftRight size={9} />
+                                                                                                            Move
+                                                                                                        </button>
+                                                                                                        <button
+                                                                                                            onClick={() => {
+                                                                                                                setDeletingPlayer(deletingPlayer === p.id ? null : p.id)
+                                                                                                                setMovingPlayer(null)
+                                                                                                            }}
+                                                                                                            title="Remove athlete"
+                                                                                                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black transition-colors ${
+                                                                                                                deletingPlayer === p.id
+                                                                                                                    ? 'bg-red-600 text-white'
+                                                                                                                    : 'bg-red-50 text-red-500 hover:bg-red-100'
+                                                                                                            }`}
+                                                                                                        >
+                                                                                                            <Trash2 size={9} />
+                                                                                                            Remove
+                                                                                                        </button>
+                                                                                                    </div>
                                                                                                 </td>
                                                                                             </tr>
                                                                                             {/* Inline move picker */}
@@ -655,6 +697,38 @@ export default function TournamentOverview({
                                                                                                     </tr>
                                                                                                 )
                                                                                             })()}
+                                                                                            {/* Inline delete confirmation */}
+                                                                                            {deletingPlayer === p.id && (
+                                                                                                <tr className="border-t border-red-100 bg-red-50/40">
+                                                                                                    <td colSpan={10} className="px-4 py-3">
+                                                                                                        <div className="flex items-center gap-3">
+                                                                                                            <Trash2 size={12} className="text-red-500 flex-shrink-0" />
+                                                                                                            <span className="text-[11px] font-black text-red-700">
+                                                                                                                Remove <span className="underline">{p.name}</span> from this tournament?
+                                                                                                            </span>
+                                                                                                            <div className="ml-auto flex items-center gap-1.5">
+                                                                                                                <button
+                                                                                                                    onClick={() => setDeletingPlayer(null)}
+                                                                                                                    disabled={deleteLoading}
+                                                                                                                    className="px-3 py-1 text-[10px] font-black rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                                                                                                                >
+                                                                                                                    Cancel
+                                                                                                                </button>
+                                                                                                                <button
+                                                                                                                    onClick={() => club.id && handleDeletePlayer(p, club.id)}
+                                                                                                                    disabled={deleteLoading}
+                                                                                                                    className="flex items-center gap-1 px-3 py-1 text-[10px] font-black rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                                                                                                                >
+                                                                                                                    {deleteLoading
+                                                                                                                        ? <Loader2 size={9} className="animate-spin" />
+                                                                                                                        : <Trash2 size={9} />}
+                                                                                                                    Confirm Remove
+                                                                                                                </button>
+                                                                                                            </div>
+                                                                                                        </div>
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                            )}
                                                                                             </React.Fragment>
                                                                                         ))}
                                                                                     </tbody>

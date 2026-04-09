@@ -2480,6 +2480,41 @@ export async function movePlayerToCategory(
     }
 }
 
+export async function removePlayerFromTournament(playerId: string, tournamentId: string) {
+    const dbUser = await getAuthUser()
+    if (!dbUser) return { error: 'Unauthorized' }
+
+    const player = await prisma.player.findUnique({
+        where: { id: playerId },
+        include: { category: { select: { tournamentId: true, type: true } } }
+    })
+    if (!player || player.category?.tournamentId !== tournamentId) {
+        return { error: 'Player not found in this tournament' }
+    }
+
+    const disciplineType = (player.category?.type ?? 'KYORUGI') as 'KYORUGI' | 'POOMSAE' | 'KYUKPA'
+
+    const existingMatchCount = disciplineType === 'POOMSAE'
+        ? await prisma.poomsaeMatch.count({ where: { categoryRef: { tournamentId } } })
+        : await prisma.match.count({ where: { categoryRef: { tournamentId }, categoryRefId: { not: null } } })
+
+    const bracketsAffected = existingMatchCount > 0
+
+    await prisma.player.delete({ where: { id: playerId } })
+
+    if (bracketsAffected) {
+        await generateAllBrackets(tournamentId, disciplineType)
+    }
+
+    revalidatePath(`/tournament/${tournamentId}`)
+    return {
+        success: true,
+        playerName: player.name,
+        bracketsRegenerated: bracketsAffected,
+        disciplineRegenerated: bracketsAffected ? disciplineType : null,
+    }
+}
+
 export async function getTournamentStats(tournamentId: string) {
 
     const [statusGroups, kyorugiCount, poomsaeCount, kyukpaCount, clubPlayers] = await Promise.all([
