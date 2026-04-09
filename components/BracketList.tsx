@@ -1,17 +1,26 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useMemo } from 'react'
 import { Category, Match, PoomsaeMatch } from '@prisma/client'
 import BracketView from './BracketView'
 import PoomsaeBracketView from './PoomsaeBracketView'
 import BracketPreviewModal from './BracketPreviewModal'
-import { generateAllBrackets, getTournamentAlerts, initiateSmartProposal, forceExecuteSmartAction, bulkSendUncontestedProposals } from '@/app/actions'
+import { generateAllBrackets, getTournamentAlerts, initiateSmartProposal, forceExecuteSmartAction, bulkSendUncontestedProposals, bulkUpdateCourts } from '@/app/actions'
 import {
     Trophy, Medal, Wand2, Loader2, AlertCircle, Search,
-    ShieldAlert, Split, Merge, Users, X, ChevronDown, Zap, ArrowRight, Clock, Send, ChevronRight, Eye, Calendar
+    ShieldAlert, Split, Merge, Users, X, ChevronDown, Zap, ArrowRight, Clock, Send, ChevronRight, Eye, Calendar,
+    Download, MapPin
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import dynamic from 'next/dynamic'
+import DaySchedulePDF from '@/components/pdf/DaySchedulePDF'
+import type { DayScheduleMatch } from '@/components/pdf/DaySchedulePDF'
+
+const PDFDownloadLink = dynamic(
+    () => import('@react-pdf/renderer').then(mod => ({ default: mod.PDFDownloadLink })),
+    { ssr: false }
+)
 
 interface BracketListProps {
     categories: (Category & { matches: Match[], poomsaeMatches?: (PoomsaeMatch & { player: { name: string; club?: { name: string } | null } })[] })[]
@@ -121,27 +130,109 @@ export default function BracketList({ categories, tournamentName, publicView = f
     const dayTabs = [0, 1, 2, 3].filter(d => d === 0 || d <= maxScheduleDay) as (0|1|2|3)[]
 
     // Build flat schedule list for the day filter view
-    const dayScheduleRows: { matchId: number|null; categoryName: string; round: number; court: string; isFinal: boolean; scheduledDay: number|null }[] = []
+    const dayScheduleRows: { matchId: number|null; categoryName: string; categoryId: string; round: number; court: string; isFinal: boolean; scheduledDay: number|null; player1Name: string; player2Name: string }[] = []
     if (dayFilter > 0) {
         for (const cat of displayedCategories) {
             const isPoomsaeCat = activeTab === 'poomsae'
             if (isPoomsaeCat) {
                 for (const m of (cat.poomsaeMatches || [])) {
                     if ((m as any).scheduledDay === dayFilter) {
-                        dayScheduleRows.push({ matchId: (m as any).matchId, categoryName: cat.name, round: (m as any).round, court: (m as any).court, isFinal: (m as any).round === 3, scheduledDay: (m as any).scheduledDay })
+                        dayScheduleRows.push({
+                            matchId: (m as any).matchId,
+                            categoryName: cat.name,
+                            categoryId: cat.id,
+                            round: (m as any).round,
+                            court: (m as any).court || 'Unassigned',
+                            isFinal: (m as any).round === 3,
+                            scheduledDay: (m as any).scheduledDay,
+                            player1Name: (m as any).player?.name || (m as any).displayName || '',
+                            player2Name: '',
+                        })
                     }
                 }
             } else {
                 for (const m of cat.matches) {
                     if ((m as any).scheduledDay === dayFilter) {
                         const maxRound = Math.max(...cat.matches.map(x => x.round))
-                        dayScheduleRows.push({ matchId: (m as any).matchId, categoryName: cat.name, round: m.round, court: (m as any).court, isFinal: m.round === maxRound, scheduledDay: (m as any).scheduledDay })
+                        dayScheduleRows.push({
+                            matchId: (m as any).matchId,
+                            categoryName: cat.name,
+                            categoryId: cat.id,
+                            round: m.round,
+                            court: (m as any).court || 'Unassigned',
+                            isFinal: m.round === maxRound,
+                            scheduledDay: (m as any).scheduledDay,
+                            player1Name: m.player1 === 'BYE' ? 'BYE' : m.player1 || '',
+                            player2Name: m.player2 === 'BYE' ? 'BYE' : m.player2 || '',
+                        })
                     }
                 }
             }
         }
         dayScheduleRows.sort((a, b) => (a.matchId ?? 0) - (b.matchId ?? 0))
     }
+
+    // Court editing state
+    const [courtEdits, setCourtEdits] = useState<Record<string, string>>({})
+    const [savingCourts, setSavingCourts] = useState(false)
+
+    // Unique categories in the current day view for court assignment
+    const dayCategoryIds = useMemo(() => {
+        const ids = new Set<string>()
+        for (const r of dayScheduleRows) ids.add(r.categoryId)
+        return Array.from(ids)
+    }, [dayScheduleRows])
+
+    const dayCategoriesWithCourt = useMemo(() => {
+        const map = new Map<string, { name: string; court: string }>()
+        for (const r of dayScheduleRows) {
+            if (!map.has(r.categoryId)) {
+                map.set(r.categoryId, { name: r.categoryName, court: r.court })
+            }
+        }
+        return Array.from(map.entries()).sort((a, b) => a[1].name.localeCompare(b[1].name))
+    }, [dayScheduleRows])
+
+    async function handleSaveCourts() {
+        const updates = Object.entries(courtEdits)
+            .filter(([catId, court]) => {
+                const existing = dayCategoriesWithCourt.find(([id]) => id === catId)
+                return existing && existing[1].court !== court
+            })
+            .map(([categoryId, court]) => ({ categoryId, court }))
+
+        if (updates.length === 0) { toast.info('No court changes to save'); return }
+        setSavingCourts(true)
+        try {
+            const r = await bulkUpdateCourts(updates, tournamentId)
+            if (r.success) {
+                toast.success(`Updated courts for ${updates.length} categor${updates.length === 1 ? 'y' : 'ies'}`)
+                setCourtEdits({})
+            } else {
+                toast.error(r.message || 'Failed to update courts')
+            }
+        } catch { toast.error('Failed to update courts') }
+        finally { setSavingCourts(false) }
+    }
+
+    // Build round label helper
+    function roundLabel(round: number, isFinal: boolean): string {
+        if (isFinal) return 'Final'
+        if (round === 1) return 'Round 1'
+        return `Round ${round}`
+    }
+
+    // Build PDF match data
+    const dayPdfMatches: DayScheduleMatch[] = dayScheduleRows.map(r => ({
+        matchId: r.matchId,
+        categoryName: r.categoryName,
+        round: r.round,
+        roundLabel: roundLabel(r.round, r.isFinal),
+        isFinal: r.isFinal,
+        court: courtEdits[r.categoryId] ?? r.court,
+        player1Name: r.player1Name,
+        player2Name: r.player2Name,
+    }))
 
     return (
         <>
@@ -462,46 +553,143 @@ export default function BracketList({ categories, tournamentName, publicView = f
                             <p className="text-xs text-gray-400 mt-1">Generate brackets first, or adjust category day settings.</p>
                         </div>
                     ) : (
-                        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                            <div className="px-5 py-3.5 border-b border-gray-100 flex items-center gap-2">
-                                <Calendar size={14} className="text-indigo-500" />
-                                <span className="text-sm font-black text-gray-800">Day {dayFilter} — Match Schedule</span>
-                                <span className="text-xs text-gray-400 ml-1">({dayScheduleRows.length} matches)</span>
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left">
-                                    <thead>
-                                        <tr className="bg-gray-50 border-b border-gray-100">
-                                            {['#','Category','Round','Court'].map(h => (
-                                                <th key={h} className="px-4 py-2.5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{h}</th>
+                        <div className="space-y-4">
+                            {/* ── Court Assignment Panel ─────────────── */}
+                            {!publicView && (
+                                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                                    <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <MapPin size={14} className="text-orange-500" />
+                                            <span className="text-sm font-black text-gray-800">Court Assignments</span>
+                                            <span className="text-xs text-gray-400 ml-1">({dayCategoriesWithCourt.length} categories)</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {Object.keys(courtEdits).length > 0 && (
+                                                <button
+                                                    onClick={handleSaveCourts}
+                                                    disabled={savingCourts}
+                                                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white transition-all
+                                                        bg-gradient-to-br from-orange-500 to-orange-600
+                                                        shadow-sm shadow-orange-500/20
+                                                        hover:shadow-md hover:-translate-y-0.5
+                                                        disabled:opacity-50 disabled:translate-y-0"
+                                                >
+                                                    {savingCourts ? <Loader2 size={11} className="animate-spin" /> : <MapPin size={11} />}
+                                                    Save Courts
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="px-5 py-3.5">
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                                            {dayCategoriesWithCourt.map(([catId, info]) => (
+                                                <div key={catId} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 border border-gray-100">
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-[11px] font-bold text-gray-800 truncate">{info.name}</p>
+                                                    </div>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Court"
+                                                        defaultValue={courtEdits[catId] ?? (info.court === 'Unassigned' ? '' : info.court)}
+                                                        onChange={e => setCourtEdits(prev => ({ ...prev, [catId]: e.target.value }))}
+                                                        className="w-16 text-center text-[11px] font-bold px-1.5 py-1 rounded-lg border border-orange-200 bg-white text-orange-700
+                                                            focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 transition-all
+                                                            placeholder:text-gray-300"
+                                                    />
+                                                </div>
                                             ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {dayScheduleRows.map((row, i) => (
-                                            <tr key={i} className={`border-b border-gray-50 ${i % 2 === 0 ? '' : 'bg-gray-50/50'}`}>
-                                                <td className="px-4 py-2.5">
-                                                    <span className="text-xs font-black text-indigo-600">#{row.matchId ?? '—'}</span>
-                                                </td>
-                                                <td className="px-4 py-2.5">
-                                                    <span className="text-xs font-semibold text-gray-800">{row.categoryName}</span>
-                                                </td>
-                                                <td className="px-4 py-2.5">
-                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                                                        row.isFinal ? 'bg-amber-50 text-amber-700' :
-                                                        row.round === 1 ? 'bg-gray-100 text-gray-600' :
-                                                        'bg-blue-50 text-blue-700'
-                                                    }`}>
-                                                        {row.isFinal ? 'Final' : row.round === 1 ? 'Round 1' : `Round ${row.round}`}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-2.5">
-                                                    <span className="text-xs text-gray-500">{row.court || '—'}</span>
-                                                </td>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ── Day Match Table ─────────────────────── */}
+                            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                                <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Calendar size={14} className="text-indigo-500" />
+                                        <span className="text-sm font-black text-gray-800">Day {dayFilter} — Match Schedule</span>
+                                        <span className="text-xs text-gray-400 ml-1">({dayScheduleRows.length} matches)</span>
+                                    </div>
+                                    {/* Download PDF */}
+                                    <PDFDownloadLink
+                                        document={
+                                            <DaySchedulePDF
+                                                tournamentName={tournamentName || 'Tournament'}
+                                                day={dayFilter}
+                                                matches={dayPdfMatches}
+                                                generatedAt={new Date().toLocaleString()}
+                                            />
+                                        }
+                                        fileName={`${(tournamentName || 'tournament').replace(/\s+/g, '-')}-day-${dayFilter}-schedule.pdf`}
+                                    >
+                                        {({ loading: pdfLoading }: { loading: boolean }) => (
+                                            <button
+                                                disabled={pdfLoading}
+                                                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white transition-all
+                                                    bg-gradient-to-br from-indigo-500 to-indigo-600
+                                                    shadow-sm shadow-indigo-500/20
+                                                    hover:shadow-md hover:-translate-y-0.5
+                                                    disabled:opacity-50 disabled:translate-y-0"
+                                            >
+                                                {pdfLoading ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />}
+                                                {pdfLoading ? 'Preparing…' : `Download Day ${dayFilter}`}
+                                            </button>
+                                        )}
+                                    </PDFDownloadLink>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="bg-gray-50 border-b border-gray-100">
+                                                {['#','Category','Player 1','','Player 2','Round','Court'].map(h => (
+                                                    <th key={h} className="px-4 py-2.5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{h}</th>
+                                                ))}
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody>
+                                            {dayScheduleRows.map((row, i) => (
+                                                <tr key={i} className={`border-b border-gray-50 ${
+                                                    row.isFinal ? 'bg-amber-50/60' : i % 2 === 0 ? '' : 'bg-gray-50/50'
+                                                }`}>
+                                                    <td className="px-4 py-2.5">
+                                                        <span className="text-xs font-black text-indigo-600">#{row.matchId ?? '—'}</span>
+                                                    </td>
+                                                    <td className="px-4 py-2.5">
+                                                        <span className="text-xs font-semibold text-gray-800">{row.categoryName}</span>
+                                                    </td>
+                                                    <td className="px-4 py-2.5">
+                                                        <span className="text-xs text-gray-700">{row.player1Name || 'TBD'}</span>
+                                                    </td>
+                                                    <td className="px-4 py-2.5">
+                                                        <span className="text-[10px] font-bold text-gray-300">vs</span>
+                                                    </td>
+                                                    <td className="px-4 py-2.5">
+                                                        <span className="text-xs text-gray-700">{row.player2Name || 'TBD'}</span>
+                                                    </td>
+                                                    <td className="px-4 py-2.5">
+                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                                                            row.isFinal ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-200' :
+                                                            row.round === 1 ? 'bg-gray-100 text-gray-600' :
+                                                            'bg-blue-50 text-blue-700'
+                                                        }`}>
+                                                            {row.isFinal ? '🏆 Final' : row.round === 1 ? 'Round 1' : `Round ${row.round}`}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-2.5">
+                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                                                            (courtEdits[row.categoryId] ?? row.court) && (courtEdits[row.categoryId] ?? row.court) !== 'Unassigned'
+                                                                ? 'bg-orange-50 text-orange-700 ring-1 ring-orange-200'
+                                                                : 'text-gray-400'
+                                                        }`}>
+                                                            {(courtEdits[row.categoryId] ?? row.court) === 'Unassigned' ? '—' : (courtEdits[row.categoryId] ?? row.court) || '—'}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     )
