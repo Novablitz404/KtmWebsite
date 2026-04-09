@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, useTransition } from 'react'
 import {
     X, Search, Loader2, Eye, RefreshCw, ChevronDown,
-    ArrowRightLeft, Shuffle, Trophy, Shield, Download
+    ArrowRightLeft, Shuffle, Trophy, Shield, Download,
+    CheckSquare, Square, Layers
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { previewAllBrackets, previewCategoryBracket, movePlayerToCategory, generateAllBracketsFromPreview, updateCategoryDaySettings, simulateMatchSequence } from '@/app/actions'
@@ -202,6 +203,12 @@ export default function BracketPreviewModal({ tournamentId, tournamentName, disc
     const [globalMatchIds, setGlobalMatchIds] = useState<Record<string, Record<number, { globalId: number, day: number }>> | null>(null)
     const [simulatingSequence, setSimulatingSequence] = useState(false)
 
+    // ── Bulk selection ──────────────────────────────────────────────────────────
+    const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set())
+    const [bulkApplying, setBulkApplying] = useState(false)
+    const [bulkDay, setBulkDay]       = useState<string>('')
+    const [bulkDefer, setBulkDefer]   = useState<string>('')
+
     const loadPreview = useCallback(async () => {
         setLoading(true)
         setSelected(null)
@@ -274,6 +281,42 @@ export default function BracketPreviewModal({ tournamentId, tournamentName, disc
             await loadPreview()
         } catch { toast.error('Move failed') }
         finally { setMovingPlayer(false) }
+    }
+
+    async function handleBulkApply() {
+        if (!bulkSelected.size || (!bulkDay && !bulkDefer)) return
+        setBulkApplying(true)
+        try {
+            let deferFinals = true
+            let deferFinalsToDay: number | null = null
+            let deferSemisToDay:  number | null = null
+
+            if (bulkDefer === 'seq')       deferFinals = false
+            else if (bulkDefer === 'end')  { deferFinals = true }
+            else if (bulkDefer === 'finals-d2') { deferFinals = true; deferFinalsToDay = 2 }
+            else if (bulkDefer === 'finals-d3') { deferFinals = true; deferFinalsToDay = 3 }
+            else if (bulkDefer === 'semis-d2')  { deferFinals = true; deferSemisToDay = 2 }
+            else if (bulkDefer === 'semis-d3')  { deferFinals = true; deferSemisToDay = 3 }
+
+            await Promise.all(Array.from(bulkSelected).map(catId => {
+                const cat = data.find(c => c.categoryId === catId)
+                const day = bulkDay ? parseInt(bulkDay) : (cat?.scheduleDay ?? null)
+                const df  = bulkDefer ? deferFinals      : (cat?.deferFinals      ?? true)
+                const dfd = bulkDefer ? deferFinalsToDay : (cat?.deferFinalsToDay ?? null)
+                const dsd = bulkDefer ? deferSemisToDay  : ((cat as any)?.deferSemisToDay ?? null)
+                return updateCategoryDaySettings(catId, day, df, dfd, dsd)
+            }))
+
+            toast.success(`Applied to ${bulkSelected.size} ${bulkSelected.size === 1 ? 'category' : 'categories'}`)
+            setBulkSelected(new Set())
+            setBulkDay('')
+            setBulkDefer('')
+            await loadPreview()
+        } catch {
+            toast.error('Bulk apply failed')
+        } finally {
+            setBulkApplying(false)
+        }
     }
 
     async function handleCalculateSequence() {
@@ -514,9 +557,78 @@ export default function BracketPreviewModal({ tournamentId, tournamentName, disc
                     )}
                 </div>
 
+                {/* ── Bulk Action Bar ─────────────────────────────────────── */}
+                {bulkSelected.size > 0 && (
+                    <div className="flex-shrink-0 px-5 py-2.5 border-b flex items-center gap-2.5 flex-wrap"
+                        style={{ borderColor: 'rgba(99,102,241,0.3)', background: 'rgba(99,102,241,0.07)' }}>
+
+                        <div className="flex items-center gap-1.5">
+                            <div className="w-5 h-5 rounded-md flex items-center justify-center"
+                                style={{ background: 'rgba(99,102,241,0.3)' }}>
+                                <Layers size={11} className="text-indigo-300" />
+                            </div>
+                            <span className="text-xs font-black text-indigo-300">{bulkSelected.size} selected</span>
+                        </div>
+
+                        <div className="w-px h-4 bg-white/10" />
+
+                        <select
+                            value={bulkDay}
+                            onChange={e => setBulkDay(e.target.value)}
+                            className="text-[11px] font-bold bg-[#1e293b] text-indigo-300 border border-indigo-500/30 rounded-lg px-2 py-1 cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        >
+                            <option value="">— Keep Day</option>
+                            <option value="1">Day 1</option>
+                            <option value="2">Day 2</option>
+                            <option value="3">Day 3</option>
+                        </select>
+
+                        <select
+                            value={bulkDefer}
+                            onChange={e => setBulkDefer(e.target.value)}
+                            className="text-[11px] font-bold bg-[#1e293b] text-amber-300 border border-amber-500/30 rounded-lg px-2 py-1 cursor-pointer focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        >
+                            <option value="">— Keep Defer</option>
+                            <option value="seq">Sequential</option>
+                            <option value="end">End of Day</option>
+                            <option value="finals-d2">Finals → Day 2</option>
+                            <option value="finals-d3">Finals → Day 3</option>
+                            <option value="semis-d2">Semis + Finals → Day 2</option>
+                            <option value="semis-d3">Semis + Finals → Day 3</option>
+                        </select>
+
+                        <button
+                            onClick={handleBulkApply}
+                            disabled={bulkApplying || (!bulkDay && !bulkDefer)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black transition-all hover:scale-105 disabled:opacity-40"
+                            style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)', color: 'white', boxShadow: '0 2px 8px rgba(99,102,241,0.3)' }}
+                        >
+                            {bulkApplying ? <Loader2 size={11} className="animate-spin" /> : <CheckSquare size={11} />}
+                            Apply to {bulkSelected.size}
+                        </button>
+
+                        <button
+                            onClick={() => setBulkSelected(new Set(filtered.map(c => c.categoryId)))}
+                            className="text-[11px] font-bold transition-colors hover:text-indigo-300"
+                            style={{ color: 'rgba(165,180,252,0.7)' }}
+                        >
+                            Select all {filtered.length}
+                        </button>
+
+                        <button
+                            onClick={() => { setBulkSelected(new Set()); setBulkDay(''); setBulkDefer('') }}
+                            className="text-[11px] font-bold ml-auto transition-colors hover:text-white/60"
+                            style={{ color: 'rgba(255,255,255,0.3)' }}
+                        >
+                            Clear
+                        </button>
+                    </div>
+                )}
+
                 {/* ── CONTENT ────────────────────────────────────────────── */}
                 <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3"
                     style={{ background: 'linear-gradient(180deg, #111827 0%, #0f172a 100%)' }}>
+
 
                     {loading ? (
                         <div className="flex flex-col items-center justify-center h-full">
@@ -549,6 +661,13 @@ export default function BracketPreviewModal({ tournamentId, tournamentName, disc
                             movingPlayer={movingPlayer}
                             allCategories={data}
                             simulatedMatches={globalMatchIds?.[cat.categoryId]}
+                            isBulkSelected={bulkSelected.has(cat.categoryId)}
+                            onBulkToggle={() => setBulkSelected(prev => {
+                                const next = new Set(prev)
+                                if (next.has(cat.categoryId)) next.delete(cat.categoryId)
+                                else next.add(cat.categoryId)
+                                return next
+                            })}
                         />
                     ))}
                 </div>
@@ -628,7 +747,8 @@ export default function BracketPreviewModal({ tournamentId, tournamentName, disc
 function CategoryCard({
     cat, localSpecs, isExpanded, onToggle, selected, onPlayerClick,
     isReshuffling, onReshuffle, movePicker, onMoveRequest, onMoveTo,
-    onMoveCancel, movingPlayer, allCategories, simulatedMatches
+    onMoveCancel, movingPlayer, allCategories, simulatedMatches,
+    isBulkSelected, onBulkToggle
 }: {
     cat: PreviewCategoryData
     localSpecs: PreviewMatch[]
@@ -645,6 +765,8 @@ function CategoryCard({
     movingPlayer: boolean
     allCategories: PreviewCategoryData[]
     simulatedMatches?: Record<number, { globalId: number, day: number }>
+    isBulkSelected: boolean
+    onBulkToggle: () => void
 }) {
     const [savingDay, startDayTransition] = useTransition()
     const [localScheduleDay, setLocalScheduleDay] = useState<number|null>(cat.scheduleDay ?? null)
@@ -679,16 +801,27 @@ function CategoryCard({
     return (
         <div className="rounded-2xl overflow-hidden transition-all duration-200"
             style={{
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(255,255,255,0.08)',
+                background: isBulkSelected ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${isBulkSelected ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.08)'}`,
                 borderLeftWidth: '4px',
-                borderLeftColor: cat.type === 'POOMSAE' ? '#8b5cf6' : cat.type === 'KYUKPA' ? '#f59e0b' : (skill.dot === 'bg-red-500' ? '#ef4444' : skill.dot === 'bg-blue-500' ? '#3b82f6' : '#10b981'),
+                borderLeftColor: isBulkSelected ? '#6366f1' : (cat.type === 'POOMSAE' ? '#8b5cf6' : cat.type === 'KYUKPA' ? '#f59e0b' : (skill.dot === 'bg-red-500' ? '#ef4444' : skill.dot === 'bg-blue-500' ? '#3b82f6' : '#10b981')),
             }}>
 
             {/* Card Header */}
             <div className="flex items-center gap-3 px-4 py-3.5 cursor-pointer select-none"
                 style={{ background: isExpanded ? 'rgba(255,255,255,0.04)' : 'transparent' }}
                 onClick={onToggle}>
+
+                {/* Bulk checkbox */}
+                <div
+                    onClick={e => { e.stopPropagation(); onBulkToggle() }}
+                    className="w-6 h-6 flex items-center justify-center flex-shrink-0 cursor-pointer rounded-md transition-colors hover:bg-white/10"
+                    title="Select for bulk edit"
+                >
+                    {isBulkSelected
+                        ? <CheckSquare size={15} className="text-indigo-400" />
+                        : <Square size={15} style={{ color: 'rgba(255,255,255,0.2)' }} />}
+                </div>
 
                 {/* Chevron */}
                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all ${
