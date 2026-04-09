@@ -617,6 +617,8 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
             catMinHeight: number;
             catSkillPriority: number;
             deferFinals: boolean;
+            scheduleDay: number;
+            deferFinalsToDay: number | null;
         };
 
         const allSpecs: SpecWithCategory[] = [];
@@ -642,68 +644,69 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
                     catMinHeight,
                     catSkillPriority,
                     deferFinals: category.deferFinals,
+                    scheduleDay:      category.scheduleDay      ?? 1,
+                    deferFinalsToDay: category.deferFinalsToDay ?? null,
                 });
             });
         }
 
-        // Step 2: Sort globally
+        // Step 2: Sort globally — day first, then existing ordering within each day
         allSpecs.sort((a, b) => {
-            // Deferred finals go to the very end
-            const aDef = a.isFinal && a.deferFinals;
-            const bDef = b.isFinal && b.deferFinals;
-            if (aDef && !bDef) return 1;
-            if (!aDef && bDef) return -1;
+            // Compute effective day for each spec
+            const aDay = (a.isFinal && a.deferFinalsToDay) ? a.deferFinalsToDay : a.scheduleDay
+            const bDay = (b.isFinal && b.deferFinalsToDay) ? b.deferFinalsToDay : b.scheduleDay
+            if (aDay !== bDay) return aDay - bDay
 
-            // For non-deferred categories: group ALL their matches together by category
-            // For deferred categories (non-final matches): interleave by round globally
-            const aGroupByCategory = !a.deferFinals;
-            const bGroupByCategory = !b.deferFinals;
+            // Within the same day: deferred finals go to the very end of that day
+            const aDef = a.isFinal && a.deferFinals && !a.deferFinalsToDay
+            const bDef = b.isFinal && b.deferFinals && !b.deferFinalsToDay
+            if (aDef && !bDef) return 1
+            if (!aDef && bDef) return -1
+
+            const aGroupByCategory = !a.deferFinals
+            const bGroupByCategory = !b.deferFinals
 
             if (aGroupByCategory && bGroupByCategory) {
-                // Both non-deferred: group by division → weight → skill → round
-                if (a.catMinAge !== b.catMinAge) return a.catMinAge - b.catMinAge;
-                if (a.catMinWeight !== b.catMinWeight) return a.catMinWeight - b.catMinWeight;
-                if (a.catMinHeight !== b.catMinHeight) return a.catMinHeight - b.catMinHeight;
-                if (a.catSkillPriority !== b.catSkillPriority) return a.catSkillPriority - b.catSkillPriority;
-                // Within same category: sort by round (R1 → SF → Final)
-                if (a.round !== b.round) return a.round - b.round;
-                return a.id - b.id;
+                if (a.catMinAge !== b.catMinAge) return a.catMinAge - b.catMinAge
+                if (a.catMinWeight !== b.catMinWeight) return a.catMinWeight - b.catMinWeight
+                if (a.catMinHeight !== b.catMinHeight) return a.catMinHeight - b.catMinHeight
+                if (a.catSkillPriority !== b.catSkillPriority) return a.catSkillPriority - b.catSkillPriority
+                if (a.round !== b.round) return a.round - b.round
+                return a.id - b.id
             }
-
             if (!aGroupByCategory && !bGroupByCategory) {
-                // Both deferred (non-final matches): interleave by round globally
-                if (a.round !== b.round) return a.round - b.round;
-                // Tie-breakers within same round
-                if (a.catMinAge !== b.catMinAge) return a.catMinAge - b.catMinAge;
-                if (a.catMinWeight !== b.catMinWeight) return a.catMinWeight - b.catMinWeight;
-                if (a.catMinHeight !== b.catMinHeight) return a.catMinHeight - b.catMinHeight;
-                if (a.catSkillPriority !== b.catSkillPriority) return a.catSkillPriority - b.catSkillPriority;
-                return a.id - b.id;
+                if (a.round !== b.round) return a.round - b.round
+                if (a.catMinAge !== b.catMinAge) return a.catMinAge - b.catMinAge
+                if (a.catMinWeight !== b.catMinWeight) return a.catMinWeight - b.catMinWeight
+                if (a.catMinHeight !== b.catMinHeight) return a.catMinHeight - b.catMinHeight
+                if (a.catSkillPriority !== b.catSkillPriority) return a.catSkillPriority - b.catSkillPriority
+                return a.id - b.id
             }
-
-            // Non-deferred categories play first (they finish early), then deferred categories
-            return aGroupByCategory ? -1 : 1;
-        });
+            return aGroupByCategory ? -1 : 1
+        })
 
         // Step 3: Insert matches (Pass 1)
         // Build a per-category ID mapping: (categoryId:tempId) → dbId
         const idLookup = new Map<string, number>();
 
         for (const spec of allSpecs) {
+            // Compute which day this specific match belongs to
+            const specDay = (spec.isFinal && spec.deferFinalsToDay) ? spec.deferFinalsToDay : spec.scheduleDay
             const createdMatch = await prisma.match.create({
                 data: {
                     categoryRefId: spec.categoryId,
                     category: spec.categoryName,
                     round: spec.round,
-                    matchId: currentMatchNumber++, // Assign sequential Display ID
+                    matchId: currentMatchNumber++,
                     player1: spec.player1?.name || "TBD",
                     player2: spec.player2?.name || "TBD",
                     winner: null,
                     nextMatchSlot: spec.nextMatchSlot,
-                    court: spec.court
+                    court: spec.court,
+                    scheduledDay: specDay,
                 }
-            });
-            idLookup.set(`${spec.categoryId}:${spec.id}`, createdMatch.id);
+            })
+            idLookup.set(`${spec.categoryId}:${spec.id}`, createdMatch.id)
         }
 
         // Step 4: Link nextMatchId (Pass 2)
@@ -969,10 +972,31 @@ export async function bulkUpdateDeferFinals(categoryIds: string[], deferFinals: 
     }
 }
 
+// ─────────────────────────────────────────────────────────────
+// MULTI-DAY: Update day scheduling settings for a category
+// ─────────────────────────────────────────────────────────────
 
+export async function updateCategoryDaySettings(
+    categoryId: string,
+    scheduleDay: number | null,
+    deferFinals: boolean,
+    deferFinalsToDay: number | null
+) {
+    try {
+        await prisma.category.update({
+            where: { id: categoryId },
+            data: { scheduleDay, deferFinals, deferFinalsToDay }
+        })
+        return { success: true }
+    } catch (error) {
+        console.error('updateCategoryDaySettings error:', error)
+        return { success: false }
+    }
+}
 
 export async function scheduleTournament(tournamentId: string, courtConfig: { name: string, categoryIds: string[] }[]) {
     if (!tournamentId) return { error: "Tournament ID required" }
+
 
     const categories = await prisma.category.findMany({
         where: { tournamentId },
@@ -4680,6 +4704,9 @@ export async function previewAllBrackets(tournamentId: string, type: string) {
                 division:    p.division    || null,
                 birthDate:   (p as any).user?.birthDate?.toISOString() || null,
             })),
+            scheduleDay:      cat.scheduleDay,
+            deferFinals:      cat.deferFinals,
+            deferFinalsToDay: cat.deferFinalsToDay,
             // Kyorugi / Kyukpa specs (single-elimination bracket)
             specs: kyorugiSpecs.map(s => ({
                 id:            s.id,
@@ -4750,6 +4777,9 @@ export async function previewCategoryBracket(categoryId: string) {
             division:    p.division    || null,
             birthDate:   (p as any).user?.birthDate?.toISOString() || null,
         })),
+        scheduleDay:      cat.scheduleDay,
+        deferFinals:      cat.deferFinals,
+        deferFinalsToDay: cat.deferFinalsToDay,
         specs: kyorugiSpecs.map(s => ({
             id:            s.id,
             round:         s.round,
@@ -4770,6 +4800,114 @@ export async function previewCategoryBracket(categoryId: string) {
             assignedForms:     s.assignedForms || null,
         })),
     }
+}
+
+// ─────────────────────────────────────────────────────────────
+// SIMULATE MATCH SEQUENCE
+// ─────────────────────────────────────────────────────────────
+
+export async function simulateMatchSequence(
+    tournamentId: string,
+    type: 'KYORUGI' | 'POOMSAE' | 'KYUKPA',
+    seedOrders: Record<string, string[]>
+) {
+    if (!tournamentId) return { success: false, message: 'Missing tournament ID' }
+
+    const categories = await prisma.category.findMany({
+        where: { tournamentId, type },
+        include: { players: { include: { club: true } } }
+    })
+    
+    const validCategories = categories.filter(c => c.players.length > 0)
+    const result: Record<string, Record<number, { globalId: number, day: number }>> = {} // categoryId -> { spec.id -> { globalId, day } }
+
+    if (type === 'POOMSAE' || type === 'KYUKPA') {
+        let currentMatchNumber = 1
+
+        for (const category of validCategories) {
+            const poomsaeSpecs = generatePoomsaeBracket(category.players as any, category.subtype || 'INDIVIDUAL', category.poomsaeForms)
+            const distinctGroupIndices = Array.from(new Set(poomsaeSpecs.map(s => s.roundGroupIndex))).sort((a, b) => a - b)
+            const groupMapping = new Map<number, number>()
+            distinctGroupIndices.forEach(idx => { groupMapping.set(idx, currentMatchNumber++) })
+            
+            result[category.id] = {}
+            poomsaeSpecs.forEach(s => {
+                // Map by round rather than performanceNumber, so we don't overwrite!
+                if (!result[category.id][s.round]) {
+                    result[category.id][s.round] = { globalId: groupMapping.get(s.roundGroupIndex) || 0, day: category.scheduleDay ?? 1 }
+                }
+            })
+        }
+    } else {
+        let currentMatchNumber = 1
+
+        const skillPriority: Record<string, number> = { 'novice': 1, 'intermediate': 2, 'advance': 3, 'advanced': 3 }
+
+        type SpecWithCategory = ReturnType<typeof generateSingleEliminationBracket>[number] & {
+            categoryId: string; catMinAge: number; catMinWeight: number; catMinHeight: number;
+            catSkillPriority: number; deferFinals: boolean; scheduleDay: number; deferFinalsToDay: number | null;
+        }
+
+        const allSpecs: SpecWithCategory[] = []
+
+        for (const category of validCategories) {
+            if (category.players.length < 2) continue
+            let preOrdered: typeof category.players | undefined = undefined
+            const order = seedOrders[category.id]
+            if (order && order.length > 0) {
+                const playerMap = new Map(category.players.map(p => [p.id, p]))
+                const ordered = order.map(id => playerMap.get(id)).filter(Boolean) as typeof category.players
+                if (ordered.length === category.players.length) preOrdered = ordered
+            }
+            const specs = generateSingleEliminationBracket(category.players, 1, preOrdered)
+
+            specs.forEach(s => {
+                allSpecs.push({
+                    ...s, categoryId: category.id,
+                    catMinAge: category.minAge ?? 999, catMinWeight: category.minWeight ?? 999, catMinHeight: category.minHeight ?? 999,
+                    catSkillPriority: skillPriority[(category.skillLevel || 'novice').toLowerCase()] || 1,
+                    deferFinals: category.deferFinals, scheduleDay: category.scheduleDay ?? 1, deferFinalsToDay: category.deferFinalsToDay ?? null,
+                })
+            })
+        }
+
+        allSpecs.sort((a, b) => {
+            const aDay = (a.isFinal && a.deferFinalsToDay) ? a.deferFinalsToDay : a.scheduleDay
+            const bDay = (b.isFinal && b.deferFinalsToDay) ? b.deferFinalsToDay : b.scheduleDay
+            if (aDay !== bDay) return aDay - bDay
+
+            const aDef = a.isFinal && a.deferFinals && !a.deferFinalsToDay
+            const bDef = b.isFinal && b.deferFinals && !b.deferFinalsToDay
+            if (aDef && !bDef) return 1
+            if (!aDef && bDef) return -1
+            const aGroup = !a.deferFinals; const bGroup = !b.deferFinals;
+            if (aGroup && bGroup) {
+                if (a.catMinAge !== b.catMinAge) return a.catMinAge - b.catMinAge
+                if (a.catMinWeight !== b.catMinWeight) return a.catMinWeight - b.catMinWeight
+                if (a.catMinHeight !== b.catMinHeight) return a.catMinHeight - b.catMinHeight
+                if (a.catSkillPriority !== b.catSkillPriority) return a.catSkillPriority - b.catSkillPriority
+                if (a.round !== b.round) return a.round - b.round
+                return a.id - b.id
+            }
+            if (!aGroup && !bGroup) {
+                if (a.round !== b.round) return a.round - b.round
+                if (a.catMinAge !== b.catMinAge) return a.catMinAge - b.catMinAge
+                if (a.catMinWeight !== b.catMinWeight) return a.catMinWeight - b.catMinWeight
+                if (a.catMinHeight !== b.catMinHeight) return a.catMinHeight - b.catMinHeight
+                if (a.catSkillPriority !== b.catSkillPriority) return a.catSkillPriority - b.catSkillPriority
+                return a.id - b.id
+            }
+            return aGroup ? -1 : 1
+        })
+
+        allSpecs.forEach(spec => {
+            if (!result[spec.categoryId]) result[spec.categoryId] = {}
+            const specDay = (spec.isFinal && spec.deferFinalsToDay) ? spec.deferFinalsToDay : spec.scheduleDay
+            result[spec.categoryId][spec.id] = { globalId: currentMatchNumber++, day: specDay }
+        })
+    }
+
+    return { success: true, mapping: result }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -4860,6 +4998,7 @@ export async function generateAllBracketsFromPreview(
             categoryId: string; categoryName: string; court: string;
             catMinAge: number; catMinWeight: number; catMinHeight: number;
             catSkillPriority: number; deferFinals: boolean;
+            scheduleDay: number; deferFinalsToDay: number | null;
         }
 
         const allSpecs: SpecWithCategory[] = []
@@ -4891,14 +5030,20 @@ export async function generateAllBracketsFromPreview(
                     ...s, categoryId: category.id, categoryName: category.name,
                     court: category.court || "Unassigned", catMinAge, catMinWeight, catMinHeight,
                     catSkillPriority, deferFinals: category.deferFinals,
+                    scheduleDay:      category.scheduleDay      ?? 1,
+                    deferFinalsToDay: category.deferFinalsToDay ?? null,
                 })
             })
         }
 
-        // Sort (same logic as generateAllBrackets)
+        // Sort — day first, then existing logic within each day
         allSpecs.sort((a, b) => {
-            const aDef = a.isFinal && a.deferFinals
-            const bDef = b.isFinal && b.deferFinals
+            const aDay = (a.isFinal && a.deferFinalsToDay) ? a.deferFinalsToDay : a.scheduleDay
+            const bDay = (b.isFinal && b.deferFinalsToDay) ? b.deferFinalsToDay : b.scheduleDay
+            if (aDay !== bDay) return aDay - bDay
+
+            const aDef = a.isFinal && a.deferFinals && !a.deferFinalsToDay
+            const bDef = b.isFinal && b.deferFinals && !b.deferFinalsToDay
             if (aDef && !bDef) return 1
             if (!aDef && bDef) return -1
             const aGroup = !a.deferFinals
@@ -4925,12 +5070,14 @@ export async function generateAllBracketsFromPreview(
         // Insert
         const idLookup = new Map<string, number>()
         for (const spec of allSpecs) {
+            const specDay = (spec.isFinal && spec.deferFinalsToDay) ? spec.deferFinalsToDay : spec.scheduleDay
             const createdMatch = await prisma.match.create({
                 data: {
                     categoryRefId: spec.categoryId, category: spec.categoryName,
                     round: spec.round, matchId: currentMatchNumber++,
                     player1: spec.player1?.name || "TBD", player2: spec.player2?.name || "TBD",
-                    winner: null, nextMatchSlot: spec.nextMatchSlot, court: spec.court
+                    winner: null, nextMatchSlot: spec.nextMatchSlot, court: spec.court,
+                    scheduledDay: specDay,
                 }
             })
             idLookup.set(`${spec.categoryId}:${spec.id}`, createdMatch.id)

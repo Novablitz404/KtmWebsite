@@ -136,6 +136,10 @@ model Category {
   skillLevel String? @default("Novice") // "Novice" or "Advance"
   deferFinals Boolean @default(true) // When true, finals are pushed to the end of the match schedule
 
+  // Multi-day scheduling
+  scheduleDay      Int? // Which day this whole category plays: 1, 2, 3. Null = unassigned (treated as Day 1)
+  deferFinalsToDay Int? // Override day for finals only (works alongside deferFinals). Null = same as scheduleDay
+
   // Auto-Detection Rules (Copied from Template)
   minAge    Int?
   maxAge    Int?
@@ -575,6 +579,8 @@ model Match {
 
   court String @default("Unassigned")
 
+  scheduledDay Int? // Which tournament day this match is played (1, 2, 3). Set at generation time.
+
   // Scoring Fields
   r1_blue_score    Int @default(0)
   r1_red_score     Int @default(0)
@@ -625,6 +631,8 @@ model PoomsaeMatch {
 
   status String @default("Pending") // Pending, Completed
   court  String @default("Unassigned")
+
+  scheduledDay Int? // Which tournament day this round is played (1, 2, 3). Set at generation time.
 
   createdAt DateTime @default(now())
 

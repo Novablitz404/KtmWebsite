@@ -8,7 +8,7 @@ import BracketPreviewModal from './BracketPreviewModal'
 import { generateAllBrackets, getTournamentAlerts, initiateSmartProposal, forceExecuteSmartAction, bulkSendUncontestedProposals } from '@/app/actions'
 import {
     Trophy, Medal, Wand2, Loader2, AlertCircle, Search,
-    ShieldAlert, Split, Merge, Users, X, ChevronDown, Zap, ArrowRight, Clock, Send, ChevronRight, Eye
+    ShieldAlert, Split, Merge, Users, X, ChevronDown, Zap, ArrowRight, Clock, Send, ChevronRight, Eye, Calendar
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -28,6 +28,7 @@ export default function BracketList({ categories, tournamentName, publicView = f
     const [sendingClub, setSendingClub] = useState<string | null>(null)
     const [clubDropdownOpen, setClubDropdownOpen] = useState(false)
     const [previewOpen, setPreviewOpen] = useState(false)
+    const [dayFilter, setDayFilter] = useState<0|1|2|3>(0)
 
     const tournamentId = categories[0]?.tournamentId
 
@@ -111,6 +112,36 @@ export default function BracketList({ categories, tournamentName, publicView = f
         { id: 'poomsae', label: 'Poomsae', icon: Medal,  count: poomsaeCategories.length },
         { id: 'kyukpa',  label: 'Kyukpa',  icon: Wand2,  count: kyukpaCategories.length  },
     ]
+
+    // Multi-day: find the highest day used across the visible categories
+    const maxScheduleDay = displayedCategories.reduce((max, c) => {
+        const d = Math.max(c.scheduleDay ?? 1, c.deferFinalsToDay ?? 1)
+        return d > max ? d : max
+    }, 1)
+    const dayTabs = [0, 1, 2, 3].filter(d => d === 0 || d <= maxScheduleDay) as (0|1|2|3)[]
+
+    // Build flat schedule list for the day filter view
+    const dayScheduleRows: { matchId: number|null; categoryName: string; round: number; court: string; isFinal: boolean; scheduledDay: number|null }[] = []
+    if (dayFilter > 0) {
+        for (const cat of displayedCategories) {
+            const isPoomsaeCat = activeTab === 'poomsae'
+            if (isPoomsaeCat) {
+                for (const m of (cat.poomsaeMatches || [])) {
+                    if ((m as any).scheduledDay === dayFilter) {
+                        dayScheduleRows.push({ matchId: (m as any).matchId, categoryName: cat.name, round: (m as any).round, court: (m as any).court, isFinal: (m as any).round === 3, scheduledDay: (m as any).scheduledDay })
+                    }
+                }
+            } else {
+                for (const m of cat.matches) {
+                    if ((m as any).scheduledDay === dayFilter) {
+                        const maxRound = Math.max(...cat.matches.map(x => x.round))
+                        dayScheduleRows.push({ matchId: (m as any).matchId, categoryName: cat.name, round: m.round, court: (m as any).court, isFinal: m.round === maxRound, scheduledDay: (m as any).scheduledDay })
+                    }
+                }
+            }
+        }
+        dayScheduleRows.sort((a, b) => (a.matchId ?? 0) - (b.matchId ?? 0))
+    }
 
     return (
         <>
@@ -395,41 +426,122 @@ export default function BracketList({ categories, tournamentName, publicView = f
 
             </div>
 
-            {/* ── Category List ────────────────────────────────────── */}
+            {/* ── Day Filter Tabs ────────────────────────────────── */}
+            {!publicView && dayTabs.length > 1 && (
+                <div className="flex items-center gap-1.5 px-1">
+                    <Calendar size={12} className="text-gray-400 flex-shrink-0" />
+                    {dayTabs.map(d => (
+                        <button
+                            key={d}
+                            onClick={() => setDayFilter(d)}
+                            className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                                dayFilter === d
+                                    ? 'bg-indigo-600 text-white shadow-sm'
+                                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                            }`}
+                        >
+                            {d === 0 ? 'All Days' : `Day ${d}`}
+                        </button>
+                    ))}
+                    {dayFilter > 0 && (
+                        <span className="text-[10px] text-gray-400 ml-1">
+                            {dayScheduleRows.length} matches
+                        </span>
+                    )}
+                </div>
+            )}
+
+            {/* ── Category List or Day Schedule View ──────────────── */}
             <div className="space-y-2">
-                {filteredCategories.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border-2 border-dashed border-gray-200 text-center">
-                        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-3">
-                            <AlertCircle size={20} className="text-gray-300" />
+                {dayFilter > 0 ? (
+                    // ── Flat schedule list for selected day ──
+                    dayScheduleRows.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-14 bg-white rounded-2xl border-2 border-dashed border-indigo-100 text-center">
+                            <Calendar size={24} className="text-indigo-300 mb-3" />
+                            <p className="text-sm font-semibold text-gray-500">No matches scheduled for Day {dayFilter}</p>
+                            <p className="text-xs text-gray-400 mt-1">Generate brackets first, or adjust category day settings.</p>
                         </div>
-                        <p className="text-sm font-semibold text-gray-500">
-                            {searchQuery || alertFilter !== 'all'
-                                ? 'No categories match your filter.'
-                                : `No ${activeTab} categories found.`}
-                        </p>
-                        {(searchQuery || alertFilter !== 'all') && (
-                            <button
-                                onClick={() => { setSearchQuery(''); setAlertFilter('all') }}
-                                className="text-red-600 text-xs font-semibold mt-2 hover:underline"
-                            >
-                                Clear all filters
-                            </button>
-                        )}
-                    </div>
+                    ) : (
+                        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                            <div className="px-5 py-3.5 border-b border-gray-100 flex items-center gap-2">
+                                <Calendar size={14} className="text-indigo-500" />
+                                <span className="text-sm font-black text-gray-800">Day {dayFilter} — Match Schedule</span>
+                                <span className="text-xs text-gray-400 ml-1">({dayScheduleRows.length} matches)</span>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead>
+                                        <tr className="bg-gray-50 border-b border-gray-100">
+                                            {['#','Category','Round','Court'].map(h => (
+                                                <th key={h} className="px-4 py-2.5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{h}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {dayScheduleRows.map((row, i) => (
+                                            <tr key={i} className={`border-b border-gray-50 ${i % 2 === 0 ? '' : 'bg-gray-50/50'}`}>
+                                                <td className="px-4 py-2.5">
+                                                    <span className="text-xs font-black text-indigo-600">#{row.matchId ?? '—'}</span>
+                                                </td>
+                                                <td className="px-4 py-2.5">
+                                                    <span className="text-xs font-semibold text-gray-800">{row.categoryName}</span>
+                                                </td>
+                                                <td className="px-4 py-2.5">
+                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                                                        row.isFinal ? 'bg-amber-50 text-amber-700' :
+                                                        row.round === 1 ? 'bg-gray-100 text-gray-600' :
+                                                        'bg-blue-50 text-blue-700'
+                                                    }`}>
+                                                        {row.isFinal ? 'Final' : row.round === 1 ? 'Round 1' : `Round ${row.round}`}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-2.5">
+                                                    <span className="text-xs text-gray-500">{row.court || '—'}</span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )
                 ) : (
-                    filteredCategories.map((cat) => (
-                        <CollapsibleBracket
-                            key={cat.id}
-                            category={cat}
-                            isPoomsae={activeTab === 'poomsae'}
-                            tournamentName={tournamentName}
-                            alerts={alertsByCategory.get(cat.id) || []}
-                            proposals={proposals}
-                            tournamentId={tournamentId}
-                            publicView={publicView}
-                            onAlertResolved={() => queryClient.invalidateQueries({ queryKey: ['tournament-smart-alerts', tournamentId] })}
-                        />
-                    ))
+                    // ── Normal expandable category list ──
+                    filteredCategories.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border-2 border-dashed border-gray-200 text-center">
+                            <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+                                <AlertCircle size={20} className="text-gray-300" />
+                            </div>
+                            <p className="text-sm font-semibold text-gray-500">
+                                {searchQuery || alertFilter !== 'all'
+                                    ? 'No categories match your filter.'
+                                    : `No ${activeTab} categories found.`}
+                            </p>
+                            {(searchQuery || alertFilter !== 'all') && (
+                                <button
+                                    onClick={() => { setSearchQuery(''); setAlertFilter('all') }}
+                                    className="text-red-600 text-xs font-semibold mt-2 hover:underline"
+                                >
+                                    Clear all filters
+                                </button>
+                            )}
+                        </div>
+                    ) : (
+                        filteredCategories.map((cat) => (
+                            <CollapsibleBracket
+                                key={cat.id}
+                                category={cat}
+                                isPoomsae={activeTab === 'poomsae'}
+                                isKyorugi={activeTab === 'kyorugi' || activeTab === 'kyukpa'}
+                                tournamentName={tournamentName}
+                                alerts={alertsByCategory.get(cat.id) || []}
+                                proposals={proposals}
+                                tournamentId={tournamentId}
+                                publicView={publicView}
+                                onAlertResolved={() => queryClient.invalidateQueries({ queryKey: ['tournament-smart-alerts', tournamentId] })}
+                            />
+                        ))
+                    )
                 )}
             </div>
         </div>
@@ -452,11 +564,11 @@ export default function BracketList({ categories, tournamentName, publicView = f
 // CollapsibleBracket
 // ─────────────────────────────────────────────
 function CollapsibleBracket({
-    category, isPoomsae = false, tournamentName,
+    category, isPoomsae = false, isKyorugi = true, tournamentName,
     alerts, proposals, tournamentId, publicView, onAlertResolved
 }: {
     category: Category & { matches: Match[], poomsaeMatches?: (PoomsaeMatch & { player: { name: string; club?: { name: string } | null } })[] },
-    isPoomsae?: boolean, tournamentName?: string, alerts: any[], proposals: any[],
+    isPoomsae?: boolean, isKyorugi?: boolean, tournamentName?: string, alerts: any[], proposals: any[],
     tournamentId: string, publicView?: boolean, onAlertResolved: () => void
 }) {
     const [isOpen, setIsOpen] = useState(false)

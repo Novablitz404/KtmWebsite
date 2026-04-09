@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useTransition } from 'react'
 import {
     X, Search, Loader2, Eye, RefreshCw, ChevronDown,
     ArrowRightLeft, Shuffle, Trophy, Shield, Download
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { previewAllBrackets, previewCategoryBracket, movePlayerToCategory, generateAllBracketsFromPreview } from '@/app/actions'
+import { previewAllBrackets, previewCategoryBracket, movePlayerToCategory, generateAllBracketsFromPreview, updateCategoryDaySettings, simulateMatchSequence } from '@/app/actions'
 import dynamic from 'next/dynamic'
 import BracketListPDF from '@/components/pdf/BracketListPDF'
 
@@ -62,6 +62,9 @@ interface PreviewCategoryData {
     players: PreviewPlayer[]
     specs: PreviewMatch[]
     poomsaeSpecs?: PoomsaePreviewSlot[]
+    scheduleDay?: number | null
+    deferFinals?: boolean
+    deferFinalsToDay?: number | null
 }
 
 interface SelectedSlot {
@@ -196,11 +199,14 @@ export default function BracketPreviewModal({ tournamentId, tournamentName, disc
     const [divisionFilter, setDivisionFilter] = useState<string>('All')
     const [skillFilter, setSkillFilter]       = useState<string>('All')
     const [activeDiscipline, setActiveDiscipline] = useState<'KYORUGI' | 'POOMSAE' | 'KYUKPA'>(disciplineType)
+    const [globalMatchIds, setGlobalMatchIds] = useState<Record<string, Record<number, { globalId: number, day: number }>> | null>(null)
+    const [simulatingSequence, setSimulatingSequence] = useState(false)
 
     const loadPreview = useCallback(async () => {
         setLoading(true)
         setSelected(null)
         setMovePicker(null)
+        setGlobalMatchIds(null)
         setDivisionFilter('All')
         setSkillFilter('All')
         try {
@@ -264,9 +270,34 @@ export default function BracketPreviewModal({ tournamentId, tournamentName, disc
             if (result?.error) { toast.error(result.error); return }
             toast.success(`${movePicker.playerName} moved successfully`)
             setMovePicker(null); setSelected(null)
+            setGlobalMatchIds(null)
             await loadPreview()
         } catch { toast.error('Move failed') }
         finally { setMovingPlayer(false) }
+    }
+
+    async function handleCalculateSequence() {
+        setSimulatingSequence(true)
+        try {
+            const seedOrders: Record<string, string[]> = {}
+            if (activeDiscipline !== 'POOMSAE') {
+                for (const [catId, specs] of localSpecs.entries()) {
+                    const order = extractSeedOrder(specs)
+                    if (order.length > 0) seedOrders[catId] = order
+                }
+            }
+            const res = await simulateMatchSequence(tournamentId, activeDiscipline, seedOrders)
+            if (res.success && res.mapping) {
+                setGlobalMatchIds(res.mapping)
+                toast.success('Match numbers simulated')
+            } else {
+                toast.error(res.message || 'Simulation failed')
+            }
+        } catch {
+            toast.error('Simulation failed')
+        } finally {
+            setSimulatingSequence(false)
+        }
     }
 
     async function handleGenerateFromPreview() {
@@ -517,6 +548,7 @@ export default function BracketPreviewModal({ tournamentId, tournamentName, disc
                             onMoveCancel={() => setMovePicker(null)}
                             movingPlayer={movingPlayer}
                             allCategories={data}
+                            simulatedMatches={globalMatchIds?.[cat.categoryId]}
                         />
                     ))}
                 </div>
@@ -568,6 +600,15 @@ export default function BracketPreviewModal({ tournamentId, tournamentName, disc
                             </PDFDownloadLink>
                         )}
                         <button
+                            onClick={handleCalculateSequence}
+                            disabled={simulatingSequence || loading || data.length === 0}
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all hover:scale-105 disabled:opacity-40 disabled:hover:scale-100"
+                            style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)', color: 'white', boxShadow: '0 2px 12px rgba(99,102,241,0.3)' }}
+                        >
+                            {simulatingSequence ? <Loader2 size={12} className="animate-spin" /> : <Shuffle size={12} />}
+                            {simulatingSequence ? 'Calculating...' : 'Preview Sequence'}
+                        </button>
+                        <button
                             onClick={handleGenerateFromPreview}
                             disabled={generating || loading || data.length === 0}
                             className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all hover:scale-105 disabled:opacity-40 disabled:hover:scale-100"
@@ -587,7 +628,7 @@ export default function BracketPreviewModal({ tournamentId, tournamentName, disc
 function CategoryCard({
     cat, localSpecs, isExpanded, onToggle, selected, onPlayerClick,
     isReshuffling, onReshuffle, movePicker, onMoveRequest, onMoveTo,
-    onMoveCancel, movingPlayer, allCategories
+    onMoveCancel, movingPlayer, allCategories, simulatedMatches
 }: {
     cat: PreviewCategoryData
     localSpecs: PreviewMatch[]
@@ -603,7 +644,13 @@ function CategoryCard({
     onMoveCancel: () => void
     movingPlayer: boolean
     allCategories: PreviewCategoryData[]
+    simulatedMatches?: Record<number, { globalId: number, day: number }>
 }) {
+    const [savingDay, startDayTransition] = useTransition()
+    const [localScheduleDay, setLocalScheduleDay] = useState<number|null>(cat.scheduleDay ?? null)
+    const [localDeferFinals, setLocalDeferFinals] = useState<boolean>(cat.deferFinals ?? true)
+    const [localDeferDay, setLocalDeferDay] = useState<number|null>(cat.deferFinalsToDay ?? null)
+
     const skill = getSkillColor(cat.skillLevel)
     const isKyorugiBracket = cat.type === 'KYORUGI' && cat.playerCount >= 2
     const isPoomsae = cat.type === 'POOMSAE' || cat.type === 'KYUKPA'
@@ -700,8 +747,54 @@ function CategoryCard({
                     </div>
                 </div>
 
-                {/* Right stats */}
+                {/* Right stats & controls */}
                 <div className="flex items-center gap-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                    {/* Inline day scheduling controls */}
+                    <div className="flex items-center gap-1.5 mr-2">
+                        <select
+                            value={localScheduleDay ?? ''}
+                            onChange={e => {
+                                const parsed = e.target.value ? parseInt(e.target.value) : null;
+                                setLocalScheduleDay(parsed);
+                                startDayTransition(async () => { await updateCategoryDaySettings(cat.categoryId, parsed, localDeferFinals, localDeferDay); })
+                            }}
+                            disabled={savingDay}
+                            className="text-[10px] font-bold bg-[#1e293b] text-indigo-300 border border-indigo-500/30 rounded-lg px-2 py-1.5 cursor-pointer hover:bg-[#334155] focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
+                            title="Which day does this category play?"
+                        >
+                            <option value="">— Day</option>
+                            <option value="1">Day 1</option>
+                            <option value="2">Day 2</option>
+                            <option value="3">Day 3</option>
+                        </select>
+                        {isKyorugiBracket && (
+                            <select
+                                value={!localDeferFinals ? 'seq' : localDeferDay ? localDeferDay.toString() : 'end'}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    let newDeferFinals = true;
+                                    let newDeferDay: number | null = null;
+                                    if (val === 'seq') { newDeferFinals = false; newDeferDay = null; }
+                                    else if (val === 'end') { newDeferFinals = true; newDeferDay = null; }
+                                    else { newDeferFinals = true; newDeferDay = parseInt(val); }
+                                    
+                                    setLocalDeferFinals(newDeferFinals);
+                                    setLocalDeferDay(newDeferDay);
+                                    startDayTransition(async () => { await updateCategoryDaySettings(cat.categoryId, localScheduleDay, newDeferFinals, newDeferDay); })
+                                }}
+                                disabled={savingDay || !localScheduleDay}
+                                className="text-[10px] font-bold bg-[#1e293b] text-amber-300 border border-amber-500/30 rounded-lg px-2 py-1.5 cursor-pointer hover:bg-[#334155] focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:opacity-50"
+                                title="Finals handling"
+                            >
+                                <option value="seq">Sequential</option>
+                                <option value="end">End of Day</option>
+                                <option value="2">Finals → D2</option>
+                                <option value="3">Finals → D3</option>
+                            </select>
+                        )}
+                        {savingDay && <Loader2 size={12} className="animate-spin text-gray-400" />}
+                    </div>
+
                     {(isKyorugiBracket || isPoomsae) && (
                         <button onClick={onReshuffle} disabled={isReshuffling}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black transition-all hover:scale-105 disabled:opacity-40"
@@ -791,13 +884,26 @@ function CategoryCard({
                                                 const pInfo = slot.playerId ? playerMap.get(slot.playerId) : null
                                                 const displayLabel = slot.displayName || slot.playerName || (slot.targetRank ? `Rank #${slot.targetRank}` : 'TBD')
                                                 const hasPlayer = !!slot.playerId || !!slot.displayName
+                                                const simulation = simulatedMatches?.[slot.round]
 
                                                 return (
-                                                    <div key={idx} className="rounded-xl px-3 py-2.5"
+                                                    <div key={idx} className="rounded-xl px-3 py-2.5 relative"
                                                         style={{
                                                             background: hasPlayer ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
                                                             border: `1px solid ${hasPlayer ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)'}`,
                                                         }}>
+                                                        
+                                                        {simulation && (
+                                                            <div className="absolute -top-2 -right-2 flex flex-col items-end pointer-events-none">
+                                                                <span className="bg-indigo-500 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-md shadow-lg shadow-indigo-500/20">
+                                                                    Match #{simulation.globalId}
+                                                                </span>
+                                                                <span className="text-[8px] font-bold text-indigo-300 bg-indigo-900/80 px-1.5 py-0.5 rounded shadow mt-0.5">
+                                                                    Day {simulation.day}
+                                                                </span>
+                                                            </div>
+                                                        )}
+
                                                         <div className="flex items-start gap-3">
                                                             {/* Number badge */}
                                                             <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-[11px] font-black"
@@ -911,6 +1017,7 @@ function CategoryCard({
                                                     hasMovePickerOpen={!!movePicker}
                                                     playerMap={playerMap}
                                                     heightBased={heightBased}
+                                                    simulation={simulatedMatches?.[match.id]}
                                                 />
                                             ))}
                                         </div>
@@ -943,7 +1050,7 @@ function CategoryCard({
 
 function MatchCard({
     match, catId, isFirstRound, isFinalRound, selected, onPlayerClick,
-    onMoveRequest, hasMovePickerOpen, playerMap, heightBased
+    onMoveRequest, hasMovePickerOpen, playerMap, heightBased, simulation
 }: {
     match: PreviewMatch
     catId: string
@@ -955,18 +1062,31 @@ function MatchCard({
     hasMovePickerOpen: boolean
     playerMap: Map<string, PreviewPlayer>
     heightBased: boolean
+    simulation?: { globalId: number, day: number }
 }) {
     const isP1Selected = selected?.catId === catId && selected.matchId === match.id && selected.slot === 'player1'
     const isP2Selected = selected?.catId === catId && selected.matchId === match.id && selected.slot === 'player2'
     const hasCatSelected = !!selected && selected.catId === catId
 
     return (
-        <div className="rounded-xl overflow-hidden"
+        <div className="rounded-xl overflow-visible relative flex flex-col pt-0 pb-0"
             style={{
                 background: isFinalRound ? 'rgba(251,191,36,0.05)' : 'rgba(255,255,255,0.04)',
                 border: `1px solid ${isFinalRound ? 'rgba(251,191,36,0.2)' : 'rgba(255,255,255,0.07)'}`,
                 boxShadow: isFinalRound ? '0 0 20px rgba(251,191,36,0.06)' : '0 1px 6px rgba(0,0,0,0.3)',
             }}>
+            
+            {simulation && (
+                <div className="absolute -top-2.5 -right-2.5 flex flex-col items-end pointer-events-none z-10">
+                    <span className="bg-indigo-500 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-md shadow-lg shadow-indigo-500/20">
+                        Match #{simulation.globalId}
+                    </span>
+                    <span className="text-[8px] font-bold text-indigo-300 bg-indigo-900/80 px-1.5 py-0.5 rounded shadow mt-0.5">
+                        Day {simulation.day}
+                    </span>
+                </div>
+            )}
+
             <PlayerSlot
                 player={match.player1} slot="player1" matchId={match.id} catId={catId}
                 isClickable={isFirstRound && !!match.player1} isSelected={isP1Selected}
