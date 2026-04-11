@@ -150,6 +150,7 @@ model Category {
   maxHeight Float?
   gender    String?
   belt      String? // Explicit belt requirement
+  seedOrder String[] // Ordered player IDs from last confirmed generation/reshuffle. Empty = not yet generated.
 
   @@index([tournamentId])
 }

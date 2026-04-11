@@ -38,6 +38,7 @@ export default function BracketList({ categories, tournamentName, publicView = f
     const [clubDropdownOpen, setClubDropdownOpen] = useState(false)
     const [previewOpen, setPreviewOpen] = useState(false)
     const [dayFilter, setDayFilter] = useState<0|1|2|3>(0)
+    const [courtPanelOpen, setCourtPanelOpen] = useState(true)
 
     const tournamentId = categories[0]?.tournamentId
 
@@ -557,6 +558,97 @@ export default function BracketList({ categories, tournamentName, publicView = f
                 </div>
             )}
 
+            {/* ── All Days: Bulk PDF Download panel ──────────────── */}
+            {!publicView && dayFilter === 0 && dayTabs.length > 1 && (() => {
+                // Gather per-day match data for each available day
+                const dayDataMap: Record<number, DayScheduleMatch[]> = {}
+                for (const d of dayTabs.filter(x => x > 0)) {
+                    const rows: { matchId: number|null; categoryName: string; categoryId: string; round: number; court: string; isFinal: boolean; scheduledDay: number|null; player1Name: string; player2Name: string }[] = []
+                    for (const cat of displayedCategories) {
+                        const isPoomsaeCat = activeTab === 'poomsae'
+                        if (isPoomsaeCat) {
+                            const grouped = new Map<number, { names: string[]; round: number; court: string; scheduledDay: number | null }>()
+                            for (const m of (cat.poomsaeMatches || [])) {
+                                if ((m as any).scheduledDay === d) {
+                                    const mid = (m as any).matchId as number
+                                    if (!grouped.has(mid)) grouped.set(mid, { names: [], round: (m as any).round, court: (m as any).court || 'Unassigned', scheduledDay: (m as any).scheduledDay })
+                                    const name = (m as any).player?.name || (m as any).displayName || ''
+                                    if (name) grouped.get(mid)!.names.push(name)
+                                }
+                            }
+                            for (const [mid, g] of grouped) {
+                                rows.push({ matchId: mid, categoryName: cat.name, categoryId: cat.id, round: g.round, court: g.court, isFinal: g.round === 3, scheduledDay: g.scheduledDay, player1Name: g.names.join(', '), player2Name: '' })
+                            }
+                        } else {
+                            for (const m of cat.matches) {
+                                if ((m as any).scheduledDay === d) {
+                                    const maxRound = Math.max(...cat.matches.map(x => x.round))
+                                    rows.push({ matchId: (m as any).matchId, categoryName: cat.name, categoryId: cat.id, round: m.round, court: (m as any).court || 'Unassigned', isFinal: m.round === maxRound, scheduledDay: (m as any).scheduledDay, player1Name: m.player1 === 'BYE' ? 'BYE' : m.player1 || '', player2Name: m.player2 === 'BYE' ? 'BYE' : m.player2 || '' })
+                                }
+                            }
+                        }
+                    }
+                    rows.sort((a, b) => (a.matchId ?? 0) - (b.matchId ?? 0))
+                    dayDataMap[d] = rows.map(r => ({
+                        matchId: r.matchId,
+                        categoryName: r.categoryName,
+                        round: r.round,
+                        roundLabel: roundLabel(r.round, r.isFinal),
+                        isFinal: r.isFinal,
+                        court: courtEdits[r.categoryId] ?? r.court,
+                        player1Name: r.player1Name,
+                        player2Name: r.player2Name,
+                    }))
+                }
+                const availableDays = dayTabs.filter(x => x > 0).filter(d => (dayDataMap[d]?.length ?? 0) > 0)
+                if (availableDays.length === 0) return null
+                return (
+                    <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm overflow-hidden">
+                        <div className="px-5 py-3.5 border-b border-indigo-100 flex items-center gap-2">
+                            <Download size={14} className="text-indigo-500" />
+                            <span className="text-sm font-black text-gray-800">Download Day Schedules</span>
+                            <span className="text-xs text-gray-400 ml-1">— Download PDF for each day</span>
+                        </div>
+                        <div className="px-5 py-4 flex flex-wrap gap-3">
+                            {availableDays.map(d => (
+                                <PDFDownloadLink
+                                    key={d}
+                                    document={
+                                        <DaySchedulePDF
+                                            tournamentName={tournamentName || 'Tournament'}
+                                            day={d}
+                                            matches={dayDataMap[d]}
+                                            generatedAt={new Date().toLocaleString()}
+                                            isPoomsae={activeTab === 'poomsae'}
+                                        />
+                                    }
+                                    fileName={`${(tournamentName || 'tournament').replace(/\s+/g, '-')}-day-${d}-${activeTab}-schedule.pdf`}
+                                >
+                                    {({ loading: pdfLoading }: { loading: boolean }) => (
+                                        <button
+                                            disabled={pdfLoading}
+                                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-all
+                                                bg-gradient-to-br from-indigo-500 to-indigo-600
+                                                shadow-sm shadow-indigo-500/20
+                                                hover:shadow-md hover:-translate-y-0.5
+                                                disabled:opacity-50 disabled:translate-y-0"
+                                        >
+                                            {pdfLoading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                                            {pdfLoading ? 'Preparing…' : `Day ${d} Schedule`}
+                                            {!pdfLoading && (
+                                                <span className="text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded-md">
+                                                    {dayDataMap[d].length} {activeTab === 'poomsae' ? 'perfs' : 'matches'}
+                                                </span>
+                                            )}
+                                        </button>
+                                    )}
+                                </PDFDownloadLink>
+                            ))}
+                        </div>
+                    </div>
+                )
+            })()}
+
             {/* ── Category List or Day Schedule View ──────────────── */}
             <div className="space-y-2">
                 {dayFilter > 0 ? (
@@ -569,19 +661,22 @@ export default function BracketList({ categories, tournamentName, publicView = f
                         </div>
                     ) : (
                         <div className="space-y-4">
-                            {/* ── Court Assignment Panel ─────────────── */}
+                            {/* ── Court Assignment Panel (collapsible) ─── */}
                             {!publicView && (
                                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                                    <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
+                                    <button
+                                        className="w-full px-5 py-3.5 border-b border-gray-100 flex items-center justify-between hover:bg-gray-50/60 transition-colors"
+                                        onClick={() => setCourtPanelOpen(o => !o)}
+                                    >
                                         <div className="flex items-center gap-2">
                                             <MapPin size={14} className="text-orange-500" />
                                             <span className="text-sm font-black text-gray-800">Court Assignments</span>
                                             <span className="text-xs text-gray-400 ml-1">({dayCategoriesWithCourt.length} categories)</span>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            {Object.keys(courtEdits).length > 0 && (
+                                            {Object.keys(courtEdits).length > 0 && courtPanelOpen && (
                                                 <button
-                                                    onClick={handleSaveCourts}
+                                                    onClick={e => { e.stopPropagation(); handleSaveCourts() }}
                                                     disabled={savingCourts}
                                                     className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white transition-all
                                                         bg-gradient-to-br from-orange-500 to-orange-600
@@ -593,28 +688,34 @@ export default function BracketList({ categories, tournamentName, publicView = f
                                                     Save Courts
                                                 </button>
                                             )}
+                                            <ChevronDown
+                                                size={14}
+                                                className={`text-gray-400 transition-transform duration-200 ${courtPanelOpen ? 'rotate-180' : ''}`}
+                                            />
                                         </div>
-                                    </div>
-                                    <div className="px-5 py-3.5">
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-                                            {dayCategoriesWithCourt.map(([catId, info]) => (
-                                                <div key={catId} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 border border-gray-100">
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-[11px] font-bold text-gray-800 truncate">{info.name}</p>
+                                    </button>
+                                    {courtPanelOpen && (
+                                        <div className="px-5 py-3.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                                                {dayCategoriesWithCourt.map(([catId, info]) => (
+                                                    <div key={catId} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 border border-gray-100">
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-[11px] font-bold text-gray-800 truncate">{info.name}</p>
+                                                        </div>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Court"
+                                                            defaultValue={courtEdits[catId] ?? (info.court === 'Unassigned' ? '' : info.court)}
+                                                            onChange={e => setCourtEdits(prev => ({ ...prev, [catId]: e.target.value }))}
+                                                            className="w-16 text-center text-[11px] font-bold px-1.5 py-1 rounded-lg border border-orange-200 bg-white text-orange-700
+                                                                focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 transition-all
+                                                                placeholder:text-gray-300"
+                                                        />
                                                     </div>
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Court"
-                                                        defaultValue={courtEdits[catId] ?? (info.court === 'Unassigned' ? '' : info.court)}
-                                                        onChange={e => setCourtEdits(prev => ({ ...prev, [catId]: e.target.value }))}
-                                                        className="w-16 text-center text-[11px] font-bold px-1.5 py-1 rounded-lg border border-orange-200 bg-white text-orange-700
-                                                            focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 transition-all
-                                                            placeholder:text-gray-300"
-                                                    />
-                                                </div>
-                                            ))}
+                                                ))}
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             )}
 

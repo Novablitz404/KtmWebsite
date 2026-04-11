@@ -472,6 +472,28 @@ export async function createPlayer(formData: FormData) {
 
 
 
+// ─────────────────────────────────────────────────────────────
+// INTERNAL: Reconcile seedOrder for a category
+// - Removes players no longer in the category
+// - Appends new players at the end
+// - Returns the ordered player list ready for bracket generation
+// ─────────────────────────────────────────────────────────────
+function reconcileSeedOrder<T extends { id: string }>(savedOrder: string[], currentPlayers: T[]): T[] {
+    const playerMap = new Map(currentPlayers.map(p => [p.id, p]))
+    // Keep existing order, filter out removed players
+    const ordered: T[] = []
+    const seen = new Set<string>()
+    for (const id of savedOrder) {
+        const p = playerMap.get(id)
+        if (p) { ordered.push(p); seen.add(id) }
+    }
+    // Append new players (not in saved order) at the end
+    for (const p of currentPlayers) {
+        if (!seen.has(p.id)) ordered.push(p)
+    }
+    return ordered
+}
+
 export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' | 'POOMSAE' | 'KYUKPA') {
     if (!tournamentId) return
 
@@ -514,15 +536,15 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
 
     const validCategories = categories.filter(c => c.players.length > 0)
 
-    // 3. Delete Existing Matches (Bulk)
-    const validCategoryIds = validCategories.map(c => c.id)
+    // 3. Delete ALL existing matches for this discipline (full renumber from 1)
+    const allCategoryIds = categories.map(c => c.id)
     if (type === 'POOMSAE' || type === 'KYUKPA') {
         await prisma.poomsaeMatch.deleteMany({
-            where: { categoryRefId: { in: validCategoryIds } }
+            where: { categoryRefId: { in: allCategoryIds } }
         })
     } else {
         await prisma.match.deleteMany({
-            where: { categoryRefId: { in: validCategoryIds } }
+            where: { categoryRefId: { in: allCategoryIds } }
         })
     }
 
@@ -537,16 +559,21 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
 
         // --- POOMSAE GENERATION ---
 
-        // Get dynamic start ID
-        let currentGlobalMatchId = await getNextMatchId(tournamentId, 'POOMSAE')
+        // Always start from 1 for full sequential renumber
+        let currentGlobalMatchId = 1
 
         for (const category of validCategories) {
             const players = await prisma.player.findMany({
                 where: { categoryId: category.id },
                 include: { club: true }
             })
+            // Reconcile seed order: use saved order if available, shuffle otherwise
+            const reconciledPlayers = category.seedOrder && category.seedOrder.length > 0
+                ? reconcileSeedOrder(category.seedOrder, players)
+                : players
+
             const poomsaeSpecs = generatePoomsaeBracket(
-                players,
+                reconciledPlayers,
                 category.subtype || 'INDIVIDUAL',
                 category.poomsaeForms
             )
@@ -584,6 +611,7 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
                         round: spec.round,
                         matchId: sharedMatchId,
                         nextMatchId: nextGroupSharedId,
+
                         targetRank: spec.targetRank,
                         performanceNumber: spec.performanceNumber,
                         playerId: spec.playerId || undefined,
@@ -599,6 +627,12 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
             })
 
             await Promise.all(createPromises)
+
+            // Save seed order for this category
+            await prisma.category.update({
+                where: { id: category.id },
+                data: { seedOrder: reconciledPlayers.map(p => p.id) }
+            })
         }
 
     } else {
@@ -606,8 +640,8 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
 
         // --- KYORUGI & KYUKPA GENERATION (interleaved by round, finals last) ---
 
-        // Get dynamic start ID
-        let currentMatchNumber = await getNextMatchId(tournamentId, 'KYORUGI')
+        // Always start from 1 for full sequential renumber
+        let currentMatchNumber = 1
 
         // Skill level priority (lower = plays first)
         const skillPriority: Record<string, number> = {
@@ -638,7 +672,12 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
         for (const category of validCategories) {
             if (category.players.length < 2) continue;
 
-            const specs = generateSingleEliminationBracket(category.players);
+            // Reconcile seed order: use saved order if available, otherwise shuffle
+            const reconciledPlayers = category.seedOrder && category.seedOrder.length > 0
+                ? reconcileSeedOrder(category.seedOrder, category.players)
+                : category.players
+
+            const specs = generateSingleEliminationBracket(reconciledPlayers);
             const catMinAge = category.minAge ?? 999;
             const catMinWeight = category.minWeight ?? 999;
             const catMinHeight = category.minHeight ?? 999;
@@ -749,8 +788,22 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
         // 5. Update Match Count
         await prisma.tournament.update({
             where: { id: tournamentId },
-            data: { match_count: currentMatchNumber - 1 } // Note: using current matchId is robust
+            data: { match_count: currentMatchNumber - 1 }
         })
+
+        // 6. Save seed orders back to each category
+        await Promise.all(validCategories
+            .filter(c => c.players.length >= 2)
+            .map(c => {
+                const reconciledPlayers = c.seedOrder && c.seedOrder.length > 0
+                    ? reconcileSeedOrder(c.seedOrder, c.players)
+                    : c.players
+                return prisma.category.update({
+                    where: { id: c.id },
+                    data: { seedOrder: reconciledPlayers.map(p => p.id) }
+                })
+            })
+        )
     }
 
     revalidatePath(`/tournament/${tournamentId}`)
@@ -787,8 +840,13 @@ export async function generateBracketsForCategory(categoryId: string, court?: st
 
         // REMOVED: Global sequence reset (unsafe for multi-tenant and unnecessary)
 
+        // Reconcile seed order: use saved order if available, shuffle otherwise
+        const reconciledForPoomsae = category.seedOrder && category.seedOrder.length > 0
+            ? reconcileSeedOrder(category.seedOrder, players)
+            : players
+
         const poomsaeSpecs = generatePoomsaeBracket(
-            players,
+            reconciledForPoomsae,
             category.subtype || 'INDIVIDUAL',
             category.poomsaeForms
         )
@@ -853,6 +911,12 @@ export async function generateBracketsForCategory(categoryId: string, court?: st
             data: { match_count: startMatchNum + distinctGroupIndices.length - 1 }
         })
 
+        // Save seed order
+        await prisma.category.update({
+            where: { id: categoryId },
+            data: { seedOrder: reconciledForPoomsae.map(p => p.id) }
+        })
+
         revalidatePath(`/tournament/${category.tournamentId}`)
         return
     }
@@ -876,7 +940,12 @@ export async function generateBracketsForCategory(categoryId: string, court?: st
 
     let currentMatchNumber = await getNextKyorugiId(category.tournamentId)
 
-    const bracketSpecs = generateSingleEliminationBracket(players)
+    // Reconcile seed order: use saved order if available, shuffle otherwise
+    const reconciledForKyorugi = category.seedOrder && category.seedOrder.length > 0
+        ? reconcileSeedOrder(category.seedOrder, players)
+        : players
+
+    const bracketSpecs = generateSingleEliminationBracket(reconciledForKyorugi)
     // Two-pass approach due to auto-increment IDs:
     // Pass 1: Create all matches WITHOUT nextMatchId
     // Pass 2: Update matches with correct links
@@ -927,6 +996,12 @@ export async function generateBracketsForCategory(categoryId: string, court?: st
     await prisma.tournament.update({
         where: { id: category.tournamentId },
         data: { match_count: currentMatchNumber - 1 }
+    })
+
+    // Save seed order
+    await prisma.category.update({
+        where: { id: categoryId },
+        data: { seedOrder: reconciledForKyorugi.map(p => p.id) }
     })
 
     revalidatePath(`/tournament/${category.tournamentId}`)
@@ -4730,13 +4805,19 @@ export async function previewAllBrackets(tournamentId: string, type: string) {
         let poomsaeSpecs: ReturnType<typeof generatePoomsaeBracket> = []
 
         if (cat.type === 'POOMSAE' || cat.type === 'KYUKPA') {
+            const orderedPlayers = cat.seedOrder && cat.seedOrder.length > 0
+                ? reconcileSeedOrder(cat.seedOrder, cat.players as any)
+                : cat.players as any
             poomsaeSpecs = generatePoomsaeBracket(
-                cat.players as any,
+                orderedPlayers,
                 cat.subtype || 'INDIVIDUAL',
                 cat.poomsaeForms
             )
         } else if (cat.type === 'KYORUGI' && cat.players.length >= 2) {
-            kyorugiSpecs = generateSingleEliminationBracket(cat.players as any)
+            const orderedPlayers = cat.seedOrder && cat.seedOrder.length > 0
+                ? reconcileSeedOrder(cat.seedOrder, cat.players as any)
+                : cat.players as any
+            kyorugiSpecs = generateSingleEliminationBracket(orderedPlayers)
         }
 
         return {
@@ -4997,13 +5078,13 @@ export async function generateAllBracketsFromPreview(
     if (categories.length === 0) return { success: false, message: 'No categories found.' }
 
     const validCategories = categories.filter(c => c.players.length > 0)
-    const validCategoryIds = validCategories.map(c => c.id)
+    const allCategoryIds = categories.map(c => c.id)
 
-    // 2. Delete existing matches
+    // 2. Delete ALL existing matches for this discipline (full renumber from 1)
     if (type === 'POOMSAE' || type === 'KYUKPA') {
-        await prisma.poomsaeMatch.deleteMany({ where: { categoryRefId: { in: validCategoryIds } } })
+        await prisma.poomsaeMatch.deleteMany({ where: { categoryRefId: { in: allCategoryIds } } })
     } else {
-        await prisma.match.deleteMany({ where: { categoryRefId: { in: validCategoryIds } } })
+        await prisma.match.deleteMany({ where: { categoryRefId: { in: allCategoryIds } } })
     }
 
     // 3. Get next match ID
@@ -5024,10 +5105,19 @@ export async function generateAllBracketsFromPreview(
 
     // 4. Generate
     if (type === 'POOMSAE' || type === 'KYUKPA') {
-        let currentGlobalMatchId = await getNextMatchId(tournamentId, type)
+        // Always start from 1 for full sequential renumber
+        let currentGlobalMatchId = 1
         for (const category of validCategories) {
+            // Use seed order from preview if provided, otherwise use category's saved order
+            const previewOrder = seedOrders[category.id]
+            const resolvedOrder = previewOrder && previewOrder.length > 0
+                ? previewOrder
+                : (category.seedOrder && category.seedOrder.length > 0 ? category.seedOrder : [])
+            const orderedPlayers = resolvedOrder.length > 0
+                ? reconcileSeedOrder(resolvedOrder, category.players as any)
+                : category.players as any
             const poomsaeSpecs = generatePoomsaeBracket(
-                category.players as any,
+                orderedPlayers,
                 category.subtype || 'INDIVIDUAL',
                 category.poomsaeForms
             )
@@ -5062,10 +5152,17 @@ export async function generateAllBracketsFromPreview(
                 })
             })
             await Promise.all(createPromises)
+
+            // Save seed order from preview into category
+            await prisma.category.update({
+                where: { id: category.id },
+                data: { seedOrder: (orderedPlayers as any[]).map((p: any) => p.id) }
+            })
         }
     } else {
         // KYORUGI / KYUKPA — use deterministic seed orders from preview
-        let currentMatchNumber = await getNextMatchId(tournamentId, 'KYORUGI')
+        // Always start from 1 for full sequential renumber
+        let currentMatchNumber = 1
 
         const skillPriority: Record<string, number> = { 'novice': 1, 'intermediate': 2, 'advance': 3, 'advanced': 3 }
 
@@ -5082,19 +5179,16 @@ export async function generateAllBracketsFromPreview(
         for (const category of validCategories) {
             if (category.players.length < 2) continue
 
-            // Build pre-ordered player list from seed orders (if available)
-            let preOrdered: typeof category.players | undefined = undefined
-            const order = seedOrders[category.id]
-            if (order && order.length > 0) {
-                const playerMap = new Map(category.players.map(p => [p.id, p]))
-                const ordered = order.map(id => playerMap.get(id)).filter(Boolean) as typeof category.players
-                // Only use if all players are accounted for
-                if (ordered.length === category.players.length) {
-                    preOrdered = ordered
-                }
-            }
+            // Build pre-ordered player list: prefer preview order, fall back to saved order
+            const previewOrder = seedOrders[category.id]
+            const resolvedOrder = previewOrder && previewOrder.length > 0
+                ? previewOrder
+                : (category.seedOrder && category.seedOrder.length > 0 ? category.seedOrder : [])
+            const reconciledPlayers = resolvedOrder.length > 0
+                ? reconcileSeedOrder(resolvedOrder, category.players)
+                : category.players
 
-            const specs = generateSingleEliminationBracket(category.players, 1, preOrdered)
+            const specs = generateSingleEliminationBracket(category.players, 1, reconciledPlayers)
 
             const catMinAge = category.minAge ?? 999
             const catMinWeight = category.minWeight ?? 999
@@ -5181,6 +5275,24 @@ export async function generateAllBracketsFromPreview(
         }
         await Promise.all(linkUpdates)
         await prisma.tournament.update({ where: { id: tournamentId }, data: { match_count: currentMatchNumber - 1 } })
+
+        // Save seed orders back to each category
+        await Promise.all(validCategories
+            .filter(c => c.players.length >= 2)
+            .map(c => {
+                const previewOrder = seedOrders[c.id]
+                const resolvedOrder = previewOrder && previewOrder.length > 0
+                    ? previewOrder
+                    : (c.seedOrder && c.seedOrder.length > 0 ? c.seedOrder : [])
+                const reconciledPlayers = resolvedOrder.length > 0
+                    ? reconcileSeedOrder(resolvedOrder, c.players)
+                    : c.players
+                return prisma.category.update({
+                    where: { id: c.id },
+                    data: { seedOrder: reconciledPlayers.map(p => p.id) }
+                })
+            })
+        )
     }
 
     revalidatePath(`/tournament/${tournamentId}`)
