@@ -260,6 +260,19 @@ export default function BracketList({ categories, tournamentName, publicView = f
             return
         }
 
+        // Try to let the user pick a destination folder (File System Access API)
+        let dirHandle: FileSystemDirectoryHandle | null = null
+        if ('showDirectoryPicker' in window) {
+            try {
+                dirHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite' })
+            } catch (err: any) {
+                // User cancelled the picker — abort silently
+                if (err?.name === 'AbortError') return
+                // API not supported or denied — fall through to normal downloads
+                dirHandle = null
+            }
+        }
+
         setDownloadingBracketsDay(day)
         toast.info(`Generating ${catsForDay.length} bracket PDF${catsForDay.length !== 1 ? 's' : ''} for Day ${day}…`)
 
@@ -268,7 +281,6 @@ export default function BracketList({ categories, tournamentName, publicView = f
             try {
                 let blob: Blob
                 if (isPoomsaeCat) {
-                    // Filter poomsae matches for this day only
                     const dayMatches = (cat.poomsaeMatches || []).filter(
                         m => (m as any).scheduledDay === day
                     ) as unknown as ExtendedPoomsaeMatch[]
@@ -288,18 +300,31 @@ export default function BracketList({ categories, tournamentName, publicView = f
                         />
                     ).toBlob()
                 }
-                const url = URL.createObjectURL(blob)
-                const link = document.createElement('a')
-                link.href = url
+
                 const safeName = cat.name.replace(/\s+/g, '-').replace(/[^\w-]/g, '')
-                link.download = `Day${day}-${safeName}-bracket.pdf`
-                document.body.appendChild(link)
-                link.click()
-                document.body.removeChild(link)
-                setTimeout(() => URL.revokeObjectURL(url), 2000)
+                const fileName = `Day${day}-${safeName}-bracket.pdf`
+
+                if (dirHandle) {
+                    // Save directly to chosen folder
+                    const fileHandle = await dirHandle.getFileHandle(fileName, { create: true })
+                    const writable = await fileHandle.createWritable()
+                    await writable.write(blob)
+                    await writable.close()
+                } else {
+                    // Fallback: trigger browser download
+                    const url = URL.createObjectURL(blob)
+                    const link = document.createElement('a')
+                    link.href = url
+                    link.download = fileName
+                    document.body.appendChild(link)
+                    link.click()
+                    document.body.removeChild(link)
+                    setTimeout(() => URL.revokeObjectURL(url), 2000)
+                    // Small delay between downloads to avoid browser throttling
+                    await new Promise(r => setTimeout(r, 400))
+                }
+
                 successCount++
-                // Small delay between downloads to avoid browser throttling
-                await new Promise(r => setTimeout(r, 400))
             } catch (err) {
                 console.error('Failed to generate bracket PDF for', cat.name, err)
                 toast.error(`Failed: ${cat.name}`)
@@ -308,7 +333,7 @@ export default function BracketList({ categories, tournamentName, publicView = f
 
         setDownloadingBracketsDay(null)
         if (successCount > 0) {
-            toast.success(`Downloaded ${successCount} bracket PDF${successCount !== 1 ? 's' : ''} for Day ${day}`)
+            toast.success(`${dirHandle ? 'Saved' : 'Downloaded'} ${successCount} bracket PDF${successCount !== 1 ? 's' : ''} for Day ${day}`)
         }
     }
 
@@ -632,141 +657,53 @@ export default function BracketList({ categories, tournamentName, publicView = f
                 </div>
             )}
 
-            {/* ── All Days: Bulk PDF Download panel ──────────────── */}
+            {/* ── All Days: Bulk Bracket PDF Download panel ──────────────── */}
             {!publicView && dayFilter === 0 && dayTabs.length > 1 && (() => {
-                // Gather per-day match data for each available day
-                const dayDataMap: Record<number, DayScheduleMatch[]> = {}
-                for (const d of dayTabs.filter(x => x > 0)) {
-                    const rows: { matchId: number|null; categoryName: string; categoryId: string; round: number; court: string; isFinal: boolean; scheduledDay: number|null; player1Name: string; player2Name: string }[] = []
-                    for (const cat of displayedCategories) {
-                        const isPoomsaeCat = activeTab === 'poomsae'
-                        if (isPoomsaeCat) {
-                            const grouped = new Map<number, { names: string[]; round: number; court: string; scheduledDay: number | null }>()
-                            for (const m of (cat.poomsaeMatches || [])) {
-                                if ((m as any).scheduledDay === d) {
-                                    const mid = (m as any).matchId as number
-                                    if (!grouped.has(mid)) grouped.set(mid, { names: [], round: (m as any).round, court: (m as any).court || 'Unassigned', scheduledDay: (m as any).scheduledDay })
-                                    const name = (m as any).player?.name || (m as any).displayName || ''
-                                    if (name) grouped.get(mid)!.names.push(name)
-                                }
-                            }
-                            for (const [mid, g] of grouped) {
-                                rows.push({ matchId: mid, categoryName: cat.name, categoryId: cat.id, round: g.round, court: g.court, isFinal: g.round === 3, scheduledDay: g.scheduledDay, player1Name: g.names.join(', '), player2Name: '' })
-                            }
-                        } else {
-                            for (const m of cat.matches) {
-                                if ((m as any).scheduledDay === d) {
-                                    const maxRound = Math.max(...cat.matches.map(x => x.round))
-                                    rows.push({ matchId: (m as any).matchId, categoryName: cat.name, categoryId: cat.id, round: m.round, court: (m as any).court || 'Unassigned', isFinal: m.round === maxRound, scheduledDay: (m as any).scheduledDay, player1Name: m.player1 === 'BYE' ? 'BYE' : m.player1 || '', player2Name: m.player2 === 'BYE' ? 'BYE' : m.player2 || '' })
-                                }
-                            }
-                        }
-                    }
-                    rows.sort((a, b) => (a.matchId ?? 0) - (b.matchId ?? 0))
-                    dayDataMap[d] = rows.map(r => ({
-                        matchId: r.matchId,
-                        categoryName: r.categoryName,
-                        round: r.round,
-                        roundLabel: roundLabel(r.round, r.isFinal),
-                        isFinal: r.isFinal,
-                        court: courtEdits[r.categoryId] ?? r.court,
-                        player1Name: r.player1Name,
-                        player2Name: r.player2Name,
-                    }))
-                }
-                const availableDays = dayTabs.filter(x => x > 0).filter(d => (dayDataMap[d]?.length ?? 0) > 0)
-                if (availableDays.length === 0) return null
                 // Count categories per day for bracket downloads
+                const availableDays = dayTabs.filter(x => x > 0)
+                const isPoomsaeCat = activeTab === 'poomsae'
                 const bracketCatsPerDay: Record<number, number> = {}
                 for (const d of availableDays) {
-                    const isPoomsaeCat = activeTab === 'poomsae'
                     bracketCatsPerDay[d] = displayedCategories.filter(cat =>
                         isPoomsaeCat
                             ? (cat.poomsaeMatches || []).some(m => (m as any).scheduledDay === d)
                             : cat.matches.some(m => (m as any).scheduledDay === d)
                     ).length
                 }
+                const daysWithCats = availableDays.filter(d => bracketCatsPerDay[d] > 0)
+                if (daysWithCats.length === 0) return null
                 return (
-                    <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm overflow-hidden">
-                        <div className="px-5 py-3.5 border-b border-indigo-100 flex items-center gap-2">
-                            <Download size={14} className="text-indigo-500" />
-                            <span className="text-sm font-black text-gray-800">Bulk PDF Downloads</span>
-                            <span className="text-xs text-gray-400 ml-1">— Match schedules &amp; bracket PDFs per day</span>
+                    <div className="bg-white rounded-2xl border border-violet-100 shadow-sm overflow-hidden">
+                        <div className="px-5 py-3.5 border-b border-violet-100 flex items-center gap-2">
+                            <FileStack size={14} className="text-violet-500" />
+                            <span className="text-sm font-black text-gray-800">Download Bracket PDFs</span>
+                            <span className="text-xs text-gray-400 ml-1">— one PDF per category, saved to a folder of your choice</span>
                         </div>
-
-                        {/* Row 1: Day Schedule PDFs */}
-                        <div className="px-5 pt-4 pb-2">
-                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2.5">Match Schedule PDFs</p>
-                            <div className="flex flex-wrap gap-3">
-                                {availableDays.map(d => (
-                                    <PDFDownloadLink
-                                        key={d}
-                                        document={
-                                            <DaySchedulePDF
-                                                tournamentName={tournamentName || 'Tournament'}
-                                                day={d}
-                                                matches={dayDataMap[d]}
-                                                generatedAt={new Date().toLocaleString()}
-                                                isPoomsae={activeTab === 'poomsae'}
-                                            />
-                                        }
-                                        fileName={`${(tournamentName || 'tournament').replace(/\s+/g, '-')}-day-${d}-${activeTab}-schedule.pdf`}
-                                    >
-                                        {({ loading: pdfLoading }: { loading: boolean }) => (
-                                            <button
-                                                disabled={pdfLoading}
-                                                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all
-                                                    bg-gradient-to-br from-indigo-500 to-indigo-600
-                                                    shadow-sm shadow-indigo-500/20
-                                                    hover:shadow-md hover:-translate-y-0.5
-                                                    disabled:opacity-50 disabled:translate-y-0"
-                                            >
-                                                {pdfLoading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-                                                {pdfLoading ? 'Preparing…' : `Day ${d} Schedule`}
-                                                {!pdfLoading && (
-                                                    <span className="text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded-md">
-                                                        {dayDataMap[d].length} {activeTab === 'poomsae' ? 'perfs' : 'matches'}
-                                                    </span>
-                                                )}
-                                            </button>
-                                        )}
-                                    </PDFDownloadLink>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Divider */}
-                        <div className="mx-5 my-3 border-t border-gray-100" />
-
-                        {/* Row 2: Bracket PDFs per day */}
-                        <div className="px-5 pb-4">
-                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2.5">Bracket PDFs — one file per category</p>
-                            <div className="flex flex-wrap gap-3">
-                                {availableDays.map(d => (
-                                    <button
-                                        key={d}
-                                        onClick={() => downloadBracketsForDay(d)}
-                                        disabled={downloadingBracketsDay !== null}
-                                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all
-                                            bg-gradient-to-br from-violet-500 to-purple-600
-                                            shadow-sm shadow-violet-500/20
-                                            hover:shadow-md hover:-translate-y-0.5
-                                            disabled:opacity-50 disabled:translate-y-0 disabled:cursor-not-allowed"
-                                    >
-                                        {downloadingBracketsDay === d
-                                            ? <Loader2 size={13} className="animate-spin" />
-                                            : <FileStack size={13} />}
-                                        {downloadingBracketsDay === d
-                                            ? 'Downloading…'
-                                            : `Day ${d} Brackets`}
-                                        {downloadingBracketsDay !== d && (
-                                            <span className="text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded-md">
-                                                {bracketCatsPerDay[d]} cat{bracketCatsPerDay[d] !== 1 ? 's' : ''}
-                                            </span>
-                                        )}
-                                    </button>
-                                ))}
-                            </div>
+                        <div className="px-5 py-4 flex flex-wrap gap-3">
+                            {daysWithCats.map(d => (
+                                <button
+                                    key={d}
+                                    onClick={() => downloadBracketsForDay(d)}
+                                    disabled={downloadingBracketsDay !== null}
+                                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-all
+                                        bg-gradient-to-br from-violet-500 to-purple-600
+                                        shadow-sm shadow-violet-500/20
+                                        hover:shadow-md hover:-translate-y-0.5
+                                        disabled:opacity-50 disabled:translate-y-0 disabled:cursor-not-allowed"
+                                >
+                                    {downloadingBracketsDay === d
+                                        ? <Loader2 size={13} className="animate-spin" />
+                                        : <FileStack size={13} />}
+                                    {downloadingBracketsDay === d
+                                        ? 'Downloading…'
+                                        : `Day ${d} Brackets`}
+                                    {downloadingBracketsDay !== d && (
+                                        <span className="text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded-md">
+                                            {bracketCatsPerDay[d]} cat{bracketCatsPerDay[d] !== 1 ? 's' : ''}
+                                        </span>
+                                    )}
+                                </button>
+                            ))}
                         </div>
                     </div>
                 )
