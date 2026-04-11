@@ -4,18 +4,21 @@ import { useState, useTransition, useMemo } from 'react'
 import { Category, Match, PoomsaeMatch } from '@prisma/client'
 import BracketView from './BracketView'
 import PoomsaeBracketView from './PoomsaeBracketView'
+import type { ExtendedPoomsaeMatch } from './PoomsaeBracketView'
 import BracketPreviewModal from './BracketPreviewModal'
 import { generateAllBrackets, getTournamentAlerts, initiateSmartProposal, forceExecuteSmartAction, bulkSendUncontestedProposals, bulkUpdateCourts } from '@/app/actions'
 import {
     Trophy, Medal, Wand2, Loader2, AlertCircle, Search,
     ShieldAlert, Split, Merge, Users, X, ChevronDown, Zap, ArrowRight, Clock, Send, ChevronRight, Eye, Calendar,
-    Download, MapPin
+    Download, MapPin, FileStack
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import dynamic from 'next/dynamic'
 import DaySchedulePDF from '@/components/pdf/DaySchedulePDF'
 import type { DayScheduleMatch } from '@/components/pdf/DaySchedulePDF'
+import BracketPDF from '@/components/pdf/BracketPDF'
+import PoomsaeBracketPDF from '@/components/pdf/PoomsaeBracketPDF'
 
 const PDFDownloadLink = dynamic(
     () => import('@react-pdf/renderer').then(mod => ({ default: mod.PDFDownloadLink })),
@@ -39,6 +42,7 @@ export default function BracketList({ categories, tournamentName, publicView = f
     const [previewOpen, setPreviewOpen] = useState(false)
     const [dayFilter, setDayFilter] = useState<0|1|2|3>(0)
     const [courtPanelOpen, setCourtPanelOpen] = useState(true)
+    const [downloadingBracketsDay, setDownloadingBracketsDay] = useState<number | null>(null)
 
     const tournamentId = categories[0]?.tournamentId
 
@@ -236,6 +240,76 @@ export default function BracketList({ categories, tournamentName, publicView = f
         if (isFinal) return 'Final'
         if (round === 1) return 'Round 1'
         return `Round ${round}`
+    }
+
+    // ── Bulk bracket PDF download per day ────────────────────────────────────
+    async function downloadBracketsForDay(day: number) {
+        const { pdf } = await import('@react-pdf/renderer')
+        const isPoomsaeCat = activeTab === 'poomsae'
+
+        // Collect categories that have at least one match on this day
+        const catsForDay = displayedCategories.filter(cat => {
+            if (isPoomsaeCat) {
+                return (cat.poomsaeMatches || []).some(m => (m as any).scheduledDay === day)
+            }
+            return cat.matches.some(m => (m as any).scheduledDay === day)
+        })
+
+        if (catsForDay.length === 0) {
+            toast.info(`No categories with matches on Day ${day}`)
+            return
+        }
+
+        setDownloadingBracketsDay(day)
+        toast.info(`Generating ${catsForDay.length} bracket PDF${catsForDay.length !== 1 ? 's' : ''} for Day ${day}…`)
+
+        let successCount = 0
+        for (const cat of catsForDay) {
+            try {
+                let blob: Blob
+                if (isPoomsaeCat) {
+                    // Filter poomsae matches for this day only
+                    const dayMatches = (cat.poomsaeMatches || []).filter(
+                        m => (m as any).scheduledDay === day
+                    ) as unknown as ExtendedPoomsaeMatch[]
+                    blob = await pdf(
+                        <PoomsaeBracketPDF
+                            tournamentName={tournamentName || 'Tournament'}
+                            categoryName={cat.name}
+                            matches={dayMatches}
+                        />
+                    ).toBlob()
+                } else {
+                    blob = await pdf(
+                        <BracketPDF
+                            tournamentName={tournamentName || 'Tournament'}
+                            categoryName={cat.name}
+                            matches={cat.matches}
+                        />
+                    ).toBlob()
+                }
+                const url = URL.createObjectURL(blob)
+                const link = document.createElement('a')
+                link.href = url
+                const safeName = cat.name.replace(/\s+/g, '-').replace(/[^\w-]/g, '')
+                link.download = `Day${day}-${safeName}-bracket.pdf`
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+                setTimeout(() => URL.revokeObjectURL(url), 2000)
+                successCount++
+                // Small delay between downloads to avoid browser throttling
+                await new Promise(r => setTimeout(r, 400))
+            } catch (err) {
+                console.error('Failed to generate bracket PDF for', cat.name, err)
+                toast.error(`Failed: ${cat.name}`)
+            }
+        }
+
+        setDownloadingBracketsDay(null)
+        if (successCount > 0) {
+            toast.success(`Downloaded ${successCount} bracket PDF${successCount !== 1 ? 's' : ''} for Day ${day}`)
+        }
     }
 
     // Build PDF match data
@@ -602,48 +676,97 @@ export default function BracketList({ categories, tournamentName, publicView = f
                 }
                 const availableDays = dayTabs.filter(x => x > 0).filter(d => (dayDataMap[d]?.length ?? 0) > 0)
                 if (availableDays.length === 0) return null
+                // Count categories per day for bracket downloads
+                const bracketCatsPerDay: Record<number, number> = {}
+                for (const d of availableDays) {
+                    const isPoomsaeCat = activeTab === 'poomsae'
+                    bracketCatsPerDay[d] = displayedCategories.filter(cat =>
+                        isPoomsaeCat
+                            ? (cat.poomsaeMatches || []).some(m => (m as any).scheduledDay === d)
+                            : cat.matches.some(m => (m as any).scheduledDay === d)
+                    ).length
+                }
                 return (
                     <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm overflow-hidden">
                         <div className="px-5 py-3.5 border-b border-indigo-100 flex items-center gap-2">
                             <Download size={14} className="text-indigo-500" />
-                            <span className="text-sm font-black text-gray-800">Download Day Schedules</span>
-                            <span className="text-xs text-gray-400 ml-1">— Download PDF for each day</span>
+                            <span className="text-sm font-black text-gray-800">Bulk PDF Downloads</span>
+                            <span className="text-xs text-gray-400 ml-1">— Match schedules &amp; bracket PDFs per day</span>
                         </div>
-                        <div className="px-5 py-4 flex flex-wrap gap-3">
-                            {availableDays.map(d => (
-                                <PDFDownloadLink
-                                    key={d}
-                                    document={
-                                        <DaySchedulePDF
-                                            tournamentName={tournamentName || 'Tournament'}
-                                            day={d}
-                                            matches={dayDataMap[d]}
-                                            generatedAt={new Date().toLocaleString()}
-                                            isPoomsae={activeTab === 'poomsae'}
-                                        />
-                                    }
-                                    fileName={`${(tournamentName || 'tournament').replace(/\s+/g, '-')}-day-${d}-${activeTab}-schedule.pdf`}
-                                >
-                                    {({ loading: pdfLoading }: { loading: boolean }) => (
-                                        <button
-                                            disabled={pdfLoading}
-                                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-all
-                                                bg-gradient-to-br from-indigo-500 to-indigo-600
-                                                shadow-sm shadow-indigo-500/20
-                                                hover:shadow-md hover:-translate-y-0.5
-                                                disabled:opacity-50 disabled:translate-y-0"
-                                        >
-                                            {pdfLoading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-                                            {pdfLoading ? 'Preparing…' : `Day ${d} Schedule`}
-                                            {!pdfLoading && (
-                                                <span className="text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded-md">
-                                                    {dayDataMap[d].length} {activeTab === 'poomsae' ? 'perfs' : 'matches'}
-                                                </span>
-                                            )}
-                                        </button>
-                                    )}
-                                </PDFDownloadLink>
-                            ))}
+
+                        {/* Row 1: Day Schedule PDFs */}
+                        <div className="px-5 pt-4 pb-2">
+                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2.5">Match Schedule PDFs</p>
+                            <div className="flex flex-wrap gap-3">
+                                {availableDays.map(d => (
+                                    <PDFDownloadLink
+                                        key={d}
+                                        document={
+                                            <DaySchedulePDF
+                                                tournamentName={tournamentName || 'Tournament'}
+                                                day={d}
+                                                matches={dayDataMap[d]}
+                                                generatedAt={new Date().toLocaleString()}
+                                                isPoomsae={activeTab === 'poomsae'}
+                                            />
+                                        }
+                                        fileName={`${(tournamentName || 'tournament').replace(/\s+/g, '-')}-day-${d}-${activeTab}-schedule.pdf`}
+                                    >
+                                        {({ loading: pdfLoading }: { loading: boolean }) => (
+                                            <button
+                                                disabled={pdfLoading}
+                                                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all
+                                                    bg-gradient-to-br from-indigo-500 to-indigo-600
+                                                    shadow-sm shadow-indigo-500/20
+                                                    hover:shadow-md hover:-translate-y-0.5
+                                                    disabled:opacity-50 disabled:translate-y-0"
+                                            >
+                                                {pdfLoading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                                                {pdfLoading ? 'Preparing…' : `Day ${d} Schedule`}
+                                                {!pdfLoading && (
+                                                    <span className="text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded-md">
+                                                        {dayDataMap[d].length} {activeTab === 'poomsae' ? 'perfs' : 'matches'}
+                                                    </span>
+                                                )}
+                                            </button>
+                                        )}
+                                    </PDFDownloadLink>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Divider */}
+                        <div className="mx-5 my-3 border-t border-gray-100" />
+
+                        {/* Row 2: Bracket PDFs per day */}
+                        <div className="px-5 pb-4">
+                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2.5">Bracket PDFs — one file per category</p>
+                            <div className="flex flex-wrap gap-3">
+                                {availableDays.map(d => (
+                                    <button
+                                        key={d}
+                                        onClick={() => downloadBracketsForDay(d)}
+                                        disabled={downloadingBracketsDay !== null}
+                                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all
+                                            bg-gradient-to-br from-violet-500 to-purple-600
+                                            shadow-sm shadow-violet-500/20
+                                            hover:shadow-md hover:-translate-y-0.5
+                                            disabled:opacity-50 disabled:translate-y-0 disabled:cursor-not-allowed"
+                                    >
+                                        {downloadingBracketsDay === d
+                                            ? <Loader2 size={13} className="animate-spin" />
+                                            : <FileStack size={13} />}
+                                        {downloadingBracketsDay === d
+                                            ? 'Downloading…'
+                                            : `Day ${d} Brackets`}
+                                        {downloadingBracketsDay !== d && (
+                                            <span className="text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded-md">
+                                                {bracketCatsPerDay[d]} cat{bracketCatsPerDay[d] !== 1 ? 's' : ''}
+                                            </span>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 )
@@ -727,33 +850,52 @@ export default function BracketList({ categories, tournamentName, publicView = f
                                         <span className="text-sm font-black text-gray-800">Day {dayFilter} — Match Schedule</span>
                                         <span className="text-xs text-gray-400 ml-1">({dayScheduleRows.length} matches)</span>
                                     </div>
-                                    {/* Download PDF */}
-                                    <PDFDownloadLink
-                                        document={
-                                            <DaySchedulePDF
-                                                tournamentName={tournamentName || 'Tournament'}
-                                                day={dayFilter}
-                                                matches={dayPdfMatches}
-                                                generatedAt={new Date().toLocaleString()}
-                                                isPoomsae={activeTab === 'poomsae'}
-                                            />
-                                        }
-                                        fileName={`${(tournamentName || 'tournament').replace(/\s+/g, '-')}-day-${dayFilter}-${activeTab}-schedule.pdf`}
-                                    >
-                                        {({ loading: pdfLoading }: { loading: boolean }) => (
-                                            <button
-                                                disabled={pdfLoading}
-                                                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white transition-all
-                                                    bg-gradient-to-br from-indigo-500 to-indigo-600
-                                                    shadow-sm shadow-indigo-500/20
-                                                    hover:shadow-md hover:-translate-y-0.5
-                                                    disabled:opacity-50 disabled:translate-y-0"
-                                            >
-                                                {pdfLoading ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />}
-                                                {pdfLoading ? 'Preparing…' : `Download Day ${dayFilter}`}
-                                            </button>
-                                        )}
-                                    </PDFDownloadLink>
+                                    {/* Download buttons */}
+                                    <div className="flex items-center gap-2">
+                                        {/* Schedule PDF */}
+                                        <PDFDownloadLink
+                                            document={
+                                                <DaySchedulePDF
+                                                    tournamentName={tournamentName || 'Tournament'}
+                                                    day={dayFilter}
+                                                    matches={dayPdfMatches}
+                                                    generatedAt={new Date().toLocaleString()}
+                                                    isPoomsae={activeTab === 'poomsae'}
+                                                />
+                                            }
+                                            fileName={`${(tournamentName || 'tournament').replace(/\s+/g, '-')}-day-${dayFilter}-${activeTab}-schedule.pdf`}
+                                        >
+                                            {({ loading: pdfLoading }: { loading: boolean }) => (
+                                                <button
+                                                    disabled={pdfLoading}
+                                                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white transition-all
+                                                        bg-gradient-to-br from-indigo-500 to-indigo-600
+                                                        shadow-sm shadow-indigo-500/20
+                                                        hover:shadow-md hover:-translate-y-0.5
+                                                        disabled:opacity-50 disabled:translate-y-0"
+                                                >
+                                                    {pdfLoading ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />}
+                                                    {pdfLoading ? 'Preparing…' : 'Schedule PDF'}
+                                                </button>
+                                            )}
+                                        </PDFDownloadLink>
+
+                                        {/* Bracket PDFs (bulk per category) */}
+                                        <button
+                                            onClick={() => downloadBracketsForDay(dayFilter)}
+                                            disabled={downloadingBracketsDay !== null}
+                                            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white transition-all
+                                                bg-gradient-to-br from-violet-500 to-purple-600
+                                                shadow-sm shadow-violet-500/20
+                                                hover:shadow-md hover:-translate-y-0.5
+                                                disabled:opacity-50 disabled:translate-y-0 disabled:cursor-not-allowed"
+                                        >
+                                            {downloadingBracketsDay === dayFilter
+                                                ? <Loader2 size={11} className="animate-spin" />
+                                                : <FileStack size={11} />}
+                                            {downloadingBracketsDay === dayFilter ? 'Downloading…' : 'Bracket PDFs'}
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left">
