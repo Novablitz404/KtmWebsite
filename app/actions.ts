@@ -3952,14 +3952,14 @@ export async function updateTournamentDetails(
             where: { id: tournamentId },
             data: {
                 ...(data.name !== undefined && { name: data.name }),
-                ...(data.venue !== undefined && { venue: data.venue }),
-                ...(data.startDate !== undefined && { startDate: new Date(data.startDate) }),
+                ...(data.venue !== undefined && { venue: data.venue || null }),
+                ...(data.startDate !== undefined && data.startDate && { startDate: new Date(data.startDate) }),
                 ...(data.registrationStart !== undefined && { registrationStart: data.registrationStart ? new Date(data.registrationStart) : null }),
                 ...(data.registrationEnd !== undefined && { registrationEnd: data.registrationEnd ? new Date(data.registrationEnd) : null }),
                 ...(data.earlyBirdDeadline !== undefined && { earlyBirdDeadline: data.earlyBirdDeadline ? new Date(data.earlyBirdDeadline) : null }),
                 ...(data.earlyBirdPrice !== undefined && { earlyBirdPrice: data.earlyBirdPrice }),
                 ...(data.regularPrice !== undefined && { regularPrice: data.regularPrice }),
-                ...(data.headerImageUrl !== undefined && { headerImageUrl: data.headerImageUrl }),
+                ...(data.headerImageUrl !== undefined && { headerImageUrl: data.headerImageUrl || null }),
                 ...(data.status !== undefined && { status: data.status as any }),
                 ...(data.guidelines !== undefined && { guidelines: data.guidelines }),
             }
