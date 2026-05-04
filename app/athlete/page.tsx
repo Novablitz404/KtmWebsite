@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import { fetchAthleteDashboardData } from '@/app/actions'
 import AthleteDashboardView from '@/components/athlete/AthleteDashboardView'
+
 import { getTenant } from '@/lib/tenant'
 import PendingApprovalPage from '@/components/landing/wotf-global/pages/PendingApprovalPage'
 

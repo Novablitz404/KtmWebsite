@@ -90,7 +90,7 @@ export default function GlobalNavbar({ animate = true, forceSolid = false }: { a
 
                         {/* Right actions */}
                         <div className="flex items-center gap-3">
-                            <GoogleTranslate className="hidden md:block" />
+                            <GoogleTranslate className="hidden md:block" dark={!scrolled} />
                             <Link
                                 href={buildHref('/sign-in')}
                                 className={`hidden md:inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest px-5 py-2.5 rounded-full transition-all duration-300 ${

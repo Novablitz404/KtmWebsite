@@ -6,12 +6,10 @@ import { useRouter } from 'next/navigation'
 import {
     LayoutDashboard,
     Calendar,
-    Bell,
     Settings,
     LogOut,
-    ClipboardList,
+    Medal,
     Trophy,
-    Medal
 } from 'lucide-react'
 
 interface AthleteSidebarProps {
@@ -23,11 +21,27 @@ interface AthleteSidebarProps {
     onClose: () => void
 }
 
-const navItems = [
-    { id: 'home', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'events', label: 'Events', icon: Calendar },
-    { id: 'achievements', label: 'Achievements', icon: Medal },
-    { id: 'ranking', label: 'Ranking', icon: Trophy },
+const NAV_SECTIONS = [
+    {
+        label: 'Overview',
+        items: [
+            { id: 'home', label: 'Dashboard', icon: LayoutDashboard },
+        ],
+    },
+    {
+        label: 'Activity',
+        items: [
+            { id: 'events',       label: 'Events',       icon: Calendar },
+            { id: 'achievements', label: 'Achievements', icon: Medal },
+            { id: 'ranking',      label: 'Ranking',      icon: Trophy },
+        ],
+    },
+    {
+        label: 'Account',
+        items: [
+            { id: 'settings', label: 'Settings', icon: Settings },
+        ],
+    },
 ] as const
 
 export default function AthleteSidebar({
@@ -36,7 +50,7 @@ export default function AthleteSidebar({
     userName,
     userImageUrl,
     isOpen,
-    onClose
+    onClose,
 }: AthleteSidebarProps) {
     const { signOut } = useAuth()
     const router = useRouter()
@@ -44,6 +58,7 @@ export default function AthleteSidebar({
 
     const handleLogout = async () => {
         await signOut()
+        router.push('/')
     }
 
     return (
@@ -51,76 +66,80 @@ export default function AthleteSidebar({
             {/* Mobile Overlay */}
             {isOpen && (
                 <div
-                    className="fixed inset-0 bg-black/50 z-40 md:hidden"
+                    className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden"
                     onClick={onClose}
                 />
             )}
 
-            <aside className={`fixed top-0 left-0 h-full w-60 bg-white border-r border-gray-100 text-gray-900 flex flex-col z-50 transition-transform duration-300 md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'
-                }`}>
-                {/* Logo / Brand */}
-                <div className="p-6 border-b border-gray-100">
-                    <div className="flex items-center gap-3">
-                        <img
-                            src={tenant.logoUrl}
-                            alt={tenant.name}
-                            className="w-10 h-10 object-contain"
-                        />
+            <aside className={`fixed top-0 left-0 h-screen w-60 bg-white border-r border-gray-200/80 flex flex-col z-50 transition-transform duration-300 md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+
+                {/* Brand */}
+                <div className="px-4 pt-5 pb-4 border-b border-gray-100">
+                    <div className="flex items-center gap-3 min-w-0">
+                        {tenant.logoUrl ? (
+                            <img
+                                src={tenant.logoUrl}
+                                alt={tenant.name}
+                                className="w-9 h-9 rounded-xl object-contain flex-shrink-0 border border-gray-100 shadow-sm"
+                            />
+                        ) : (
+                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center flex-shrink-0 shadow-sm">
+                                <span className="text-white font-black text-sm">{(tenant.name || 'A').charAt(0)}</span>
+                            </div>
+                        )}
                         <div className="flex-1 min-w-0">
-                            <h2 className="font-bold text-sm truncate text-gray-900">{tenant.name}</h2>
-                            <p className="text-xs text-gray-500">Athlete Dashboard</p>
+                            <h2 className="text-sm font-bold text-gray-900 truncate leading-tight">{tenant.name}</h2>
+                            <p className="text-[10px] text-gray-400 font-medium mt-0.5">Athlete Portal</p>
                         </div>
                     </div>
                 </div>
 
                 {/* Navigation */}
-                <nav className="flex-1 p-4 space-y-1">
-                    {navItems.map((item) => {
-                        const Icon = item.icon
-                        const isActive = activeView === item.id
-
-                        return (
-                            <button
-                                key={item.id}
-                                onClick={() => {
-                                    onNavigate(item.id as any)
-                                    onClose()
-                                }}
-                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive
-                                    ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
-                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                                    }`}
-                            >
-                                <Icon size={20} />
-                                <span>{item.label}</span>
-                            </button>
-                        )
-                    })}
+                <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-5">
+                    {NAV_SECTIONS.map(section => (
+                        <div key={section.label}>
+                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-3 mb-1">
+                                {section.label}
+                            </p>
+                            <div className="space-y-0.5">
+                                {section.items.map(({ id, label, icon: Icon }) => {
+                                    const isActive = activeView === id
+                                    return (
+                                        <button
+                                            key={id}
+                                            onClick={() => {
+                                                onNavigate(id as any)
+                                                onClose()
+                                            }}
+                                            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold transition-all group ${
+                                                isActive
+                                                    ? 'bg-red-600 text-white shadow-md shadow-red-500/20'
+                                                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                                            }`}
+                                        >
+                                            <Icon
+                                                size={15}
+                                                className={isActive ? 'text-white/90' : 'text-gray-400 group-hover:text-gray-600 transition-colors'}
+                                            />
+                                            <span className="flex-1 text-left">{label}</span>
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    ))}
                 </nav>
 
-                {/* Bottom Section */}
-                <div className="p-4 border-t border-gray-100 space-y-1">
-                    <button
-                        onClick={() => {
-                            onNavigate('settings')
-                            onClose()
-                        }}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeView === 'settings'
-                            ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
-                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                            }`}
-                    >
-                        <Settings size={20} />
-                        <span>Settings</span>
-                    </button>
-
+                {/* Footer */}
+                <div className="px-2 py-3 border-t border-gray-100 space-y-0.5">
                     <button
                         onClick={handleLogout}
-                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:text-red-600 hover:bg-red-50 transition-all"
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold text-gray-500 hover:text-red-600 hover:bg-red-50 transition-all group"
                     >
-                        <LogOut size={20} />
+                        <LogOut size={15} className="text-gray-400 group-hover:text-red-500 transition-colors" />
                         <span>Log Out</span>
                     </button>
+                    <p className="text-[9px] text-gray-300 font-medium px-3 pt-1">KTM System v1.0</p>
                 </div>
             </aside>
         </>

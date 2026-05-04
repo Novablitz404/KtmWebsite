@@ -62,7 +62,7 @@ export async function POST(request: Request) {
         // Look up existing DB record, or create one for new sign-ups
         let dbUser = await prisma.user.findUnique({
             where: { clerkId: authUser.id },
-            select: { id: true, email: true, organizationMemberId: true }
+            select: { id: true, email: true, organizationMemberId: true, onboardingStatus: true }
         })
 
         if (!dbUser) {
@@ -79,9 +79,17 @@ export async function POST(request: Request) {
                     email: authUser.email!,
                     role,
                 },
-                select: { id: true, email: true, organizationMemberId: true }
+                select: { id: true, email: true, organizationMemberId: true, onboardingStatus: true }
             })
             console.log(`[Onboarding] Created new DB user ${dbUser.id} for ${authUser.email} (role: ${role})`)
+        }
+
+        if (!dbUser) return apiError('Failed to initialize user', 500)
+
+        // Idempotency guard — if already submitted, return success without re-processing
+        if (dbUser.onboardingStatus === 'PENDING_APPROVAL' || dbUser.onboardingStatus === 'APPROVED') {
+            console.log(`[Onboarding] Skipping re-submission for user ${dbUser.id} (status: ${dbUser.onboardingStatus})`)
+            return apiResponse({ success: true, message: 'Profile already submitted' })
         }
 
         const formData = await request.formData()

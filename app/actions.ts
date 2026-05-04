@@ -3109,6 +3109,7 @@ export async function fetchAthleteDashboardData(clerkId: string, organizationId?
             isVerified: true,
             cardPaymentStatus: true,
             cardPaymentProofUrl: true,
+            country: true,
         }
     })
 

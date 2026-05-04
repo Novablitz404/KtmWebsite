@@ -28,6 +28,11 @@ export async function updateRegistrationStatus(registrationId: string, status: s
     const authorized = await canManagePromotion(user.clerkId, registration.promotionTest.organizationId)
     if (!authorized) return { error: 'Unauthorized' }
 
+    // Idempotency guard — skip side-effects if already in target status
+    if (registration.status === status) {
+        return { success: true }
+    }
+
     await prisma.promotionTestRegistration.update({
         where: { id: registrationId },
         data: {
@@ -129,15 +134,28 @@ export async function bulkUpdateRegistrations(registrationIds: string[], status:
     const authorized = await canManagePromotion(user.clerkId, firstReg.promotionTest.organizationId)
     if (!authorized) return { error: 'Unauthorized' }
 
-    await prisma.promotionTestRegistration.updateMany({
+    // Idempotency guard — fetch current statuses before bulk update
+    // so we only trigger side-effects for records that are actually changing
+    const existingStatuses = await prisma.promotionTestRegistration.findMany({
         where: { id: { in: registrationIds } },
+        select: { id: true, status: true }
+    })
+    const alreadyInStatus = new Set(
+        existingStatuses.filter(r => r.status === status).map(r => r.id)
+    )
+    // Only update records that aren't already in the target status
+    const idsToUpdate = registrationIds.filter(id => !alreadyInStatus.has(id))
+    if (idsToUpdate.length === 0) return { success: true }
+
+    await prisma.promotionTestRegistration.updateMany({
+        where: { id: { in: idsToUpdate } },
         data: { status }
     })
 
     // Auto-advance belts + send emails when bulk-marking as PASSED
     if (status === 'PASSED') {
         const registrations = await prisma.promotionTestRegistration.findMany({
-            where: { id: { in: registrationIds }, playerId: { not: null } },
+            where: { id: { in: idsToUpdate }, playerId: { not: null } },
             select: { playerId: true, currentBelt: true, isJump: true }
         })
 

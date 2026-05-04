@@ -62,7 +62,7 @@ function getGoogleTranslateCookie(): string {
     return match ? match[1] : '';
 }
 
-export function GoogleTranslate({ className = '' }: { className?: string }) {
+export function GoogleTranslate({ className = '', dark = true }: { className?: string; dark?: boolean }) {
     const [open, setOpen] = useState(false);
     const [currentLang, setCurrentLang] = useState('');
     const [scriptLoaded, setScriptLoaded] = useState(false);
@@ -157,7 +157,11 @@ export function GoogleTranslate({ className = '' }: { className?: string }) {
             {/* Custom styled dropdown trigger */}
             <button
                 onClick={() => setOpen(!open)}
-                className="flex items-center gap-1.5 text-sm font-medium text-gray-300 hover:text-white transition-colors notranslate"
+                className={`flex items-center gap-1.5 text-sm font-medium transition-colors notranslate ${
+                    dark
+                        ? 'text-gray-300 hover:text-white'
+                        : 'text-gray-600 hover:text-black'
+                }`}
                 aria-label="Switch language"
             >
                 <Globe size={15} />

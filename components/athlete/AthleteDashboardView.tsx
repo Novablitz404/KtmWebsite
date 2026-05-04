@@ -238,14 +238,17 @@ export default function AthleteDashboardView({
                     return (
                         <>
                             {/* Top Bar (Desktop Only) */}
-                            <AthleteTopBar />
+                            <AthleteTopBar
+                                userName={dbUser?.name}
+                                userImageUrl={imageUrl}
+                            />
                             {/* Conditional Content based on activeView */}
                             {activeView === 'achievements' && (
                                 <div className="flex-1 flex flex-col min-h-0 px-4 sm:px-6 lg:px-8 py-6 w-full max-w-[1600px] mx-auto md:overflow-y-auto">
                                     <div className="flex flex-col gap-6 flex-1">
                                         <div>
-                                            <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">Achievements</h1>
-                                            <p className="text-gray-500 mt-1">Your timeline of completed events, test passes, and medals.</p>
+                                            <h1 className="text-2xl font-black text-gray-900 tracking-tight">Achievements</h1>
+                                            <p className="text-sm text-gray-500 mt-1">Your timeline of completed events, test passes, and medals.</p>
                                         </div>
 
                                         {isLoading || !data ? (
@@ -391,7 +394,7 @@ export default function AthleteDashboardView({
                                                 <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner ring-1 ring-gray-100">
                                                     <Trophy className="w-10 h-10 text-gray-300" />
                                                 </div>
-                                                <h3 className="text-xl font-bold text-gray-900 mb-2">No achievements yet</h3>
+                                                <h3 className="text-sm font-bold text-gray-900 mb-2">No achievements yet</h3>
                                                 <p className="text-gray-500 max-w-sm mx-auto">
                                                     Register for tournaments, complete seminars, and pass promotion tests to build your achievements timeline here.
                                                 </p>
@@ -657,7 +660,7 @@ export default function AthleteDashboardView({
                                         {registrations.length === 0 ? (
                                             <div className="p-10 text-center">
                                                 <div className="text-4xl mb-3">🏆</div>
-                                                <h3 className="text-base font-bold text-gray-900 mb-1">No tournament registrations</h3>
+                                                <h3 className="text-sm font-bold text-gray-900 mb-1">No tournament registrations</h3>
                                                 <p className="text-gray-500 text-sm">Browse events to register for a tournament.</p>
                                             </div>
                                         ) : (
@@ -811,7 +814,7 @@ export default function AthleteDashboardView({
                                         {seminarRegs.length === 0 ? (
                                             <div className="p-10 text-center">
                                                 <div className="text-4xl mb-3">📚</div>
-                                                <h3 className="text-base font-bold text-gray-900 mb-1">No seminar registrations</h3>
+                                                <h3 className="text-sm font-bold text-gray-900 mb-1">No seminar registrations</h3>
                                                 <p className="text-gray-500 text-sm">Browse events to register for a seminar.</p>
                                             </div>
                                         ) : (
@@ -923,7 +926,7 @@ export default function AthleteDashboardView({
                                         {promotionRegs.length === 0 ? (
                                             <div className="p-10 text-center">
                                                 <div className="text-4xl mb-3">🥋</div>
-                                                <h3 className="text-base font-bold text-gray-900 mb-1">No promotion registrations</h3>
+                                                <h3 className="text-sm font-bold text-gray-900 mb-1">No promotion registrations</h3>
                                                 <p className="text-gray-500 text-sm">Browse events to register for a belt promotion test.</p>
                                             </div>
                                         ) : (
@@ -1048,7 +1051,7 @@ export default function AthleteDashboardView({
                                 <div className="w-20 h-20 bg-gradient-to-br from-red-100 to-amber-100 rounded-full flex items-center justify-center mb-6 shadow-sm ring-4 ring-red-50">
                                     <Trophy className="w-10 h-10 text-red-600" />
                                 </div>
-                                <h2 className="text-3xl font-black text-gray-900 mb-2">
+                                <h2 className="text-2xl font-black text-gray-900 mb-2">
                                     <span className="text-red-600">Global</span> Rank Achieved
                                 </h2>
                                 <p className="text-gray-500 max-w-md mb-8 leading-relaxed">
@@ -1092,7 +1095,7 @@ export default function AthleteDashboardView({
                                 <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-50 rounded-full flex items-center justify-center mb-6 shadow-sm">
                                     <Trophy className="w-10 h-10 text-gray-400" />
                                 </div>
-                                <h2 className="text-2xl font-bold text-gray-900 mb-3">Unranked</h2>
+                                <h2 className="text-2xl font-black text-gray-900 mb-3">Unranked</h2>
                                 <p className="text-gray-500 max-w-md mb-8 leading-relaxed">
                                     You have not achieved any verified global ranking points yet. Compete in J-Score events to earn your spot on the leaderboard!
                                 </p>
@@ -1136,7 +1139,7 @@ export default function AthleteDashboardView({
                     <div className="flex-1 flex flex-col min-h-0 px-4 sm:px-6 lg:px-8 py-6 w-full max-w-[1600px] mx-auto md:overflow-y-auto">
                         <div className="flex items-center justify-between mb-6">
                             <div>
-                                <h2 className="text-xl font-bold text-gray-900">Available Events</h2>
+                                <h2 className="text-2xl font-black text-gray-900">Available Events</h2>
                                 <p className="text-sm text-gray-500 mt-1">Browse and register for upcoming tournaments, seminars & promotion tests</p>
                             </div>
                         </div>
@@ -1186,7 +1189,7 @@ export default function AthleteDashboardView({
                                 return (
                                     <div className="flex flex-col items-center justify-center min-h-[40vh] text-center bg-white rounded-2xl shadow-sm border border-gray-200 p-12">
                                         <div className="text-5xl mb-4">🎯</div>
-                                        <h3 className="text-lg font-bold text-gray-900 mb-2">No Events Available</h3>
+                                        <h3 className="text-sm font-bold text-gray-900 mb-2">No Events Available</h3>
                                         <p className="text-sm text-gray-500 max-w-sm">There are no upcoming events for your club right now. Check back later!</p>
                                     </div>
                                 )
@@ -1229,7 +1232,7 @@ export default function AthleteDashboardView({
                                                     </div>
 
                                                     {/* Name */}
-                                                    <h3 className="text-base font-bold text-gray-900 mb-1 line-clamp-2">{event.name}</h3>
+                                                    <h3 className="text-sm font-bold text-gray-900 mb-1 line-clamp-2">{event.name}</h3>
 
                                                     {/* Date & Venue */}
                                                     <div className="space-y-1 mb-3">
