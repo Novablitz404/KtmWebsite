@@ -3257,11 +3257,11 @@ export async function revokeClubAffiliation(clubId: string, confirmName: string)
             // 5. Delete BulkRegistration records
             await tx.bulkRegistration.deleteMany({ where: { clubId: club.id } })
 
-            // 6. Delete all User records (PushSubscription + Notification cascade automatically)
-            await tx.user.deleteMany({ where: { id: { in: allUserIds } } })
-
-            // 7. Delete the Club record (ClubEventParticipation cascades automatically)
+            // 6. Delete the Club record FIRST (Club.masterId references User)
             await tx.club.delete({ where: { id: club.id } })
+
+            // 7. Delete all User records (PushSubscription + Notification cascade automatically)
+            await tx.user.deleteMany({ where: { id: { in: allUserIds } } })
         })
 
         // ── Delete Supabase Auth accounts ──
