@@ -25,18 +25,18 @@ export default async function EventsPage(props: { searchParams: Promise<{ type?:
         const [tournaments, seminars] = await Promise.all([
             org?.ownerId ? prisma.tournament.findMany({
                 where: { organizerId: org.ownerId, status: { not: 'CANCELLED' } },
-                select: { id: true, name: true, startDate: true, venue: true, headerImageUrl: true },
+                select: { id: true, name: true, startDate: true, venue: true, headerImageUrl: true, status: true },
                 orderBy: { startDate: 'desc' },
             }) : Promise.resolve([]),
             prisma.seminar.findMany({
                 where: { organizationId: targetOrgId, status: { not: 'CANCELLED' } },
-                select: { id: true, name: true, startDate: true, venue: true, bannerUrl: true },
+                select: { id: true, name: true, startDate: true, venue: true, bannerUrl: true, status: true },
                 orderBy: { startDate: 'desc' },
             }),
         ])
 
-        const serializedTournaments = tournaments.map(t => ({ id: t.id, name: t.name, date: t.startDate.toISOString(), venue: t.venue, imageUrl: t.headerImageUrl }))
-        const serializedSeminars = seminars.map(s => ({ id: s.id, name: s.name, date: s.startDate.toISOString(), venue: s.venue, imageUrl: s.bannerUrl }))
+        const serializedTournaments = tournaments.map(t => ({ id: t.id, name: t.name, date: t.startDate.toISOString(), venue: t.venue, imageUrl: t.headerImageUrl, status: t.status }))
+        const serializedSeminars = seminars.map(s => ({ id: s.id, name: s.name, date: s.startDate.toISOString(), venue: s.venue, imageUrl: s.bannerUrl, status: s.status || 'UPCOMING' }))
 
         return <GlobalEventsPage tournaments={serializedTournaments} seminars={serializedSeminars} />
     }

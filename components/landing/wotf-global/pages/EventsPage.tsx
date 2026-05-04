@@ -8,9 +8,18 @@ import { Calendar, MapPin, Trophy, GraduationCap, ArrowRight } from 'lucide-reac
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
+interface EventItem {
+    id: string;
+    name: string;
+    date: string;
+    venue: string | null;
+    imageUrl?: string | null;
+    status?: string;
+}
+
 interface EventsPageProps {
-    tournaments?: { id: string; name: string; date: string; venue: string | null; imageUrl?: string | null }[];
-    seminars?: { id: string; name: string; date: string; venue: string | null; imageUrl?: string | null }[];
+    tournaments?: EventItem[];
+    seminars?: EventItem[];
 }
 
 /* ─── Event Banner Helper ─── */
@@ -47,11 +56,14 @@ function EventBanner({ imageUrl, colorClass }: { imageUrl: string | null | undef
     );
 }
 
+type TabId = 'upcoming' | 'past';
+
 function EventsPageInner({ tournaments, seminars }: EventsPageProps) {
     const { t } = useI18n();
     const searchParams = useSearchParams();
     const tenantParam = searchParams.get('tenant');
     const qs = tenantParam ? `?tenant=${tenantParam}` : '';
+    const [activeTab, setActiveTab] = useState<TabId>('upcoming');
 
     useEffect(() => {
         const els = document.querySelectorAll('.wotf-reveal');
@@ -61,9 +73,25 @@ function EventsPageInner({ tournaments, seminars }: EventsPageProps) {
         }, { rootMargin: '-40px' });
         els.forEach((el) => ob.observe(el));
         return () => ob.disconnect();
-    }, []);
+    }, [activeTab]);
 
     const formatFull = (d: string) => new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' });
+
+    const now = new Date();
+
+    // Split events into upcoming and past based on date + status
+    const isUpcoming = (event: EventItem) => {
+        const eventDate = new Date(event.date);
+        return eventDate >= now || event.status === 'UPCOMING' || event.status === 'ONGOING';
+    };
+
+    const upcomingTournaments = (tournaments || []).filter(isUpcoming);
+    const pastTournaments = (tournaments || []).filter(e => !isUpcoming(e));
+    const upcomingSeminars = (seminars || []).filter(isUpcoming);
+    const pastSeminars = (seminars || []).filter(e => !isUpcoming(e));
+
+    const upcomingCount = upcomingTournaments.length + upcomingSeminars.length;
+    const pastCount = pastTournaments.length + pastSeminars.length;
 
     const palette = [
         { accent: 'text-[#0085C7]', bg: 'bg-[#0085C7]', border: 'border-[#0085C7]/20' },
@@ -73,15 +101,16 @@ function EventsPageInner({ tournaments, seminars }: EventsPageProps) {
         { accent: 'text-[#DF0024]', bg: 'bg-[#DF0024]', border: 'border-[#DF0024]/20' },
     ];
 
-    const renderEventCard = (event: any, i: number, type: 'Tournament' | 'Seminar') => {
+    const renderEventCard = (event: EventItem, i: number, type: 'Tournament' | 'Seminar') => {
         const p = palette[i % palette.length];
         const isTournament = type === 'Tournament';
+        const isPast = !isUpcoming(event);
         
         return (
-            <Link key={event.id} href={isTournament ? `/tournament/${event.id}${qs}` : `/seminars/${event.id}${qs}`} className={`wotf-card-enter group block relative bg-[#111] rounded-2xl overflow-hidden border ${p.border} hover:border-white/30 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)]`} style={{ animationDelay: `${i * 0.1}s` }}>
+            <Link key={event.id} href={isTournament ? `/tournament/${event.id}${qs}` : `/seminars/${event.id}${qs}`} className={`wotf-card-enter group block relative bg-[#111] rounded-2xl overflow-hidden border ${p.border} hover:border-white/30 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] ${isPast ? 'opacity-75 hover:opacity-100' : ''}`} style={{ animationDelay: `${i * 0.1}s` }}>
                 
                 {/* Banner Image Area */}
-                <div className="relative h-48 w-full bg-[#1A1A1A] overflow-hidden">
+                <div className={`relative h-48 w-full bg-[#1A1A1A] overflow-hidden ${isPast ? 'grayscale-[30%]' : ''}`}>
                     <EventBanner imageUrl={event.imageUrl} colorClass={p.bg} />
                     {/* Gradient Overlay */}
                     <div className="absolute inset-0 bg-gradient-to-t from-[#111] via-[#111]/40 to-transparent" />
@@ -91,6 +120,15 @@ function EventsPageInner({ tournaments, seminars }: EventsPageProps) {
                         {isTournament ? <Trophy size={12} className={p.accent} /> : <GraduationCap size={12} className={p.accent} />}
                         <span className="text-[10px] font-bold text-white uppercase tracking-wider">{type}</span>
                     </div>
+
+                    {/* Status Badge for past events */}
+                    {isPast && (
+                        <div className="absolute top-4 left-4 bg-white/10 backdrop-blur-md border border-white/10 rounded-full px-3 py-1">
+                            <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">
+                                {event.status === 'COMPLETED' ? 'Completed' : 'Past Event'}
+                            </span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Content Area */}
@@ -114,6 +152,48 @@ function EventsPageInner({ tournaments, seminars }: EventsPageProps) {
         );
     };
 
+    const renderSection = (tourns: EventItem[], sems: EventItem[]) => (
+        <div className="space-y-20">
+            {/* Tournaments */}
+            <div>
+                <div className="flex items-center gap-3 mb-8 wotf-reveal">
+                    <Trophy size={28} className="text-[#DF0024]" />
+                    <h2 className="text-3xl font-black uppercase tracking-tight text-white">Tournaments</h2>
+                    <span className="ml-2 px-2.5 py-0.5 bg-white/10 rounded-full text-xs font-bold text-gray-400">{tourns.length}</span>
+                </div>
+                {tourns.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {tourns.map((tourney, i) => renderEventCard(tourney, i, 'Tournament'))}
+                    </div>
+                ) : (
+                    <div className="text-center py-16 text-gray-600 border border-white/5 rounded-2xl bg-[#111]">
+                        <Trophy size={40} className="mx-auto mb-3 opacity-30" />
+                        <p>{activeTab === 'upcoming' ? t('championship.empty') : 'No past tournaments'}</p>
+                    </div>
+                )}
+            </div>
+
+            {/* Seminars */}
+            <div>
+                <div className="flex items-center gap-3 mb-8 wotf-reveal">
+                    <GraduationCap size={32} className="text-[#0085C7]" />
+                    <h2 className="text-3xl font-black uppercase tracking-tight text-white">Seminars</h2>
+                    <span className="ml-2 px-2.5 py-0.5 bg-white/10 rounded-full text-xs font-bold text-gray-400">{sems.length}</span>
+                </div>
+                {sems.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {sems.map((sem, i) => renderEventCard(sem, i, 'Seminar'))}
+                    </div>
+                ) : (
+                    <div className="text-center py-16 text-gray-600 border border-white/5 rounded-2xl bg-[#111]">
+                        <GraduationCap size={40} className="mx-auto mb-3 opacity-30" />
+                        <p>{activeTab === 'upcoming' ? t('seminar.empty') : 'No past seminars'}</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+
     return (
         <main className="min-h-screen bg-[#050505] text-white">
             <GlobalNavbar />
@@ -136,46 +216,61 @@ function EventsPageInner({ tournaments, seminars }: EventsPageProps) {
                 </div>
             </section>
 
+            {/* Sub-tabs */}
+            <section className="bg-[#0A0A0A] border-b border-white/5 sticky top-[64px] z-30">
+                <div className="max-w-7xl mx-auto px-6">
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => setActiveTab('upcoming')}
+                            className={`relative px-6 py-4 text-sm font-bold uppercase tracking-widest transition-colors ${
+                                activeTab === 'upcoming'
+                                    ? 'text-white'
+                                    : 'text-gray-500 hover:text-gray-300'
+                            }`}
+                        >
+                            Upcoming Events
+                            {upcomingCount > 0 && (
+                                <span className={`ml-2 px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                    activeTab === 'upcoming' ? 'bg-[#DF0024] text-white' : 'bg-white/10 text-gray-400'
+                                }`}>
+                                    {upcomingCount}
+                                </span>
+                            )}
+                            {activeTab === 'upcoming' && (
+                                <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#DF0024]" />
+                            )}
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('past')}
+                            className={`relative px-6 py-4 text-sm font-bold uppercase tracking-widest transition-colors ${
+                                activeTab === 'past'
+                                    ? 'text-white'
+                                    : 'text-gray-500 hover:text-gray-300'
+                            }`}
+                        >
+                            Past Events
+                            {pastCount > 0 && (
+                                <span className={`ml-2 px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                    activeTab === 'past' ? 'bg-gray-600 text-white' : 'bg-white/10 text-gray-400'
+                                }`}>
+                                    {pastCount}
+                                </span>
+                            )}
+                            {activeTab === 'past' && (
+                                <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gray-500" />
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </section>
+
             {/* Events List */}
             <section className="py-16 md:py-24 bg-[#0A0A0A]">
-                <div className="max-w-7xl mx-auto px-6 space-y-20">
-                    
-                    {/* Tournaments */}
-                    <div>
-                        <div className="flex items-center gap-3 mb-8 wotf-reveal">
-                            <Trophy size={28} className="text-[#DF0024]" />
-                            <h2 className="text-3xl font-black uppercase tracking-tight text-white">Tournaments</h2>
-                        </div>
-                        {tournaments && tournaments.length > 0 ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {tournaments.map((tourney, i) => renderEventCard(tourney, i, 'Tournament'))}
-                            </div>
-                        ) : (
-                            <div className="text-center py-16 text-gray-600 border border-white/5 rounded-2xl bg-[#111]">
-                                <Trophy size={40} className="mx-auto mb-3 opacity-30" />
-                                <p>{t('championship.empty')}</p>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Seminars */}
-                    <div>
-                        <div className="flex items-center gap-3 mb-8 wotf-reveal">
-                            <GraduationCap size={32} className="text-[#0085C7]" />
-                            <h2 className="text-3xl font-black uppercase tracking-tight text-white">Seminars</h2>
-                        </div>
-                        {seminars && seminars.length > 0 ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {seminars.map((sem, i) => renderEventCard(sem, i, 'Seminar'))}
-                            </div>
-                        ) : (
-                            <div className="text-center py-16 text-gray-600 border border-white/5 rounded-2xl bg-[#111]">
-                                <GraduationCap size={40} className="mx-auto mb-3 opacity-30" />
-                                <p>{t('seminar.empty')}</p>
-                            </div>
-                        )}
-                    </div>
-
+                <div className="max-w-7xl mx-auto px-6">
+                    {activeTab === 'upcoming'
+                        ? renderSection(upcomingTournaments, upcomingSeminars)
+                        : renderSection(pastTournaments, pastSeminars)
+                    }
                 </div>
             </section>
 
