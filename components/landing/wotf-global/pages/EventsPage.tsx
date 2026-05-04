@@ -80,9 +80,11 @@ function EventsPageInner({ tournaments, seminars }: EventsPageProps) {
     const now = new Date();
 
     // Split events into upcoming and past based on date + status
+    // Date-first logic: COMPLETED always past, ONGOING always upcoming, otherwise use date
     const isUpcoming = (event: EventItem) => {
-        const eventDate = new Date(event.date);
-        return eventDate >= now || event.status === 'UPCOMING' || event.status === 'ONGOING';
+        if (event.status === 'COMPLETED') return false;
+        if (event.status === 'ONGOING') return true;
+        return new Date(event.date) >= now;
     };
 
     const upcomingTournaments = (tournaments || []).filter(isUpcoming);
@@ -203,7 +205,7 @@ function EventsPageInner({ tournaments, seminars }: EventsPageProps) {
                 <div className="absolute inset-0 bg-gradient-to-br from-[#0085C7]/10 via-transparent to-[#DF0024]/5" />
                 <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
                     <h1 className="text-4xl md:text-6xl font-black uppercase tracking-wider animate-hero-fade-in-delayed-1">
-                        {t('events.title')}
+                        WOTF Events
                     </h1>
                     <p className="text-gray-500 mt-3 text-base md:text-lg">{t('events.subtitle')}</p>
                     <div className="mt-6 flex justify-center gap-1">
