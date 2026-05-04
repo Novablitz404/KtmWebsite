@@ -18,9 +18,10 @@ export default async function EventsPage(props: { searchParams: Promise<{ type?:
         const now = new Date()
         now.setHours(0, 0, 0, 0)
 
-        // The user explicitly specified the WOTF org ID to use
-        const targetOrgId = 'cml60muu800dgceqenoigxblr'
-        const org = await prisma.organization.findUnique({ where: { id: targetOrgId }, select: { ownerId: true } })
+        const orgId = tenant.id
+        if (!orgId) return <GlobalEventsPage />
+
+        const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { ownerId: true } })
 
         const [tournaments, seminars] = await Promise.all([
             org?.ownerId ? prisma.tournament.findMany({
@@ -29,7 +30,7 @@ export default async function EventsPage(props: { searchParams: Promise<{ type?:
                 orderBy: { startDate: 'desc' },
             }) : Promise.resolve([]),
             prisma.seminar.findMany({
-                where: { organizationId: targetOrgId, status: { not: 'CANCELLED' } },
+                where: { organizationId: orgId, status: { not: 'CANCELLED' } },
                 select: { id: true, name: true, startDate: true, venue: true, bannerUrl: true, status: true },
                 orderBy: { startDate: 'desc' },
             }),

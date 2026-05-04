@@ -22,9 +22,7 @@ export default async function Home() {
       else if (existingTenantUser?.role === 'CLUB_MASTER' || existingTenantUser?.role === 'ASSISTANT_CLUB_MASTER') redirect(`/club${tenantQs}`)
     }
 
-    // The user explicitly specified the WOTF org ID to use
-    const targetOrgId = 'cml60muu800dgceqenoigxblr'
-    const orgId = tenant.id || targetOrgId
+    const orgId = tenant.id
     
     let stats = { athletes: 0, clubs: 0, events: 0 }
     let upcomingEvents: { id: string; name: string; type: string; date: string; venue: string | null, imageUrl?: string | null }[] = []
