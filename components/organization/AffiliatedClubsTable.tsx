@@ -3,13 +3,13 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import Image from 'next/image'
 import { toast } from 'sonner'
-import { approveAffiliationProof, rejectAffiliationProof, manuallyActivateAffiliation, getClubMembersForOrg, createMemberForClub } from '@/app/organization/actions'
+import { approveAffiliationProof, rejectAffiliationProof, manuallyActivateAffiliation, getClubMembersForOrg, createMemberForClub, revokeClubAffiliation, revokeAthlete } from '@/app/organization/actions'
 import { calculateAge } from '@/lib/placement'
 import {
     Check, X, Building2, Users, Phone, Mail, MapPin,
     Calendar, Shield, ShieldCheck, ShieldAlert, ShieldX,
     Clock, Eye, CheckCircle, XCircle, ChevronRight, Globe, Award,
-    Search, UserPlus, Loader2, User
+    Search, UserPlus, Loader2, User, Trash2, AlertTriangle
 } from 'lucide-react'
 
 interface ClubData {
@@ -55,6 +55,178 @@ const affiliationBadge = (status: string) => {
 }
 
 const BELT_OPTIONS = ['White', 'Yellow', 'Green', 'Blue', 'Red', 'Black', 'Poom']
+
+// ─── Revoke Club Modal ───────────────────────────────────────────
+function RevokeClubModal({ club, onClose, onSuccess }: {
+    club: { id: string; name: string; memberCount: number }
+    onClose: () => void
+    onSuccess: () => void
+}) {
+    const [confirmName, setConfirmName] = useState('')
+    const [isRevoking, setIsRevoking] = useState(false)
+    const nameMatches = confirmName.trim().toLowerCase() === club.name.trim().toLowerCase()
+
+    const handleRevoke = async () => {
+        setIsRevoking(true)
+        const res = await revokeClubAffiliation(club.id, confirmName)
+        if ('error' in res) {
+            toast.error(res.error)
+            setIsRevoking(false)
+        } else {
+            toast.success(`${club.name} has been permanently revoked`)
+            onSuccess()
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div className="bg-gradient-to-br from-red-600 to-red-700 px-6 py-5">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                            <AlertTriangle className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-base font-black text-white">Revoke Club Affiliation</h3>
+                            <p className="text-xs text-red-200 mt-0.5">This action is permanent and irreversible</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Body */}
+                <div className="p-6 space-y-4">
+                    <div className="bg-red-50 rounded-xl p-4 border border-red-100">
+                        <p className="text-xs text-red-700 leading-relaxed">
+                            This will permanently delete <span className="font-black">{club.name}</span>, the club master, and all <span className="font-black">{club.memberCount}</span> members. Their authentication accounts will also be removed.
+                        </p>
+                    </div>
+
+                    <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">
+                            Type &quot;{club.name}&quot; to confirm
+                        </label>
+                        <input
+                            type="text"
+                            value={confirmName}
+                            onChange={e => setConfirmName(e.target.value)}
+                            placeholder={club.name}
+                            className="w-full px-3 py-2.5 text-sm border border-red-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-400 transition-colors"
+                            autoFocus
+                        />
+                        {confirmName.length > 0 && !nameMatches && (
+                            <p className="text-[10px] text-red-400 mt-1">Name does not match</p>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                        <button
+                            onClick={onClose}
+                            disabled={isRevoking}
+                            className="flex-1 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleRevoke}
+                            disabled={isRevoking || !nameMatches}
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 text-white text-sm font-bold rounded-xl hover:bg-red-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            {isRevoking ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                            {isRevoking ? 'Revoking...' : 'Revoke Club'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// ─── Revoke Athlete Modal ────────────────────────────────────────
+function RevokeAthleteModal({ athlete, onClose, onSuccess }: {
+    athlete: { id: string; name: string }
+    onClose: () => void
+    onSuccess: () => void
+}) {
+    const [confirmName, setConfirmName] = useState('')
+    const [isRevoking, setIsRevoking] = useState(false)
+    const nameMatches = confirmName.trim().toLowerCase() === athlete.name.trim().toLowerCase()
+
+    const handleRevoke = async () => {
+        setIsRevoking(true)
+        const res = await revokeAthlete(athlete.id)
+        if ('error' in res) {
+            toast.error(res.error)
+            setIsRevoking(false)
+        } else {
+            toast.success(`${athlete.name} has been permanently revoked`)
+            onSuccess()
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div className="bg-gradient-to-br from-red-600 to-red-700 px-6 py-5">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                            <AlertTriangle className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-base font-black text-white">Revoke Athlete</h3>
+                            <p className="text-xs text-red-200 mt-0.5">This action is permanent and irreversible</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Body */}
+                <div className="p-6 space-y-4">
+                    <div className="bg-red-50 rounded-xl p-4 border border-red-100">
+                        <p className="text-xs text-red-700 leading-relaxed">
+                            This will permanently delete <span className="font-black">{athlete.name}</span>&apos;s account, all tournament records, and their authentication. They will no longer be able to sign in.
+                        </p>
+                    </div>
+
+                    <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">
+                            Type &quot;{athlete.name}&quot; to confirm
+                        </label>
+                        <input
+                            type="text"
+                            value={confirmName}
+                            onChange={e => setConfirmName(e.target.value)}
+                            placeholder={athlete.name}
+                            className="w-full px-3 py-2.5 text-sm border border-red-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-400 transition-colors"
+                            autoFocus
+                        />
+                        {confirmName.length > 0 && !nameMatches && (
+                            <p className="text-[10px] text-red-400 mt-1">Name does not match</p>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                        <button
+                            onClick={onClose}
+                            disabled={isRevoking}
+                            className="flex-1 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleRevoke}
+                            disabled={isRevoking || !nameMatches}
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 text-white text-sm font-bold rounded-xl hover:bg-red-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            {isRevoking ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                            {isRevoking ? 'Revoking...' : 'Revoke Athlete'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
 
 // ─── Add Member Form ─────────────────────────────────────────────
 function AddMemberForm({ clubId, clubName, onSuccess, onCancel }: {
@@ -244,6 +416,10 @@ function ClubDetailModal({ club, onClose }: { club: ClubData, onClose: () => voi
     const [viewingProof, setViewingProof] = useState<string | null>(null)
     const MEMBERS_PER_PAGE = 10
 
+    // Revocation state
+    const [showRevokeClubModal, setShowRevokeClubModal] = useState(false)
+    const [revokeAthleteTarget, setRevokeAthleteTarget] = useState<{ id: string; name: string } | null>(null)
+
     // Fetch members when switching to Members tab
     useEffect(() => {
         if (tab === 'members' && members.length === 0 && !isLoadingMembers) {
@@ -311,6 +487,8 @@ function ClubDetailModal({ club, onClose }: { club: ClubData, onClose: () => voi
             window.location.reload()
         }
     }
+
+
 
     const affBadge = affiliationBadge(club.affiliationStatus || 'UNPAID')
     const AffIcon = affBadge.icon
@@ -484,6 +662,21 @@ function ClubDetailModal({ club, onClose }: { club: ClubData, onClose: () => voi
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* ── Danger Zone ── */}
+                                <button
+                                    onClick={() => setShowRevokeClubModal(true)}
+                                    className="w-full mt-6 flex items-center gap-3 px-4 py-3.5 bg-red-50 border border-red-200 rounded-2xl hover:bg-red-100 transition-colors text-left"
+                                >
+                                    <div className="w-8 h-8 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+                                        <AlertTriangle className="w-4 h-4 text-red-600" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold text-red-700">Revoke Club Affiliation</p>
+                                        <p className="text-[10px] text-red-400">Permanently delete this club and all members</p>
+                                    </div>
+                                    <ChevronRight className="w-4 h-4 text-red-300" />
+                                </button>
                             </div>
                         ) : (
                             /* ── Members Tab ── */
@@ -535,6 +728,7 @@ function ClubDetailModal({ club, onClose }: { club: ClubData, onClose: () => voi
                                                     <th className="px-4 py-3 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Gender</th>
                                                     <th className="px-4 py-3 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest hidden sm:table-cell">Age</th>
                                                     <th className="px-4 py-3 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest hidden sm:table-cell">Measurement</th>
+                                                    <th className="px-4 py-3 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest w-16"></th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-50">
@@ -563,6 +757,15 @@ function ClubDetailModal({ club, onClose }: { club: ClubData, onClose: () => voi
                                                             </td>
                                                             <td className="px-4 py-3 text-center text-xs hidden sm:table-cell">
                                                                 {isHeightBased ? (m.height ? <span className="text-blue-600 font-bold">{m.height}cm</span> : <span className="text-gray-300">—</span>) : (m.weight ? <span className="text-amber-600 font-bold">{m.weight}kg</span> : <span className="text-gray-300">—</span>)}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-right">
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); setRevokeAthleteTarget({ id: m.id, name: m.name }) }}
+                                                                    className="p-1.5 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                                    title={`Revoke ${m.name}`}
+                                                                >
+                                                                    <Trash2 size={13} />
+                                                                </button>
                                                             </td>
                                                         </tr>
                                                     )
@@ -604,6 +807,24 @@ function ClubDetailModal({ club, onClose }: { club: ClubData, onClose: () => voi
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Revoke Club Modal */}
+            {showRevokeClubModal && (
+                <RevokeClubModal
+                    club={{ id: club.id, name: club.name, memberCount: club.memberCount }}
+                    onClose={() => setShowRevokeClubModal(false)}
+                    onSuccess={() => { onClose(); window.location.reload() }}
+                />
+            )}
+
+            {/* Revoke Athlete Modal */}
+            {revokeAthleteTarget && (
+                <RevokeAthleteModal
+                    athlete={revokeAthleteTarget}
+                    onClose={() => setRevokeAthleteTarget(null)}
+                    onSuccess={() => { setRevokeAthleteTarget(null); loadMembers() }}
+                />
             )}
         </>
     )

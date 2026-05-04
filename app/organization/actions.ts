@@ -3150,3 +3150,247 @@ export async function updateAthleteCardFees(formData: FormData) {
         return { error: 'Failed to update athlete card fees' }
     }
 }
+
+// ============================================
+// REVOCATION ACTIONS
+// ============================================
+
+/**
+ * Revoke a club's affiliation — permanently deletes the club, all members,
+ * and all related data from the database + Supabase Auth.
+ */
+export async function revokeClubAffiliation(clubId: string, confirmName: string) {
+    const user = await getAuthUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return { error: 'No organization found' }
+    const orgId = dbUser.organization.id
+
+    // Fetch the club and verify it belongs to this org
+    const club = await prisma.club.findUnique({
+        where: { id: clubId },
+        include: { master: true }
+    })
+
+    if (!club || club.organizationId !== orgId) {
+        return { error: 'Club not found or not affiliated with your organization' }
+    }
+
+    // Two-step confirmation: name must match exactly
+    if (confirmName.trim().toLowerCase() !== club.name.trim().toLowerCase()) {
+        return { error: 'Club name does not match. Please type the exact club name to confirm.' }
+    }
+
+    // Collect all user IDs (members + master)
+    const clubMembers = await prisma.user.findMany({
+        where: { clubName: club.name, role: { in: ['ATHLETE', 'ASSISTANT_CLUB_MASTER'] } },
+        select: { id: true, clerkId: true }
+    })
+
+    const allUserIds = [...clubMembers.map(m => m.id), club.masterId]
+    const allClerkIds = [
+        ...clubMembers.map(m => m.clerkId).filter(Boolean),
+        club.master.clerkId
+    ].filter(Boolean) as string[]
+
+    // ── Active Tournament Guard ──
+    const activePlayers = await prisma.player.findMany({
+        where: {
+            userId: { in: allUserIds },
+            category: {
+                tournament: {
+                    status: { in: ['UPCOMING', 'ONGOING'] }
+                }
+            }
+        },
+        include: {
+            category: {
+                include: {
+                    tournament: { select: { name: true } }
+                }
+            }
+        }
+    })
+
+    if (activePlayers.length > 0) {
+        const tournamentNames = [...new Set(activePlayers.map(p => p.category?.tournament?.name).filter(Boolean))]
+        return {
+            error: `Cannot revoke — ${club.name} has ${activePlayers.length} player(s) in active/upcoming tournaments: ${tournamentNames.join(', ')}. Remove them from those tournaments first.`
+        }
+    }
+
+    // ── FK-Safe Cascading Delete (inside a transaction) ──
+    try {
+        await prisma.$transaction(async (tx) => {
+            // 1. Delete PoomsaeMatch records for players
+            const playerIds = await tx.player.findMany({
+                where: { OR: [{ userId: { in: allUserIds } }, { clubId: club.id }] },
+                select: { id: true }
+            })
+            const pIds = playerIds.map(p => p.id)
+
+            if (pIds.length > 0) {
+                await tx.poomsaeMatch.deleteMany({ where: { playerId: { in: pIds } } })
+                // GuestRegistration has onDelete: Cascade on Player, but we delete manually to be safe
+                await tx.guestRegistration.deleteMany({ where: { playerId: { in: pIds } } })
+            }
+
+            // 2. Delete Player records
+            await tx.player.deleteMany({
+                where: { OR: [{ userId: { in: allUserIds } }, { clubId: club.id }] }
+            })
+
+            // 3. Delete ApiKey records
+            await tx.apiKey.deleteMany({ where: { ownerId: { in: allUserIds } } })
+
+            // 4. Delete ClubAffiliation records
+            await tx.clubAffiliation.deleteMany({ where: { clubId: club.id } })
+
+            // 5. Delete BulkRegistration records
+            await tx.bulkRegistration.deleteMany({ where: { clubId: club.id } })
+
+            // 6. Delete all User records (PushSubscription + Notification cascade automatically)
+            await tx.user.deleteMany({ where: { id: { in: allUserIds } } })
+
+            // 7. Delete the Club record (ClubEventParticipation cascades automatically)
+            await tx.club.delete({ where: { id: club.id } })
+        })
+
+        // ── Delete Supabase Auth accounts ──
+        if (allClerkIds.length > 0) {
+            const supabaseAdmin = createClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.SUPABASE_SERVICE_ROLE_KEY!,
+            )
+            for (const clerkId of allClerkIds) {
+                try {
+                    await supabaseAdmin.auth.admin.deleteUser(clerkId)
+                } catch (authErr) {
+                    console.error(`[RevokeClub] Failed to delete auth user ${clerkId}:`, authErr)
+                }
+            }
+        }
+
+        console.log(`[RevokeClub] Org admin ${dbUser.id} revoked club "${club.name}" — deleted ${allUserIds.length} users`)
+
+        revalidatePath('/organization')
+        return { success: true, deletedUsers: allUserIds.length, clubName: club.name }
+    } catch (error: any) {
+        console.error('[RevokeClub] Transaction failed:', error)
+        return { error: error.message || 'Failed to revoke club affiliation' }
+    }
+}
+
+/**
+ * Revoke an individual athlete — permanently deletes them from DB + Supabase Auth.
+ */
+export async function revokeAthlete(athleteId: string) {
+    const user = await getAuthUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return { error: 'No organization found' }
+    const orgId = dbUser.organization.id
+
+    // Find the athlete
+    const athlete = await prisma.user.findUnique({
+        where: { id: athleteId },
+        select: { id: true, clerkId: true, name: true, clubName: true, role: true }
+    })
+
+    if (!athlete) return { error: 'Athlete not found' }
+
+    // Verify the athlete belongs to a club under this org
+    if (athlete.clubName) {
+        const club = await prisma.club.findFirst({
+            where: { name: athlete.clubName, organizationId: orgId }
+        })
+        if (!club) {
+            return { error: 'This athlete is not in a club affiliated with your organization' }
+        }
+    } else {
+        return { error: 'Athlete has no club association' }
+    }
+
+    // ── Active Tournament Guard ──
+    const activePlayers = await prisma.player.findMany({
+        where: {
+            userId: athlete.id,
+            category: {
+                tournament: {
+                    status: { in: ['UPCOMING', 'ONGOING'] }
+                }
+            }
+        },
+        include: {
+            category: {
+                include: {
+                    tournament: { select: { name: true } }
+                }
+            }
+        }
+    })
+
+    if (activePlayers.length > 0) {
+        const tournamentNames = [...new Set(activePlayers.map(p => p.category?.tournament?.name).filter(Boolean))]
+        return {
+            error: `Cannot revoke — ${athlete.name} has registrations in active/upcoming tournaments: ${tournamentNames.join(', ')}. Remove them first.`
+        }
+    }
+
+    // ── Delete in FK-safe order ──
+    try {
+        await prisma.$transaction(async (tx) => {
+            // 1. Delete PoomsaeMatch records
+            const playerIds = await tx.player.findMany({
+                where: { userId: athlete.id },
+                select: { id: true }
+            })
+            const pIds = playerIds.map(p => p.id)
+
+            if (pIds.length > 0) {
+                await tx.poomsaeMatch.deleteMany({ where: { playerId: { in: pIds } } })
+                await tx.guestRegistration.deleteMany({ where: { playerId: { in: pIds } } })
+            }
+
+            // 2. Delete Player records
+            await tx.player.deleteMany({ where: { userId: athlete.id } })
+
+            // 3. Delete ApiKey records
+            await tx.apiKey.deleteMany({ where: { ownerId: athlete.id } })
+
+            // 4. Delete User (PushSubscription + Notification cascade)
+            await tx.user.delete({ where: { id: athlete.id } })
+        })
+
+        // Delete from Supabase Auth
+        if (athlete.clerkId) {
+            try {
+                const supabaseAdmin = createClient(
+                    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+                )
+                await supabaseAdmin.auth.admin.deleteUser(athlete.clerkId)
+            } catch (authErr) {
+                console.error(`[RevokeAthlete] Failed to delete auth user ${athlete.clerkId}:`, authErr)
+            }
+        }
+
+        console.log(`[RevokeAthlete] Org admin ${dbUser.id} revoked athlete "${athlete.name}" (${athlete.id})`)
+
+        revalidatePath('/organization')
+        return { success: true, athleteName: athlete.name }
+    } catch (error: any) {
+        console.error('[RevokeAthlete] Transaction failed:', error)
+        return { error: error.message || 'Failed to revoke athlete' }
+    }
+}
