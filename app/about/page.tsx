@@ -3,6 +3,16 @@ import Link from 'next/link'
 import { getTenant } from '@/lib/tenant'
 import WOTFAboutPage from '@/components/landing/wotf/pages/AboutPage'
 import GlobalAboutPage from '@/components/landing/wotf-global/pages/AboutPage'
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+    title: 'About WOTF Global',
+    description: 'Learn about the World Olympics Taekwondo Federation — our mission, history, and commitment to growing taekwondo worldwide.',
+    openGraph: {
+        title: 'About WOTF Global',
+        description: 'Learn about the World Olympics Taekwondo Federation — our mission, history, and commitment to growing taekwondo worldwide.',
+    },
+}
 
 export default async function AboutPage() {
     const tenant = await getTenant()

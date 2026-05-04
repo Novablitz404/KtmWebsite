@@ -20,7 +20,9 @@ export interface TenantBranding {
     accentColor: string
     faviconUrl: string | null
     heroImageUrl: string | null
+    ogImageUrl: string | null
     tagline: string
+    description: string
     footerText: string | null
 }
 
@@ -35,20 +37,24 @@ export const TENANT_BRANDING: Record<string, TenantBranding> = {
         accentColor: '#F59E0B',
         faviconUrl: '/KTMLogo.png',
         heroImageUrl: null,
+        ogImageUrl: null,
         tagline: 'Taekwondo Management Platform',
+        description: 'KTM — the complete taekwondo club and tournament management platform.',
         footerText: null,
     },
     'wotf-global': {
-        name: 'World Olympics Taekwondo Federation',
+        name: 'WOTF Global',
         slug: 'wotf-global',
-        logoUrl: '/wotf/logo_image.png',
-        logoWhiteUrl: '/wotf/wotf_logo_word.png',
-        primaryColor: '#0085C7',     // Congo Blue
-        secondaryColor: '#DF0024',   // Spanish Red
-        accentColor: '#F4C300',      // Dashing Yellow
-        faviconUrl: '/wotf/logo_image.png',
+        logoUrl: '/wotf-global/Wotf_logo_Final.png',
+        logoWhiteUrl: '/wotf-global/wotf_global.png',
+        primaryColor: '#0085C7',
+        secondaryColor: '#DF0024',
+        accentColor: '#F4C300',
+        faviconUrl: '/wotf-global/Wotf_logo_Final.png',
         heroImageUrl: null,
-        tagline: 'World Olympic Taekwondo Federation',
-        footerText: null,
+        ogImageUrl: '/wotf-global/og-image.png',
+        tagline: 'World Olympics Taekwondo Federation',
+        description: 'WOTF Global — the official platform of the World Olympics Taekwondo Federation. Register for tournaments, track rankings, and connect with the global taekwondo community.',
+        footerText: '© 2026 WOTF Global. All rights reserved.',
     },
 }

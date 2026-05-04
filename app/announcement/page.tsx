@@ -2,6 +2,16 @@ import { prisma } from '@/lib/prisma'
 import { getTenant } from '@/lib/tenant'
 import GlobalAnnouncementPage from '@/components/landing/wotf-global/pages/AnnouncementPage'
 import { redirect } from 'next/navigation'
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+    title: 'Announcements',
+    description: 'Latest news, updates, and official announcements from WOTF Global.',
+    openGraph: {
+        title: 'Announcements | WOTF Global',
+        description: 'Latest news, updates, and official announcements from WOTF Global.',
+    },
+}
 
 export const dynamic = 'force-dynamic'
 

@@ -4,6 +4,16 @@ import Link from 'next/link'
 import { getTenant } from '@/lib/tenant'
 import WOTFEventsPage from '@/components/landing/wotf/pages/EventsPage'
 import GlobalEventsPage from '@/components/landing/wotf-global/pages/EventsPage'
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+    title: 'Events',
+    description: 'Browse upcoming and past WOTF Global tournaments and seminars. Register and compete on the world stage.',
+    openGraph: {
+        title: 'Events | WOTF Global',
+        description: 'Browse upcoming and past WOTF Global tournaments and seminars.',
+    },
+}
 
 // Force dynamic rendering to ensure real-time data and avoid build-time DB connections
 export const dynamic = 'force-dynamic'

@@ -3,10 +3,19 @@ import { Shield } from 'lucide-react'
 import RankingFilters from './RankingFilters'
 import Link from 'next/link'
 import { getTenant } from '@/lib/tenant'
-
 import WOTFGlobalRankingPage from '@/components/landing/wotf-global/pages/RankingsPage'
+import type { Metadata } from 'next'
 
-export const dynamic = 'force-dynamic' // Ensure fresh data on load
+export const metadata: Metadata = {
+    title: 'Global Rankings',
+    description: 'Official WOTF Global athlete rankings. See where taekwondo athletes from around the world stand in Kyorugi and Poomsae.',
+    openGraph: {
+        title: 'Global Rankings | WOTF Global',
+        description: 'Official WOTF Global athlete rankings for Kyorugi and Poomsae.',
+    },
+}
+
+export const dynamic = 'force-dynamic'
 
 interface PageProps {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>

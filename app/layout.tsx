@@ -46,9 +46,7 @@ export async function generateMetadata(): Promise<Metadata> {
       return {
         title: eventConfig.title || eventConfig.name,
         description: eventConfig.description || `Register for ${eventConfig.name}`,
-        icons: {
-          icon: eventConfig.faviconUrl || '/favicon.ico',
-        },
+        icons: { icon: eventConfig.faviconUrl || '/favicon.ico' },
         openGraph: eventConfig.ogImageUrl ? {
           images: [{ url: eventConfig.ogImageUrl }],
         } : undefined,
@@ -56,12 +54,62 @@ export async function generateMetadata(): Promise<Metadata> {
     }
   }
 
-  // Default tenant metadata
+  const siteUrl = tenant.slug === 'wotf-global'
+    ? 'https://www.wo-tf.com'
+    : 'https://www.wotf-ph.com'
+
+  const description = (tenant as any).description || tenant.tagline || 'Taekwondo management platform'
+  const ogImage = (tenant as any).ogImageUrl
+    ? `${siteUrl}${(tenant as any).ogImageUrl}`
+    : `${siteUrl}${tenant.logoUrl}`
+
   return {
-    title: tenant.name,
-    description: tenant.tagline || 'Taekwondo management platform',
+    title: {
+      default: `${tenant.name} — ${tenant.tagline}`,
+      template: `%s | ${tenant.name}`,
+    },
+    description,
+    metadataBase: new URL(siteUrl),
+    alternates: {
+      canonical: siteUrl,
+    },
+    openGraph: {
+      type: 'website',
+      url: siteUrl,
+      siteName: tenant.name,
+      title: `${tenant.name} — ${tenant.tagline}`,
+      description,
+      images: [
+        {
+          url: ogImage,
+          width: 1200,
+          height: 630,
+          alt: tenant.name,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${tenant.name} — ${tenant.tagline}`,
+      description,
+      images: [ogImage],
+    },
     icons: {
       icon: tenant.faviconUrl || '/favicon.ico',
+      apple: tenant.faviconUrl || '/favicon.ico',
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        'max-image-preview': 'large',
+        'max-snippet': -1,
+      },
+    },
+    other: {
+      'theme-color': tenant.primaryColor,
     },
   }
 }
