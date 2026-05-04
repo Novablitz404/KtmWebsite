@@ -182,7 +182,7 @@ export default function TournamentSettings({ tournament }: TournamentSettingsPro
         try {
             await deleteTournament(tournament.id)
             toast.success('Tournament deleted.')
-            router.push('/tournament')
+            router.push('/organization?tab=events')
         } catch (err: any) {
             toast.error(err?.message || 'Failed to delete tournament.')
         } finally {
