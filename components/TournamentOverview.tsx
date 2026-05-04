@@ -429,7 +429,7 @@ export default function TournamentOverview({
                                     }
 
                                     return (
-                                        <>
+                                        <React.Fragment key={club.id || `club-${i}`}>
                                             <tr
                                                 key={`row-${i}`}
                                                 className={`border-t border-gray-50 transition-colors ${
@@ -743,7 +743,7 @@ export default function TournamentOverview({
                                                     </td>
                                                 </tr>
                                             )}
-                                        </>
+                                        </React.Fragment>
                                     )
                                 })
                             )}

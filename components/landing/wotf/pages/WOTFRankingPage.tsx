@@ -129,7 +129,7 @@ export default async function WOTFRankingPage({ searchParams }: Props) {
                                                                 {athlete.name.toUpperCase()}
                                                             </Link>
                                                             <span className="text-xs text-gray-500 font-medium uppercase tracking-wider mt-0.5">
-                                                                ({tenant.slug === 'wotf' ? 'WOTF' : 'KTM'} ID: {athlete.userId.substring(0, 8)})
+                                                                ({tenant.slug === 'wotf-global' ? 'WOTF' : 'KTM'} ID: {athlete.userId.substring(0, 8)})
                                                             </span>
                                                         </div>
                                                     </div>

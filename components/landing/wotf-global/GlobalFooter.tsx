@@ -24,7 +24,7 @@ export default function GlobalFooter() {
                     <div>
                         <div className="flex items-center gap-3 mb-5">
                             <Image
-                                src="/wotf-global/WOTF-Logo-Hero.svg"
+                                src="/wotf-global/Wotf_logo_Final.png"
                                 alt="WOTF"
                                 width={36}
                                 height={36}
@@ -66,8 +66,7 @@ export default function GlobalFooter() {
                         <div className="space-y-2.5">
                             {[
                                 { key: 'nav.about', href: '/about' },
-                                { key: 'nav.seminar', href: '/events?type=seminar' },
-                                { key: 'nav.championship', href: '/events?type=championship' },
+                                { key: 'nav.events', href: '/events' },
                                 { key: 'nav.members', href: '/wotf-members' },
                             ].map((item) => (
                                 <Link key={item.key} href={buildHref(item.href)} className="block text-gray-500 text-sm hover:text-white transition-colors">
@@ -79,17 +78,25 @@ export default function GlobalFooter() {
                 </div>
 
                 {/* Bottom */}
-                <div className="mt-14 pt-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
-                    <div className="flex gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-[#0085C7]" />
-                        <span className="w-2 h-2 rounded-full bg-[#F4C300]" />
-                        <span className="w-2 h-2 rounded-full bg-white" />
-                        <span className="w-2 h-2 rounded-full bg-[#009F3D]" />
-                        <span className="w-2 h-2 rounded-full bg-[#DF0024]" />
-                    </div>
-                    <p className="text-gray-600 text-xs text-center">
+                <div className="mt-14 pt-8 border-t border-white/5 grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+                    <p className="text-gray-600 text-xs text-center md:text-left order-2 md:order-1">
                         {t('footer.copyright')}
                     </p>
+                    <div className="flex items-center justify-center gap-1.5 order-1 md:order-2">
+                        <span className="text-[11px] text-gray-600 font-medium">Powered by</span>
+                        <a href="https://ktmsports.com" target="_blank" rel="noopener noreferrer" className="flex items-center opacity-40 hover:opacity-100 transition-opacity">
+                            <img src="/ktmnav_white.png" alt="KTM Sports" className="h-4 w-auto" />
+                        </a>
+                    </div>
+                    <div className="flex items-center justify-center md:justify-end gap-4 text-xs text-gray-500 order-3">
+                        <Link href={buildHref('/privacy')} className="hover:text-white transition-colors">
+                            {t('footer.privacy')}
+                        </Link>
+                        <span className="text-white/20">•</span>
+                        <Link href={buildHref('/terms')} className="hover:text-white transition-colors">
+                            {t('footer.terms')}
+                        </Link>
+                    </div>
                 </div>
             </div>
         </footer>

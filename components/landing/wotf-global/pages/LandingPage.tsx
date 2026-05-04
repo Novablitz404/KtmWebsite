@@ -72,8 +72,42 @@ function StatsSection({ stats }: { stats?: { athletes: number; clubs: number; ev
     );
 }
 
+/* ─── Event Banner Helper ─── */
+function EventBanner({ imageUrl, colorClass }: { imageUrl: string | null | undefined, colorClass: string }) {
+    const [hasError, setHasError] = useState(false);
+    const imgRef = useRef<HTMLImageElement>(null);
+
+    useEffect(() => {
+        if (imgRef.current && imgRef.current.complete && imgRef.current.naturalHeight === 0) {
+            setHasError(true);
+        }
+    }, [imageUrl]);
+
+    if (!imageUrl || imageUrl === 'null' || hasError) {
+        return (
+            <div className={`absolute inset-0 flex flex-col items-center justify-center overflow-hidden transition-transform duration-700 group-hover:scale-105 ${colorClass}`}>
+                <div className="absolute inset-0 bg-black/40 mix-blend-overlay" />
+                <div className="relative z-10 flex items-center gap-1.5">
+                    <img src="/wotf-global/Wotf_logo_Final.png" alt="WOTF" className="h-16 w-16 md:h-20 md:w-20 object-contain drop-shadow-xl" />
+                    <img src="/wotf-global/wotf_global.png" alt="WOTF Global" className="h-8 md:h-11 w-auto object-contain drop-shadow-xl brightness-0 invert opacity-90" />
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <img 
+            ref={imgRef}
+            src={imageUrl} 
+            alt="Event Banner" 
+            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+            onError={() => setHasError(true)} 
+        />
+    );
+}
+
 /* ─── Events Section (DARK) ─── */
-function EventsSection({ events, qs }: { events?: { id: string; name: string; type: string; date: string; venue: string | null }[]; qs: string }) {
+function EventsSection({ events, qs }: { events?: { id: string; name: string; type: string; date: string; venue: string | null; imageUrl?: string | null }[]; qs: string }) {
     const { t } = useI18n();
     const hasEvents = events && events.length > 0;
 
@@ -82,11 +116,11 @@ function EventsSection({ events, qs }: { events?: { id: string; name: string; ty
     const formatFull = (d: string) => new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' });
 
     const palette = [
-        { accent: 'text-[#0085C7]', bg: 'bg-[#0085C7]', bgLight: 'bg-[#0085C7]/15', border: 'border-[#0085C7]/20' },
-        { accent: 'text-[#F4C300]', bg: 'bg-[#F4C300]', bgLight: 'bg-[#F4C300]/15', border: 'border-[#F4C300]/20' },
-        { accent: 'text-white', bg: 'bg-white', bgLight: 'bg-white/10', border: 'border-white/10' },
-        { accent: 'text-[#009F3D]', bg: 'bg-[#009F3D]', bgLight: 'bg-[#009F3D]/15', border: 'border-[#009F3D]/20' },
-        { accent: 'text-[#DF0024]', bg: 'bg-[#DF0024]', bgLight: 'bg-[#DF0024]/15', border: 'border-[#DF0024]/20' },
+        { accent: 'text-[#0085C7]', bg: 'bg-[#0085C7]', bgLight: 'bg-[#0085C7]/15', border: 'border-[#0085C7]/20', badgeBg: 'bg-[#0085C7]' },
+        { accent: 'text-[#F4C300]', bg: 'bg-[#F4C300]', bgLight: 'bg-[#F4C300]/15', border: 'border-[#F4C300]/20', badgeBg: 'bg-[#F4C300]' },
+        { accent: 'text-white', bg: 'bg-white', bgLight: 'bg-white/10', border: 'border-white/10', badgeBg: 'bg-white' },
+        { accent: 'text-[#009F3D]', bg: 'bg-[#009F3D]', bgLight: 'bg-[#009F3D]/15', border: 'border-[#009F3D]/20', badgeBg: 'bg-[#009F3D]' },
+        { accent: 'text-[#DF0024]', bg: 'bg-[#DF0024]', bgLight: 'bg-[#DF0024]/15', border: 'border-[#DF0024]/20', badgeBg: 'bg-[#DF0024]' },
     ];
 
     return (
@@ -100,39 +134,44 @@ function EventsSection({ events, qs }: { events?: { id: string; name: string; ty
                 </div>
 
                 {hasEvents ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         {events.map((event, i) => {
                             const p = palette[i % palette.length];
                             const isTournament = event.type === 'Tournament';
                             return (
-                                <div key={event.id} className={`wotf-card-enter group bg-[#111] rounded-2xl border ${p.border} hover:border-white/20 transition-all duration-300 flex flex-col overflow-hidden`} style={{ animationDelay: `${i * 0.1}s` }}>
-                                    <div className={`h-1 ${p.bg}`} />
-                                    <div className="p-5 pb-0 flex items-start gap-4">
-                                        <div className={`${p.bgLight} rounded-xl p-3 text-center min-w-[56px]`}>
-                                            <span className={`block text-[10px] font-black uppercase tracking-wider ${p.accent}`}>{formatMonth(event.date)}</span>
-                                            <span className="block text-2xl font-black text-white leading-none mt-0.5">{formatDay(event.date)}</span>
-                                        </div>
-                                        <div className="flex-1 min-w-0 pt-1">
-                                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider ${p.accent}`}>
-                                                {isTournament ? <Trophy size={11} /> : <GraduationCap size={11} />}
-                                                {event.type}
-                                            </span>
-                                            <h3 className="text-base font-bold text-white leading-snug mt-1 group-hover:text-[#0085C7] transition-colors line-clamp-2">{event.name}</h3>
-                                        </div>
-                                    </div>
-                                    <div className="p-5 pt-3 flex-1 flex flex-col">
-                                        <div className="space-y-1.5 mb-4 text-sm text-gray-500">
-                                            <div className="flex items-center gap-2"><Calendar size={13} className="text-gray-600" /><span>{formatFull(event.date)}</span></div>
-                                            {event.venue && <div className="flex items-center gap-2"><MapPin size={13} className="text-gray-600" /><span className="truncate">{event.venue}</span></div>}
-                                        </div>
-                                        <div className="mt-auto pt-3 border-t border-white/5 flex items-center justify-between">
-                                            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">{t('events.open')}</span>
-                                            <Link href={isTournament ? `/tournament/${event.id}${qs}` : `/seminars/${event.id}${qs}`} className={`w-8 h-8 rounded-full flex items-center justify-center ${p.bg} text-black shadow-md hover:scale-110 transition-transform`}>
-                                                <ArrowRight size={14} />
-                                            </Link>
+                                <Link key={event.id} href={isTournament ? `/tournament/${event.id}${qs}` : `/seminars/${event.id}${qs}`} className={`wotf-card-enter group block relative bg-[#111] rounded-2xl overflow-hidden border ${p.border} hover:border-white/30 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)]`} style={{ animationDelay: `${i * 0.1}s` }}>
+                                    
+                                    {/* Banner Image Area */}
+                                    <div className="relative h-48 w-full bg-[#1A1A1A] overflow-hidden">
+                                        <EventBanner imageUrl={event.imageUrl} colorClass={p.bg} />
+                                        {/* Gradient Overlay */}
+                                        <div className="absolute inset-0 bg-gradient-to-t from-[#111] via-[#111]/40 to-transparent" />
+
+                                        {/* Type Badge */}
+                                        <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md border border-white/10 rounded-full px-3 py-1 flex items-center gap-1.5">
+                                            {isTournament ? <Trophy size={12} className={p.accent} /> : <GraduationCap size={12} className={p.accent} />}
+                                            <span className="text-[10px] font-bold text-white uppercase tracking-wider">{event.type}</span>
                                         </div>
                                     </div>
-                                </div>
+
+                                    {/* Content Area */}
+                                    <div className="p-5 relative z-10 flex flex-col flex-1">
+                                        <h3 className="text-lg font-bold text-white leading-snug mb-3 group-hover:text-white/80 transition-colors">{event.name}</h3>
+                                        
+                                        <div className="space-y-2 mt-auto text-sm text-gray-400 mb-5">
+                                            <div className="flex items-center gap-2.5"><Calendar size={14} className="text-gray-500" /><span>{formatFull(event.date)}</span></div>
+                                            {event.venue && <div className="flex items-center gap-2.5"><MapPin size={14} className="text-gray-500" /><span className="truncate">{event.venue}</span></div>}
+                                        </div>
+
+                                        <div className={`mt-auto pt-4 border-t border-white/5 flex items-center justify-between text-xs font-bold uppercase tracking-widest ${p.accent}`}>
+                                            <span>View Details</span>
+                                            <ArrowRight size={14} className="transform group-hover:translate-x-1 transition-transform" />
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Bottom Accent Line */}
+                                    <div className={`absolute bottom-0 left-0 right-0 h-1 ${p.bg} transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-300`} />
+                                </Link>
                             );
                         })}
                     </div>

@@ -28,7 +28,7 @@ export default function GlobalHero() {
                 {/* Logo */}
                 <div className="animate-hero-fade-in mb-8">
                     <Image
-                        src="/wotf-global/WOTF-Logo-Hero.svg"
+                        src="/wotf-global/Wotf_logo_Final.png"
                         alt="WOTF Global Logo"
                         width={140}
                         height={140}

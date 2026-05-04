@@ -4,7 +4,7 @@ import { I18nProvider, useI18n } from '../i18n';
 import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
@@ -13,6 +13,7 @@ function SignInPageInner() {
     const searchParams = useSearchParams();
     const tenantParam = searchParams.get('tenant');
     const qs = tenantParam ? `?tenant=${tenantParam}` : '';
+    const router = useRouter();
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -30,12 +31,23 @@ function SignInPageInner() {
         setLoading(true);
         setError('');
 
-        const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
         if (authError) {
             setError(authError.message);
             setLoading(false);
-        } else {
-            window.location.href = `/${qs}`;
+        } else if (data.session) {
+            try {
+                const res = await fetch('/api/me');
+                const meData = await res.json();
+                const role = meData?.data?.role;
+                const redirectTo = role === 'CLUB_MASTER' || role === 'ASSISTANT_CLUB_MASTER' ? `/club${qs}`
+                    : role === 'ORGANIZER' || role === 'MANAGER' ? `/organization${qs}`
+                    : role === 'ADMIN' ? `/admin${qs}`
+                    : `/athlete${qs}`;
+                router.push(redirectTo);
+            } catch {
+                router.push(`/athlete${qs}`);
+            }
         }
     };
 
@@ -50,7 +62,7 @@ function SignInPageInner() {
                 {/* Logo */}
                 <div className="text-center mb-8">
                     <Link href={`/${qs}`}>
-                        <Image src="/wotf/logo_image.png" alt="WOTF" width={64} height={64} className="mx-auto mb-4" />
+                        <Image src="/wotf-global/Wotf_logo_Final.png" alt="WOTF" width={64} height={64} className="mx-auto mb-4" />
                     </Link>
                     <h1 className="text-2xl md:text-3xl font-black text-white uppercase tracking-wider">{t('signin.title')}</h1>
                     <p className="text-gray-500 text-sm mt-2">{t('signin.subtitle')}</p>

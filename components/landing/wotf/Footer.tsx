@@ -75,13 +75,15 @@ const Footer = () => {
                     <p>&copy; 2026 WOTF Philippines. All rights reserved.</p>
                     <div className="flex items-center gap-2 text-gray-500">
                         <span className="text-xs uppercase tracking-wider">Powered by</span>
-                        <Image
-                            src="/ktmnav_white.png"
-                            alt="KTM"
-                            width={80}
-                            height={24}
-                            className="opacity-60 hover:opacity-100 transition-opacity"
-                        />
+                        <a href="https://ktmsports.com" target="_blank" rel="noopener noreferrer" className="flex items-center">
+                            <Image
+                                src="/ktmnav_white.png"
+                                alt="KTM"
+                                width={80}
+                                height={24}
+                                className="opacity-60 hover:opacity-100 transition-opacity"
+                            />
+                        </a>
                     </div>
                     <div className="flex gap-6">
                         <Link href="/privacy-policy" className="hover:text-white transition-colors">Privacy Policy</Link>

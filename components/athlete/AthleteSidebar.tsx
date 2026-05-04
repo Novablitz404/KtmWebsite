@@ -67,7 +67,7 @@ export default function AthleteSidebar({
                             className="w-10 h-10 object-contain"
                         />
                         <div className="flex-1 min-w-0">
-                            <h2 className="font-bold text-sm truncate text-gray-900">WOTF Philippines</h2>
+                            <h2 className="font-bold text-sm truncate text-gray-900">{tenant.name}</h2>
                             <p className="text-xs text-gray-500">Athlete Dashboard</p>
                         </div>
                     </div>

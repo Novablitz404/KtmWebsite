@@ -1,4 +1,13 @@
-export default function PrivacyPolicyPage() {
+import { getTenant } from '@/lib/tenant'
+import WotfGlobalPrivacyPage from '@/components/landing/wotf-global/pages/PrivacyPage'
+
+export default async function PrivacyPolicyPage() {
+    const tenant = await getTenant()
+
+    if (tenant.slug === 'wotf-global') {
+        return <WotfGlobalPrivacyPage />
+    }
+
     return (
         <main className="min-h-screen bg-white">
             {/* Header */}

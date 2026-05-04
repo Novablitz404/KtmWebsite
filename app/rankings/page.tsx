@@ -3,7 +3,8 @@ import { Shield } from 'lucide-react'
 import RankingFilters from './RankingFilters'
 import Link from 'next/link'
 import { getTenant } from '@/lib/tenant'
-import WOTFRankingPage from '@/components/landing/wotf/pages/WOTFRankingPage'
+
+import WOTFGlobalRankingPage from '@/components/landing/wotf-global/pages/RankingsPage'
 
 export const dynamic = 'force-dynamic' // Ensure fresh data on load
 
@@ -16,8 +17,8 @@ export default async function RankingsPage({ searchParams }: PageProps) {
     const tenant = await getTenant()
 
     // Pass control to custom tenant pages if necessary
-    if (tenant.slug === 'wotf') {
-        return <WOTFRankingPage searchParams={params} />
+    if (tenant.slug === 'wotf-global') {
+        return <WOTFGlobalRankingPage searchParams={params} />
     }
 
     // Extract filters safely

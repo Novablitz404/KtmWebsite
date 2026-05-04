@@ -10,26 +10,26 @@ import { Menu, X } from 'lucide-react';
 const NAV_ITEMS = [
     { key: 'nav.home', href: '/' },
     { key: 'nav.about', href: '/about' },
-    { key: 'nav.seminar', href: '/events?type=seminar' },
-    { key: 'nav.championship', href: '/events?type=championship' },
+    { key: 'nav.events', href: '/events' },
+    { key: 'nav.rankings', href: '/rankings' },
     { key: 'nav.announcement', href: '/announcement' },
     { key: 'nav.members', href: '/wotf-members' },
 ];
 
-export default function GlobalNavbar({ animate = true }: { animate?: boolean }) {
+export default function GlobalNavbar({ animate = true, forceSolid = false }: { animate?: boolean, forceSolid?: boolean }) {
     const { t } = useI18n();
     const searchParams = useSearchParams();
     const tenantParam = searchParams.get('tenant');
     const qs = tenantParam ? `?tenant=${tenantParam}` : '';
 
-    const [scrolled, setScrolled] = useState(false);
+    const [scrolled, setScrolled] = useState(forceSolid);
     const [mobileOpen, setMobileOpen] = useState(false);
 
     useEffect(() => {
-        const onScroll = () => setScrolled(window.scrollY > 40);
+        const onScroll = () => setScrolled(forceSolid || window.scrollY > 40);
         window.addEventListener('scroll', onScroll, { passive: true });
         return () => window.removeEventListener('scroll', onScroll);
-    }, []);
+    }, [forceSolid]);
 
     useEffect(() => {
         document.body.style.overflow = mobileOpen ? 'hidden' : '';
@@ -55,7 +55,7 @@ export default function GlobalNavbar({ animate = true }: { animate?: boolean }) 
                         {/* Logo */}
                         <Link href={buildHref('/')} className="flex items-center gap-2 flex-shrink-0">
                             <Image
-                                src="/wotf-global/WOTF-Logo-Hero.svg"
+                                src="/wotf-global/Wotf_logo_Final.png"
                                 alt="WOTF Logo"
                                 width={36}
                                 height={36}

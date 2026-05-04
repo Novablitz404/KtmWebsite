@@ -1,8 +1,8 @@
 {
     "nav.home": "Home",
     "nav.about": "About WOTF",
-    "nav.seminar": "Seminar",
-    "nav.championship": "Championship",
+    "nav.events": "Events",
+    "nav.rankings": "Rankings",
     "nav.announcement": "Announcement",
     "nav.members": "WOTF Members",
     "nav.login": "Log in",
@@ -79,9 +79,11 @@
     "members.hq.address": "Seoul, South Korea",
     "members.hq.email": "wotf.global@gmail.com",
 
-    "footer.copyright": "© 2025 World Olympics Taekwondo Federation. All rights reserved.",
+    "footer.copyright": "© 2026 World Olympics Taekwondo Federation. All rights reserved.",
     "footer.hq": "WOTF Headquarters — Seoul, South Korea",
     "footer.email": "wotf.global@gmail.com",
+    "footer.privacy": "Privacy Policy",
+    "footer.terms": "Terms & Conditions",
 
     "signin.title": "Welcome Back",
     "signin.subtitle": "Sign in to your WOTF Global account",

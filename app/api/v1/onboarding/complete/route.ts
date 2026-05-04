@@ -105,35 +105,89 @@ export async function POST(request: Request) {
 
         // ─── ROLE-SPECIFIC LOGIC ───
         if (role === 'ATHLETE') {
-            const weight = parseFloat(formData.get('weight') as string)
-            const height = parseFloat(formData.get('height') as string)
-            const belt = formData.get('belt') as string
+            const isWOTFGlobal = (formData.get('wotfGlobal') as string) === 'true'
             const gender = formData.get('gender') as string
             const clubName = toTitleCase(formData.get('clubName') as string)
             const birthDateStr = formData.get('birthDate') as string
             const country = (formData.get('country') as string) || undefined
 
-            if (!belt || !gender || !clubName || !birthDateStr || isNaN(weight) || isNaN(height)) {
-                return apiError('All athlete profile fields are required', 400)
-            }
-
-            const [y, m, d] = birthDateStr.split('-').map(Number)
-            const birthDate = new Date(Date.UTC(y, m - 1, d))
-
-            await prisma.user.update({
-                where: { id: dbUser.id },
-                data: {
-                    name,
-                    weight,
-                    height,
-                    belt,
-                    gender,
-                    clubName,
-                    birthDate,
-                    country,
-                    ...(profileImageUrl && { imageUrl: profileImageUrl })
+            if (isWOTFGlobal) {
+                // WOTF Global: reduced fields, pending approval
+                if (!gender || !clubName || !birthDateStr) {
+                    return apiError('Gender, club, and birth date are required', 400)
                 }
-            })
+
+                const [y, m, d] = birthDateStr.split('-').map(Number)
+                const birthDate = new Date(Date.UTC(y, m - 1, d))
+
+                await prisma.user.update({
+                    where: { id: dbUser.id },
+                    data: {
+                        name,
+                        gender,
+                        clubName,
+                        birthDate,
+                        country,
+                        onboardingStatus: 'PENDING_APPROVAL',
+                        ...(profileImageUrl && { imageUrl: profileImageUrl })
+                    }
+                })
+
+                // Send notification email to the clubmaster
+                try {
+                    const club = await prisma.club.findFirst({
+                        where: { name: clubName },
+                        include: { master: { select: { email: true, name: true } } }
+                    })
+                    if (club?.master?.email) {
+                        const { sendEmail } = await import('@/lib/email-service')
+                        const { default: NewAthleteNotificationEmail } = await import('@/emails/NewAthleteNotificationEmail')
+                        const React = await import('react')
+                        const emailElement = React.createElement(NewAthleteNotificationEmail, {
+                            athleteName: name,
+                            athleteGender: gender,
+                            athleteCountry: country || 'Not specified',
+                            clubName,
+                        })
+                        await sendEmail({
+                            to: club.master.email,
+                            subject: `New Athlete Awaiting Approval — ${name}`,
+                            reactData: emailElement,
+                        })
+                        console.log(`[Onboarding] Sent approval notification to clubmaster ${club.master.email} for athlete ${name}`)
+                    }
+                } catch (emailErr) {
+                    // Don't fail the onboarding if email fails
+                    console.error('[Onboarding] Failed to send clubmaster notification:', emailErr)
+                }
+            } else {
+                // Standard KTM: full fields, immediate access
+                const weight = parseFloat(formData.get('weight') as string)
+                const height = parseFloat(formData.get('height') as string)
+                const belt = formData.get('belt') as string
+
+                if (!belt || !gender || !clubName || !birthDateStr || isNaN(weight) || isNaN(height)) {
+                    return apiError('All athlete profile fields are required', 400)
+                }
+
+                const [y, m, d] = birthDateStr.split('-').map(Number)
+                const birthDate = new Date(Date.UTC(y, m - 1, d))
+
+                await prisma.user.update({
+                    where: { id: dbUser.id },
+                    data: {
+                        name,
+                        weight,
+                        height,
+                        belt,
+                        gender,
+                        clubName,
+                        birthDate,
+                        country,
+                        ...(profileImageUrl && { imageUrl: profileImageUrl })
+                    }
+                })
+            }
 
         } else if (role === 'CLUB_MASTER') {
             const clubName = toTitleCase(formData.get('clubName') as string)

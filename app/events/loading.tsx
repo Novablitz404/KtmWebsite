@@ -3,9 +3,26 @@
 import { Skeleton, SkeletonTournamentCard, SkeletonPageHeader } from '@/components/ui/Skeleton'
 import { useTenant } from '@/app/providers/TenantProvider'
 import { Loader2 } from 'lucide-react'
+import GlobalNavbar from '@/components/landing/wotf-global/GlobalNavbar'
+import { I18nProvider } from '@/components/landing/wotf-global/i18n'
 
 export default function EventsLoading() {
     const tenant = useTenant()
+
+    // WOTF Global: dark background + loader + Navbar
+    if (tenant.slug === 'wotf-global') {
+        return (
+            <main className="min-h-screen bg-black text-white flex flex-col">
+                <I18nProvider>
+                    <GlobalNavbar />
+                </I18nProvider>
+                <div className="flex-1 flex flex-col items-center justify-center py-32">
+                    <Loader2 className="w-10 h-10 text-white/50 animate-spin mb-4" />
+                    <p className="text-gray-500 font-medium text-sm">Loading global events...</p>
+                </div>
+            </main>
+        )
+    }
 
     // Non-KTM tenants: show filter placeholder + spinner (Navbar is in layout)
     if (tenant.slug !== 'ktm') {

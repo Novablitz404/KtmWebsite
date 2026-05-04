@@ -38,19 +38,6 @@ export const TENANT_BRANDING: Record<string, TenantBranding> = {
         tagline: 'Taekwondo Management Platform',
         footerText: null,
     },
-    wotf: {
-        name: 'WOTF Philippines',
-        slug: 'wotf',
-        logoUrl: '/wotf/logo_image.png',
-        logoWhiteUrl: '/wotf/wotf_logo_word.png',
-        primaryColor: '#0085C7',     // Congo Blue
-        secondaryColor: '#DF0024',   // Spanish Red
-        accentColor: '#F4C300',      // Dashing Yellow
-        faviconUrl: '/wotf/logo_image.png',
-        heroImageUrl: null,
-        tagline: 'World Olympic Taekwondo Federation Philippines',
-        footerText: null,
-    },
     'wotf-global': {
         name: 'World Olympics Taekwondo Federation',
         slug: 'wotf-global',
@@ -61,7 +48,7 @@ export const TENANT_BRANDING: Record<string, TenantBranding> = {
         accentColor: '#F4C300',      // Dashing Yellow
         faviconUrl: '/wotf/logo_image.png',
         heroImageUrl: null,
-        tagline: 'World Olympics Taekwondo Federation',
+        tagline: 'World Olympic Taekwondo Federation',
         footerText: null,
     },
 }

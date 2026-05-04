@@ -3,8 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { getTenant } from '@/lib/tenant'
 import WOTFEventsPage from '@/components/landing/wotf/pages/EventsPage'
-import GlobalSeminarPage from '@/components/landing/wotf-global/pages/SeminarPage'
-import GlobalChampionshipPage from '@/components/landing/wotf-global/pages/ChampionshipPage'
+import GlobalEventsPage from '@/components/landing/wotf-global/pages/EventsPage'
 
 // Force dynamic rendering to ensure real-time data and avoid build-time DB connections
 export const dynamic = 'force-dynamic'
@@ -14,40 +13,32 @@ export default async function EventsPage(props: { searchParams: Promise<{ type?:
     const searchParams = await props.searchParams
     const eventType = searchParams.type
 
-    // WOTF Global tenant: show seminar or championship page based on type param
+    // WOTF Global tenant: show unified events page
     if (tenant.slug === 'wotf-global') {
-        const orgId = tenant.id
+        const now = new Date()
+        now.setHours(0, 0, 0, 0)
 
-        if (orgId) {
-            const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { ownerId: true } })
+        // The user explicitly specified the WOTF org ID to use
+        const targetOrgId = 'cml60muu800dgceqenoigxblr'
+        const org = await prisma.organization.findUnique({ where: { id: targetOrgId }, select: { ownerId: true } })
 
-            const [tournaments, seminars] = await Promise.all([
-                org?.ownerId ? prisma.tournament.findMany({
-                    where: { organizerId: org.ownerId, status: { not: 'CANCELLED' } },
-                    select: { id: true, name: true, startDate: true, venue: true },
-                    orderBy: { startDate: 'desc' },
-                }) : Promise.resolve([]),
-                prisma.seminar.findMany({
-                    where: { organizationId: orgId, status: { not: 'CANCELLED' } },
-                    select: { id: true, name: true, startDate: true, venue: true },
-                    orderBy: { startDate: 'desc' },
-                }),
-            ])
+        const [tournaments, seminars] = await Promise.all([
+            org?.ownerId ? prisma.tournament.findMany({
+                where: { organizerId: org.ownerId, status: { not: 'CANCELLED' } },
+                select: { id: true, name: true, startDate: true, venue: true, headerImageUrl: true },
+                orderBy: { startDate: 'desc' },
+            }) : Promise.resolve([]),
+            prisma.seminar.findMany({
+                where: { organizationId: targetOrgId, status: { not: 'CANCELLED' } },
+                select: { id: true, name: true, startDate: true, venue: true, bannerUrl: true },
+                orderBy: { startDate: 'desc' },
+            }),
+        ])
 
-            const serializedTournaments = tournaments.map(t => ({ id: t.id, name: t.name, date: t.startDate.toISOString(), venue: t.venue }))
-            const serializedSeminars = seminars.map(s => ({ id: s.id, name: s.name, date: s.startDate.toISOString(), venue: s.venue }))
+        const serializedTournaments = tournaments.map(t => ({ id: t.id, name: t.name, date: t.startDate.toISOString(), venue: t.venue, imageUrl: t.headerImageUrl }))
+        const serializedSeminars = seminars.map(s => ({ id: s.id, name: s.name, date: s.startDate.toISOString(), venue: s.venue, imageUrl: s.bannerUrl }))
 
-            // Show seminar or championship page based on ?type= param
-            if (eventType === 'seminar') {
-                return <GlobalSeminarPage seminars={serializedSeminars} />
-            }
-            return <GlobalChampionshipPage tournaments={serializedTournaments} />
-        }
-
-        if (eventType === 'seminar') {
-            return <GlobalSeminarPage />
-        }
-        return <GlobalChampionshipPage />
+        return <GlobalEventsPage tournaments={serializedTournaments} seminars={serializedSeminars} />
     }
 
     // Non-KTM tenant: show org-specific events page with real data

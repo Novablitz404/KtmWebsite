@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { fetchAthleteDashboardData } from '@/app/actions'
 import AthleteDashboardView from '@/components/athlete/AthleteDashboardView'
 import { getTenant } from '@/lib/tenant'
+import PendingApprovalPage from '@/components/landing/wotf-global/pages/PendingApprovalPage'
 
 export const revalidate = 30
 
@@ -27,6 +28,19 @@ export default async function AthleteDashboardPage({
 
     if (dbUser.role !== 'ATHLETE') {
         redirect('/')
+    }
+
+    // WOTF Global: check approval status
+    if (tenant.slug === 'wotf-global' && dbUser.onboardingStatus === 'PENDING_APPROVAL') {
+        return (
+            <main className="min-h-screen">
+                <PendingApprovalPage user={{
+                    name: dbUser.name,
+                    clubName: dbUser.clubName,
+                    imageUrl: dbUser.imageUrl,
+                }} />
+            </main>
+        )
     }
 
     // Check if profile is complete

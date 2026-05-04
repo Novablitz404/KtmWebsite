@@ -15,6 +15,7 @@ import GlobalCalendar from '@/components/GlobalCalendar'
 import { format } from 'date-fns'
 import { motion } from 'framer-motion'
 import { COUNTRIES } from '@/lib/countries'
+import WOTFGlobalOnboarding from '@/components/landing/wotf-global/pages/WOTFGlobalOnboarding'
 
 type OnboardingStep = 'profile' | 'details' | 'payment'
 
@@ -369,6 +370,11 @@ export default function CompleteProfilePage() {
             <p className="text-gray-500 font-medium">Loading your profile...</p>
         </div>
     )
+
+    // ─── WOTF GLOBAL ATHLETES → Custom Onboarding ───
+    if (tenant.slug === 'wotf-global' && role === 'ATHLETE') {
+        return <WOTFGlobalOnboarding />
+    }
 
     // ─── SIDEBAR ───
     const renderSidebar = () => {

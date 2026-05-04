@@ -342,3 +342,109 @@ body { top: 0 !important; }
   0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.4; }
   50% { transform: translate(-50%, -50%) scale(1.8); opacity: 0; }
 }
+
+/* ============================================
+   KTM Landing Page — Premium Dark Theme
+   ============================================ */
+
+/* Scroll-reveal animations */
+@keyframes ktmRevealUp {
+  from { opacity: 0; transform: translateY(40px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes ktmRevealScale {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes ktmSlideInLeft {
+  from { opacity: 0; transform: translateX(-30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes ktmSlideInRight {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.ktm-reveal {
+  opacity: 0;
+}
+.ktm-reveal.ktm-visible {
+  animation-fill-mode: both;
+  animation-duration: 0.7s;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ktm-reveal.ktm-visible.ktm-dir-up    { animation-name: ktmRevealUp; }
+.ktm-reveal.ktm-visible.ktm-dir-scale { animation-name: ktmRevealScale; }
+.ktm-reveal.ktm-visible.ktm-dir-left  { animation-name: ktmSlideInLeft; }
+.ktm-reveal.ktm-visible.ktm-dir-right { animation-name: ktmSlideInRight; }
+
+/* Hero staggered entrance */
+@keyframes ktmHeroFadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ktm-hero-stagger-1 { animation: ktmHeroFadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both; }
+.ktm-hero-stagger-2 { animation: ktmHeroFadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both; }
+.ktm-hero-stagger-3 { animation: ktmHeroFadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.5s both; }
+.ktm-hero-stagger-4 { animation: ktmHeroFadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.7s both; }
+
+/* Floating particles */
+@keyframes ktmFloat {
+  0%, 100% { transform: translateY(0) translateX(0); opacity: 0.3; }
+  25%      { transform: translateY(-20px) translateX(10px); opacity: 0.6; }
+  50%      { transform: translateY(-10px) translateX(-5px); opacity: 0.4; }
+  75%      { transform: translateY(-25px) translateX(15px); opacity: 0.5; }
+}
+
+/* Grain texture overlay */
+.ktm-grain::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Red glow text */
+.ktm-glow-text {
+  text-shadow: 0 0 40px rgba(220, 38, 38, 0.3), 0 0 80px rgba(220, 38, 38, 0.1);
+}
+
+/* Subtle red border glow on hover */
+.ktm-card-glow {
+  transition: box-shadow 0.4s ease, border-color 0.4s ease, transform 0.3s ease;
+}
+.ktm-card-glow:hover {
+  box-shadow: 0 0 30px rgba(220, 38, 38, 0.15), 0 8px 32px rgba(0, 0, 0, 0.4);
+  border-color: rgba(220, 38, 38, 0.3);
+  transform: translateY(-2px);
+}
+
+/* Pulse animation for CTA dot */
+@keyframes ktmPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.5; transform: scale(1.5); }
+}
+
+/* Partners scroll (dark variant) */
+.ktm-marquee-track {
+  animation: scroll 25s linear infinite;
+}
+.ktm-marquee-track:hover {
+  animation-play-state: paused;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .ktm-reveal { opacity: 1; }
+  .ktm-reveal.ktm-visible,
+  .ktm-hero-stagger-1,
+  .ktm-hero-stagger-2,
+  .ktm-hero-stagger-3,
+  .ktm-hero-stagger-4 { animation: none !important; opacity: 1 !important; }
+  .ktm-marquee-track { animation: none !important; }
+}

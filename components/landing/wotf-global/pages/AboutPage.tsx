@@ -146,30 +146,6 @@ function AboutPageInner() {
                 </div>
             </section>
 
-            {/* Organization Chart — Light Gray */}
-            <section className="py-16 md:py-24 bg-gray-50">
-                <div className="max-w-5xl mx-auto px-6 text-center wotf-reveal">
-                    <h2 className="text-2xl md:text-4xl font-black uppercase tracking-tight text-gray-900 mb-8">{t('about.orgChart.title')}</h2>
-                    <div className="bg-white border border-gray-100 rounded-2xl p-12 shadow-sm">
-                        <div className="flex flex-col items-center gap-6">
-                            {/* Chairman */}
-                            <div className="bg-[#0085C7]/10 border border-[#0085C7]/20 rounded-xl px-8 py-4">
-                                <p className="text-[#0085C7] font-bold text-sm uppercase tracking-wider">Chairman</p>
-                                <p className="text-gray-900 font-bold mt-1">{t('about.chairman.name')}</p>
-                            </div>
-                            <div className="w-px h-8 bg-gray-200" />
-                            {/* Departments */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-2xl">
-                                {['Administration', 'Competition', 'Education', 'International'].map((dept) => (
-                                    <div key={dept} className="bg-gray-50 border border-gray-100 rounded-lg px-4 py-3 text-center">
-                                        <p className="text-gray-600 font-bold text-xs uppercase tracking-wider">{dept}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
 
             <GlobalFooter />
         </main>

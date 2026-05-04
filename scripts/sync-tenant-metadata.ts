@@ -6,7 +6,7 @@ const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY })
 
 async function syncTenantMetadata() {
     console.log('🔄 Starting Clerk Tenant Metadata Sync...')
-    console.log('   Setting tenant: "wotf" for all users\n')
+    console.log('   Setting tenant: "wotf-global" for all users\n')
 
     try {
         const users = await prisma.user.findMany({
@@ -32,20 +32,20 @@ async function syncTenantMetadata() {
                 const existingMeta = (clerkUser.publicMetadata as Record<string, any>) || {}
 
                 // Skip only if already set to wotf (overwrites ktm or anything else)
-                if (existingMeta.tenant === 'wotf') {
+                if (existingMeta.tenant === 'wotf-global') {
                     process.stdout.write('s') // already set
                     skippedCount++
                     continue
                 }
 
-                if (existingMeta.tenant && existingMeta.tenant !== 'wotf') {
+                if (existingMeta.tenant && existingMeta.tenant !== 'wotf-global') {
                     process.stdout.write('o') // overwriting
                 }
 
                 await clerk.users.updateUser(user.clerkId, {
                     publicMetadata: {
                         ...existingMeta,
-                        tenant: 'wotf',
+                        tenant: 'wotf-global',
                     }
                 })
                 process.stdout.write('.')

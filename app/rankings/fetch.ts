@@ -59,9 +59,8 @@ export async function fetchRankings(
         return [] // Return empty if migration hasn't been run
     }
 
-    // Fetch profile images from DB (no more Clerk API calls)
-    const topRankings = rankings.slice(0, 50);
-    const userIds = topRankings.map(r => r.userId)
+    // Fetch profile images from DB
+    const userIds = rankings.map(r => r.userId)
     const users = await prisma.user.findMany({
         where: { id: { in: userIds } },
         select: { id: true, imageUrl: true }
@@ -71,13 +70,13 @@ export async function fetchRankings(
     users.forEach(u => imageMap.set(u.id, u.imageUrl))
 
     // Format to match expected RankingEntry interface
-    return rankings.map((r, index) => {
+    return rankings.map((r) => {
         return {
             userId: r.userId,
             name: r.playerName,
             clubName: r.clubName,
             totalPoints: r.totalPoints,
-            rank: index + 1,
+            rank: r.globalRank,
             verified: true,
             profileImage: imageMap.get(r.userId) || undefined
         }

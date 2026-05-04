@@ -1,4 +1,13 @@
-export default function TermsOfServicePage() {
+import { getTenant } from '@/lib/tenant'
+import WotfGlobalTermsPage from '@/components/landing/wotf-global/pages/TermsPage'
+
+export default async function TermsOfServicePage() {
+    const tenant = await getTenant()
+
+    if (tenant.slug === 'wotf-global') {
+        return <WotfGlobalTermsPage />
+    }
+
     return (
         <main className="min-h-screen bg-white">
             {/* Header */}

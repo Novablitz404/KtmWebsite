@@ -44,6 +44,7 @@ const NAV_SECTIONS = [
     },
 ] as const
 
+
 export default function ClubSidebar({
     activeView,
     onNavigate,

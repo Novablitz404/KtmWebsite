@@ -16,6 +16,7 @@ const PUBLIC_ROUTES = new Set([
     '/terms',
     '/announcement',
     '/wotf-members',
+
     '/manifest.json',
 ])
 
@@ -61,11 +62,11 @@ const securityHeaders: Record<string, string> = {
 // Content Security Policy — Clerk references removed
 const cspDirectives = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.ktmsports.com https://*.wotf-ph.com https://challenges.cloudflare.com https://*.google.com https://*.googleapis.com https://*.gstatic.com",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.ktmsports.com https://challenges.cloudflare.com https://*.google.com https://*.googleapis.com https://*.gstatic.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.googleapis.com https://*.gstatic.com",
-    `img-src 'self' data: blob: https://*.ktmsports.com https://*.wotf-ph.com https://*.supabase.co https://images.unsplash.com https://*.google.com https://*.googleapis.com https://*.gstatic.com${process.env.NODE_ENV === 'development' ? ' http://127.0.0.1:54321 http://localhost:54321' : ''}`,
+    `img-src 'self' data: blob: https://*.ktmsports.com https://*.supabase.co https://images.unsplash.com https://*.google.com https://*.googleapis.com https://*.gstatic.com${process.env.NODE_ENV === 'development' ? ' http://127.0.0.1:54321 http://localhost:54321' : ''}`,
     "font-src 'self' https://fonts.gstatic.com https://*.gstatic.com data:",
-    `connect-src 'self' https://*.ktmsports.com https://*.wotf-ph.com https://*.supabase.co wss://*.supabase.co https://*.googleapis.com${process.env.NODE_ENV === 'development' ? ' http://127.0.0.1:54321 http://localhost:54321 ws://127.0.0.1:54321 ws://localhost:54321' : ''}`,
+    `connect-src 'self' https://*.ktmsports.com https://*.supabase.co wss://*.supabase.co https://*.googleapis.com${process.env.NODE_ENV === 'development' ? ' http://127.0.0.1:54321 http://localhost:54321 ws://127.0.0.1:54321 ws://localhost:54321' : ''}`,
     "frame-ancestors 'none'",
     "frame-src 'self' https://challenges.cloudflare.com https://*.google.com",
     "form-action 'self'",
@@ -143,10 +144,8 @@ export default async function middleware(request: NextRequest) {
 
     // Static tenant map for known domains
     const TENANT_MAP: Record<string, string> = {
-        'wotf-ph.com': 'wotf',
-        'www.wotf-ph.com': 'wotf',
-        'wotf-global.com': 'wotf-global',
-        'www.wotf-global.com': 'wotf-global',
+        'wo-tf.com': 'wotf-global',
+        'www.wo-tf.com': 'wotf-global',
     }
 
     // KTM admin domains

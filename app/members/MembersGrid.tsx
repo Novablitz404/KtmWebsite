@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import {
     Search, MoreHorizontal, Mail, ChevronLeft, ChevronRight,
-    Pencil, Trash2, Shield, ShieldOff, Eye, Users, CheckCircle2
+    Pencil, Trash2, Shield, ShieldOff, Eye, Users, CheckCircle2,
+    Clock, UserCheck, UserX, Scale, Ruler, Award, ChevronDown, Loader2
 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchClubMembers } from '@/app/actions'
@@ -12,6 +13,8 @@ import { calculateAge } from '@/lib/placement'
 import { promoteToAssistant, demoteToAthlete } from '@/app/club/actions'
 import { toast } from 'sonner'
 import AthleteDetailsModal from '@/components/club/AthleteDetailsModal'
+import GlobalDropdown from '@/components/GlobalDropdown'
+import { useTenant } from '@/app/providers/TenantProvider'
 
 import {
     DropdownMenu,
@@ -36,6 +39,7 @@ interface Member {
     clubName?: string | null
     height?: number | null
     isVerified?: boolean
+    onboardingStatus?: string | null
 }
 
 interface MembersGridProps {
@@ -50,6 +54,11 @@ interface MembersGridProps {
     onEdit?: (member: Member) => void
     onDelete?: (memberId: string) => void
 }
+
+const APPROVAL_BELT_OPTIONS = [
+    'White', 'Yellow', 'Orange', 'Green', 'Purple',
+    'Blue', 'Red', 'Maroon', 'Brown', 'Black'
+]
 
 const BELT_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
     White:  { bg: 'bg-gray-100',   text: 'text-gray-700',   dot: 'bg-gray-400' },
@@ -93,6 +102,13 @@ export default function MembersGrid({
     const [actionLoading, setActionLoading] = useState<string | null>(null)
     const [viewingMember, setViewingMember] = useState<{ id: string; name: string; avatar?: string | null } | null>(null)
     const [openDropdown, setOpenDropdown] = useState<string | null>(null)
+    const tenant = useTenant()
+    const isWOTF = tenant.slug === 'wotf-global'
+
+    // Approval state
+    const [expandedApprovalId, setExpandedApprovalId] = useState<string | null>(null)
+    const [approvalForms, setApprovalForms] = useState<Record<string, { weight: string; height: string; belt: string }>>({})
+    const [approvalSubmitting, setApprovalSubmitting] = useState<string | null>(null)
 
     const pageParam = Number(searchParams.get('page'))
     const initialPageState = !isNaN(pageParam) && pageParam > 0 ? pageParam : initialPage
@@ -164,6 +180,58 @@ export default function MembersGrid({
             params.set('page', newPage.toString())
             router.push(`${pathname}?${params.toString()}`, { scroll: false })
         }
+    }
+
+    // --- Approval Handlers ---
+    const handleExpandApproval = (id: string) => {
+        if (expandedApprovalId === id) {
+            setExpandedApprovalId(null)
+        } else {
+            setExpandedApprovalId(id)
+            if (!approvalForms[id]) {
+                setApprovalForms(prev => ({ ...prev, [id]: { weight: '', height: '', belt: 'White' } }))
+            }
+        }
+    }
+
+    const updateApprovalForm = (id: string, field: string, value: string) => {
+        setApprovalForms(prev => ({ ...prev, [id]: { ...prev[id], [field]: value } }))
+    }
+
+    const handleApproveAthlete = async (member: Member) => {
+        const form = approvalForms[member.id]
+        if (!form?.weight || !form?.height || !form?.belt) {
+            toast.error('Please fill in weight, height, and belt rank')
+            return
+        }
+        setApprovalSubmitting(member.id)
+        try {
+            const res = await fetch('/api/auth/approve-athlete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ athleteId: member.id, action: 'approve', weight: parseFloat(form.weight), height: parseFloat(form.height), belt: form.belt }),
+            })
+            const data = await res.json()
+            if (!res.ok) toast.error(data.error || 'Failed to approve')
+            else { toast.success(`${member.name} approved!`); setExpandedApprovalId(null); queryClient.invalidateQueries({ queryKey: ['club-members', clubName] }) }
+        } catch { toast.error('Failed to approve') }
+        finally { setApprovalSubmitting(null) }
+    }
+
+    const handleRejectAthlete = async (member: Member) => {
+        if (!confirm(`Reject ${member.name}? This will permanently delete their account.`)) return
+        setApprovalSubmitting(member.id)
+        try {
+            const res = await fetch('/api/auth/approve-athlete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ athleteId: member.id, action: 'reject' }),
+            })
+            const data = await res.json()
+            if (!res.ok) toast.error(data.error || 'Failed to reject')
+            else { toast.success(`${member.name} rejected and removed`); setExpandedApprovalId(null); queryClient.invalidateQueries({ queryKey: ['club-members', clubName] }) }
+        } catch { toast.error('Failed to reject') }
+        finally { setApprovalSubmitting(null) }
     }
 
     const skeletonRows = [...Array(8)]
@@ -275,7 +343,7 @@ export default function MembersGrid({
                                 <th className="px-4 py-3.5 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Age</th>
                                 <th className="px-4 py-3.5 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Sex</th>
                                 <th className="px-4 py-3.5 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Weight</th>
-                                <th className="px-4 py-3.5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Email</th>
+                                <th className="px-4 py-3.5 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Height</th>
                                 <th className="px-4 py-3.5 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
                                 <th className="px-4 py-3.5 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest">Actions</th>
                             </tr>
@@ -317,8 +385,8 @@ export default function MembersGrid({
                                     const showHeight = age !== null && age >= 5 && age <= 11
 
                                     return (
+                                        <React.Fragment key={member.id}>
                                         <tr
-                                            key={member.id}
                                             className="hover:bg-gray-50/70 transition-colors group"
                                         >
                                             {/* Member */}
@@ -358,20 +426,27 @@ export default function MembersGrid({
                                                 }
                                             </td>
 
-                                            {/* Email */}
-                                            <td className="px-4 py-3.5 whitespace-nowrap">
-                                                <div className="flex items-center gap-1.5 text-sm text-gray-500 max-w-[200px]">
-                                                    <Mail size={12} className="text-gray-300 flex-shrink-0" />
-                                                    <span className="truncate" title={member.email}>{member.email}</span>
-                                                </div>
+                                            {/* Height */}
+                                            <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                                                <span className="text-sm font-semibold text-gray-800">{member.height ? `${member.height} cm` : '—'}</span>
                                             </td>
 
                                             {/* Status */}
                                             <td className="px-4 py-3.5 text-center whitespace-nowrap">
-                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
-                                                    <CheckCircle2 size={10} />
-                                                    Active
-                                                </span>
+                                                {member.onboardingStatus === 'PENDING_APPROVAL' ? (
+                                                    <button
+                                                        onClick={() => handleExpandApproval(member.id)}
+                                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-100 hover:bg-amber-100 transition-colors cursor-pointer"
+                                                    >
+                                                        <Clock size={10} />
+                                                        Pending
+                                                    </button>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
+                                                        <CheckCircle2 size={10} />
+                                                        Active
+                                                    </span>
+                                                )}
                                             </td>
 
                                             {/* Actions */}
@@ -489,6 +564,40 @@ export default function MembersGrid({
                                                 </div>
                                             </td>
                                         </tr>
+                                        {/* Inline Approval Row */}
+                                        {isWOTF && member.onboardingStatus === 'PENDING_APPROVAL' && expandedApprovalId === member.id && (
+                                            <tr>
+                                                <td colSpan={8} className="px-6 py-4 bg-blue-50/50 border-b border-blue-100">
+                                                    <div className="space-y-3">
+                                                        <p className="text-xs font-bold text-blue-700 uppercase tracking-wider">Assign Details to Approve</p>
+                                                        <div className="grid grid-cols-3 gap-3">
+                                                            <div>
+                                                                <label className="text-xs font-semibold text-gray-600 flex items-center gap-1 mb-1"><Scale size={11} /> Weight (kg) <span className="text-red-500">*</span></label>
+                                                                <input type="number" value={approvalForms[member.id]?.weight || ''} onChange={e => updateApprovalForm(member.id, 'weight', e.target.value)} placeholder="e.g. 60" className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-xs font-semibold text-gray-600 flex items-center gap-1 mb-1"><Ruler size={11} /> Height (cm) <span className="text-red-500">*</span></label>
+                                                                <input type="number" value={approvalForms[member.id]?.height || ''} onChange={e => updateApprovalForm(member.id, 'height', e.target.value)} placeholder="e.g. 170" className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-xs font-semibold text-gray-600 flex items-center gap-1 mb-1"><Award size={11} /> Belt Rank <span className="text-red-500">*</span></label>
+                                                                <GlobalDropdown options={APPROVAL_BELT_OPTIONS} value={approvalForms[member.id]?.belt || 'White'} onChange={(val: string) => updateApprovalForm(member.id, 'belt', val)} fullWidth />
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex gap-2">
+                                                            <button onClick={() => handleApproveAthlete(member)} disabled={approvalSubmitting === member.id} className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white font-semibold text-xs rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors">
+                                                                {approvalSubmitting === member.id ? <Loader2 size={12} className="animate-spin" /> : <UserCheck size={12} />} Approve
+                                                            </button>
+                                                            <button onClick={() => handleRejectAthlete(member)} disabled={approvalSubmitting === member.id} className="flex items-center gap-1.5 px-4 py-2 bg-white border border-red-200 text-red-600 font-semibold text-xs rounded-lg hover:bg-red-50 disabled:opacity-50 transition-colors">
+                                                                <UserX size={12} /> Reject
+                                                            </button>
+                                                            <button onClick={() => setExpandedApprovalId(null)} className="ml-auto text-xs text-gray-400 hover:text-gray-600 transition-colors">Cancel</button>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                        </React.Fragment>
                                     )
                                 })
                             )}

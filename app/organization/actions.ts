@@ -1927,6 +1927,10 @@ export async function updateClubMemberAsOrg(userId: string, data: {
         }
     })
 
+    // Cascade all profile changes (name, belt, placement) to related records
+    const { cascadeUserProfile } = await import('@/lib/cascadeUserProfile')
+    cascadeUserProfile(userId).catch(console.error)
+
     revalidatePath('/organization')
     return { success: true }
 }

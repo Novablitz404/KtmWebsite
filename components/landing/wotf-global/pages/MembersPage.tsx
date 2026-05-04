@@ -213,11 +213,6 @@ function MembersPageInner({ clubs, stats }: MembersPageProps) {
                 </div>
 
                 <div className="relative z-10 max-w-5xl mx-auto px-6 text-center">
-                    {/* Eyebrow */}
-                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-white/10 bg-white/[0.03] mb-6">
-                        <Globe size={14} className="text-[#0085C7]" />
-                        <span className="text-xs font-medium text-gray-400 uppercase tracking-widest">World Olympics Taekwondo Federation</span>
-                    </div>
 
                     <h1 className="text-3xl md:text-5xl lg:text-6xl font-black uppercase tracking-wider">
                         <span className="bg-gradient-to-r from-[#0085C7] via-white to-[#DF0024] bg-clip-text text-transparent">National Chapter</span>

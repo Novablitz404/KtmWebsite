@@ -178,6 +178,11 @@ model User {
   athleteNumber String? // Kukkiwon No. (Black Belt) or Athlete Card No. (other belts)
   country       String? // Country of the athlete
 
+  // WOTF Global Onboarding Approval (NULL = legacy/KTM, no gate)
+  onboardingStatus  String?   // "PENDING_APPROVAL", "APPROVED"
+  approvedBy        String?   // User ID of the clubmaster who approved
+  approvedAt        DateTime?
+
   // Manual Payment for Activation
   cardPaymentProofUrl String? // Image URL for uploaded manual payment proof
   cardPaymentStatus   String? // e.g. "PENDING_ACTIVATION", "APPROVED", "REJECTED"

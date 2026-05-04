@@ -7,8 +7,12 @@ import SeminarStatusActions from '@/components/organization/SeminarStatusActions
 // import EventRegistrationButton from '@/components/EventRegistrationButton'
 import SeminarTabs from '@/components/seminar/SeminarTabs'
 import PublicSeminarView from '@/components/PublicSeminarView'
+import GlobalPublicSeminarView from '@/components/landing/wotf-global/pages/GlobalPublicSeminarView'
 import Navbar from '@/components/landing/wotf/Navbar'
 import Footer from '@/components/landing/wotf/Footer'
+import GlobalNavbar from '@/components/landing/wotf-global/GlobalNavbar'
+import GlobalFooter from '@/components/landing/wotf-global/GlobalFooter'
+import { I18nProvider } from '@/components/landing/wotf-global/i18n'
 import { getTenant } from '@/lib/tenant'
 // import ParticipantsTable from './ParticipantsTable' // I'll need to create this or make it generic later
 
@@ -77,20 +81,39 @@ export default async function ManageSeminarPage({ params }: PageProps) {
 
     // Public / Athlete View
     return (
-        <main className="min-h-screen bg-gray-50">
+        <main>
             <>
-                {tenant.slug !== 'ktm' && <Navbar variant="dark" />}
-                <div className="pt-20">
-                    <div className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-10">
-                        <PublicSeminarView
-                            seminar={seminar as any}
-                            currentUserId={dbUser?.id}
-                            isRestricted={isRestricted}
-                            userRole={dbUser?.role}
-                        />
-                    </div>
-                </div>
-                {tenant.slug !== 'ktm' && <Footer />}
+                {tenant.slug === 'wotf-global' ? (
+                    <I18nProvider>
+                        <GlobalNavbar forceSolid={true} />
+                        <div className="pt-20 bg-black min-h-screen">
+                            <div className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-10">
+                                <GlobalPublicSeminarView
+                                    seminar={seminar as any}
+                                    currentUserId={dbUser?.id}
+                                    isRestricted={isRestricted}
+                                    userRole={dbUser?.role}
+                                />
+                            </div>
+                        </div>
+                        <GlobalFooter />
+                    </I18nProvider>
+                ) : (
+                    <>
+                        {tenant.slug !== 'ktm' && <Navbar variant="dark" />}
+                        <div className="pt-20 bg-gray-50 min-h-screen">
+                            <div className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-10">
+                                <PublicSeminarView
+                                    seminar={seminar as any}
+                                    currentUserId={dbUser?.id}
+                                    isRestricted={isRestricted}
+                                    userRole={dbUser?.role}
+                                />
+                            </div>
+                        </div>
+                        {tenant.slug !== 'ktm' && <Footer />}
+                    </>
+                )}
             </>
         </main>
     )

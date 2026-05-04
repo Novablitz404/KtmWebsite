@@ -22,26 +22,29 @@ export default async function Home() {
       else if (existingTenantUser?.role === 'CLUB_MASTER' || existingTenantUser?.role === 'ASSISTANT_CLUB_MASTER') redirect(`/club${tenantQs}`)
     }
 
-    const orgId = tenant.id
+    // The user explicitly specified the WOTF org ID to use
+    const targetOrgId = 'cml60muu800dgceqenoigxblr'
+    const orgId = tenant.id || targetOrgId
+    
     let stats = { athletes: 0, clubs: 0, events: 0 }
-    let upcomingEvents: { id: string; name: string; type: string; date: string; venue: string | null }[] = []
+    let upcomingEvents: { id: string; name: string; type: string; date: string; venue: string | null, imageUrl?: string | null }[] = []
 
     if (orgId) {
       const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { ownerId: true } })
       const [clubs, athleteCount, tournaments, seminars] = await Promise.all([
         prisma.club.findMany({ where: { organizationId: orgId, status: 'APPROVED' }, select: { name: true } }),
         prisma.user.count({ where: { organizationMemberId: orgId, role: 'ATHLETE' } }),
-        org?.ownerId ? prisma.tournament.findMany({ where: { organizerId: org.ownerId, startDate: { gte: new Date() }, status: { in: ['UPCOMING', 'ONGOING'] } }, select: { id: true, name: true, startDate: true, venue: true }, orderBy: { startDate: 'asc' }, take: 4 }) : Promise.resolve([]),
-        prisma.seminar.findMany({ where: { organizationId: orgId, startDate: { gte: new Date() }, status: { in: ['UPCOMING', 'OPEN'] } }, select: { id: true, name: true, startDate: true, venue: true }, orderBy: { startDate: 'asc' }, take: 4 }),
+        org?.ownerId ? prisma.tournament.findMany({ where: { organizerId: org.ownerId, status: { in: ['UPCOMING', 'ONGOING', 'COMPLETED'] } }, select: { id: true, name: true, startDate: true, venue: true, headerImageUrl: true }, orderBy: { startDate: 'desc' }, take: 4 }) : Promise.resolve([]),
+        prisma.seminar.findMany({ where: { organizationId: orgId, status: { in: ['UPCOMING', 'OPEN', 'COMPLETED'] } }, select: { id: true, name: true, startDate: true, venue: true, bannerUrl: true }, orderBy: { startDate: 'desc' }, take: 4 }),
       ])
       const [tournamentCount, seminarCount] = await Promise.all([
         org?.ownerId ? prisma.tournament.count({ where: { organizerId: org.ownerId } }) : Promise.resolve(0),
         prisma.seminar.count({ where: { organizationId: orgId } }),
       ])
       stats = { athletes: athleteCount, clubs: clubs.length, events: tournamentCount + seminarCount }
-      const tournamentEvents = tournaments.map(e => ({ id: e.id, name: e.name, type: 'Tournament', date: e.startDate.toISOString(), venue: e.venue }))
-      const semEvents = seminars.map(e => ({ id: e.id, name: e.name, type: 'Seminar', date: e.startDate.toISOString(), venue: e.venue }))
-      upcomingEvents = [...tournamentEvents, ...semEvents].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 4)
+      const tournamentEvents = tournaments.map(e => ({ id: e.id, name: e.name, type: 'Tournament', date: e.startDate.toISOString(), venue: e.venue, imageUrl: e.headerImageUrl }))
+      const semEvents = seminars.map(e => ({ id: e.id, name: e.name, type: 'Seminar', date: e.startDate.toISOString(), venue: e.venue, imageUrl: e.bannerUrl }))
+      upcomingEvents = [...tournamentEvents, ...semEvents].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 4)
     }
 
     return <WOTFGlobalLandingPage stats={stats} upcomingEvents={upcomingEvents} />

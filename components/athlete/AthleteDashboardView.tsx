@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { fetchAthleteDashboardData, unregisterFromTournament, submitAthleteCardPaymentProof } from '@/app/actions'
 import AthleteSidebar from '@/components/athlete/AthleteSidebar'
 import AthleteTopBar from '@/components/athlete/AthleteTopBar'
-import AthleteCard from '@/components/athlete/AthleteCard'
+
 import ProfileEditForm from '@/app/settings/ProfileEditForm'
 import AthleteProfileView from '@/app/settings/AthleteProfileView'
 import { QRCodeSVG } from 'qrcode.react'
@@ -409,19 +409,8 @@ export default function AthleteDashboardView({
                     <div className="flex-1 flex flex-col min-h-0 px-4 sm:px-6 lg:px-8 py-6 w-full max-w-[1600px] mx-auto md:overflow-y-auto">
                         <div className="flex flex-col gap-4">
 
-                            {/* ═══════ ROW 1: Athlete Card + Profile Info ═══════ */}
-                            <div className="grid grid-cols-1 lg:grid-cols-[minmax(320px,400px)_1fr] gap-4 items-stretch">
-                                {/* Athlete ID Card */}
-                                <AthleteCard
-                                    name={dbUser?.name}
-                                    athleteId={dbUser?.athleteNumber || null}
-                                    imageUrl={imageUrl}
-                                    createdAt={dbUser?.createdAt?.toString() || null}
-                                    isVerified={dbUser?.isVerified || false}
-                                    cardPaymentStatus={dbUser?.cardPaymentStatus || null}
-                                    onActivateClick={() => setShowActivationModal(true)}
-                                />
-
+                            {/* ═══════ ROW 1: Profile Info ═══════ */}
+                            <div className="grid grid-cols-1 gap-4 items-stretch">
                                 {/* Profile Info Grid */}
                                 <div className="h-full bg-white rounded-2xl border border-gray-100/80 shadow-sm overflow-hidden flex flex-col">
                                     <div className="px-5 py-3 border-b border-gray-50">
