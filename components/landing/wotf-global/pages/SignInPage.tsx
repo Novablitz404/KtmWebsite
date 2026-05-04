@@ -109,6 +109,16 @@ function SignInPageInner() {
                         </div>
                     </div>
 
+                    {/* Forgot password */}
+                    <div className="flex justify-end -mt-1">
+                        <Link
+                            href={`/sign-in/forgot-password${qs}`}
+                            className="text-xs text-gray-500 hover:text-white transition-colors"
+                        >
+                            Forgot password?
+                        </Link>
+                    </div>
+
                     <button
                         type="submit"
                         disabled={loading}
