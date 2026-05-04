@@ -613,8 +613,11 @@ export async function updateSeminar(formData: FormData) {
 
     if (!name || !startDate) return { error: 'Name and start date are required' }
 
-    let bannerUrl = seminar.bannerUrl
-    if (bannerFile && bannerFile.size > 0) {
+    // Check if banner should be removed
+    const removeBanner = formData.get('removeBanner') === 'true'
+
+    let bannerUrl = removeBanner ? null : seminar.bannerUrl
+    if (!removeBanner && bannerFile && bannerFile.size > 0) {
         try {
             const supabase = createClient(
                 process.env.NEXT_PUBLIC_SUPABASE_URL!,

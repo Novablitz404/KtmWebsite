@@ -3967,9 +3967,9 @@ export async function updateTournamentDetails(
 
         revalidatePath(`/tournament/${tournamentId}`)
         return { success: true }
-    } catch (error) {
+    } catch (error: any) {
         console.error('Failed to update tournament details:', error)
-        return { success: false, error: 'Failed to update tournament details' }
+        return { success: false, error: error?.message || 'Failed to update tournament details' }
     }
 }
 

@@ -66,6 +66,11 @@ export default function SeminarSettings({ seminar }: SeminarSettingsProps) {
         const formData = new FormData(e.currentTarget)
         formData.append('seminarId', seminar.id)
 
+        // Signal banner removal if the user cleared it
+        if (!imagePreview && seminar.bannerUrl) {
+            formData.append('removeBanner', 'true')
+        }
+
         // Append cropped image if exists
         if (croppedImageBlob) {
             formData.delete('banner')
