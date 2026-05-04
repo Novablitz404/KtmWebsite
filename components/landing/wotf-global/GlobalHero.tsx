@@ -15,7 +15,7 @@ export default function GlobalHero() {
                     src="/wotf-global/hero_wotf_global.png"
                     alt="WOTF Global"
                     fill
-                    className="object-cover object-center opacity-70"
+                    className="object-cover opacity-70 [object-position:85%_15%] md:[object-position:center]"
                     priority
                     sizes="100vw"
                 />
