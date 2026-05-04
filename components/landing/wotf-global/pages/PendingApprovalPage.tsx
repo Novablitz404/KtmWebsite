@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect } from 'react'
+
 import Image from 'next/image'
 import Link from 'next/link'
 import { Clock, LogOut } from 'lucide-react'
@@ -24,6 +26,15 @@ export default function PendingApprovalPage({ user }: PendingApprovalPageProps) 
         router.push('/sign-in')
     }
 
+    // Auto sign-out when user closes the tab/browser without clicking sign out
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            navigator.sendBeacon('/api/auth/sign-out')
+        }
+        window.addEventListener('beforeunload', handleBeforeUnload)
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+    }, [])
+
     return (
         <main className="min-h-screen bg-black flex items-center justify-center px-4 py-12 relative overflow-hidden">
             {/* Background glow */}
@@ -35,7 +46,7 @@ export default function PendingApprovalPage({ user }: PendingApprovalPageProps) 
                 {/* Header */}
                 <div className="text-center mb-8">
                     <Link href="/">
-                        <Image src="/wotf/logo_image.png" alt="WOTF" width={64} height={64} className="mx-auto mb-4" />
+                        <Image src="/wotf-global/Wotf_logo_Final.png" alt="WOTF" width={120} height={120} className="mx-auto mb-4" />
                     </Link>
                 </div>
 

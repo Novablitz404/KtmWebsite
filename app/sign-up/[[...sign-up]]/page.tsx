@@ -5,7 +5,7 @@ import GlobalSignUpPage from '@/components/landing/wotf-global/pages/SignUpPage'
 import Link from 'next/link'
 
 // ⚡ Flip to false when sign-up is ready to go live
-const SIGNUP_MAINTENANCE = true
+const SIGNUP_MAINTENANCE = false
 
 function MaintenancePage() {
     return (

@@ -1500,21 +1500,33 @@ export async function updateProfile(formData: FormData) {
         throw new Error('User ID and name are required')
     }
 
+    // Fetch user's role to enforce field-level access control
+    const existingUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true }
+    })
+
+    const isAthlete = existingUser?.role === 'ATHLETE'
+
     // Parse birth date
     const birthDate = birthDateStr ? new Date(birthDateStr) : null
+
+    // Athletes cannot self-update belt, weight, or height —
+    // only club masters can change those via the approve/member edit flows
+    const updateData: any = {
+        name,
+        clubName,
+        gender,
+        birthDate,
+        ...(!isAthlete && { belt }),
+        ...(!isAthlete && { weight: isNaN(weight) ? null : weight }),
+        ...(!isAthlete && { height: isNaN(height) ? null : height }),
+    }
 
     // Update Prisma User
     const updatedUser = await prisma.user.update({
         where: { id: userId },
-        data: {
-            name,
-            clubName,
-            belt,
-            gender,
-            weight: isNaN(weight) ? null : weight,
-            height: isNaN(height) ? null : height,
-            birthDate
-        }
+        data: updateData
     })
 
     // Cascade all profile changes (name, belt, placement) to related records
@@ -2932,7 +2944,7 @@ export async function searchAllAthletes(query: string) {
 export async function fetchClubMembers(clubName: string, page: number, pageSize: number, search?: string) {
     const skip = (page - 1) * pageSize
 
-    const baseWhere: any = { clubName: clubName, role: { in: ['ATHLETE', 'ASSISTANT_CLUB_MASTER'] } }
+    const baseWhere: any = { clubName: { equals: clubName, mode: 'insensitive' }, role: { in: ['ATHLETE', 'ASSISTANT_CLUB_MASTER'] } }
 
     // Add search filter if provided
     if (search && search.trim()) {

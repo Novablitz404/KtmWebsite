@@ -4,6 +4,9 @@ import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { getNextBelt, canManagePromotion } from '@/lib/belt'
+import { sendEmail } from '@/lib/email-service'
+import PromotionPassedEmail from '@/emails/PromotionPassedEmail'
+import React from 'react'
 
 export async function updateRegistrationStatus(registrationId: string, status: string) {
     const user = await getAuthUser()
@@ -12,7 +15,11 @@ export async function updateRegistrationStatus(registrationId: string, status: s
     const registration = await prisma.promotionTestRegistration.findUnique({
         where: { id: registrationId },
         include: {
-            promotionTest: true
+            promotionTest: {
+                include: {
+                    organization: { select: { name: true, emailBannerUrl: true } }
+                }
+            }
         }
     })
 
@@ -30,18 +37,44 @@ export async function updateRegistrationStatus(registrationId: string, status: s
         }
     })
 
-    // Auto-advance belt when PASSED
+    // Auto-advance belt + send email when PASSED
     if (status === 'PASSED' && registration.playerId) {
         const nextBelt = getNextBelt(registration.currentBelt, registration.isJump)
         if (nextBelt) {
-            await prisma.user.update({
+            const user = await prisma.user.findUnique({
                 where: { id: registration.playerId },
-                data: { belt: nextBelt }
+                select: { id: true, name: true, email: true, clubName: true }
             })
 
-            // Cascade all profile changes (name, belt, placement)
-            const { cascadeUserProfile } = await import('@/lib/cascadeUserProfile')
-            cascadeUserProfile(registration.playerId).catch(console.error)
+            if (user) {
+                await prisma.user.update({
+                    where: { id: user.id },
+                    data: { belt: nextBelt }
+                })
+
+                // Cascade all profile changes (name, belt, placement)
+                const { cascadeUserProfile } = await import('@/lib/cascadeUserProfile')
+                cascadeUserProfile(user.id).catch(console.error)
+
+                // Send promotion passed email
+                if (user.email) {
+                    const orgName = registration.promotionTest.organization?.name || 'World Olympic Taekwondo Federation'
+                    const orgBannerUrl = registration.promotionTest.organization?.emailBannerUrl || null
+                    sendEmail({
+                        to: user.email,
+                        subject: `Official Certification: Results of the ${registration.promotionTest.name}`,
+                        reactData: React.createElement(PromotionPassedEmail, {
+                            athleteName: user.name || 'Athlete',
+                            beltName: nextBelt,
+                            clubName: user.clubName || '',
+                            organizationName: orgName,
+                            promotionTestName: registration.promotionTest.name,
+                            emailBannerUrl: orgBannerUrl,
+                            dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://ktmsports.com'}/athlete?tab=achievements`
+                        })
+                    }).catch((err: any) => console.error('[updateRegistrationStatus] Email error:', err))
+                }
+            }
         }
     }
 
@@ -82,7 +115,13 @@ export async function bulkUpdateRegistrations(registrationIds: string[], status:
 
     const firstReg = await prisma.promotionTestRegistration.findUnique({
         where: { id: registrationIds[0] },
-        include: { promotionTest: true }
+        include: {
+            promotionTest: {
+                include: {
+                    organization: { select: { name: true, emailBannerUrl: true } }
+                }
+            }
+        }
     })
 
     if (!firstReg) return { error: 'Registration not found' }
@@ -95,7 +134,7 @@ export async function bulkUpdateRegistrations(registrationIds: string[], status:
         data: { status }
     })
 
-    // Auto-advance belts when bulk-marking as PASSED
+    // Auto-advance belts + send emails when bulk-marking as PASSED
     if (status === 'PASSED') {
         const registrations = await prisma.promotionTestRegistration.findMany({
             where: { id: { in: registrationIds }, playerId: { not: null } },
@@ -103,18 +142,43 @@ export async function bulkUpdateRegistrations(registrationIds: string[], status:
         })
 
         const { cascadeUserProfile } = await import('@/lib/cascadeUserProfile')
+        const orgName = firstReg.promotionTest.organization?.name || 'World Olympic Taekwondo Federation'
+        const orgBannerUrl = firstReg.promotionTest.organization?.emailBannerUrl || null
 
         for (const reg of registrations) {
             if (reg.playerId) {
                 const nextBelt = getNextBelt(reg.currentBelt, reg.isJump)
                 if (nextBelt) {
-                    await prisma.user.update({
+                    const user = await prisma.user.findUnique({
                         where: { id: reg.playerId },
-                        data: { belt: nextBelt }
+                        select: { id: true, name: true, email: true, clubName: true }
                     })
 
-                    // Cascade all profile changes (name, belt, placement)
-                    cascadeUserProfile(reg.playerId).catch(console.error)
+                    if (user) {
+                        await prisma.user.update({
+                            where: { id: user.id },
+                            data: { belt: nextBelt }
+                        })
+
+                        cascadeUserProfile(user.id).catch(console.error)
+
+                        // Send promotion passed email
+                        if (user.email) {
+                            sendEmail({
+                                to: user.email,
+                                subject: `Official Certification: Results of the ${firstReg.promotionTest.name}`,
+                                reactData: React.createElement(PromotionPassedEmail, {
+                                    athleteName: user.name || 'Athlete',
+                                    beltName: nextBelt,
+                                    clubName: user.clubName || '',
+                                    organizationName: orgName,
+                                    promotionTestName: firstReg.promotionTest.name,
+                                    emailBannerUrl: orgBannerUrl,
+                                    dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://ktmsports.com'}/athlete?tab=achievements`
+                                })
+                            }).catch((err: any) => console.error('[bulkUpdateRegistrations] Email error:', err))
+                        }
+                    }
                 }
             }
         }

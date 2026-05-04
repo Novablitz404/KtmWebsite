@@ -67,12 +67,14 @@ export default function WOTFGlobalOnboarding() {
         loadUser()
     }, [supabase, router])
 
-    // Pre-fill from DB
+    // Pre-fill — auth metadata is primary (DB user may not exist yet at this step)
     useEffect(() => {
-        if (!isLoaded || !dbUser) return
-        setName(dbUser.name || '')
-        if (dbUser.imageUrl) setImgPreview(dbUser.imageUrl)
-        if (dbUser.email) {
+        if (!isLoaded) return
+        // Primary: name from Supabase auth metadata (set during sign-up Step 2)
+        const authName = authUser?.user_metadata?.full_name
+        setName(authName || dbUser?.name || '')
+        if (dbUser?.imageUrl) setImgPreview(dbUser.imageUrl)
+        if (dbUser?.email) {
             getExistingProfile(dbUser.email).then((profile) => {
                 if (!profile) return
                 if (profile.name) setName(profile.name)
@@ -82,17 +84,15 @@ export default function WOTFGlobalOnboarding() {
                 if (profile.clubName) setClubName(profile.clubName)
             })
         }
-    }, [isLoaded, dbUser])
+    }, [isLoaded, authUser, dbUser])
 
-    // Fetch clubs scoped to WOTF Global org
+    // Fetch clubs scoped to WOTF Global org by slug (works in any env)
     useEffect(() => {
-        if (tenant.id) {
-            fetch(`/api/clubs?orgId=${tenant.id}`)
-                .then(res => res.json())
-                .then(data => setClubs(data))
-                .catch(() => {})
-        }
-    }, [tenant.id])
+        fetch('/api/clubs?orgSlug=wotf-global')
+            .then(res => res.json())
+            .then(data => setClubs(data))
+            .catch(() => {})
+    }, [])
 
     const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
@@ -189,184 +189,237 @@ export default function WOTFGlobalOnboarding() {
     }
 
     return (
-        <main className="min-h-screen bg-black flex items-center justify-center px-4 py-12 relative overflow-hidden">
-            {/* Background glow */}
-            <div className="absolute inset-0">
-                <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#0085C7]/5 rounded-full blur-[150px]" />
+        <main className="min-h-screen bg-black flex items-center justify-center p-4 md:p-6 relative overflow-hidden">
+            {/* Ambient glows */}
+            <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-[#0085C7]/8 rounded-full blur-[150px] -translate-x-1/3 -translate-y-1/3" />
+                <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-[#DF0024]/5 rounded-full blur-[120px] translate-x-1/4 translate-y-1/4" />
             </div>
 
-            <div className="relative z-10 w-full max-w-lg">
-                {/* Header */}
-                <div className="text-center mb-8">
-                    <Link href="/">
-                        <Image src="/wotf/logo_image.png" alt="WOTF" width={64} height={64} className="mx-auto mb-4" />
-                    </Link>
-                    <h1 className="text-2xl md:text-3xl font-black text-white uppercase tracking-wider">
-                        Complete Your Profile
-                    </h1>
-                    <p className="text-gray-500 text-sm mt-2">
-                        Fill in your details to join WOTF Global
-                    </p>
-                </div>
+            <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.4 }}
+                className="relative z-10 w-full max-w-5xl bg-[#080808] border border-white/5 rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px] my-4"
+            >
+                {/* ── LEFT PANEL ── */}
+                <div className="md:w-5/12 relative flex flex-col justify-between p-8 md:p-10 bg-gradient-to-br from-[#0085C7]/20 via-black to-black border-b md:border-b-0 md:border-r border-white/5 overflow-hidden">
+                    {/* Background pattern */}
+                    <div className="absolute inset-0 pointer-events-none">
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-[#0085C7]/10 rounded-full blur-[100px]" />
+                        <div className="absolute bottom-0 right-0 w-48 h-48 bg-white/3 rounded-full blur-[80px]" />
+                    </div>
 
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4 }}
-                >
-                    <form onSubmit={handleSubmit} className="bg-[#0A0A0A] border border-white/5 rounded-2xl p-6 md:p-8 space-y-5" noValidate>
-                        {/* Profile Picture */}
-                        <div className="flex items-center gap-5">
-                            <div
-                                onClick={() => { profileInputRef.current?.click(); setFieldErrors(prev => ({ ...prev, profilePic: false })) }}
-                                className={`relative w-20 h-20 rounded-full bg-black border-2 border-dashed cursor-pointer transition-all overflow-hidden flex items-center justify-center group flex-shrink-0 ${
-                                    fieldErrors.profilePic ? 'border-red-500' : 'border-white/20 hover:border-[#0085C7]'
-                                }`}
-                            >
-                                {imgPreview ? (
-                                    <Image src={imgPreview} alt="Profile" fill className="object-cover" />
+                    {/* Top: Logo + Title */}
+                    <div className="relative z-10">
+                        <Link href="/" className="inline-block mb-6">
+                            <Image src="/wotf-global/Wotf_logo_Final.png" alt="WOTF Global" width={96} height={96} />
+                        </Link>
+                        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+                            <h1 className="text-2xl md:text-3xl font-black text-white uppercase tracking-wider leading-tight mb-3">
+                                Athlete<br />Profile Setup
+                            </h1>
+                            <p className="text-white/50 text-sm leading-relaxed">
+                                Complete your details to register as a WOTF Global athlete and compete internationally.
+                            </p>
+                        </motion.div>
+                    </div>
+
+                    {/* Middle: Step indicators */}
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.3 }}
+                        className="relative z-10 space-y-3 my-8"
+                    >
+                        {[
+                            { label: 'Account Created', done: true },
+                            { label: 'Athlete Profile', done: false, active: true },
+                            { label: 'Pending Approval', done: false },
+                            { label: 'Dashboard Access', done: false },
+                        ].map((s, i) => (
+                            <div key={i} className={`flex items-center gap-3 text-sm ${s.done ? 'text-white/60' : s.active ? 'text-white font-bold' : 'text-white/30'}`}>
+                                {s.done ? (
+                                    <div className="w-5 h-5 rounded-full bg-[#0085C7] flex items-center justify-center flex-shrink-0">
+                                        <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                    </div>
                                 ) : (
-                                    <Camera className={`w-6 h-6 ${fieldErrors.profilePic ? 'text-red-400' : 'text-gray-600'} group-hover:text-[#0085C7] transition-colors`} />
-                                )}
-                                {imgPreview && (
-                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                        <Camera className="w-5 h-5 text-white" />
+                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-[10px] flex-shrink-0 ${s.active ? 'border-[#0085C7] text-[#0085C7]' : 'border-white/20 text-white/30'}`}>
+                                        {i + 1}
                                     </div>
                                 )}
-                                <input
-                                    ref={profileInputRef}
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={(e) => { handleImageChange(e); setFieldErrors(prev => ({ ...prev, profilePic: false })) }}
-                                    className="hidden"
-                                />
+                                <span>{s.label}</span>
                             </div>
-                            <div>
-                                <p className={`text-sm font-semibold ${fieldErrors.profilePic ? 'text-red-400' : 'text-gray-300'}`}>
-                                    Profile Picture <span className="text-red-500">*</span>
-                                </p>
-                                <p className={`text-xs ${fieldErrors.profilePic ? 'text-red-500' : 'text-gray-600'}`}>
-                                    {fieldErrors.profilePic ? 'Required' : 'Click to upload'}
-                                </p>
+                        ))}
+                    </motion.div>
+
+                    {/* Bottom: Olympic accent bar */}
+                    <div className="relative z-10">
+                        <div className="flex gap-1.5 mb-4">
+                            <span className="w-6 h-1.5 rounded-full bg-[#0085C7]" />
+                            <span className="w-6 h-1.5 rounded-full bg-[#F4C300]" />
+                            <span className="w-6 h-1.5 rounded-full bg-white/80" />
+                            <span className="w-6 h-1.5 rounded-full bg-[#009F3D]" />
+                            <span className="w-6 h-1.5 rounded-full bg-[#DF0024]" />
+                        </div>
+                        <p className="text-white/25 text-xs">World Olympics Taekwondo Federation</p>
+                    </div>
+                </div>
+
+                {/* ── RIGHT PANEL ── */}
+                <div className="md:w-7/12 flex flex-col justify-center p-6 md:p-10 overflow-y-auto max-h-[85vh] md:max-h-none">
+                    <motion.div
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.35, delay: 0.1 }}
+                    >
+                        <h2 className="text-xl font-bold text-white mb-6">Complete Your Profile</h2>
+
+                        <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+                            {/* Profile Picture */}
+                            <div className="flex items-center gap-5">
+                                <div
+                                    onClick={() => { profileInputRef.current?.click(); setFieldErrors(prev => ({ ...prev, profilePic: false })) }}
+                                    className={`relative w-20 h-20 rounded-full bg-black border-2 border-dashed cursor-pointer transition-all overflow-hidden flex items-center justify-center group flex-shrink-0 ${
+                                        fieldErrors.profilePic ? 'border-red-500' : 'border-white/20 hover:border-[#0085C7]'
+                                    }`}
+                                >
+                                    {imgPreview ? (
+                                        <Image src={imgPreview} alt="Profile" fill className="object-cover" />
+                                    ) : (
+                                        <Camera className={`w-6 h-6 ${fieldErrors.profilePic ? 'text-red-400' : 'text-gray-600'} group-hover:text-[#0085C7] transition-colors`} />
+                                    )}
+                                    {imgPreview && (
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                            <Camera className="w-5 h-5 text-white" />
+                                        </div>
+                                    )}
+                                    <input
+                                        ref={profileInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={(e) => { handleImageChange(e); setFieldErrors(prev => ({ ...prev, profilePic: false })) }}
+                                        className="hidden"
+                                    />
+                                </div>
+                                <div>
+                                    <p className={`text-sm font-semibold ${fieldErrors.profilePic ? 'text-red-400' : 'text-gray-300'}`}>
+                                        Profile Picture <span className="text-red-500">*</span>
+                                    </p>
+                                    <p className={`text-xs mt-0.5 ${fieldErrors.profilePic ? 'text-red-500' : 'text-gray-600'}`}>
+                                        {fieldErrors.profilePic ? 'Required' : 'Click to upload your photo'}
+                                    </p>
+                                </div>
                             </div>
-                        </div>
 
-                        {/* Full Name */}
-                        <div>
-                            <label className={`block text-xs font-bold uppercase tracking-wider mb-2 ${fieldErrors.name ? 'text-red-400' : 'text-gray-400'}`}>
-                                Full Name <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                value={name}
-                                onChange={(e) => { setName(e.target.value); setFieldErrors(prev => ({ ...prev, name: false })) }}
-                                placeholder="Enter your full name"
-                                className={`w-full bg-black border text-white rounded-lg px-4 py-3 text-sm focus:outline-none transition-colors placeholder:text-gray-700 ${
-                                    fieldErrors.name ? 'border-red-500' : 'border-white/10 focus:border-[#0085C7]'
-                                }`}
-                            />
-                            {fieldError('name')}
-                        </div>
-
-                        {/* Birth Date & Gender row */}
-                        <div className="grid grid-cols-2 gap-4">
+                            {/* Full Name */}
                             <div>
-                                <label className={`block text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 ${fieldErrors.birthDate ? 'text-red-400' : 'text-gray-400'}`}>
-                                    <CalendarIcon size={13} /> Date of Birth <span className="text-red-500">*</span>
+                                <label className={`block text-xs font-bold uppercase tracking-wider mb-2 ${fieldErrors.name ? 'text-red-400' : 'text-gray-500'}`}>
+                                    Full Name <span className="text-red-500">*</span>
                                 </label>
-                                <GlobalCalendar
-                                    label=""
-                                    value={birthDate ? new Date(birthDate) : undefined}
-                                    onChange={(date: Date) => { setBirthDate(format(date, 'yyyy-MM-dd')); setFieldErrors(prev => ({ ...prev, birthDate: false })) }}
-                                    placeholder="Select date"
-                                    fullWidth
-                                    maxDate={new Date()}
+                                <input
+                                    value={name}
+                                    onChange={(e) => { setName(e.target.value); setFieldErrors(prev => ({ ...prev, name: false })) }}
+                                    placeholder="Enter your full name"
+                                    className={`w-full bg-white/5 border text-white rounded-lg px-4 py-3 text-sm focus:outline-none transition-colors placeholder:text-gray-700 ${
+                                        fieldErrors.name ? 'border-red-500' : 'border-white/10 focus:border-[#0085C7]'
+                                    }`}
                                 />
-                                {fieldError('birthDate')}
+                                {fieldError('name')}
                             </div>
+
+                            {/* Birth Date & Gender */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className={`block text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 ${fieldErrors.birthDate ? 'text-red-400' : 'text-gray-500'}`}>
+                                        <CalendarIcon size={13} /> Date of Birth <span className="text-red-500">*</span>
+                                    </label>
+                                    <GlobalCalendar
+                                        label=""
+                                        value={birthDate ? new Date(birthDate) : undefined}
+                                        onChange={(date: Date) => { setBirthDate(format(date, 'yyyy-MM-dd')); setFieldErrors(prev => ({ ...prev, birthDate: false })) }}
+                                        placeholder="Select date"
+                                        fullWidth
+                                        maxDate={new Date()}
+                                    />
+                                    {fieldError('birthDate')}
+                                </div>
+                                <div>
+                                    <label className={`block text-xs font-bold uppercase tracking-wider mb-2 ${fieldErrors.gender ? 'text-red-400' : 'text-gray-500'}`}>
+                                        Gender <span className="text-red-500">*</span>
+                                    </label>
+                                    <GlobalDropdown
+                                        options={GENDER_OPTIONS}
+                                        value={gender}
+                                        onChange={(val: string) => { setGender(val); setFieldErrors(prev => ({ ...prev, gender: false })) }}
+                                        fullWidth
+                                    />
+                                    {fieldError('gender')}
+                                </div>
+                            </div>
+
+                            {/* Country */}
                             <div>
-                                <label className={`block text-xs font-bold uppercase tracking-wider mb-2 ${fieldErrors.gender ? 'text-red-400' : 'text-gray-400'}`}>
-                                    Gender <span className="text-red-500">*</span>
+                                <label className={`block text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 ${fieldErrors.country ? 'text-red-400' : 'text-gray-500'}`}>
+                                    <Globe size={13} /> Country <span className="text-red-500">*</span>
                                 </label>
                                 <GlobalDropdown
-                                    options={GENDER_OPTIONS}
-                                    value={gender}
-                                    onChange={(val: string) => { setGender(val); setFieldErrors(prev => ({ ...prev, gender: false })) }}
+                                    options={COUNTRIES}
+                                    value={country}
+                                    onChange={(val: string) => { setCountry(val); setFieldErrors(prev => ({ ...prev, country: false })) }}
                                     fullWidth
+                                    searchable
                                 />
-                                {fieldError('gender')}
+                                {fieldError('country')}
                             </div>
-                        </div>
 
-                        {/* Country */}
-                        <div>
-                            <label className={`block text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 ${fieldErrors.country ? 'text-red-400' : 'text-gray-400'}`}>
-                                <Globe size={13} /> Country <span className="text-red-500">*</span>
-                            </label>
-                            <GlobalDropdown
-                                options={COUNTRIES}
-                                value={country}
-                                onChange={(val: string) => { setCountry(val); setFieldErrors(prev => ({ ...prev, country: false })) }}
-                                fullWidth
-                                searchable
-                            />
-                            {fieldError('country')}
-                        </div>
-
-                        {/* Club */}
-                        <div>
-                            <label className={`block text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 ${fieldErrors.clubName ? 'text-red-400' : 'text-gray-400'}`}>
-                                <Users size={13} /> Affiliated Club <span className="text-red-500">*</span>
-                            </label>
-                            <GlobalDropdown
-                                options={clubOptions}
-                                value={clubName}
-                                onChange={(val: string) => { setClubName(val); setFieldErrors(prev => ({ ...prev, clubName: false })) }}
-                                fullWidth
-                                searchable
-                            />
-                            {fieldError('clubName')}
-                        </div>
-
-                        {/* Info note */}
-                        <div className="bg-[#0085C7]/5 border border-[#0085C7]/10 rounded-lg p-3">
-                            <p className="text-xs text-[#0085C7]/80 leading-relaxed">
-                                <strong className="text-[#0085C7]">Note:</strong> Your belt rank, weight, and height will be verified and assigned by your clubmaster after submission.
-                            </p>
-                        </div>
-
-                        {error && (
-                            <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm rounded-lg px-4 py-3">
-                                {error}
+                            {/* Club */}
+                            <div>
+                                <label className={`block text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 ${fieldErrors.clubName ? 'text-red-400' : 'text-gray-500'}`}>
+                                    <Users size={13} /> Affiliated Club <span className="text-red-500">*</span>
+                                </label>
+                                <GlobalDropdown
+                                    options={clubOptions}
+                                    value={clubName}
+                                    onChange={(val: string) => { setClubName(val); setFieldErrors(prev => ({ ...prev, clubName: false })) }}
+                                    fullWidth
+                                    searchable
+                                />
+                                {fieldError('clubName')}
                             </div>
-                        )}
 
-                        {/* Submit */}
-                        <button
-                            type="submit"
-                            disabled={isSubmitting}
-                            className="w-full bg-white text-black font-bold text-sm uppercase tracking-widest py-3.5 rounded-full hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-                        >
-                            {isSubmitting ? (
-                                <Loader2 size={16} className="animate-spin" />
-                            ) : (
-                                <>
-                                    Submit for Approval
-                                    <ArrowRight size={16} />
-                                </>
+                            {/* Info note */}
+                            <div className="bg-[#0085C7]/5 border border-[#0085C7]/10 rounded-lg p-3">
+                                <p className="text-xs text-[#0085C7]/80 leading-relaxed">
+                                    <strong className="text-[#0085C7]">Note:</strong> Your belt rank, weight, and height will be verified and assigned by your clubmaster after submission.
+                                </p>
+                            </div>
+
+                            {error && (
+                                <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm rounded-lg px-4 py-3">
+                                    {error}
+                                </div>
                             )}
-                        </button>
-                    </form>
-                </motion.div>
 
-                {/* Accent dots */}
-                <div className="flex justify-center gap-1.5 mt-8">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#0085C7]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#F4C300]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-white" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#009F3D]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#DF0024]" />
+                            {/* Submit */}
+                            <button
+                                type="submit"
+                                disabled={isSubmitting}
+                                className="w-full bg-white text-black font-bold text-sm uppercase tracking-widest py-3.5 rounded-full hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                            >
+                                {isSubmitting ? (
+                                    <Loader2 size={16} className="animate-spin" />
+                                ) : (
+                                    <>
+                                        Submit for Approval
+                                        <ArrowRight size={16} />
+                                    </>
+                                )}
+                            </button>
+                        </form>
+                    </motion.div>
                 </div>
-            </div>
+            </motion.div>
         </main>
     )
 }

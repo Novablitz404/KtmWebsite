@@ -205,17 +205,27 @@ export default function ProfileForm({ user, initialImageUrl, customTrigger }: Pr
                                     )}
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1.5">Belt Rank</label>
-                                        <GlobalDropdown
-                                            name="belt"
-                                            value={belt}
-                                            onChange={setBelt}
-                                            fullWidth
-                                            options={
-                                                user.role === 'CLUB_MASTER' || user.role === 'ASSISTANT_CLUB_MASTER'
-                                                    ? ['1st Dan', '2nd Dan', '3rd Dan', '4th Dan', '5th Dan', '6th Dan', '7th Dan', '8th Dan', '9th Dan']
-                                                    : ['White', 'Yellow', 'Orange', 'Green', 'Purple', 'Blue', 'Maroon', 'Red', 'Brown', 'Black']
-                                            }
-                                        />
+                                        {user.role === 'ATHLETE' ? (
+                                            <>
+                                                <div className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-gray-500 cursor-not-allowed text-sm">
+                                                    {belt || 'White'}
+                                                </div>
+                                                <p className="text-[11px] text-gray-400 mt-1">Only your club master can update this.</p>
+                                                <input type="hidden" name="belt" value={belt} />
+                                            </>
+                                        ) : (
+                                            <GlobalDropdown
+                                                name="belt"
+                                                value={belt}
+                                                onChange={setBelt}
+                                                fullWidth
+                                                options={
+                                                    user.role === 'CLUB_MASTER' || user.role === 'ASSISTANT_CLUB_MASTER'
+                                                        ? ['1st Dan', '2nd Dan', '3rd Dan', '4th Dan', '5th Dan', '6th Dan', '7th Dan', '8th Dan', '9th Dan']
+                                                        : ['White', 'Yellow', 'Orange', 'Green', 'Purple', 'Blue', 'Maroon', 'Red', 'Brown', 'Black']
+                                                }
+                                            />
+                                        )}
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1.5">Gender</label>
@@ -231,25 +241,19 @@ export default function ProfileForm({ user, initialImageUrl, customTrigger }: Pr
                                         <>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Weight (kg)</label>
-                                                <input
-                                                    type="number"
-                                                    name="weight"
-                                                    step="0.1"
-                                                    defaultValue={user.weight || ''}
-                                                    placeholder="e.g. 58.5"
-                                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all bg-gray-50/50 focus:bg-white"
-                                                />
+                                                <div className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-gray-500 cursor-not-allowed text-sm">
+                                                    {user.weight ?? '—'}
+                                                </div>
+                                                <p className="text-[11px] text-gray-400 mt-1">Only your club master can update this.</p>
+                                                <input type="hidden" name="weight" value={user.weight ?? ''} />
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Height (cm)</label>
-                                                <input
-                                                    type="number"
-                                                    name="height"
-                                                    step="0.1"
-                                                    defaultValue={user.height || ''}
-                                                    placeholder="e.g. 145"
-                                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all bg-gray-50/50 focus:bg-white"
-                                                />
+                                                <div className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-gray-500 cursor-not-allowed text-sm">
+                                                    {user.height ?? '—'}
+                                                </div>
+                                                <p className="text-[11px] text-gray-400 mt-1">Only your club master can update this.</p>
+                                                <input type="hidden" name="height" value={user.height ?? ''} />
                                             </div>
                                         </>
                                     )}

@@ -2,6 +2,10 @@ import { apiError, apiResponse } from '@/lib/auth-api'
 import { createServerClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { createClient } from '@supabase/supabase-js'
+import { Resend } from 'resend'
+import WOTFAthleteApprovedEmail from '@/emails/WOTFAthleteApprovedEmail'
+
+const resend = new Resend(process.env.RESEND_API_KEY)
 
 /**
  * GET /api/auth/approve-athlete?clubName=...
@@ -20,7 +24,7 @@ export async function GET(request: Request) {
 
         const pendingAthletes = await prisma.user.findMany({
             where: {
-                clubName,
+                clubName: { equals: clubName, mode: 'insensitive' },
                 onboardingStatus: 'PENDING_APPROVAL',
                 role: 'ATHLETE',
             },
@@ -97,6 +101,7 @@ export async function POST(request: Request) {
                 id: true,
                 clerkId: true,
                 name: true,
+                email: true,
                 clubName: true,
                 onboardingStatus: true,
             }
@@ -110,8 +115,8 @@ export async function POST(request: Request) {
             return apiError('Athlete is not pending approval', 400)
         }
 
-        // Verify athlete belongs to this clubmaster's club
-        if (athlete.clubName !== club.name) {
+        // Verify athlete belongs to this clubmaster's club (case-insensitive)
+        if (athlete.clubName?.toLowerCase() !== club.name.toLowerCase()) {
             return apiError('This athlete is not registered under your club', 403)
         }
 
@@ -131,6 +136,24 @@ export async function POST(request: Request) {
                     approvedAt: new Date(),
                 }
             })
+
+            // Send approval email to athlete
+            if (athlete.email) {
+                resend.emails.send({
+                    from: 'WOTF Global <noreply@wotf-ph.com>',
+                    to: [athlete.email],
+                    subject: `🎉 You're approved, ${athlete.name}! — WOTF Global`,
+                    react: WOTFAthleteApprovedEmail({
+                        athleteName: athlete.name || 'Athlete',
+                        clubName: athlete.clubName || club.name,
+                        belt,
+                        weight: parseFloat(weight),
+                        height: parseFloat(height),
+                    }),
+                }).catch((err: any) => {
+                    console.error('[ApproveAthlete] Failed to send approval email:', err)
+                })
+            }
 
             console.log(`[ApproveAthlete] ${clubmaster.id} approved athlete ${athlete.id} (${athlete.name})`)
             return apiResponse({ success: true, message: `${athlete.name} has been approved` })

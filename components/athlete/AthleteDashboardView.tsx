@@ -10,7 +10,7 @@ import { fetchAthleteDashboardData, unregisterFromTournament, submitAthleteCardP
 import AthleteSidebar from '@/components/athlete/AthleteSidebar'
 import AthleteTopBar from '@/components/athlete/AthleteTopBar'
 
-import ProfileEditForm from '@/app/settings/ProfileEditForm'
+
 import AthleteProfileView from '@/app/settings/AthleteProfileView'
 import { QRCodeSVG } from 'qrcode.react'
 import { toast } from 'sonner'

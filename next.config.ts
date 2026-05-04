@@ -19,6 +19,13 @@ const nextConfig: NextConfig = {
         hostname: 'qoncxjjkgdfoyrbukvem.supabase.co',
         pathname: '/storage/v1/object/public/**',
       },
+      {
+        // Local Supabase storage (dev)
+        protocol: 'http',
+        hostname: '127.0.0.1',
+        port: '54321',
+        pathname: '/storage/v1/object/public/**',
+      },
     ],
   },
   transpilePackages: ['@react-pdf/renderer'],

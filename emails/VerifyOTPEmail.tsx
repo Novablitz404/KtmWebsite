@@ -1,5 +1,7 @@
 import * as React from 'react'
 
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.wotf-global.com'
+
 interface VerifyOTPEmailProps {
     code: string
     name?: string
@@ -22,11 +24,11 @@ export default function VerifyOTPEmail({ code, name }: VerifyOTPEmailProps) {
                 borderBottom: '1px solid rgba(255,255,255,0.05)',
             }}>
                 <img
-                    src="https://wotf-global.com/wotf/logo_image.png"
+                    src={`${appUrl}/wotf-global/Wotf_logo_Final.png`}
                     alt="WOTF"
-                    width={48}
-                    height={48}
-                    style={{ margin: '0 auto 16px' }}
+                    width={72}
+                    height={72}
+                    style={{ margin: '0 auto 16px', display: 'block' }}
                 />
                 <h1 style={{
                     fontSize: '20px',

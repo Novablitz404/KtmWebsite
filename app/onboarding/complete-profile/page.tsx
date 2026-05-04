@@ -364,10 +364,11 @@ export default function CompleteProfilePage() {
     }
 
     // ─── LOADING STATE ───
+    const isWotfGlobal = tenant.slug === 'wotf-global'
     if (!isLoaded) return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
-            <Loader2 className="h-8 w-8 animate-spin mb-4" style={{ color: isKtm ? '#DC2626' : tenant.primaryColor }} />
-            <p className="text-gray-500 font-medium">Loading your profile...</p>
+        <div className={`min-h-screen flex flex-col items-center justify-center ${isWotfGlobal ? 'bg-black' : 'bg-gray-50'}`}>
+            <Loader2 className="h-8 w-8 animate-spin mb-4" style={{ color: isWotfGlobal ? '#0085C7' : (isKtm ? '#DC2626' : tenant.primaryColor) }} />
+            {!isWotfGlobal && <p className="text-gray-500 font-medium">Loading your profile...</p>}
         </div>
     )
 
