@@ -11,7 +11,8 @@ import Link from 'next/link';
 
 interface WOTFGlobalLandingPageProps {
     stats?: { athletes: number; clubs: number; events: number };
-    upcomingEvents?: { id: string; name: string; type: string; date: string; venue: string | null }[];
+    upcomingEvents?: { id: string; name: string; type: string; date: string; venue: string | null; imageUrl?: string | null }[];
+    pastEvents?: { id: string; name: string; type: string; date: string; venue: string | null; imageUrl?: string | null }[];
 }
 
 /* ─── Animated Counter ─── */
@@ -187,6 +188,69 @@ function EventsSection({ events, qs }: { events?: { id: string; name: string; ty
     );
 }
 
+/* ─── Past Events Section (DARK - desaturated) ─── */
+function PastEventsSection({ events, qs }: { events?: { id: string; name: string; type: string; date: string; venue: string | null; imageUrl?: string | null }[]; qs: string }) {
+    const hasEvents = events && events.length > 0;
+    if (!hasEvents) return null;
+
+    const formatFull = (d: string) => new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' });
+
+    const palette = [
+        { accent: 'text-[#0085C7]', bg: 'bg-[#0085C7]', border: 'border-[#0085C7]/10' },
+        { accent: 'text-[#F4C300]', bg: 'bg-[#F4C300]', border: 'border-[#F4C300]/10' },
+        { accent: 'text-white', bg: 'bg-white', border: 'border-white/5' },
+        { accent: 'text-[#009F3D]', bg: 'bg-[#009F3D]', border: 'border-[#009F3D]/10' },
+        { accent: 'text-[#DF0024]', bg: 'bg-[#DF0024]', border: 'border-[#DF0024]/10' },
+    ];
+
+    return (
+        <section className="py-16 md:py-24 bg-[#080808] border-t border-white/5">
+            <div className="max-w-7xl mx-auto px-6">
+                <div className="wotf-reveal text-center mb-12">
+                    <h2 className="text-3xl md:text-5xl font-black text-white/60 uppercase tracking-tighter mb-3">
+                        Past Events
+                    </h2>
+                    <p className="text-gray-600 max-w-lg mx-auto">Events that have already concluded</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {events.map((event, i) => {
+                        const p = palette[i % palette.length];
+                        const isTournament = event.type === 'Tournament';
+                        return (
+                            <Link key={event.id} href={isTournament ? `/tournament/${event.id}${qs}` : `/seminars/${event.id}${qs}`} className={`wotf-card-enter group block relative bg-[#111] rounded-2xl overflow-hidden border ${p.border} hover:border-white/20 transition-all duration-300 hover:-translate-y-1 opacity-70 hover:opacity-100`} style={{ animationDelay: `${i * 0.1}s` }}>
+                                <div className="relative h-48 w-full bg-[#1A1A1A] overflow-hidden grayscale-[40%] group-hover:grayscale-0 transition-all duration-500">
+                                    <EventBanner imageUrl={event.imageUrl} colorClass={p.bg} />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-[#111] via-[#111]/40 to-transparent" />
+                                    <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md border border-white/10 rounded-full px-3 py-1 flex items-center gap-1.5">
+                                        {isTournament ? <Trophy size={12} className={p.accent} /> : <GraduationCap size={12} className={p.accent} />}
+                                        <span className="text-[10px] font-bold text-white uppercase tracking-wider">{event.type}</span>
+                                    </div>
+                                    <div className="absolute top-4 left-4 bg-white/10 backdrop-blur-md border border-white/10 rounded-full px-3 py-1">
+                                        <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">Completed</span>
+                                    </div>
+                                </div>
+                                <div className="p-5 relative z-10 flex flex-col flex-1">
+                                    <h3 className="text-lg font-bold text-white/80 leading-snug mb-3 group-hover:text-white transition-colors">{event.name}</h3>
+                                    <div className="space-y-2 mt-auto text-sm text-gray-500 mb-5">
+                                        <div className="flex items-center gap-2.5"><Calendar size={14} className="text-gray-600" /><span>{formatFull(event.date)}</span></div>
+                                        {event.venue && <div className="flex items-center gap-2.5"><MapPin size={14} className="text-gray-600" /><span className="truncate">{event.venue}</span></div>}
+                                    </div>
+                                    <div className={`mt-auto pt-4 border-t border-white/5 flex items-center justify-between text-xs font-bold uppercase tracking-widest text-gray-500 group-hover:${p.accent}`}>
+                                        <span>View Details</span>
+                                        <ArrowRight size={14} className="transform group-hover:translate-x-1 transition-transform" />
+                                    </div>
+                                </div>
+                                <div className={`absolute bottom-0 left-0 right-0 h-1 ${p.bg} transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-300`} />
+                            </Link>
+                        );
+                    })}
+                </div>
+            </div>
+        </section>
+    );
+}
+
 /* ─── CTA Section (WHITE) ─── */
 function CTASection({ qs }: { qs: string }) {
     const { t } = useI18n();
@@ -211,7 +275,7 @@ function CTASection({ qs }: { qs: string }) {
 }
 
 /* ─── Main Landing Page ─── */
-function LandingPageInner({ stats, upcomingEvents }: WOTFGlobalLandingPageProps) {
+function LandingPageInner({ stats, upcomingEvents, pastEvents }: WOTFGlobalLandingPageProps) {
     const searchParams = useSearchParams();
     const tenantParam = searchParams.get('tenant');
     const qs = tenantParam ? `?tenant=${tenantParam}` : '';
@@ -233,6 +297,7 @@ function LandingPageInner({ stats, upcomingEvents }: WOTFGlobalLandingPageProps)
             <GlobalHero />
             <StatsSection stats={stats} />
             <EventsSection events={upcomingEvents} qs={qs} />
+            <PastEventsSection events={pastEvents} qs={qs} />
             <CTASection qs={qs} />
             <GlobalFooter />
         </main>

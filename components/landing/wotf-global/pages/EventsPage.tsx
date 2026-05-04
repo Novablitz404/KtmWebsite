@@ -20,6 +20,8 @@ interface EventItem {
 interface EventsPageProps {
     tournaments?: EventItem[];
     seminars?: EventItem[];
+    pastTournaments?: EventItem[];
+    pastSeminars?: EventItem[];
 }
 
 /* ─── Event Banner Helper ─── */
@@ -58,7 +60,7 @@ function EventBanner({ imageUrl, colorClass }: { imageUrl: string | null | undef
 
 type TabId = 'upcoming' | 'past';
 
-function EventsPageInner({ tournaments, seminars }: EventsPageProps) {
+function EventsPageInner({ tournaments, seminars, pastTournaments: pastTournamentsProp, pastSeminars: pastSeminarsProp }: EventsPageProps) {
     const { t } = useI18n();
     const searchParams = useSearchParams();
     const tenantParam = searchParams.get('tenant');
@@ -77,20 +79,11 @@ function EventsPageInner({ tournaments, seminars }: EventsPageProps) {
 
     const formatFull = (d: string) => new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' });
 
-    const now = new Date();
-
-    // Split events into upcoming and past based on date + status
-    // Date-first logic: COMPLETED always past, ONGOING always upcoming, otherwise use date
-    const isUpcoming = (event: EventItem) => {
-        if (event.status === 'COMPLETED') return false;
-        if (event.status === 'ONGOING') return true;
-        return new Date(event.date) >= now;
-    };
-
-    const upcomingTournaments = (tournaments || []).filter(isUpcoming);
-    const pastTournaments = (tournaments || []).filter(e => !isUpcoming(e));
-    const upcomingSeminars = (seminars || []).filter(isUpcoming);
-    const pastSeminars = (seminars || []).filter(e => !isUpcoming(e));
+    // Use pre-split data from server (no client-side date comparison needed)
+    const upcomingTournaments = tournaments || [];
+    const upcomingSeminars = seminars || [];
+    const pastTournaments = pastTournamentsProp || [];
+    const pastSeminars = pastSeminarsProp || [];
 
     const upcomingCount = upcomingTournaments.length + upcomingSeminars.length;
     const pastCount = pastTournaments.length + pastSeminars.length;
@@ -106,13 +99,12 @@ function EventsPageInner({ tournaments, seminars }: EventsPageProps) {
     const renderEventCard = (event: EventItem, i: number, type: 'Tournament' | 'Seminar') => {
         const p = palette[i % palette.length];
         const isTournament = type === 'Tournament';
-        const isPast = !isUpcoming(event);
         
         return (
-            <Link key={event.id} href={isTournament ? `/tournament/${event.id}${qs}` : `/seminars/${event.id}${qs}`} className={`wotf-card-enter group block relative bg-[#111] rounded-2xl overflow-hidden border ${p.border} hover:border-white/30 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] ${isPast ? 'opacity-75 hover:opacity-100' : ''}`} style={{ animationDelay: `${i * 0.1}s` }}>
+            <Link key={event.id} href={isTournament ? `/tournament/${event.id}${qs}` : `/seminars/${event.id}${qs}`} className={`wotf-card-enter group block relative bg-[#111] rounded-2xl overflow-hidden border ${p.border} hover:border-white/30 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)]`} style={{ animationDelay: `${i * 0.1}s` }}>
                 
                 {/* Banner Image Area */}
-                <div className={`relative h-48 w-full bg-[#1A1A1A] overflow-hidden ${isPast ? 'grayscale-[30%]' : ''}`}>
+                <div className="relative h-48 w-full bg-[#1A1A1A] overflow-hidden">
                     <EventBanner imageUrl={event.imageUrl} colorClass={p.bg} />
                     {/* Gradient Overlay */}
                     <div className="absolute inset-0 bg-gradient-to-t from-[#111] via-[#111]/40 to-transparent" />
@@ -123,14 +115,7 @@ function EventsPageInner({ tournaments, seminars }: EventsPageProps) {
                         <span className="text-[10px] font-bold text-white uppercase tracking-wider">{type}</span>
                     </div>
 
-                    {/* Status Badge for past events */}
-                    {isPast && (
-                        <div className="absolute top-4 left-4 bg-white/10 backdrop-blur-md border border-white/10 rounded-full px-3 py-1">
-                            <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">
-                                {event.status === 'COMPLETED' ? 'Completed' : 'Past Event'}
-                            </span>
-                        </div>
-                    )}
+
                 </div>
 
                 {/* Content Area */}

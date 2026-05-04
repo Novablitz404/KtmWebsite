@@ -35,10 +35,29 @@ export default async function EventsPage(props: { searchParams: Promise<{ type?:
             }),
         ])
 
-        const serializedTournaments = tournaments.map(t => ({ id: t.id, name: t.name, date: t.startDate.toISOString(), venue: t.venue, imageUrl: t.headerImageUrl, status: t.status }))
-        const serializedSeminars = seminars.map(s => ({ id: s.id, name: s.name, date: s.startDate.toISOString(), venue: s.venue, imageUrl: s.bannerUrl, status: s.status || 'UPCOMING' }))
+        // Server-side split: use date as primary factor
+        const isUpcoming = (date: Date, status: string) => {
+            if (status === 'COMPLETED') return false
+            if (status === 'ONGOING') return true
+            return date >= now
+        }
 
-        return <GlobalEventsPage tournaments={serializedTournaments} seminars={serializedSeminars} />
+        const serialize = (t: any, imageField: 'headerImageUrl' | 'bannerUrl') => ({
+            id: t.id, name: t.name, date: t.startDate.toISOString(), venue: t.venue,
+            imageUrl: t[imageField], status: t.status
+        })
+
+        const upcomingTournaments = tournaments.filter(t => isUpcoming(t.startDate, t.status)).map(t => serialize(t, 'headerImageUrl'))
+        const pastTournaments = tournaments.filter(t => !isUpcoming(t.startDate, t.status)).map(t => serialize(t, 'headerImageUrl'))
+        const upcomingSeminars = seminars.filter(s => isUpcoming(s.startDate, s.status)).map(s => serialize(s, 'bannerUrl'))
+        const pastSeminars = seminars.filter(s => !isUpcoming(s.startDate, s.status)).map(s => serialize(s, 'bannerUrl'))
+
+        return <GlobalEventsPage
+            tournaments={upcomingTournaments}
+            seminars={upcomingSeminars}
+            pastTournaments={pastTournaments}
+            pastSeminars={pastSeminars}
+        />
     }
 
     // Non-KTM tenant: show org-specific events page with real data

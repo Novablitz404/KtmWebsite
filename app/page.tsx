@@ -28,26 +28,41 @@ export default async function Home() {
     
     let stats = { athletes: 0, clubs: 0, events: 0 }
     let upcomingEvents: { id: string; name: string; type: string; date: string; venue: string | null, imageUrl?: string | null }[] = []
+    let pastEvents: { id: string; name: string; type: string; date: string; venue: string | null, imageUrl?: string | null }[] = []
 
     if (orgId) {
+      const now = new Date()
       const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { ownerId: true } })
-      const [clubs, athleteCount, tournaments, seminars] = await Promise.all([
+      const [clubs, athleteCount, upcomingTournaments, upcomingSeminars, pastTournaments, pastSeminars] = await Promise.all([
         prisma.club.findMany({ where: { organizationId: orgId, status: 'APPROVED' }, select: { name: true } }),
         prisma.user.count({ where: { organizationMemberId: orgId, role: 'ATHLETE' } }),
-        org?.ownerId ? prisma.tournament.findMany({ where: { organizerId: org.ownerId, status: { in: ['UPCOMING', 'ONGOING', 'COMPLETED'] } }, select: { id: true, name: true, startDate: true, venue: true, headerImageUrl: true }, orderBy: { startDate: 'desc' }, take: 4 }) : Promise.resolve([]),
-        prisma.seminar.findMany({ where: { organizationId: orgId, status: { in: ['UPCOMING', 'OPEN', 'COMPLETED'] } }, select: { id: true, name: true, startDate: true, venue: true, bannerUrl: true }, orderBy: { startDate: 'desc' }, take: 4 }),
+        // Upcoming tournaments: future date and not completed/cancelled
+        org?.ownerId ? prisma.tournament.findMany({ where: { organizerId: org.ownerId, startDate: { gte: now }, status: { in: ['UPCOMING', 'ONGOING'] } }, select: { id: true, name: true, startDate: true, venue: true, headerImageUrl: true }, orderBy: { startDate: 'asc' }, take: 4 }) : Promise.resolve([]),
+        // Upcoming seminars
+        prisma.seminar.findMany({ where: { organizationId: orgId, startDate: { gte: now }, status: { in: ['UPCOMING', 'OPEN'] } }, select: { id: true, name: true, startDate: true, venue: true, bannerUrl: true }, orderBy: { startDate: 'asc' }, take: 4 }),
+        // Past tournaments: past date or completed
+        org?.ownerId ? prisma.tournament.findMany({ where: { organizerId: org.ownerId, OR: [{ startDate: { lt: now } }, { status: 'COMPLETED' }], status: { not: 'CANCELLED' } }, select: { id: true, name: true, startDate: true, venue: true, headerImageUrl: true }, orderBy: { startDate: 'desc' }, take: 4 }) : Promise.resolve([]),
+        // Past seminars
+        prisma.seminar.findMany({ where: { organizationId: orgId, OR: [{ startDate: { lt: now } }, { status: 'COMPLETED' }], status: { not: 'CANCELLED' } }, select: { id: true, name: true, startDate: true, venue: true, bannerUrl: true }, orderBy: { startDate: 'desc' }, take: 4 }),
       ])
       const [tournamentCount, seminarCount] = await Promise.all([
         org?.ownerId ? prisma.tournament.count({ where: { organizerId: org.ownerId } }) : Promise.resolve(0),
         prisma.seminar.count({ where: { organizationId: orgId } }),
       ])
       stats = { athletes: athleteCount, clubs: clubs.length, events: tournamentCount + seminarCount }
-      const tournamentEvents = tournaments.map(e => ({ id: e.id, name: e.name, type: 'Tournament', date: e.startDate.toISOString(), venue: e.venue, imageUrl: e.headerImageUrl }))
-      const semEvents = seminars.map(e => ({ id: e.id, name: e.name, type: 'Seminar', date: e.startDate.toISOString(), venue: e.venue, imageUrl: e.bannerUrl }))
-      upcomingEvents = [...tournamentEvents, ...semEvents].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 4)
+      
+      upcomingEvents = [
+        ...upcomingTournaments.map(e => ({ id: e.id, name: e.name, type: 'Tournament', date: e.startDate.toISOString(), venue: e.venue, imageUrl: e.headerImageUrl })),
+        ...upcomingSeminars.map(e => ({ id: e.id, name: e.name, type: 'Seminar', date: e.startDate.toISOString(), venue: e.venue, imageUrl: e.bannerUrl })),
+      ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 4)
+
+      pastEvents = [
+        ...pastTournaments.map(e => ({ id: e.id, name: e.name, type: 'Tournament', date: e.startDate.toISOString(), venue: e.venue, imageUrl: e.headerImageUrl })),
+        ...pastSeminars.map(e => ({ id: e.id, name: e.name, type: 'Seminar', date: e.startDate.toISOString(), venue: e.venue, imageUrl: e.bannerUrl })),
+      ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 4)
     }
 
-    return <WOTFGlobalLandingPage stats={stats} upcomingEvents={upcomingEvents} />
+    return <WOTFGlobalLandingPage stats={stats} upcomingEvents={upcomingEvents} pastEvents={pastEvents} />
   }
 
   // Non-KTM tenant handling (WOTF PH, etc.)
