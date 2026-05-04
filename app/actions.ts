@@ -3961,7 +3961,7 @@ export async function updateTournamentDetails(
                 ...(data.regularPrice !== undefined && { regularPrice: data.regularPrice }),
                 ...(data.headerImageUrl !== undefined && { headerImageUrl: data.headerImageUrl || null }),
                 ...(data.status !== undefined && { status: data.status as any }),
-                ...(data.guidelines !== undefined && { guidelines: data.guidelines }),
+                ...(data.guidelines !== undefined && { guidelinesText: data.guidelines }),
             }
         })
 

@@ -1,7 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Search } from 'lucide-react'
+import { Search, Loader2 } from 'lucide-react'
+import { updateRegistrationStatus } from '../actions'
+import { toast } from 'sonner'
 
 interface Registration {
     id: string
@@ -19,22 +21,48 @@ interface ParticipantsTableProps {
     registrations: Registration[]
 }
 
+const STATUS_OPTIONS = ['PENDING', 'APPROVED', 'PASSED', 'FAILED'] as const
+
+const statusStyles: Record<string, { bg: string; text: string; border: string; ring: string }> = {
+    PENDING:  { bg: 'bg-yellow-50',  text: 'text-yellow-700',  border: 'border-yellow-200', ring: 'focus:ring-yellow-200' },
+    APPROVED: { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200',   ring: 'focus:ring-blue-200'   },
+    PASSED:   { bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-200',  ring: 'focus:ring-green-200'  },
+    FAILED:   { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200',    ring: 'focus:ring-red-200'    },
+}
+
 export default function ParticipantsTable({ registrations }: ParticipantsTableProps) {
     const [filterStatus, setFilterStatus] = useState<string>('ALL')
     const [searchQuery, setSearchQuery] = useState('')
+    const [updatingId, setUpdatingId] = useState<string | null>(null)
+    const [localStatuses, setLocalStatuses] = useState<Record<string, string>>({})
+
+    const getStatus = (reg: Registration) => localStatuses[reg.id] || reg.status
 
     const filteredRegs = registrations.filter(reg => {
-        const matchesStatus = filterStatus === 'ALL' || reg.status === filterStatus
+        const status = getStatus(reg)
+        const matchesStatus = filterStatus === 'ALL' || status === filterStatus
         const matchesSearch = reg.playerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
             (reg.clubName?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
         return matchesStatus && matchesSearch
     })
 
-    const statusColors: Record<string, string> = {
-        PENDING: 'bg-yellow-100 text-yellow-800',
-        APPROVED: 'bg-blue-100 text-blue-800',
-        PASSED: 'bg-green-100 text-green-800',
-        FAILED: 'bg-red-100 text-red-800'
+    const handleStatusChange = async (regId: string, newStatus: string) => {
+        setUpdatingId(regId)
+        setLocalStatuses(prev => ({ ...prev, [regId]: newStatus }))
+
+        const result = await updateRegistrationStatus(regId, newStatus)
+        if (result.error) {
+            toast.error(result.error)
+            // Revert on error
+            setLocalStatuses(prev => {
+                const next = { ...prev }
+                delete next[regId]
+                return next
+            })
+        } else {
+            toast.success('Status updated')
+        }
+        setUpdatingId(null)
     }
 
     return (
@@ -88,41 +116,63 @@ export default function ParticipantsTable({ registrations }: ParticipantsTablePr
                                     </td>
                                 </tr>
                             ) : (
-                                filteredRegs.map(reg => (
-                                    <tr key={reg.id} className="hover:bg-gray-50/50 transition-colors">
-                                        <td className="px-6 py-4 font-medium text-gray-900">
-                                            {reg.playerName}
-                                        </td>
-                                        <td className="px-6 py-4 text-gray-600 text-sm">
-                                            {reg.clubName || '-'}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2 text-sm">
-                                                <span className="px-2 py-0.5 bg-gray-100 rounded text-gray-700">{reg.currentBelt}</span>
-                                                <span className="text-gray-400">→</span>
-                                                <span className="px-2 py-0.5 bg-amber-50 border border-amber-100 text-amber-800 font-medium">{reg.targetBelt || '-'}</span>
-                                                {reg.isJump && (
-                                                    <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 border border-purple-200 rounded text-[10px] font-bold">
-                                                        JUMP
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${reg.paymentStatus === 'PAID'
-                                                ? 'bg-green-50 text-green-700 border-green-200'
-                                                : 'bg-gray-50 text-gray-500 border-gray-200'
-                                                }`}>
-                                                {reg.paymentStatus}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[reg.status] || 'bg-gray-100 text-gray-600'}`}>
-                                                {reg.status}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                ))
+                                filteredRegs.map(reg => {
+                                    const currentStatus = getStatus(reg)
+                                    const style = statusStyles[currentStatus] || statusStyles.PENDING
+                                    const isUpdating = updatingId === reg.id
+
+                                    return (
+                                        <tr key={reg.id} className="hover:bg-gray-50/50 transition-colors">
+                                            <td className="px-6 py-4 font-medium text-gray-900">
+                                                {reg.playerName}
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-600 text-sm">
+                                                {reg.clubName || '-'}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-2 text-sm">
+                                                    <span className="px-2 py-0.5 bg-gray-100 rounded text-gray-700">{reg.currentBelt}</span>
+                                                    <span className="text-gray-400">→</span>
+                                                    <span className="px-2 py-0.5 bg-amber-50 border border-amber-100 text-amber-800 font-medium">{reg.targetBelt || '-'}</span>
+                                                    {reg.isJump && (
+                                                        <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 border border-purple-200 rounded text-[10px] font-bold">
+                                                            JUMP
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${reg.paymentStatus === 'PAID'
+                                                    ? 'bg-green-50 text-green-700 border-green-200'
+                                                    : 'bg-gray-50 text-gray-500 border-gray-200'
+                                                    }`}>
+                                                    {reg.paymentStatus}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="relative inline-flex items-center">
+                                                    <select
+                                                        value={currentStatus}
+                                                        onChange={e => handleStatusChange(reg.id, e.target.value)}
+                                                        disabled={isUpdating}
+                                                        className={`appearance-none cursor-pointer pl-3 pr-7 py-1.5 rounded-full text-xs font-bold border outline-none transition-all ${style.bg} ${style.text} ${style.border} ${style.ring} focus:ring-2 disabled:opacity-60 disabled:cursor-wait`}
+                                                    >
+                                                        {STATUS_OPTIONS.map(s => (
+                                                            <option key={s} value={s}>{s}</option>
+                                                        ))}
+                                                    </select>
+                                                    {isUpdating ? (
+                                                        <Loader2 size={10} className="absolute right-2 animate-spin pointer-events-none" />
+                                                    ) : (
+                                                        <svg className="absolute right-2 w-2.5 h-2.5 pointer-events-none opacity-50" viewBox="0 0 10 6" fill="none">
+                                                            <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                                        </svg>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )
+                                })
                             )}
                         </tbody>
                     </table>
