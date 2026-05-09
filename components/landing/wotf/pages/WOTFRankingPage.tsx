@@ -47,7 +47,7 @@ export default async function WOTFRankingPage({ searchParams }: Props) {
 
                     <div className="w-full max-w-[1400px] mx-auto text-center relative z-10">
                         <h1 className="text-5xl md:text-7xl font-black mb-6 tracking-tighter uppercase text-white">
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-congo-blue to-cyan-400">J-SCORE</span> RANKINGS
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-congo-blue to-cyan-400">GSS</span> RANKINGS
                         </h1>
                         <p className="text-gray-300 text-lg md:text-xl max-w-2xl mx-auto font-medium">
                             Official leaderboard for verified WOTF Taekwondo athletes.

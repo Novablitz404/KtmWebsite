@@ -1097,7 +1097,7 @@ export default function AthleteDashboardView({
                                 </div>
                                 <h2 className="text-2xl font-black text-gray-900 mb-3">Unranked</h2>
                                 <p className="text-gray-500 max-w-md mb-8 leading-relaxed">
-                                    You have not achieved any verified global ranking points yet. Compete in J-Score events to earn your spot on the leaderboard!
+                                    You have not achieved any verified global ranking points yet. Compete in GSS-ranked events to earn your spot on the leaderboard!
                                 </p>
                                 <div className="flex gap-4">
                                     <div className="px-5 py-3 bg-gray-50 rounded-xl border border-gray-100 flex flex-col items-center min-w-[140px] opacity-70">
@@ -1121,7 +1121,7 @@ export default function AthleteDashboardView({
                                         <div>
                                             <p className="text-sm font-bold text-amber-800">Athlete Card Required</p>
                                             <p className="text-xs text-amber-600 mt-0.5 leading-relaxed">
-                                                To earn J-Scores and appear on the global leaderboard, you need an activated Athlete Card. Contact your organization to get verified.
+                                                To earn a GSS rating and appear on the global leaderboard, you need an activated Athlete Card. Contact your organization to get verified.
                                             </p>
                                         </div>
                                     </div>

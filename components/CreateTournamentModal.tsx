@@ -31,7 +31,7 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
     const [startDate, setStartDate] = useState<Date | undefined>(undefined)
     const [registrationStart, setRegistrationStart] = useState<Date | undefined>(undefined)
     const [registrationEnd, setRegistrationEnd] = useState<Date | undefined>(undefined)
-    const [selectedTier, setSelectedTier] = useState('J-2')
+    const [selectedTier, setSelectedTier] = useState('GSS-3')
     const [dateTBA, setDateTBA] = useState(false)
 
     // Time States
@@ -209,29 +209,35 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
                                         </div>
                                     </div>
 
-                                    {/* J-Score Tier + Guideline Template Row */}
+                                    {/* GSS Tier + Guideline Template Row */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                                                J-Score Tier
+                                                GSS Tier
                                             </label>
                                             <div className="flex gap-2">
-                                                {(['J-1', 'J-2', 'J-3', 'J-4'] as const).map((tier) => (
+                                                {([
+                                                    { value: 'GSS-4', label: 'Local', desc: '×0.75' },
+                                                    { value: 'GSS-3', label: 'Standard', desc: '×1.0' },
+                                                    { value: 'GSS-2', label: 'Major', desc: '×1.5' },
+                                                    { value: 'GSS-1', label: 'Premier', desc: '×2.0' },
+                                                ] as const).map((tier) => (
                                                     <button
-                                                        key={tier}
+                                                        key={tier.value}
                                                         type="button"
-                                                        onClick={() => setSelectedTier(tier)}
-                                                        className={`flex-1 px-3 py-2 text-sm font-bold rounded-lg border transition-all ${selectedTier === tier
+                                                        onClick={() => setSelectedTier(tier.value)}
+                                                        className={`flex-1 px-3 py-2 text-sm font-bold rounded-lg border transition-all ${selectedTier === tier.value
                                                             ? 'bg-red-600 text-white border-red-600 shadow-sm'
                                                             : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                                                             }`}
                                                     >
-                                                        {tier}
+                                                        <span className="block text-xs">{tier.label}</span>
+                                                        <span className="block text-[10px] opacity-70">{tier.desc}</span>
                                                     </button>
                                                 ))}
                                             </div>
                                             <p className="text-xs text-gray-400 mt-1">
-                                                Higher tiers award more ranking points (J-1 = base, J-4 = 4×).
+                                                Higher tiers multiply GSS ranking bonuses (Local = ×0.75, Premier = ×2.0).
                                             </p>
                                             <input type="hidden" name="tier" value={selectedTier} />
                                         </div>

@@ -73,9 +73,9 @@ export default function RankingFilters() {
     }
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+        <div className="bg-[#111] rounded-xl border border-white/10 p-4 mb-6">
             <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                <h3 className="text-sm font-bold text-gray-300 flex items-center gap-2">
                     <Filter className="w-4 h-4" />
                     Filter Rankings
                 </h3>
@@ -186,7 +186,7 @@ export default function RankingFilters() {
             </div>
 
             {isPending && (
-                <div className="mt-2 text-xs text-center text-gray-400 animate-pulse">
+                <div className="mt-2 text-xs text-center text-gray-500 animate-pulse">
                     Updating results...
                 </div>
             )}

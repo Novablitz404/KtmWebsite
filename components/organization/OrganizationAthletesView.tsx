@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search, ShieldCheck, ShieldOff, IdCard, Users, Eye, X, Loader2, CheckCircle, XCircle } from 'lucide-react'
+import { Search, ShieldCheck, ShieldOff, IdCard, Users, Eye, X, Loader2, CheckCircle, XCircle, KeyRound } from 'lucide-react'
 import { getOrganizationAthletes, toggleAthleteCardStatus } from '@/app/organization/actions'
 import { approveAthleteCardPayment, rejectAthleteCardPayment } from '@/app/actions'
 import { toast } from 'sonner'
@@ -34,6 +34,7 @@ export default function OrganizationAthletesView() {
     const [selectedAthlete, setSelectedAthlete] = useState<Athlete | null>(null)
     const [isApproving, setIsApproving]     = useState(false)
     const [isRejecting, setIsRejecting]     = useState(false)
+    const [isResettingPassword, setIsResettingPassword] = useState(false)
 
     useEffect(() => { loadAthletes() }, [])
     useEffect(() => { setPage(1) }, [search, filter])
@@ -409,8 +410,8 @@ export default function OrganizationAthletesView() {
                             </div>
                         )}
 
-                        {/* Info footer */}
-                        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+                        {/* Footer with actions */}
+                        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 space-y-3">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Card ID</p>
@@ -433,6 +434,43 @@ export default function OrganizationAthletesView() {
                                     }
                                 </button>
                             </div>
+                            {/* Password Reset — only for athletes with real emails */}
+                            {selectedAthlete.email && !selectedAthlete.email.includes('noemail-') && (
+                            <div className="pt-3 border-t border-gray-200">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <KeyRound className="w-3.5 h-3.5 text-gray-400" />
+                                        <div>
+                                            <p className="text-xs font-bold text-gray-700">Reset Password</p>
+                                            <p className="text-[10px] text-gray-400">Send a temporary password to their email</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        disabled={isResettingPassword}
+                                        onClick={async () => {
+                                            if (!confirm(`Reset password for ${selectedAthlete.name}? A temporary password will be emailed to them.`)) return
+                                            setIsResettingPassword(true)
+                                            try {
+                                                const { orgResetPassword } = await import('@/app/organization/actions')
+                                                await orgResetPassword(selectedAthlete.id)
+                                                toast.success(`Password reset! Temporary password sent to ${selectedAthlete.name}'s email.`)
+                                            } catch (error: any) {
+                                                toast.error(error?.message || 'Failed to reset password')
+                                            } finally {
+                                                setIsResettingPassword(false)
+                                            }
+                                        }}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold rounded-xl bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                    >
+                                        {isResettingPassword ? (
+                                            <><Loader2 className="w-3 h-3 animate-spin" /> Resetting...</>
+                                        ) : (
+                                            <><KeyRound className="w-3 h-3" /> Reset & Email</>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                            )}
                         </div>
                     </div>
                 </div>

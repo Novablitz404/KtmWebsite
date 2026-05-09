@@ -9,13 +9,14 @@ import {
     Check, X, Building2, Users, Phone, Mail, MapPin,
     Calendar, Shield, ShieldCheck, ShieldAlert, ShieldX,
     Clock, Eye, CheckCircle, XCircle, ChevronRight, Globe, Award,
-    Search, UserPlus, Loader2, User, Trash2, AlertTriangle
+    Search, UserPlus, Loader2, User, Trash2, AlertTriangle, KeyRound
 } from 'lucide-react'
 
 interface ClubData {
     id: string
     name: string
     logoUrl: string | null
+    masterId: string | null
     masterName: string
     masterEmail?: string | null
     masterImageUrl?: string | null
@@ -419,6 +420,7 @@ function ClubDetailModal({ club, onClose }: { club: ClubData, onClose: () => voi
     // Revocation state
     const [showRevokeClubModal, setShowRevokeClubModal] = useState(false)
     const [revokeAthleteTarget, setRevokeAthleteTarget] = useState<{ id: string; name: string } | null>(null)
+    const [isResettingMasterPw, setIsResettingMasterPw] = useState(false)
 
     // Fetch members when switching to Members tab
     useEffect(() => {
@@ -660,6 +662,34 @@ function ClubDetailModal({ club, onClose }: { club: ClubData, onClose: () => voi
                                                 </div>
                                             )}
                                         </div>
+                                        {/* Reset Club Master Password */}
+                                        {club.masterId && club.masterEmail && !club.masterEmail.includes('noemail-') && (
+                                            <div className="border-t border-gray-200 pt-3">
+                                                <button
+                                                    disabled={isResettingMasterPw}
+                                                    onClick={async () => {
+                                                        if (!confirm(`Reset password for ${club.masterName}? A temporary password will be emailed to them.`)) return
+                                                        setIsResettingMasterPw(true)
+                                                        try {
+                                                            const { orgResetPassword } = await import('@/app/organization/actions')
+                                                            await orgResetPassword(club.masterId!)
+                                                            toast.success(`Password reset! Temporary password sent to ${club.masterName}.`)
+                                                        } catch (error: any) {
+                                                            toast.error(error?.message || 'Failed to reset password')
+                                                        } finally {
+                                                            setIsResettingMasterPw(false)
+                                                        }
+                                                    }}
+                                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                                >
+                                                    {isResettingMasterPw ? (
+                                                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Resetting...</>
+                                                    ) : (
+                                                        <><KeyRound className="w-3.5 h-3.5 text-gray-400" /> Reset Password</>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 

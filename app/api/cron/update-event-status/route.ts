@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { processTournamentCompletion } from '@/lib/gss-ranking'
 
 /**
  * GET /api/cron/update-event-status
@@ -21,6 +22,16 @@ export async function GET(req: NextRequest) {
     const results: Record<string, number> = {}
 
     try {
+        // Find tournaments that are about to be completed (for GSS processing)
+        const tournamentsToComplete = await prisma.tournament.findMany({
+            where: {
+                startDate: { lt: now },
+                status: { in: ['UPCOMING', 'ONGOING', 'OPEN'] },
+                dateTBA: false,
+            },
+            select: { id: true },
+        })
+
         // 1. Tournaments — mark COMPLETED if startDate has passed (skip TBA)
         const tournaments = await prisma.tournament.updateMany({
             where: {
@@ -31,6 +42,13 @@ export async function GET(req: NextRequest) {
             data: { status: 'COMPLETED' },
         })
         results.tournaments = tournaments.count
+
+        // GSS: Process field strength bonuses for each completed tournament
+        for (const t of tournamentsToComplete) {
+            processTournamentCompletion(t.id).catch(err => {
+                console.error(`[GSS] Tournament completion processing failed for ${t.id}:`, err)
+            })
+        }
 
         // 2. Seminars — mark COMPLETED if endDate (or startDate) has passed
         const seminars = await prisma.seminar.updateMany({

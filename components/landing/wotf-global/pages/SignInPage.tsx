@@ -11,9 +11,23 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react';
 function SignInPageInner() {
     const { t } = useI18n();
     const searchParams = useSearchParams();
-    const tenantParam = searchParams.get('tenant');
-    const qs = tenantParam ? `?tenant=${tenantParam}` : '';
     const router = useRouter();
+
+    // Detect tenant from query param OR from hostname (domain-based access)
+    const tenantParam = searchParams.get('tenant');
+    const detectedTenant = (() => {
+        if (tenantParam) return tenantParam;
+        if (typeof window !== 'undefined') {
+            const host = window.location.hostname;
+            const DOMAIN_TENANT: Record<string, string> = {
+                'wo-tf.com': 'wotf-global',
+                'www.wo-tf.com': 'wotf-global',
+            };
+            return DOMAIN_TENANT[host] || null;
+        }
+        return null;
+    })();
+    const qs = detectedTenant ? `?tenant=${detectedTenant}` : '';
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');

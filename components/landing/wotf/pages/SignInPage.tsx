@@ -25,8 +25,22 @@ export default function WOTFSignInPage() {
     const [firstLogin, setFirstLogin] = React.useState(false);
     const router = useRouter();
     const searchParams = useSearchParams();
+
+    // Detect tenant from query param OR from hostname (domain-based access)
     const tenantParam = searchParams.get('tenant');
-    const qs = tenantParam ? `?tenant=${tenantParam}` : '';
+    const detectedTenant = (() => {
+        if (tenantParam) return tenantParam;
+        if (typeof window !== 'undefined') {
+            const host = window.location.hostname;
+            const DOMAIN_TENANT: Record<string, string> = {
+                'wo-tf.com': 'wotf-global',
+                'www.wo-tf.com': 'wotf-global',
+            };
+            return DOMAIN_TENANT[host] || null;
+        }
+        return null;
+    })();
+    const qs = detectedTenant ? `?tenant=${detectedTenant}` : '';
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

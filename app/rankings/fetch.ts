@@ -8,10 +8,20 @@ export interface RankingEntry {
     clubName: string | null
     totalPoints: number
     rank: number
+    eloRating?: number
+    isActive?: boolean
     profileImage?: string | null
     verified: boolean;
 }
 
+/**
+ * Fetches GSS Rankings from the materialized view.
+ *
+ * Scope resolution (affiliation-driven):
+ * - KTM site (no tenantId or slug 'ktm') → GLOBAL scope
+ * - Org with active parent affiliation → parent org's scope
+ * - Org without parent → own org scope
+ */
 export async function fetchRankings(
     filters: {
         type?: string // KYORUGI | POOMSAE
@@ -20,8 +30,9 @@ export async function fetchRankings(
         belt?: string
         skillLevel?: string
         weightCategory?: string
-        tenantId?: string // Added for organization filtering
-        search?: string // Added for athlete name search
+        tenantId?: string // Organization ID for scoping
+        tenantSlug?: string // Tenant slug (e.g., "ktm", "wotf-global")
+        search?: string // Athlete name search
     } = {}
 ) {
     let rankings: Array<{
@@ -32,24 +43,69 @@ export async function fetchRankings(
         division: string | null
         gender: string | null
         type: string
+        scope: string
+        eloRating: number
+        matchCount: number
+        activityCount: number
+        isActive: boolean
+        fieldBonus: number
         totalPoints: number
         globalRank: number
     }> = []
 
     try {
-        // Query the Materialized View directly
+        // Determine scope based on tenant context
+        let scope = 'GLOBAL'
+
+        if (filters.tenantId && filters.tenantSlug !== 'ktm') {
+            // Check if this org is a PARENT (has clubs affiliated TO it)
+            const affiliatedClubCount = await prisma.clubAffiliation.count({
+                where: {
+                    organizationId: filters.tenantId,
+                    status: 'ACTIVE',
+                },
+            })
+
+            if (affiliatedClubCount > 0) {
+                // This org IS a parent org (e.g., WOTF Global) — show its own org scope
+                // which includes all athletes whose clubs are affiliated with it
+                scope = filters.tenantId
+            } else {
+                // This org is a child/standalone — check if it has a parent
+                const org = await prisma.organization.findUnique({
+                    where: { id: filters.tenantId },
+                    select: {
+                        id: true,
+                        clubs: {
+                            select: {
+                                affiliations: {
+                                    where: { status: 'ACTIVE' },
+                                    select: { organizationId: true },
+                                    take: 1,
+                                },
+                            },
+                            take: 1,
+                        },
+                    },
+                })
+
+                const parentAffiliation = org?.clubs?.[0]?.affiliations?.[0]
+                if (parentAffiliation) {
+                    scope = parentAffiliation.organizationId
+                } else {
+                    scope = filters.tenantId
+                }
+            }
+        }
+
+        // Query the Materialized View
         rankings = await prisma.globalAthleteRanking.findMany({
             where: {
+                scope,
                 ...(filters.type ? { type: filters.type } : {}),
                 ...(filters.division ? { division: { contains: filters.division, mode: 'insensitive' as const } } : {}),
                 ...(filters.gender ? { gender: filters.gender } : {}),
                 ...(filters.search ? { playerName: { contains: filters.search, mode: 'insensitive' as const } } : {}),
-                ...(filters.tenantId ? {
-                    OR: [
-                        { organizationId: filters.tenantId },
-                        { parentOrganizationId: filters.tenantId }
-                    ]
-                } : {})
             },
             orderBy: { globalRank: 'asc' },
             take: 100 // Top 100 limit
@@ -77,6 +133,8 @@ export async function fetchRankings(
             clubName: r.clubName,
             totalPoints: r.totalPoints,
             rank: r.globalRank,
+            eloRating: r.eloRating,
+            isActive: r.isActive,
             verified: true,
             profileImage: imageMap.get(r.userId) || undefined
         }

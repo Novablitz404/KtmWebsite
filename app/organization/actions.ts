@@ -149,6 +149,7 @@ export async function getOrganizationDashboardData() {
             id: c.id,
             name: c.name,
             logoUrl: c.logoUrl,
+            masterId: c.master?.id || null,
             masterName: c.master?.name || "Unknown",
             masterEmail: c.master?.email || null,
             masterImageUrl: c.master?.imageUrl || null,
@@ -3397,3 +3398,124 @@ export async function revokeAthlete(athleteId: string) {
         return { error: error.message || 'Failed to revoke athlete' }
     }
 }
+
+// ============================================
+// ORGANIZATION PASSWORD RESET
+// ============================================
+
+export async function orgResetPassword(targetUserId: string) {
+    const user = await getAuthUser()
+    if (!user) throw new Error('Unauthorized')
+
+    const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: { organization: { select: { id: true, name: true, logoUrl: true } } }
+    })
+
+    if (!dbUser?.organization) throw new Error('No organization found')
+    if (!['ORGANIZER', 'MANAGER', 'ADMIN'].includes(dbUser.role)) throw new Error('Unauthorized')
+
+    const orgId = dbUser.organization.id
+
+    // Get all clubs under this org
+    const orgClubs = await prisma.club.findMany({
+        where: { organizationId: orgId },
+        select: { name: true, masterId: true }
+    })
+    const clubNames = orgClubs.map(c => c.name)
+    const clubMasterIds = orgClubs.map(c => c.masterId).filter(Boolean) as string[]
+
+    // Find target user and verify they belong to this org's clubs
+    const targetUser = await prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { id: true, clerkId: true, email: true, name: true, clubName: true }
+    })
+
+    if (!targetUser) throw new Error('User not found')
+
+    // Check: user is either an athlete in one of the org's clubs OR a club master
+    const isInOrgClub = targetUser.clubName && clubNames.includes(targetUser.clubName)
+    const isClubMaster = clubMasterIds.includes(targetUser.id)
+    if (!isInOrgClub && !isClubMaster) {
+        throw new Error('This user does not belong to your organization')
+    }
+
+    // Generate random 8-character password
+    const newPassword = crypto.randomBytes(4).toString('hex')
+
+    const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+
+    const isSupabaseUUID = targetUser.clerkId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetUser.clerkId)
+
+    if (isSupabaseUUID) {
+        const { error } = await supabaseAdmin.auth.admin.updateUserById(targetUser.clerkId!, { password: newPassword })
+        if (error) {
+            console.error('[org-reset-password] Update error:', error.message)
+            throw new Error('Failed to reset password.')
+        }
+    } else {
+        const { data: newAuthUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+            email: targetUser.email,
+            password: newPassword,
+            email_confirm: true,
+        })
+
+        if (createError) {
+            if (createError.message.includes('already been registered') || createError.message.includes('already exists')) {
+                const { data: listData } = await supabaseAdmin.auth.admin.listUsers()
+                const existingAuthUser = listData?.users?.find(
+                    u => u.email?.toLowerCase() === targetUser.email.toLowerCase()
+                )
+                if (existingAuthUser) {
+                    await supabaseAdmin.auth.admin.updateUserById(existingAuthUser.id, { password: newPassword })
+                    await prisma.user.update({ where: { id: targetUser.id }, data: { clerkId: existingAuthUser.id } })
+                }
+            } else {
+                console.error('[org-reset-password] Create error:', createError.message)
+                throw new Error('Failed to create auth account.')
+            }
+        } else {
+            await prisma.user.update({
+                where: { id: targetUser.id },
+                data: { clerkId: newAuthUser.user.id }
+            })
+        }
+    }
+
+    // Set the mustChangePassword flag
+    await prisma.user.update({
+        where: { id: targetUser.id },
+        data: { mustChangePassword: true }
+    })
+
+    // Send email with temporary password (org-branded)
+    if (process.env.RESEND_API_KEY) {
+        try {
+            const { Resend } = await import('resend')
+            const { OrgPasswordResetEmail } = await import('../../emails/OrgPasswordResetEmail')
+            const resend = new Resend(process.env.RESEND_API_KEY)
+
+            await resend.emails.send({
+                from: `${dbUser.organization.name} <noreply@wo-tf.com>`,
+                to: [targetUser.email],
+                subject: `Your password has been reset — ${dbUser.organization.name}`,
+                react: OrgPasswordResetEmail({
+                    userName: targetUser.name || 'User',
+                    temporaryPassword: newPassword,
+                    organizationName: dbUser.organization.name,
+                    organizationLogoUrl: dbUser.organization.logoUrl,
+                }),
+            })
+            console.log(`[org-reset-password] Email sent to ${targetUser.email} by org ${dbUser.organization.name}`)
+        } catch (emailError) {
+            console.error('[org-reset-password] Email send failed:', emailError)
+        }
+    }
+
+    return { success: true }
+}
+

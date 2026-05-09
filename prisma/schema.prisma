@@ -84,7 +84,7 @@ model Tournament {
   headerImageUrl    String? // URL to uploaded header image
   guidelinesText    String? @db.Text // Custom guidelines content
   status            String    @default("UPCOMING") // UPCOMING, ONGOING, COMPLETED, CANCELLED, RESCHEDULED
-  tier              String    @default("J-2") // J-1, J-2, J-3, J-4
+  tier              String    @default("GSS-3") // GSS-1 (Premier), GSS-2 (Major), GSS-3 (Standard), GSS-4 (Local)
   dateTBA           Boolean   @default(false) // True if date not yet decided
 
   // Pricing
@@ -177,6 +177,9 @@ model User {
   isVerified    Boolean @default(false) // Athlete License Status
   athleteNumber String? // Kukkiwon No. (Black Belt) or Athlete Card No. (other belts)
   country       String? // Country of the athlete
+
+  // Admin Password Reset
+  mustChangePassword Boolean @default(false)
 
   // WOTF Global Onboarding Approval (NULL = legacy/KTM, no gate)
   onboardingStatus  String?   // "PENDING_APPROVAL", "APPROVED"
@@ -882,7 +885,7 @@ model BulkRegistration {
 // GLOBAL RANKING VIEW
 // ============================================
 view GlobalAthleteRanking {
-  id                   String @id
+  id                   String  @id
   userId               String
   playerName           String
   clubName             String?
@@ -891,10 +894,56 @@ view GlobalAthleteRanking {
   division             String?
   gender               String?
   type                 String
+  scope                String
+  eloRating            Float
+  matchCount           Int
+  activityCount        Int
+  isActive             Boolean
+  fieldBonus           Float
   totalPoints          Float
   globalRank           Int
 
   @@map("GlobalAthleteRanking")
+}
+
+// ============================================
+// GSS RANKING TABLES
+// ============================================
+
+model AthleteEloRating {
+  id             String    @id // "{userId}-{type}-{scope}"
+  userId         String
+  type           String    // "KYORUGI" or "POOMSAE"
+  scope          String    // "GLOBAL" or an organizationId
+  organizationId String?   // NULL for global, org ID for scoped
+  rating         Float     @default(1200)
+  matchCount     Int       @default(0)
+  lastMatchAt    DateTime?
+  updatedAt      DateTime  @default(now()) @updatedAt
+
+  @@index([userId, type])
+  @@index([scope])
+  @@index([organizationId])
+}
+
+model EloMatchLog {
+  id               Int      @id @default(autoincrement())
+  matchId          Int
+  tournamentId     String
+  categoryId       String
+  winnerId         String
+  loserId          String
+  winnerEloBefore  Float
+  winnerEloAfter   Float
+  loserEloBefore   Float
+  loserEloAfter    Float
+  scoreDifference  Int      @default(0)
+  kFactor          Float
+  marginMultiplier Float
+  createdAt        DateTime @default(now())
+
+  @@index([tournamentId])
+  @@index([matchId])
 }
 
 // ============================================

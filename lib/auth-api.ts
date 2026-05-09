@@ -26,6 +26,7 @@ export async function authenticateApi() {
             birthDate: true,
             clubName: true,
             organizationMemberId: true,
+            mustChangePassword: true,
             club: {
                 select: {
                     id: true,

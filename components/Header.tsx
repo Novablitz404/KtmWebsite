@@ -84,10 +84,8 @@ export default function Header() {
                                 {[
                                     { href: '/', label: 'Home' },
                                     { href: '/about', label: 'About' },
-                                    ...(!tenant.isKtmAdmin ? [
-                                        { href: '/events', label: 'Events' },
-                                        { href: '/rankings', label: 'Rankings' },
-                                    ] : []),
+                                    { href: '/events', label: 'Events' },
+                                    { href: '/rankings', label: 'Rankings' },
                                 ].map(link => (
                                     <Link
                                         key={link.href}
@@ -158,10 +156,8 @@ function MobilePublicMenu({ scrolled, isHomePage }: { scrolled: boolean; isHomeP
                     {[
                         { href: '/', label: 'Home' },
                         { href: '/about', label: 'About' },
-                        ...(!tenant.isKtmAdmin ? [
-                            { href: '/events', label: 'Events' },
-                            { href: '/rankings', label: 'Rankings' },
-                        ] : []),
+                        { href: '/events', label: 'Events' },
+                        { href: '/rankings', label: 'Rankings' },
                     ].map(link => (
                         <Link
                             key={link.href}

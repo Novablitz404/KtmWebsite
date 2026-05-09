@@ -15,6 +15,7 @@ interface DbUser {
     gender: string | null
     clubName: string | null
     organizationMemberId: string | null
+    mustChangePassword: boolean
 }
 
 interface AuthContextType {

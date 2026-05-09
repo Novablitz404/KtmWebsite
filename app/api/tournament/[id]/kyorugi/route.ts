@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/supabase/server'
+import { processMatchResult } from '@/lib/gss-ranking'
 
 export async function POST(
     request: NextRequest,
@@ -121,6 +122,14 @@ export async function POST(
                     })
                 }
             }
+
+            // GSS: Process Elo update when a winner is set
+            if (result.winner) {
+                processMatchResult(updatedMatch.id).catch(err => {
+                    console.error(`[GSS] Elo update failed for match ${updatedMatch.id}:`, err)
+                })
+            }
+
             updatedCount++
         }
 

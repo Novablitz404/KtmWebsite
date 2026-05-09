@@ -936,7 +936,7 @@ export async function sendInvoiceEmail(orgId: string, email: string, orgName: st
 
         // Resend API allows base64 content in attachments
         await resend.emails.send({
-            from: 'KTM Platform <noreply@ktm.com>',
+                from: 'KTM Platform <noreply@wo-tf.com>',
             to: [email],
             subject: `KTM Monthly Billing Invoice - ${monthStr}`,
             react: InvoiceEmail({ orgName, monthStr }),
@@ -1013,3 +1013,99 @@ export async function updateAdminUserDetails(userId: string, data: any) {
 
     revalidatePath('/admin/users')
 }
+
+export async function adminResetPassword(targetUserId: string) {
+    const user = await getAuthUser()
+    if (!user) throw new Error('Not authenticated')
+
+    const adminUser = await prisma.user.findUnique({ where: { id: user.id }, select: { role: true } })
+    if (adminUser?.role !== 'ADMIN') throw new Error('Unauthorized')
+
+    const targetUser = await prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { id: true, clerkId: true, email: true, name: true }
+    })
+
+    if (!targetUser) throw new Error('User not found')
+
+    // Generate a random 8-character password
+    const crypto = await import('crypto')
+    const newPassword = crypto.randomBytes(4).toString('hex') // e.g. "a3f8b2c1"
+
+    const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+
+    const isSupabaseUUID = targetUser.clerkId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetUser.clerkId)
+
+    if (isSupabaseUUID) {
+        const { error } = await supabaseAdmin.auth.admin.updateUserById(targetUser.clerkId!, { password: newPassword })
+        if (error) {
+            console.error('[admin-reset-password] Update error:', error.message)
+            throw new Error('Failed to reset password.')
+        }
+    } else {
+        // User has no Supabase Auth account yet — create one
+        const { data: newAuthUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+            email: targetUser.email,
+            password: newPassword,
+            email_confirm: true,
+        })
+
+        if (createError) {
+            if (createError.message.includes('already been registered') || createError.message.includes('already exists')) {
+                const { data: listData } = await supabaseAdmin.auth.admin.listUsers()
+                const existingAuthUser = listData?.users?.find(
+                    u => u.email?.toLowerCase() === targetUser.email.toLowerCase()
+                )
+                if (existingAuthUser) {
+                    await supabaseAdmin.auth.admin.updateUserById(existingAuthUser.id, { password: newPassword })
+                    await prisma.user.update({ where: { id: targetUser.id }, data: { clerkId: existingAuthUser.id } })
+                }
+            } else {
+                console.error('[admin-reset-password] Create error:', createError.message)
+                throw new Error('Failed to create auth account.')
+            }
+        } else {
+            await prisma.user.update({
+                where: { id: targetUser.id },
+                data: { clerkId: newAuthUser.user.id }
+            })
+        }
+    }
+
+    // Set the mustChangePassword flag
+    await prisma.user.update({
+        where: { id: targetUser.id },
+        data: { mustChangePassword: true }
+    })
+
+    // Send email with temporary password
+    if (process.env.RESEND_API_KEY) {
+        try {
+            const { Resend } = await import('resend')
+            const { PasswordResetEmail } = await import('../../emails/PasswordResetEmail')
+            const resend = new Resend(process.env.RESEND_API_KEY)
+
+            await resend.emails.send({
+                from: 'KTM Platform <noreply@wo-tf.com>',
+                to: [targetUser.email],
+                subject: 'Your password has been reset',
+                react: PasswordResetEmail({
+                    userName: targetUser.name || 'User',
+                    temporaryPassword: newPassword,
+                }),
+            })
+            console.log(`[admin-reset-password] Email sent to ${targetUser.email}`)
+        } catch (emailError) {
+            console.error('[admin-reset-password] Email send failed:', emailError)
+            // Don't throw — password was already reset successfully
+        }
+    }
+
+    return { success: true }
+}
+
+

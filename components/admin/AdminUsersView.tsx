@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { MoreHorizontal, Shield, Award, Trash2, X, AlertTriangle, Search, ChevronLeft, ChevronRight, Eye } from 'lucide-react'
+import { MoreHorizontal, Shield, Award, Trash2, X, AlertTriangle, Search, ChevronLeft, ChevronRight, Eye, KeyRound } from 'lucide-react'
 import { toast } from 'sonner'
 import { deleteUser } from '@/app/admin/actions'
 import { useRouter } from 'next/navigation'
@@ -35,6 +35,9 @@ function UserActionButtons({
     const [isFetchingDetails, setIsFetchingDetails] = useState(false)
     const [isEditing, setIsEditing] = useState(false)
     const [editForm, setEditForm] = useState<any>({})
+
+    // Password reset state
+    const [isResettingPassword, setIsResettingPassword] = useState(false)
 
     const handleDeleteUser = async () => {
         setIsLoading(true)
@@ -254,6 +257,37 @@ function UserActionButtons({
                                             </div>
                                         </div>
                                     </form>
+
+                                    {/* Password Reset Section */}
+                                    <div className="mt-8 pt-6 border-t border-gray-200">
+                                        <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2 mb-2">
+                                            <KeyRound className="w-4 h-4 text-gray-400" />
+                                            Reset Password
+                                        </h4>
+                                        <p className="text-xs text-gray-500 mb-4">
+                                            Generate a random temporary password and send it to the user's email. They will be prompted to change it on next login.
+                                        </p>
+                                        <button
+                                            type="button"
+                                            disabled={isResettingPassword}
+                                            onClick={async () => {
+                                                if (!confirm(`Reset password for ${userName}? A temporary password will be emailed to them.`)) return
+                                                setIsResettingPassword(true)
+                                                try {
+                                                    const { adminResetPassword } = await import('@/app/admin/actions')
+                                                    await adminResetPassword(userId)
+                                                    toast.success(`Password reset! Temporary password sent to ${userName}'s email.`)
+                                                } catch (error: any) {
+                                                    toast.error(error?.message || 'Failed to reset password')
+                                                } finally {
+                                                    setIsResettingPassword(false)
+                                                }
+                                            }}
+                                            className="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg font-medium hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                            {isResettingPassword ? 'Resetting...' : 'Reset Password & Send Email'}
+                                        </button>
+                                    </div>
 
 
                                 </div>

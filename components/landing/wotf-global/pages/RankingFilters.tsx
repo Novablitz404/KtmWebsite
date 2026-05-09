@@ -15,6 +15,7 @@ export default function RankingFilters() {
     const [weightCategory, setWeightCategory] = useState(searchParams.get('weightCategory') || '');
     const [belt, setBelt] = useState(searchParams.get('belt') || '');
     const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
+    const [gender, setGender] = useState(searchParams.get('gender') || '');
     const [isExpanded, setIsExpanded] = useState(false);
 
     const types = ['KYORUGI', 'POOMSAE'];
@@ -38,6 +39,11 @@ export default function RankingFilters() {
         if (type === 'POOMSAE' && belt) params.set('belt', belt);
 
         if (searchQuery) params.set('search', searchQuery);
+        if (gender) params.set('gender', gender);
+
+        // Preserve tenant param for local dev
+        const tenant = searchParams.get('tenant');
+        if (tenant) params.set('tenant', tenant);
 
         router.push(`/rankings?${params.toString()}`);
     };
@@ -48,7 +54,9 @@ export default function RankingFilters() {
         setWeightCategory('');
         setBelt('');
         setSearchQuery('');
-        router.push('/rankings?type=KYORUGI');
+        setGender('');
+        const tenant = searchParams.get('tenant');
+        router.push(`/rankings?type=KYORUGI${tenant ? `&tenant=${tenant}` : ''}`);
     };
 
     const selectClass = "w-full rounded-lg border border-white/20 bg-[#111] text-white px-4 py-3 text-sm focus:border-white focus:ring-1 focus:ring-white outline-none transition-all appearance-none";
@@ -61,7 +69,7 @@ export default function RankingFilters() {
                 onClick={() => setIsExpanded(!isExpanded)}
             >
                 <h2 className="text-xl font-black text-white uppercase tracking-tight">
-                    Global Rankings Search
+                    Filter Athletes
                 </h2>
                 <button className="text-gray-400 group-hover:text-white transition-colors">
                     {isExpanded ? <ChevronUp /> : <ChevronDown />}
@@ -72,28 +80,6 @@ export default function RankingFilters() {
                 <div className="mt-6 pt-6 border-t border-white/10 animate-in fade-in slide-in-from-top-4 duration-300">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
 
-                        {/* Select Ranking Category */}
-                        <div>
-                            <label className={labelClass}>Select Category</label>
-                            <div className="relative">
-                                <select
-                                    value={type}
-                                    onChange={(e) => {
-                                        setType(e.target.value);
-                                        setWeightCategory('');
-                                        setBelt('');
-                                    }}
-                                    className={selectClass}
-                                >
-                                    {types.map(t => (
-                                        <option key={t} value={t}>Olympic {t} Rankings</option>
-                                    ))}
-                                </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
-                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                                </div>
-                            </div>
-                        </div>
 
                         {/* Select Division */}
                         <div>
@@ -109,7 +95,7 @@ export default function RankingFilters() {
                                 >
                                     <option value="">All Divisions</option>
                                     {divisions.map(d => (
-                                        <option key={d} value={d}>Olympic {d} Division</option>
+                                        <option key={d} value={d}>{d} Division</option>
                                     ))}
                                 </select>
                                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
@@ -171,6 +157,25 @@ export default function RankingFilters() {
                                 <select disabled className={`${selectClass} opacity-50 cursor-not-allowed`}>
                                     <option>World Olympic Taekwondo Federation - Global</option>
                                 </select>
+                            </div>
+                        </div>
+
+                        {/* Gender */}
+                        <div>
+                            <label className={labelClass}>Gender</label>
+                            <div className="relative">
+                                <select
+                                    value={gender}
+                                    onChange={(e) => setGender(e.target.value)}
+                                    className={selectClass}
+                                >
+                                    <option value="">All Genders</option>
+                                    <option value="Male">Men&apos;s</option>
+                                    <option value="Female">Women&apos;s</option>
+                                </select>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </div>
                             </div>
                         </div>
 

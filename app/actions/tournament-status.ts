@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { getAuthUser } from '@/lib/supabase/server'
+import { processTournamentCompletion } from '@/lib/gss-ranking'
 
 export async function updateTournamentStatus(tournamentId: string, status: string) {
     try {
@@ -41,6 +42,13 @@ export async function updateTournamentStatus(tournamentId: string, status: strin
             where: { id: tournamentId },
             data: { status }
         })
+
+        // GSS: Process field strength bonuses when tournament is completed
+        if (status === 'COMPLETED') {
+            processTournamentCompletion(tournamentId).catch(err => {
+                console.error(`[GSS] Tournament completion processing failed for ${tournamentId}:`, err)
+            })
+        }
 
         revalidatePath('/admin/tournaments')
         revalidatePath('/organization')

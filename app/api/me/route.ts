@@ -22,6 +22,7 @@ export async function GET() {
         gender: dbUser.gender,
         clubName: dbUser.clubName,
         organizationMemberId: dbUser.organizationMemberId,
+        mustChangePassword: dbUser.mustChangePassword,
     })
 }
 
