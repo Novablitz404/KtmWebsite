@@ -149,7 +149,7 @@ export default function LandingPage({ upcomingTournaments, user, stats }: Landin
 
                     {/* Subtitle */}
                     <p className="ktm-hero-stagger-3 mt-5 sm:mt-8 text-base sm:text-xl text-gray-400 max-w-xl leading-relaxed">
-                        The professional platform for multi-combat sports — tournament management, real-time scoring, and athlete tracking for Taekwondo, Arnis, and beyond.
+                        The professional platform for multi-combat sports — tournament management, real-time scoring, and athlete tracking.
                     </p>
 
                     {/* CTA */}
@@ -252,35 +252,40 @@ export default function LandingPage({ upcomingTournaments, user, stats }: Landin
                 </Reveal>
 
                 {/* Infinite Scroll Track */}
-                <div className="relative">
+                <div className="relative overflow-hidden">
                     {/* Fade edges — dark */}
                     <div className="absolute left-0 top-0 bottom-0 w-24 sm:w-40 bg-gradient-to-r from-[#070709] to-transparent z-10" />
                     <div className="absolute right-0 top-0 bottom-0 w-24 sm:w-40 bg-gradient-to-l from-[#070709] to-transparent z-10" />
 
-                    <div className="flex ktm-marquee-track w-max">
-                        {[...Array(3)].map((_, setIndex) => (
-                            <div key={setIndex} className="flex shrink-0 items-center gap-16 sm:gap-24 px-8 sm:px-12">
-                                {[
-                                    { src: '/Partners/world-taekwondo.png', alt: 'World Taekwondo' },
-                                    { src: '/Partners/kukkiwon.png', alt: 'Kukkiwon' },
-                                    { src: '/Partners/wotf-phi.png', alt: 'WOTF Philippines' },
-                                    { src: '/Partners/wotf-world.png', alt: 'WOTF World' },
-                                    { src: '/Partners/pomelo-ticket.png', alt: 'Pomelo Ticket' },
-                                ].map((partner, i) => (
-                                    <div
-                                        key={`${setIndex}-${i}`}
-                                        className="shrink-0 opacity-40 hover:opacity-80 transition-opacity duration-300 cursor-default"
-                                    >
-                                        <img
-                                            src={partner.src}
-                                            alt={partner.alt}
-                                            className="h-10 sm:h-14 w-auto object-contain brightness-0 invert"
-                                        />
+                    {(() => {
+                        const partners = [
+                            { src: '/Partners/world-taekwondo.png', alt: 'World Taekwondo' },
+                            { src: '/Partners/kukkiwon.png', alt: 'Kukkiwon' },
+                            { src: '/Partners/wotf-world.png', alt: 'WOTF World' },
+                        ]
+                        // Repeat logos enough times to guarantee viewport coverage
+                        const repeatedLogos = [...partners, ...partners, ...partners, ...partners]
+                        return (
+                            <div className="flex ktm-marquee-track w-max">
+                                {[0, 1].map((setIndex) => (
+                                    <div key={setIndex} className="flex shrink-0 items-center gap-16 sm:gap-24 px-8 sm:px-12" aria-hidden={setIndex === 1}>
+                                        {repeatedLogos.map((partner, i) => (
+                                            <div
+                                                key={`${setIndex}-${i}`}
+                                                className="shrink-0 opacity-40 hover:opacity-80 transition-opacity duration-300 cursor-default"
+                                            >
+                                                <img
+                                                    src={partner.src}
+                                                    alt={partner.alt}
+                                                    className="h-10 sm:h-14 w-auto object-contain brightness-0 invert"
+                                                />
+                                            </div>
+                                        ))}
                                     </div>
                                 ))}
                             </div>
-                        ))}
-                    </div>
+                        )
+                    })()}
                 </div>
 
             </section>
@@ -364,6 +369,141 @@ export default function LandingPage({ upcomingTournaments, user, stats }: Landin
                                     <p className="text-gray-400 leading-relaxed text-sm sm:text-base">
                                         Comprehensive statistics, national rankings, medal tracking, and performance analytics across all events.
                                     </p>
+                                </div>
+                            </div>
+                        </Reveal>
+                    </div>
+                </div>
+            </section>
+
+            {/* ═══════════════════ GSS RANKING SYSTEM ═══════════════════ */}
+            <section className="relative bg-[#0a0a0c] ktm-grain py-20 sm:py-32 overflow-hidden">
+                {/* Divider */}
+                <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+                {/* Background accent */}
+                <div className="absolute top-1/3 right-0 w-[500px] h-[500px] bg-red-600/[0.04] blur-[150px] rounded-full pointer-events-none" />
+
+                <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    {/* Header */}
+                    <Reveal direction="up">
+                        <div className="text-center mb-14 sm:mb-20">
+                            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-red-500/20 bg-red-500/5 mb-5">
+                                <span className="text-xs font-bold text-red-400 uppercase tracking-wider">Proprietary Technology</span>
+                            </div>
+                            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white">
+                                The GSS Ranking System
+                            </h2>
+                            <p className="text-gray-500 mt-4 text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
+                                A skill-based ranking engine built from the ground up — because rankings should reflect who&apos;s actually the best, not just who competed the most
+                            </p>
+                        </div>
+                    </Reveal>
+
+                    {/* Two-column: Description + Visual */}
+                    <div className="grid lg:grid-cols-2 gap-8 lg:gap-14 items-center">
+                        {/* Left: Key principles */}
+                        <Reveal direction="left">
+                            <div className="space-y-6">
+                                {[
+                                    {
+                                        title: 'Opponent Strength Matters',
+                                        desc: 'Beating a top-ranked athlete earns far more than beating a beginner. Your score reflects the quality of your wins, not just the quantity.',
+                                        icon: (
+                                            <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                                            </svg>
+                                        ),
+                                    },
+                                    {
+                                        title: 'Bigger Events, Bigger Rewards',
+                                        desc: 'Medals from major tournaments carry more weight than local events. A gold at a premier championship means more than a gold at a club match.',
+                                        icon: (
+                                            <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 4v12l-4-2-4 2V4M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                            </svg>
+                                        ),
+                                    },
+                                    {
+                                        title: 'Stay Active, Stay Ranked',
+                                        desc: 'Past results gradually fade over time — athletes who keep competing stay at the top. No more riding a single victory for years.',
+                                        icon: (
+                                            <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                        ),
+                                    },
+                                    {
+                                        title: 'Fair for Everyone',
+                                        desc: 'Unlike traditional systems that reward athletes with more access to expensive international circuits, GSS measures actual competitive ability — giving every athlete a fair shot regardless of resources.',
+                                        icon: (
+                                            <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+                                            </svg>
+                                        ),
+                                    },
+                                ].map((item, i) => (
+                                    <div key={i} className="group flex gap-4">
+                                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500/15 to-red-600/5 border border-red-500/20 flex items-center justify-center shrink-0 group-hover:border-red-500/40 transition-colors mt-0.5">
+                                            {item.icon}
+                                        </div>
+                                        <div>
+                                            <h3 className="text-base font-bold text-white mb-1">{item.title}</h3>
+                                            <p className="text-gray-500 text-sm leading-relaxed">{item.desc}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </Reveal>
+
+                        {/* Right: Visual card */}
+                        <Reveal direction="right">
+                            <div className="relative">
+                                {/* Glow behind card */}
+                                <div className="absolute -inset-4 bg-gradient-to-br from-red-500/10 via-transparent to-transparent blur-[60px] rounded-3xl" />
+
+                                <div className="relative rounded-2xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-sm p-8 sm:p-10 overflow-hidden">
+                                    {/* Accent bar */}
+                                    <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-red-500/40 to-transparent" />
+
+                                    {/* GSS badge */}
+                                    <div className="mb-8">
+                                        <p className="text-white font-black text-lg">Global Skill Score</p>
+                                        <p className="text-gray-500 text-xs font-semibold uppercase tracking-wider mt-1">Powered by KTM</p>
+                                    </div>
+
+                                    {/* Simulated ranking preview */}
+                                    <div className="space-y-3">
+                                        {[
+                                            { rank: 1, name: 'Athlete A', score: 1487, change: '+12' },
+                                            { rank: 2, name: 'Athlete B', score: 1465, change: '+8' },
+                                            { rank: 3, name: 'Athlete C', score: 1442, change: '-3' },
+                                            { rank: 4, name: 'Athlete D', score: 1438, change: '+5' },
+                                        ].map((athlete) => (
+                                            <div key={athlete.rank} className="flex items-center gap-4 px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.05]">
+                                                <span className={`text-sm font-black w-7 text-center ${athlete.rank === 1 ? 'text-red-500' : athlete.rank === 2 ? 'text-gray-300' : athlete.rank === 3 ? 'text-amber-600' : 'text-gray-600'}`}>
+                                                    #{athlete.rank}
+                                                </span>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-white text-sm font-semibold">{athlete.name}</p>
+                                                </div>
+                                                <span className="text-white font-bold text-sm tabular-nums">{athlete.score}</span>
+                                                <span className={`text-xs font-bold ${athlete.change.startsWith('+') ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                    {athlete.change}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Bottom note */}
+                                    <div className="mt-6 pt-5 border-t border-white/[0.06] flex items-center justify-between">
+                                        <p className="text-gray-600 text-xs">Updated every 6 hours</p>
+                                        <Link href="/rankings" className="text-xs font-bold text-red-500 hover:text-red-400 transition-colors flex items-center gap-1">
+                                            View Full Rankings
+                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                            </svg>
+                                        </Link>
+                                    </div>
                                 </div>
                             </div>
                         </Reveal>

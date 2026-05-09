@@ -69,7 +69,7 @@ export default function OrganizationDashboard({
         { id: 'home', label: 'Home', icon: LayoutDashboard },
         { id: 'clubs', label: 'Affiliates', icon: Building2 },
         { id: 'events', label: 'Events', icon: Calendar },
-        { id: 'financials', label: 'Financials', icon: DollarSign },
+        // { id: 'financials', label: 'Financials', icon: DollarSign },  // Hidden for now
         { id: 'settings', label: 'Settings', icon: Settings },
     ] as const
 

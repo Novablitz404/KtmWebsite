@@ -145,7 +145,7 @@ input[type="number"]:focus::placeholder {
   }
 
   100% {
-    transform: translateX(calc(-50% - 10px));
+    transform: translateX(-50%);
   }
 }
 
@@ -432,7 +432,7 @@ body { top: 0 !important; }
 
 /* Partners scroll (dark variant) */
 .ktm-marquee-track {
-  animation: scroll 25s linear infinite;
+  animation: marquee 25s linear infinite;
 }
 .ktm-marquee-track:hover {
   animation-play-state: paused;

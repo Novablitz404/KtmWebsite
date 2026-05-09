@@ -19,7 +19,7 @@ const NAV_SECTIONS = [
         label: 'Overview',
         items: [
             { id: 'home',       label: 'Dashboard',  icon: LayoutDashboard },
-            { id: 'financials', label: 'Financials',  icon: DollarSign      },
+            // { id: 'financials', label: 'Financials',  icon: DollarSign },  // Hidden for now
         ],
     },
     {

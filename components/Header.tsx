@@ -46,7 +46,7 @@ export default function Header() {
     if (user) return null
     if (isMobilePWA) return null
 
-    const isHomePage = pathname === '/'
+    const isHomePage = pathname === '/' || pathname === '/rankings'
 
     return (
         <>
@@ -84,7 +84,6 @@ export default function Header() {
                                 {[
                                     { href: '/', label: 'Home' },
                                     { href: '/about', label: 'About' },
-                                    { href: '/events', label: 'Events' },
                                     { href: '/rankings', label: 'Rankings' },
                                 ].map(link => (
                                     <Link
@@ -156,7 +155,6 @@ function MobilePublicMenu({ scrolled, isHomePage }: { scrolled: boolean; isHomeP
                     {[
                         { href: '/', label: 'Home' },
                         { href: '/about', label: 'About' },
-                        { href: '/events', label: 'Events' },
                         { href: '/rankings', label: 'Rankings' },
                     ].map(link => (
                         <Link
