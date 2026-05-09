@@ -72,13 +72,13 @@ export const PromotionPassedEmail = ({
                         ) : (
                             <Section style={imageSection}>
                                 <Img
-                                    src="https://www.wotf-ph.com/wotf/logo_image.png"
+                                    src="https://www.wo-tf.com/wotf/logo_image.png"
                                     width="80"
                                     alt="WOTF Logo"
                                     style={logo}
                                 />
                                 <Img
-                                    src="https://www.wotf-ph.com/wotf/wotf_logo_word.png"
+                                    src="https://www.wo-tf.com/wotf/wotf_logo_word.png"
                                     width="80"
                                     alt="WOTF Philippines"
                                     style={{ margin: '12px auto 0' }}
@@ -133,7 +133,7 @@ export const PromotionPassedEmail = ({
                                 Powered by
                             </Text>
                             <Img
-                                src="https://www.wotf-ph.com/ktmnav.png"
+                                src="https://www.wo-tf.com/ktmnav.png"
                                 width="50"
                                 alt="KTM"
                                 style={{ margin: '0 auto', opacity: 0.5 }}

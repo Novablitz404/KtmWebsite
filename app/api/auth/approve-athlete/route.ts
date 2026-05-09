@@ -140,7 +140,7 @@ export async function POST(request: Request) {
             // Send approval email to athlete
             if (athlete.email) {
                 resend.emails.send({
-                    from: 'WOTF Global <noreply@wotf-ph.com>',
+                    from: 'WOTF Global <noreply@wo-tf.com>',
                     to: [athlete.email],
                     subject: `🎉 You're approved, ${athlete.name}! — WOTF Global`,
                     react: WOTFAthleteApprovedEmail({

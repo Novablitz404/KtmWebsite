@@ -26,7 +26,7 @@ interface RegistrationApprovedEmailProps {
     emailBannerUrl?: string
 }
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.wotf-ph.com'
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.wo-tf.com'
 
 export default function RegistrationApprovedEmail({
     athleteName = 'John Doe',
@@ -182,7 +182,7 @@ export default function RegistrationApprovedEmail({
                             Powered by
                         </Text>
                         <Img
-                            src="https://www.wotf-ph.com/ktmnav.png"
+                            src="https://www.wo-tf.com/ktmnav.png"
                             width="50"
                             alt="KTM"
                             style={{ margin: '0 auto', opacity: 0.5 }}

@@ -33,13 +33,13 @@ export const InviteEmail = ({
                     {/* Header Image (Optional, default WOTF logo or org banner) */}
                     <Section style={headerSection}>
                         <Img
-                            src="https://www.wotf-ph.com/wotf/logo_image.png"
+                            src="https://www.wo-tf.com/wotf/logo_image.png"
                             width="60"
                             alt="WOTF Logo"
                             style={logo}
                         />
                         <Img
-                            src="https://www.wotf-ph.com/wotf/wotf_logo_word.png"
+                            src="https://www.wo-tf.com/wotf/wotf_logo_word.png"
                             width="160"
                             alt="WOTF Philippines"
                             style={{ margin: '12px auto 0' }}
@@ -85,7 +85,7 @@ export const InviteEmail = ({
                             Powered by
                         </Text>
                         <Img
-                            src="https://www.wotf-ph.com/ktmnav.png"
+                            src="https://www.wo-tf.com/ktmnav.png"
                             width="50"
                             alt="KTM"
                             style={{ margin: '4px auto 0', opacity: 0.5 }}

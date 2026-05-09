@@ -25,7 +25,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 async function sendEmailHtml(to: string, subject: string, reactElement: React.ReactElement) {
     const html = await render(reactElement)
     return resend.emails.send({
-        from: 'World Olympics Taekwondo Federation Philippines <noreply@wotf-ph.com>',
+        from: 'World Olympics Taekwondo Federation <noreply@wo-tf.com>',
         to: [to],
         subject,
         html,

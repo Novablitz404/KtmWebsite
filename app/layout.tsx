@@ -56,7 +56,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
   const siteUrl = tenant.slug === 'wotf-global'
     ? 'https://www.wo-tf.com'
-    : 'https://www.wotf-ph.com'
+    : 'https://www.wo-tf.com'
 
   const description = (tenant as any).description || tenant.tagline || 'Taekwondo management platform'
   const ogImage = (tenant as any).ogImageUrl

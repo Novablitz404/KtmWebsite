@@ -30,7 +30,7 @@ export const InvoiceEmail = ({
                     {/* Header Section */}
                     <Section style={headerSection}>
                         <Img
-                            src="https://www.wotf-ph.com/ktmnav.png"
+                            src="https://www.wo-tf.com/ktmnav.png"
                             width="140"
                             alt="KTM Platform"
                             style={logo}
@@ -69,7 +69,7 @@ export const InvoiceEmail = ({
                             Powered by
                         </Text>
                         <Img
-                            src="https://www.wotf-ph.com/ktmnav.png"
+                            src="https://www.wo-tf.com/ktmnav.png"
                             width="50"
                             alt="KTM"
                             style={{ margin: '4px auto 0', opacity: 0.5 }}
