@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { createBrowserClient } from '@supabase/ssr';
+import { createImplicitClient } from '@/lib/supabase/implicit-client';
 import { Loader2, ArrowLeft, CheckCircle, Mail } from 'lucide-react';
 import { I18nProvider } from '../i18n';
 
@@ -18,10 +18,11 @@ function ForgotPasswordInner() {
     const [error, setError] = useState('');
     const [sent, setSent] = useState(false);
 
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+    // Use the implicit-flow client so the recovery link returns hash tokens
+    // (#access_token...&type=recovery) that the reset-password page can consume.
+    // This must match the client used in /sign-in/reset-password and enables
+    // cross-device recovery (request on one device, open link on another).
+    const supabase = createImplicitClient();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
