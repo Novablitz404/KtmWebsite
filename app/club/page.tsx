@@ -20,6 +20,13 @@ export default async function ClubPage(props: { searchParams: Promise<{ page?: s
         redirect('/sign-in')
     }
 
+    // Fix A — half-onboarded club masters (row exists but profile not finished)
+    // must complete onboarding before reaching the dashboard, which would
+    // otherwise render broken (no club record yet).
+    if (authUser.onboardingStatus === 'INCOMPLETE') {
+        redirect('/onboarding/complete-profile')
+    }
+
     // authUser is already the full DB user; just need to fetch the club relation
     const dbUser = authUser
     const userWithClub = await prisma.user.findUnique({

@@ -59,6 +59,29 @@ export async function getAuthUser() {
 }
 
 /**
+ * Fix A — Get both the Supabase session id AND the DB user in one call.
+ *
+ * `getAuthUser()` returns null both when there is no session AND when there is
+ * a valid session but no DB row yet (incomplete onboarding). Callers that need
+ * to tell those two cases apart — e.g. to redirect a half-onboarded user back
+ * to the profile form instead of bouncing them to /sign-in — use this.
+ *
+ * `needsOnboarding` is true when a session exists but the profile isn't done:
+ * either there's no DB row, or the row is still flagged `INCOMPLETE`.
+ */
+export async function getAuthState() {
+    const supabase = await createServerClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) return { authUserId: null, dbUser: null, needsOnboarding: false }
+
+    const dbUser = await prisma.user.findUnique({ where: { clerkId: user.id } })
+    const needsOnboarding = !dbUser || dbUser.onboardingStatus === 'INCOMPLETE'
+
+    return { authUserId: user.id, dbUser, needsOnboarding }
+}
+
+/**
  * Get just the Supabase auth session user ID (without DB lookup).
  * Useful for middleware and quick auth checks.
  */

@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { getAuthUser } from '@/lib/supabase/server'
+import { getAuthState } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { fetchLandingPageEvents } from '@/app/actions'
 import LandingPage from '@/components/LandingPage'
@@ -10,8 +10,18 @@ import WOTFGlobalLandingPage from '@/components/landing/wotf-global/pages/Landin
 const ADMIN_EMAILS = ['ericjann21@gmail.com']
 
 export default async function Home() {
-  const user = await getAuthUser()
+  const { authUserId, dbUser: user, needsOnboarding } = await getAuthState()
   const tenant = await getTenant()
+
+  // Fix A — Recovery path for half-onboarded accounts.
+  // If a valid Supabase session exists but the DB profile isn't complete (no
+  // row yet, or row still flagged INCOMPLETE), send the user back to finish
+  // onboarding instead of rendering the logged-out landing page — which is what
+  // made these users appear to "bounce back to the login screen".
+  if (authUserId && needsOnboarding) {
+    const tenantQs = tenant.slug !== 'ktm' ? `?tenant=${tenant.slug}` : ''
+    redirect(`/onboarding/complete-profile${tenantQs}`)
+  }
 
   // WOTF Global tenant handling
   if (tenant.slug === 'wotf-global') {

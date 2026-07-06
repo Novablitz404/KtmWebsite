@@ -8,7 +8,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@/lib/supabase/client';
 import { Eye, EyeOff, Loader2, ArrowRight, ArrowLeft, User, Shield, Mail } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { checkEmailAvailability } from '@/app/actions';
+import { checkEmailAvailability, ensureUserRecord } from '@/app/actions';
 
 function SignUpPageInner() {
     const { t } = useI18n();
@@ -149,6 +149,9 @@ function SignUpPageInner() {
             }
 
             if (authData.session) {
+                // Fix B — create the DB row now so the account is never a
+                // "zombie" (auth user with no DB row) if onboarding is abandoned.
+                await ensureUserRecord();
                 router.push(`/onboarding/complete-profile${qs}`);
             } else {
                 setCheckEmail(true);

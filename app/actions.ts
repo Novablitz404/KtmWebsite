@@ -1392,11 +1392,94 @@ export async function completeOnboarding(formData: FormData) {
             email: userEmail,
             role: assignedRole,
             name: userName,
+            onboardingStatus: 'INCOMPLETE',
             ...(orgId && { organizationMemberId: orgId }),
         }
     })
 
     // Role is stored in DB — no Clerk metadata sync needed
+}
+
+/**
+ * Fix B — Create a minimal DB User record immediately after Supabase sign-up.
+ *
+ * Some sign-up flows (e.g. the OTP-verified wotf-global flow) auto-confirm the
+ * email, so `supabase.auth.signUp` returns a session right away and the browser
+ * navigates straight to onboarding WITHOUT ever hitting /auth/callback. That
+ * meant the Prisma User row was only created at the very end of the multi-step
+ * profile form — so anyone who abandoned onboarding became a "zombie" (auth
+ * account with no DB row), and `getAuthUser()` treated them as logged out.
+ *
+ * Calling this right after a successful sign-up guarantees the DB row exists.
+ * The row is flagged `onboardingStatus: 'INCOMPLETE'` so the recovery redirect
+ * (Fix A) can route the user back to finish their profile. Idempotent.
+ */
+export async function ensureUserRecord(): Promise<{ created: boolean }> {
+    const { createServerClient } = await import('@/lib/supabase/server')
+    const supabase = await createServerClient()
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) return { created: false }
+
+    // Already have a row (by auth id or email)? Nothing to do.
+    const existingUser = await prisma.user.findFirst({
+        where: {
+            OR: [
+                { clerkId: authUser.id },
+                { email: authUser.email! },
+            ]
+        },
+        select: { id: true, clerkId: true }
+    })
+
+    if (existingUser) {
+        // Link the auth id if a pre-registered row exists without one.
+        if (existingUser.clerkId !== authUser.id) {
+            await prisma.user.update({
+                where: { id: existingUser.id },
+                data: { clerkId: authUser.id }
+            })
+        }
+        return { created: false }
+    }
+
+    const role = (authUser.user_metadata?.role as string) || 'ATHLETE'
+    const tenant = (authUser.user_metadata?.tenant as string) || 'ktm'
+
+    // Resolve tenant membership from the sign-up tenant slug.
+    let orgId: string | null = null
+    if (tenant && tenant !== 'ktm') {
+        const org = await prisma.organization.findFirst({
+            where: {
+                OR: [
+                    { slug: tenant },
+                    { customDomain: tenant },
+                ]
+            },
+            select: { id: true }
+        })
+        orgId = org?.id || null
+    }
+
+    // Generate a unique 9-digit ID (matches completeOnboarding).
+    let newId = Math.floor(Math.random() * 1000000000).toString().padStart(9, '0')
+    let attempts = 0
+    while (await prisma.user.findUnique({ where: { id: newId } })) {
+        newId = Math.floor(Math.random() * 1000000000).toString().padStart(9, '0')
+        if (++attempts > 100) throw new Error('Could not generate unique ID')
+    }
+
+    await prisma.user.create({
+        data: {
+            id: newId,
+            clerkId: authUser.id,
+            email: authUser.email!,
+            role,
+            onboardingStatus: 'INCOMPLETE',
+            ...(orgId && { organizationMemberId: orgId }),
+        }
+    })
+
+    return { created: true }
 }
 
 export async function completeClubMasterOnboarding(formData: FormData) {

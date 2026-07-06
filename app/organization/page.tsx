@@ -12,6 +12,12 @@ export default async function OrganizationPage() {
         redirect('/sign-in')
     }
 
+    // Fix A — half-onboarded organizers (row exists but profile not finished)
+    // must complete onboarding before reaching the dashboard.
+    if (user.onboardingStatus === 'INCOMPLETE') {
+        redirect('/onboarding/complete-profile')
+    }
+
     // Role verification and Data Fetching
     const dbUser = await prisma.user.findUnique({
         where: { id: user.id },

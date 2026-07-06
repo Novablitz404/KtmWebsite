@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Eye, EyeOff, Loader2, ArrowLeft, ArrowRight, Mail } from 'lucide-react'
-import { checkEmailAvailability } from '@/app/actions'
+import { checkEmailAvailability, ensureUserRecord } from '@/app/actions'
 import { useTenant } from '@/app/providers/TenantProvider'
 
 interface CustomSignUpFormProps {
@@ -101,7 +101,10 @@ export default function CustomSignUpForm({ headerMode = 'mobile' }: CustomSignUp
             }
 
             if (data.session) {
-                // Auto-confirmed (e.g., in dev mode) — redirect to onboarding
+                // Auto-confirmed (e.g., in dev mode) — create the DB row now so
+                // an abandoned onboarding never leaves a "zombie" auth account
+                // (Fix B), then redirect to onboarding.
+                await ensureUserRecord()
                 if (isManager || isCoOrganizer) {
                     router.push('/')
                 } else {

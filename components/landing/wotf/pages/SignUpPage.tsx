@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, ArrowRight, ArrowLeft, Eye, EyeOff, User, Shield, Mail } from "lucide-react";
 import { motion } from "framer-motion";
-import { checkEmailAvailability } from "@/app/actions";
+import { checkEmailAvailability, ensureUserRecord } from "@/app/actions";
 
 export default function WOTFSignUpPage() {
     const supabase = createBrowserClient();
@@ -65,7 +65,9 @@ export default function WOTFSignUpPage() {
             }
 
             if (data.session) {
-                // Auto-confirmed — redirect to onboarding
+                // Auto-confirmed — create the DB row now so an abandoned
+                // onboarding never leaves a "zombie" auth account (Fix B).
+                await ensureUserRecord();
                 router.push(`/onboarding/complete-profile${qs}`);
             } else {
                 // Email confirmation required

@@ -24,6 +24,12 @@ export default async function AthleteDashboardPage({
         redirect('/sign-in')
     }
 
+    // Fix A — half-onboarded athletes (row exists but profile not finished)
+    // must complete onboarding before reaching the dashboard.
+    if (dbUser.onboardingStatus === 'INCOMPLETE') {
+        redirect('/onboarding/complete-profile')
+    }
+
     // Get tenant for data scoping
     const tenant = await getTenant()
 

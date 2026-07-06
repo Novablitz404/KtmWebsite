@@ -78,6 +78,7 @@ export async function POST(request: Request) {
                     clerkId: authUser.id,
                     email: authUser.email!,
                     role,
+                    onboardingStatus: 'INCOMPLETE',
                 },
                 select: { id: true, email: true, organizationMemberId: true, onboardingStatus: true }
             })
@@ -192,6 +193,7 @@ export async function POST(request: Request) {
                         clubName,
                         birthDate,
                         country,
+                        onboardingStatus: null, // clear INCOMPLETE — profile is done
                         ...(profileImageUrl && { imageUrl: profileImageUrl })
                     }
                 })
@@ -220,11 +222,12 @@ export async function POST(request: Request) {
                     country,
                     belt,
                     gender,
+                    onboardingStatus: null, // clear INCOMPLETE — profile is done
                     ...(profileImageUrl && { imageUrl: profileImageUrl })
                 }
             })
 
-            // Upload club logo if provided 
+            // Upload club logo if provided
             let clubLogoUrl: string | undefined = undefined
             // We use the dbUser.id as a prefix/unique ID for the club logo, since the club doesn't have an ID yet 
             // Wait, we can generate a random string, or just create the club first then upload.
@@ -294,6 +297,7 @@ export async function POST(request: Request) {
                 where: { id: dbUser.id },
                 data: {
                     name,
+                    onboardingStatus: null, // clear INCOMPLETE — profile is done
                     ...(profileImageUrl && { imageUrl: profileImageUrl })
                 }
             })
@@ -327,6 +331,7 @@ export async function POST(request: Request) {
                 where: { id: dbUser.id },
                 data: {
                     name,
+                    onboardingStatus: null, // clear INCOMPLETE — profile is done
                     ...(profileImageUrl && { imageUrl: profileImageUrl })
                 }
             })
