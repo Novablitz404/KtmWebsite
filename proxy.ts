@@ -143,10 +143,7 @@ export default async function middleware(request: NextRequest) {
     const { searchParams } = request.nextUrl
 
     // Static tenant map for known domains
-    const TENANT_MAP: Record<string, string> = {
-        'wo-tf.com': 'wotf-global',
-        'www.wo-tf.com': 'wotf-global',
-    }
+    const TENANT_MAP: Record<string, string> = {}
 
     // KTM admin domains
     const KTM_DOMAINS = ['ktmsports.com', 'www.ktmsports.com', 'ktm-website.vercel.app']
