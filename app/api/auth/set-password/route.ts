@@ -76,8 +76,18 @@ export async function POST(req: NextRequest) {
                     )
 
                     if (existingAuthUser) {
-                        // Update their password and link the DB record
-                        await supabaseAdmin.auth.admin.updateUserById(existingAuthUser.id, { password })
+                        // Update their password and link the DB record. Do not
+                        // report success if the Auth update itself failed.
+                        const { error: existingUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
+                            existingAuthUser.id,
+                            { password }
+                        )
+
+                        if (existingUpdateError) {
+                            console.error('[set-password] Existing user update error:', existingUpdateError.message)
+                            return NextResponse.json({ error: 'Failed to set password. Please try again.' }, { status: 500 })
+                        }
+
                         await prisma.user.update({
                             where: { id: dbUser.id },
                             data: { clerkId: existingAuthUser.id }

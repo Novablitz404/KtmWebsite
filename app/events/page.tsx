@@ -130,6 +130,9 @@ export default async function EventsPage(props: { searchParams: Promise<{ type?:
             })
         ])
 
+        // Preserve tenant context when navigating on shared/local domains.
+        const tenantQuery = `?tenant=${encodeURIComponent(tenant.slug)}`
+
         // Normalize to a common shape for the events page
         const events = [
             ...tournaments.map(t => ({
@@ -144,7 +147,7 @@ export default async function EventsPage(props: { searchParams: Promise<{ type?:
                 tags: [...new Set(t.categories.map(c => c.type))],
                 tier: t.tier || 'J-2',
                 dateTBA: t.dateTBA || false,
-                link: `/tournament/${t.id}`,
+                link: `/tournament/${t.id}${tenantQuery}`,
             })),
             ...seminars.map(s => ({
                 id: s.id,
@@ -156,7 +159,7 @@ export default async function EventsPage(props: { searchParams: Promise<{ type?:
                 image: s.bannerUrl || 'bg-gradient-to-br from-african-turquoise to-teal-600',
                 status: s.status === 'UPCOMING' ? 'upcoming' as const : 'open' as const,
                 tags: ['Seminar'],
-                link: `/seminars/${s.id}`,
+                link: `/seminars/${s.id}${tenantQuery}`,
             })),
         ].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
 

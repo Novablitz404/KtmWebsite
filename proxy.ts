@@ -142,8 +142,17 @@ export default async function middleware(request: NextRequest) {
     const hostname = request.headers.get('host') || ''
     const { searchParams } = request.nextUrl
 
+    // Retired domains — no longer serve any tenant here (in use by a different project)
+    const RETIRED_DOMAINS = new Set(['wo-tf.com', 'www.wo-tf.com'])
+    if (RETIRED_DOMAINS.has(hostname)) {
+        return new NextResponse(null, { status: 404 })
+    }
+
     // Static tenant map for known domains
-    const TENANT_MAP: Record<string, string> = {}
+    const TENANT_MAP: Record<string, string> = {
+        'tap-elite.com': 'tap-elite',
+        'www.tap-elite.com': 'tap-elite',
+    }
 
     // KTM admin domains
     const KTM_DOMAINS = ['ktmsports.com', 'www.ktmsports.com', 'ktm-website.vercel.app']

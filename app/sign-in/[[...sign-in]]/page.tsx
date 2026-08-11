@@ -1,14 +1,18 @@
-import { redirect } from 'next/navigation'
 import { getTenant } from '@/lib/tenant'
 import WOTFSignInPage from '@/components/landing/wotf/pages/SignInPage'
 import GlobalSignInPage from '@/components/landing/wotf-global/pages/SignInPage'
+import KtmSignInPage from '@/components/landing/ktm/pages/SignInPage'
+import TapEliteSignInPage from '@/components/landing/tap-elite/pages/SignInPage'
 
 export default async function SignInPage() {
     const tenant = await getTenant()
 
-    // KTM sign-in is disabled — redirect to homepage
     if (tenant.slug === 'ktm') {
-        redirect('/')
+        return <KtmSignInPage />
+    }
+
+    if (tenant.slug === 'tap-elite') {
+        return <TapEliteSignInPage />
     }
 
     // WOTF Global: dark-themed sign-in

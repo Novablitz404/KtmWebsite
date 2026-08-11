@@ -1,7 +1,8 @@
-import { redirect } from 'next/navigation'
 import { getTenant } from '@/lib/tenant'
 import WOTFSignUpPage from '@/components/landing/wotf/pages/SignUpPage'
 import GlobalSignUpPage from '@/components/landing/wotf-global/pages/SignUpPage'
+import KtmSignUpPage from '@/components/landing/ktm/pages/SignUpPage'
+import TapEliteSignUpPage from '@/components/landing/tap-elite/pages/SignUpPage'
 import Link from 'next/link'
 
 // ⚡ Flip to false when sign-up is ready to go live
@@ -38,9 +39,12 @@ export default async function SignUpPage() {
         return <MaintenancePage />
     }
 
-    // KTM sign-up is disabled — redirect to homepage
     if (tenant.slug === 'ktm') {
-        redirect('/')
+        return <KtmSignUpPage />
+    }
+
+    if (tenant.slug === 'tap-elite') {
+        return <TapEliteSignUpPage />
     }
 
     // WOTF Global: dark-themed sign-up

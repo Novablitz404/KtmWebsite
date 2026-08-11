@@ -6,6 +6,7 @@ import LandingPage from '@/components/LandingPage'
 import { getTenant } from '@/lib/tenant'
 import WOTFLandingPage from '@/components/landing/wotf/pages/LandingPage'
 import WOTFGlobalLandingPage from '@/components/landing/wotf-global/pages/LandingPage'
+import TapEliteLandingPage from '@/components/landing/tap-elite/pages/LandingPage'
 
 const ADMIN_EMAILS = ['ericjann21@gmail.com']
 
@@ -21,6 +22,55 @@ export default async function Home() {
   if (authUserId && needsOnboarding) {
     const tenantQs = tenant.slug !== 'ktm' ? `?tenant=${tenant.slug}` : ''
     redirect(`/onboarding/complete-profile${tenantQs}`)
+  }
+
+  // Tap-Elite tenant handling
+  if (tenant.slug === 'tap-elite') {
+    if (user) {
+      const existingTenantUser = await prisma.user.findUnique({ where: { id: user.id }, select: { role: true } })
+      const tenantQs = `?tenant=${tenant.slug}`
+      if (existingTenantUser?.role === 'ADMIN') redirect(`/admin${tenantQs}`)
+      else if (existingTenantUser?.role === 'ORGANIZER') redirect(`/organization${tenantQs}`)
+      else if (existingTenantUser?.role === 'MANAGER') redirect(`/organization?tab=events&tenant=${tenant.slug}`)
+      else if (existingTenantUser?.role === 'ATHLETE') redirect(`/athlete${tenantQs}`)
+      else if (existingTenantUser?.role === 'CLUB_MASTER' || existingTenantUser?.role === 'ASSISTANT_CLUB_MASTER') redirect(`/club${tenantQs}`)
+    }
+
+    const orgId = tenant.id
+
+    let stats = { athletes: 0, clubs: 0, events: 0 }
+    let upcomingEvents: { id: string; name: string; type: string; date: string; venue: string | null, imageUrl?: string | null }[] = []
+    let pastEvents: { id: string; name: string; type: string; date: string; venue: string | null, imageUrl?: string | null }[] = []
+
+    if (orgId) {
+      const now = new Date()
+      const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { ownerId: true } })
+      const [clubs, athleteCount, upcomingTournaments, upcomingSeminars, pastTournaments, pastSeminars] = await Promise.all([
+        prisma.club.findMany({ where: { organizationId: orgId, status: 'APPROVED' }, select: { name: true } }),
+        prisma.user.count({ where: { organizationMemberId: orgId, role: 'ATHLETE' } }),
+        org?.ownerId ? prisma.tournament.findMany({ where: { organizerId: org.ownerId, startDate: { gte: now }, status: { in: ['UPCOMING', 'ONGOING'] } }, select: { id: true, name: true, startDate: true, venue: true, headerImageUrl: true }, orderBy: { startDate: 'asc' }, take: 4 }) : Promise.resolve([]),
+        prisma.seminar.findMany({ where: { organizationId: orgId, startDate: { gte: now }, status: { in: ['UPCOMING', 'OPEN'] } }, select: { id: true, name: true, startDate: true, venue: true, bannerUrl: true }, orderBy: { startDate: 'asc' }, take: 4 }),
+        org?.ownerId ? prisma.tournament.findMany({ where: { organizerId: org.ownerId, OR: [{ startDate: { lt: now } }, { status: 'COMPLETED' }], status: { not: 'CANCELLED' } }, select: { id: true, name: true, startDate: true, venue: true, headerImageUrl: true }, orderBy: { startDate: 'desc' }, take: 4 }) : Promise.resolve([]),
+        prisma.seminar.findMany({ where: { organizationId: orgId, OR: [{ startDate: { lt: now } }, { status: 'COMPLETED' }], status: { not: 'CANCELLED' } }, select: { id: true, name: true, startDate: true, venue: true, bannerUrl: true }, orderBy: { startDate: 'desc' }, take: 4 }),
+      ])
+      const [tournamentCount, seminarCount] = await Promise.all([
+        org?.ownerId ? prisma.tournament.count({ where: { organizerId: org.ownerId } }) : Promise.resolve(0),
+        prisma.seminar.count({ where: { organizationId: orgId } }),
+      ])
+      stats = { athletes: athleteCount, clubs: clubs.length, events: tournamentCount + seminarCount }
+
+      upcomingEvents = [
+        ...upcomingTournaments.map(e => ({ id: e.id, name: e.name, type: 'Tournament', date: e.startDate.toISOString(), venue: e.venue, imageUrl: e.headerImageUrl })),
+        ...upcomingSeminars.map(e => ({ id: e.id, name: e.name, type: 'Seminar', date: e.startDate.toISOString(), venue: e.venue, imageUrl: e.bannerUrl })),
+      ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 4)
+
+      pastEvents = [
+        ...pastTournaments.map(e => ({ id: e.id, name: e.name, type: 'Tournament', date: e.startDate.toISOString(), venue: e.venue, imageUrl: e.headerImageUrl })),
+        ...pastSeminars.map(e => ({ id: e.id, name: e.name, type: 'Seminar', date: e.startDate.toISOString(), venue: e.venue, imageUrl: e.bannerUrl })),
+      ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 4)
+    }
+
+    return <TapEliteLandingPage stats={stats} upcomingEvents={upcomingEvents} pastEvents={pastEvents} />
   }
 
   // WOTF Global tenant handling

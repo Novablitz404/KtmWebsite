@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
                     mode: 'insensitive',
                 }
             },
-            select: { id: true }
+            select: { id: true, clerkId: true }
         })
 
         if (!user) {
@@ -36,11 +36,14 @@ export async function POST(req: NextRequest) {
             process.env.SUPABASE_SERVICE_ROLE_KEY!
         )
 
-        // Since User.id = Supabase Auth UUID, use getUserById for O(1) lookup
-        // This works at any scale (1000, 10000+ users) — no pagination needed
-        const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(user.id)
+        // User.id is the app's 9-digit ID. Supabase Auth UUIDs are stored in
+        // User.clerkId for both migrated and newly created accounts.
+        const authUserId = user.clerkId
+        const isUuid = !!authUserId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(authUserId)
 
-        const hasAuthAccount = !!authUser?.user && !authError
+        const hasAuthAccount = isUuid
+            ? await supabase.auth.admin.getUserById(authUserId).then(({ data, error }) => !!data?.user && !error)
+            : false
 
         // Only flag as needing password setup if:
         // The user exists in our DB but has NO Supabase Auth account at all

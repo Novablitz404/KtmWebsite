@@ -6,6 +6,8 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 // Domain → tenant mapping (mirrors proxy.ts)
 const DOMAIN_TENANT: Record<string, string> = {
+    'tap-elite.com': 'tap-elite',
+    'www.tap-elite.com': 'tap-elite',
     'wo-tf.com': 'wotf-global',
     'www.wo-tf.com': 'wotf-global',
 }

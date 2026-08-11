@@ -6,6 +6,7 @@ import Footer from '@/components/landing/wotf/Footer'
 import GlobalNavbar from '@/components/landing/wotf-global/GlobalNavbar'
 import GlobalFooter from '@/components/landing/wotf-global/GlobalFooter'
 import { I18nProvider } from '@/components/landing/wotf-global/i18n'
+import { TapEliteFooter, TapEliteNavbar } from '@/components/landing/tap-elite/pages/LandingPage'
 import { getTenant } from '@/lib/tenant'
 
 import { getAuthUser } from '@/lib/supabase/server'
@@ -238,7 +239,9 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
                         </I18nProvider>
                     ) : (
                         <>
-                            {tenant.slug !== 'ktm' && <Navbar variant="dark" />}
+                            {tenant.slug === 'tap-elite'
+                                ? <TapEliteNavbar qs="?tenant=tap-elite" light />
+                                : tenant.slug !== 'ktm' && <Navbar variant="dark" />}
                             <div className="pt-20 bg-gray-50 min-h-screen">
                                 <div className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-10">
                                     <PublicTournamentView
@@ -258,7 +261,9 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
                                     />
                                 </div>
                             </div>
-                            {tenant.slug !== 'ktm' && <Footer />}
+                            {tenant.slug === 'tap-elite'
+                                ? <TapEliteFooter qs="?tenant=tap-elite" standalone />
+                                : tenant.slug !== 'ktm' && <Footer />}
                         </>
                     )}
                 </>

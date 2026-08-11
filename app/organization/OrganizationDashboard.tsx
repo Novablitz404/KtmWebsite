@@ -24,6 +24,7 @@ import { LayoutDashboard, Building2, Calendar, Settings, Users, IdCard, DollarSi
 
 interface OrganizationDashboardProps {
     initialData: any | null
+    tenantSlug: string
     userRole: string | undefined
     userData: {
         name: string | null
@@ -37,6 +38,7 @@ type ViewType = 'home' | 'clubs' | 'events' | 'athletes' | 'financials' | 'team'
 
 export default function OrganizationDashboard({
     initialData,
+    tenantSlug,
     userRole,
     userData,
     clerkImageUrl,
@@ -53,8 +55,9 @@ export default function OrganizationDashboard({
         const url = new URL(window.location.href)
         if (activeView === 'home') url.searchParams.delete('tab')
         else url.searchParams.set('tab', activeView)
+        if (tenantSlug !== 'ktm') url.searchParams.set('tenant', tenantSlug)
         window.history.replaceState({}, '', url.toString())
-    }, [activeView])
+    }, [activeView, tenantSlug])
 
     const { data: dashboardData, isLoading } = useQuery({
         queryKey: ['organization-dashboard'],

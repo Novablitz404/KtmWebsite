@@ -4,18 +4,21 @@ import { redirect } from 'next/navigation'
 import OrganizationDashboard from './OrganizationDashboard'
 import OrganizationSettingsView from '@/app/settings/OrganizationSettingsView'
 import { getOrganizationDashboardData } from '@/app/organization/actions'
+import { getTenant } from '@/lib/tenant'
 
 export default async function OrganizationPage() {
     const user = await getAuthUser()
+    const tenant = await getTenant()
+    const tenantQuery = tenant.slug !== 'ktm' ? `?tenant=${tenant.slug}` : ''
 
     if (!user) {
-        redirect('/sign-in')
+        redirect(`/sign-in${tenantQuery}`)
     }
 
     // Fix A — half-onboarded organizers (row exists but profile not finished)
     // must complete onboarding before reaching the dashboard.
     if (user.onboardingStatus === 'INCOMPLETE') {
-        redirect('/onboarding/complete-profile')
+        redirect(`/onboarding/complete-profile${tenantQuery}`)
     }
 
     // Role verification and Data Fetching
@@ -63,6 +66,7 @@ export default async function OrganizationPage() {
     return (
         <OrganizationDashboard
             initialData={dashboardData}
+            tenantSlug={tenant.slug}
             userRole={dbUser?.role}
             userData={{
                 name: dbUser.name,
@@ -81,4 +85,3 @@ export default async function OrganizationPage() {
         />
     )
 }
-
