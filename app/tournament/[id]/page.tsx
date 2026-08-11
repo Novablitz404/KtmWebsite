@@ -240,7 +240,7 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
                     ) : (
                         <>
                             {tenant.slug === 'tap-elite'
-                                ? <TapEliteNavbar qs="?tenant=tap-elite" light />
+                                ? <TapEliteNavbar qs={tenant.isMappedDomain ? '' : '?tenant=tap-elite'} light />
                                 : tenant.slug !== 'ktm' && <Navbar variant="dark" />}
                             <div className="pt-20 bg-gray-50 min-h-screen">
                                 <div className="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-10">
@@ -262,7 +262,7 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
                                 </div>
                             </div>
                             {tenant.slug === 'tap-elite'
-                                ? <TapEliteFooter qs="?tenant=tap-elite" standalone />
+                                ? <TapEliteFooter qs={tenant.isMappedDomain ? '' : '?tenant=tap-elite'} standalone />
                                 : tenant.slug !== 'ktm' && <Footer />}
                         </>
                     )}

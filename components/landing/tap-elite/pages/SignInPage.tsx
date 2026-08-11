@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase/client";
 import { createImplicitClient } from "@/lib/supabase/implicit-client";
+import { useTenant } from "@/app/providers/TenantProvider";
 import { Eye, EyeOff, Loader2, Mail } from "lucide-react";
 
 type Step = "credentials" | "reset-sent";
@@ -20,6 +21,7 @@ function PoweredByKtm() {
 
 export default function TapEliteSignInPage() {
     const supabase = createBrowserClient();
+    const tenant = useTenant();
 
     const [step, setStep] = useState<Step>("credentials");
     const [email, setEmail] = useState("");
@@ -31,7 +33,7 @@ export default function TapEliteSignInPage() {
     const [error, setError] = useState("");
     const [firstLogin, setFirstLogin] = useState(false);
 
-    const qs = "?tenant=tap-elite";
+    const qs = tenant.isMappedDomain ? "" : "?tenant=tap-elite";
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

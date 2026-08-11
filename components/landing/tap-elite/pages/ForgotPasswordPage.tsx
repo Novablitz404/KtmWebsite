@@ -4,10 +4,12 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { createImplicitClient } from "@/lib/supabase/implicit-client";
+import { useTenant } from "@/app/providers/TenantProvider";
 import { Loader2, ArrowLeft, CheckCircle, Mail } from "lucide-react";
 
 export default function TapEliteForgotPasswordPage() {
-    const qs = "?tenant=tap-elite";
+    const tenant = useTenant();
+    const qs = tenant.isMappedDomain ? "" : "?tenant=tap-elite";
     const [email, setEmail] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");

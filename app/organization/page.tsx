@@ -9,7 +9,7 @@ import { getTenant } from '@/lib/tenant'
 export default async function OrganizationPage() {
     const user = await getAuthUser()
     const tenant = await getTenant()
-    const tenantQuery = tenant.slug !== 'ktm' ? `?tenant=${tenant.slug}` : ''
+    const tenantQuery = tenant.slug !== 'ktm' && !tenant.isMappedDomain ? `?tenant=${tenant.slug}` : ''
 
     if (!user) {
         redirect(`/sign-in${tenantQuery}`)

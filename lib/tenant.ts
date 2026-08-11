@@ -8,6 +8,7 @@ const KTM_DEFAULT = {
     ...TENANT_BRANDING.ktm,
     customDomain: null as string | null,
     isKtmAdmin: true,
+    isMappedDomain: true,
 }
 
 export type TenantConfig = typeof KTM_DEFAULT
@@ -19,6 +20,7 @@ const CACHE_TTL = 60 * 1000 // 1 minute
 export async function getTenant(): Promise<TenantConfig> {
     const headersList = await headers()
     const orgSlug = headersList.get('x-org-slug')
+    const isMappedDomain = headersList.get('x-tenant-mapped-domain') === '1'
 
     if (!orgSlug || orgSlug === 'ktm') {
         return KTM_DEFAULT
@@ -57,5 +59,6 @@ export async function getTenant(): Promise<TenantConfig> {
         ...branding,
         customDomain: null,
         isKtmAdmin: false,
+        isMappedDomain,
     }
 }

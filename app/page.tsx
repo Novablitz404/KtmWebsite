@@ -20,7 +20,7 @@ export default async function Home() {
   // onboarding instead of rendering the logged-out landing page — which is what
   // made these users appear to "bounce back to the login screen".
   if (authUserId && needsOnboarding) {
-    const tenantQs = tenant.slug !== 'ktm' ? `?tenant=${tenant.slug}` : ''
+    const tenantQs = tenant.slug !== 'ktm' && !tenant.isMappedDomain ? `?tenant=${tenant.slug}` : ''
     redirect(`/onboarding/complete-profile${tenantQs}`)
   }
 
@@ -28,7 +28,7 @@ export default async function Home() {
   if (tenant.slug === 'tap-elite') {
     if (user) {
       const existingTenantUser = await prisma.user.findUnique({ where: { id: user.id }, select: { role: true } })
-      const tenantQs = `?tenant=${tenant.slug}`
+      const tenantQs = tenant.isMappedDomain ? '' : `?tenant=${tenant.slug}`
       if (existingTenantUser?.role === 'ADMIN') redirect(`/admin${tenantQs}`)
       else if (existingTenantUser?.role === 'ORGANIZER') redirect(`/organization${tenantQs}`)
       else if (existingTenantUser?.role === 'MANAGER') redirect(`/organization?tab=events&tenant=${tenant.slug}`)
@@ -77,7 +77,7 @@ export default async function Home() {
   if (tenant.slug === 'wotf-global') {
     if (user) {
       const existingTenantUser = await prisma.user.findUnique({ where: { id: user.id }, select: { role: true } })
-      const tenantQs = `?tenant=${tenant.slug}`
+      const tenantQs = tenant.isMappedDomain ? '' : `?tenant=${tenant.slug}`
       if (existingTenantUser?.role === 'ATHLETE') redirect(`/athlete${tenantQs}`)
       else if (existingTenantUser?.role === 'CLUB_MASTER' || existingTenantUser?.role === 'ASSISTANT_CLUB_MASTER') redirect(`/club${tenantQs}`)
     }
@@ -131,7 +131,7 @@ export default async function Home() {
         where: { id: user.id },
         select: { role: true }
       })
-      const tenantQs = `?tenant=${tenant.slug}`
+      const tenantQs = tenant.isMappedDomain ? '' : `?tenant=${tenant.slug}`
       if (existingTenantUser?.role === 'ATHLETE') {
         redirect(`/athlete${tenantQs}`)
       } else if (existingTenantUser?.role === 'CLUB_MASTER' || existingTenantUser?.role === 'ASSISTANT_CLUB_MASTER') {

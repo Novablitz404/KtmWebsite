@@ -162,20 +162,29 @@ export default async function middleware(request: NextRequest) {
     const isKtmDomain = KTM_DOMAINS.includes(hostname) || hostname.startsWith('localhost')
 
     let orgSlug = 'ktm'
+    // Whether the hostname itself (not a ?tenant= override) resolves the
+    // tenant, so pages know they don't need to carry ?tenant= on internal
+    // links — only unmapped hosts (localhost, previews) need that crutch.
+    let isMappedDomain = false
     if (tenantParam) {
         orgSlug = tenantParam
+        isMappedDomain = false
     } else if (tenantFromDomain) {
         orgSlug = tenantFromDomain
+        isMappedDomain = true
     } else if (isKtmDomain) {
         orgSlug = 'ktm'
+        isMappedDomain = true
     } else {
         orgSlug = hostname
+        isMappedDomain = false
     }
 
     console.log('[Proxy] path:', pathname, '| orgSlug:', orgSlug)
 
     // Set tenant header
     response.headers.set('x-org-slug', orgSlug)
+    response.headers.set('x-tenant-mapped-domain', isMappedDomain ? '1' : '0')
 
     // ========================================
     // EVENT DOMAIN DETECTION

@@ -17,6 +17,7 @@ export interface TenantInfo {
     footerText: string | null
     customDomain: string | null
     isKtmAdmin: boolean
+    isMappedDomain: boolean
 }
 
 const TenantContext = createContext<TenantInfo | null>(null)
@@ -63,6 +64,7 @@ export function useTenant(): TenantInfo {
             footerText: null,
             customDomain: null,
             isKtmAdmin: true,
+            isMappedDomain: true,
         }
     }
     return context

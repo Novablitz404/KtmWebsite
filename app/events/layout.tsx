@@ -16,11 +16,12 @@ export default async function EventsLayout({
     }
 
     if (tenant.slug === 'tap-elite') {
+        const qs = tenant.isMappedDomain ? '' : '?tenant=tap-elite'
         return (
             <main className="min-h-screen bg-gray-50/50">
-                <TapEliteNavbar qs="?tenant=tap-elite" light />
+                <TapEliteNavbar qs={qs} light />
                 {children}
-                <TapEliteFooter qs="?tenant=tap-elite" standalone />
+                <TapEliteFooter qs={qs} standalone />
             </main>
         )
     }

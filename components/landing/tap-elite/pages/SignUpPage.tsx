@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase/client";
+import { useTenant } from "@/app/providers/TenantProvider";
 import { Eye, EyeOff, Loader2, ArrowRight, ArrowLeft, User, Shield, Building2, Mail } from "lucide-react";
 import { motion } from "framer-motion";
 import { checkEmailAvailability, ensureUserRecord } from "@/app/actions";
@@ -24,7 +25,8 @@ function PoweredByKtm() {
 export default function TapEliteSignUpPage() {
     const router = useRouter();
     const supabase = createBrowserClient();
-    const qs = "?tenant=tap-elite";
+    const tenant = useTenant();
+    const qs = tenant.isMappedDomain ? "" : "?tenant=tap-elite";
 
     const [step, setStep] = useState<Step>("role-selection");
     const [role, setRole] = useState<Role>("ATHLETE");
