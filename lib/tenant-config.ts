@@ -50,7 +50,7 @@ export const TENANT_BRANDING: Record<string, TenantBranding> = {
         primaryColor: '#E10600',
         secondaryColor: '#0B0B0D',
         accentColor: '#FF2A21',
-        faviconUrl: '/tap-elite/logo.svg',
+        faviconUrl: '/tap-elite/favicon.png',
         heroImageUrl: null,
         ogImageUrl: null,
         tagline: 'Elite Taekwondo Association of the Philippines',

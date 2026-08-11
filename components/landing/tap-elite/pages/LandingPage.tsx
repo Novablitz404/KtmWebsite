@@ -358,7 +358,7 @@ export default function TapEliteLandingPage({ stats, upcomingEvents = [], pastEv
                 <div className={styles.heroContent}>
                     <p className={styles.kicker}>Elite Taekwondo Association of the Philippines</p>
                     <h1>TRAIN LIKE<br /><span>IT MATTERS</span></h1>
-                    <p className={styles.heroCopy}>One national circuit for athletes, coaches, clubs, and organizers who take the work seriously.</p>
+                    <p className={styles.heroCopy}>One national organization for athletes, coaches, clubs, and organizers committed to raising the standard.</p>
                     <div className={styles.heroActions}>
                         <Link href={`/sign-up${qs}`} className={styles.primaryButton}>Join Tap Elite <ArrowRight /></Link>
                         <a href="#events" className={styles.secondaryButton}>Explore events</a>
