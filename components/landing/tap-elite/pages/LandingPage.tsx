@@ -14,6 +14,7 @@ import {
     X,
 } from "lucide-react";
 import styles from "./LandingPage.module.css";
+import AuthErrorScreen from "./AuthErrorScreen";
 
 interface EventItem {
     id: string;
@@ -268,6 +269,20 @@ export default function TapEliteLandingPage({ stats, upcomingEvents = [], pastEv
     const featuredEvents = useMemo(() => upcomingEvents.slice(0, 3), [upcomingEvents]);
     const tenetsRef = useRef<HTMLDivElement>(null);
 
+    const [authError, setAuthError] = useState<{ code: string | null; description: string } | null>(null);
+
+    useEffect(() => {
+        // Supabase redirects expired/invalid auth links (e.g. password reset) here
+        // with the error encoded in the URL hash rather than a query param.
+        const hash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+        const hashParams = new URLSearchParams(hash);
+        const error = hashParams.get("error");
+        if (error) {
+            const description = hashParams.get("error_description")?.replace(/\+/g, " ") || "This link is invalid or has expired.";
+            setAuthError({ code: hashParams.get("error_code"), description });
+        }
+    }, []);
+
     useEffect(() => {
         const nodes = document.querySelectorAll<HTMLElement>("[data-reveal]");
         const observer = new IntersectionObserver((entries) => {
@@ -339,6 +354,10 @@ export default function TapEliteLandingPage({ stats, upcomingEvents = [], pastEv
             reduceMotion.removeEventListener("change", scheduleUpdate);
         };
     }, []);
+
+    if (authError) {
+        return <AuthErrorScreen errorCode={authError.code} description={authError.description} qs={qs} />;
+    }
 
     return (
         <main className={styles.page}>

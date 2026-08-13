@@ -4,11 +4,8 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase/client";
-import { createImplicitClient } from "@/lib/supabase/implicit-client";
 import { useTenant } from "@/app/providers/TenantProvider";
-import { Eye, EyeOff, Loader2, Mail } from "lucide-react";
-
-type Step = "credentials" | "reset-sent";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 function PoweredByKtm() {
     return (
@@ -23,7 +20,6 @@ export default function TapEliteSignInPage() {
     const supabase = createBrowserClient();
     const tenant = useTenant();
 
-    const [step, setStep] = useState<Step>("credentials");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [newPassword, setNewPassword] = useState("");
@@ -70,34 +66,6 @@ export default function TapEliteSignInPage() {
 
         if (data.session) {
             window.location.replace(`/${qs}`);
-        }
-    };
-
-    const handleForgotPassword = async () => {
-        if (!email) {
-            setError("Please enter your email address first.");
-            return;
-        }
-        setLoading(true);
-        setError("");
-
-        try {
-            const implicitClient = createImplicitClient();
-            const { error: resetError } = await implicitClient.auth.resetPasswordForEmail(email, {
-                redirectTo: `${window.location.origin}/sign-in/reset-password`,
-            });
-
-            if (resetError) {
-                setError(resetError.message);
-                setLoading(false);
-                return;
-            }
-
-            setStep("reset-sent");
-            setLoading(false);
-        } catch {
-            setError("Failed to send reset email. Please try again.");
-            setLoading(false);
         }
     };
 
@@ -242,38 +210,6 @@ export default function TapEliteSignInPage() {
         );
     }
 
-    // RESET EMAIL SENT
-    if (step === "reset-sent") {
-        return (
-            <main className="min-h-screen bg-black flex items-center justify-center px-4 relative overflow-hidden">
-                <div className="absolute inset-0">
-                    <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#E10600]/10 rounded-full blur-[150px]" />
-                </div>
-
-                <div className="relative z-10 w-full max-w-md">
-                    <div className="bg-[#0A0A0A] border border-white/5 rounded-2xl p-8 text-center">
-                        <div className="w-16 h-16 mx-auto mb-4 bg-[#E10600]/10 rounded-full flex items-center justify-center">
-                            <Mail className="w-8 h-8 text-[#E10600]" />
-                        </div>
-                        <h2 className="text-white font-bold text-lg mb-2">Check Your Email</h2>
-                        <p className="text-gray-500 text-sm mb-2">We sent a password reset link to</p>
-                        <p className="text-white font-bold text-sm mb-6">{email}</p>
-                        <p className="text-gray-600 text-xs mb-6">
-                            Click the link in the email to set your password, then come back and sign in.
-                        </p>
-                        <button
-                            onClick={() => { setStep("credentials"); setPassword(""); }}
-                            className="text-sm font-semibold text-[#E10600] hover:text-white transition-colors"
-                        >
-                            ← Back to Sign In
-                        </button>
-                    </div>
-                    <PoweredByKtm />
-                </div>
-            </main>
-        );
-    }
-
     // CREDENTIALS
     return (
         <main className="min-h-screen bg-black flex items-center justify-center px-4 relative overflow-hidden">
@@ -337,13 +273,12 @@ export default function TapEliteSignInPage() {
                     </div>
 
                     <div className="flex justify-end -mt-1">
-                        <button
-                            type="button"
-                            onClick={handleForgotPassword}
+                        <Link
+                            href={`/sign-in/forgot-password${qs}`}
                             className="text-xs text-gray-500 hover:text-white transition-colors"
                         >
                             Forgot password?
-                        </button>
+                        </Link>
                     </div>
 
                     <button

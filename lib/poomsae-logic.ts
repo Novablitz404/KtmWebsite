@@ -1,13 +1,24 @@
 import { Player } from '@prisma/client'
+import { generateSingleEliminationBracket } from '@/lib/bracket-logic'
 
 // Player with optional club relation (needed for team display names)
 export type PlayerWithClub = Player & { club?: { name: string } | null }
 
+// A performer unit ready for bracket placement — one player for INDIVIDUAL,
+// or a representative + full member list for TEAM/PAIR.
+export interface PoomsaePerformerEntry {
+    representative: PlayerWithClub
+    members?: PlayerWithClub[]
+    displayName?: string
+    memberIds?: string
+    memberNames?: string
+}
+
 export interface PoomsaeMatchSpec {
-    roundGroupIndex: number // Grouping key for assigning shared matchId (1=Prelim, 2=Semi, 3=Final)
+    roundGroupIndex: number // SCORED: grouping key for shared matchId (1=Prelim, 2=Semi, 3=Final). HEAD_TO_HEAD: unique ID per pairing.
     round: number
-    performanceNumber: number // Sequential order (1, 2, 3...) within the group
-    targetRank?: number | null // The required rank to fill this slot (Advanced rounds only)
+    performanceNumber: number // Sequential order (1, 2, 3...) within the group. HEAD_TO_HEAD: 1 or 2 (the two sides of the pairing).
+    targetRank?: number | null // The required rank to fill this slot (SCORED advanced rounds only)
     playerId: string | null
     player: Player | null
     displayName?: string | null  // "Katma Team A" for TEAM/PAIR, null for INDIVIDUAL
@@ -16,6 +27,8 @@ export interface PoomsaeMatchSpec {
     teamMembers?: Player[]
     assignedForms?: string | null
     status: 'Pending' | 'Completed'
+    nextRoundGroupIndex?: number | null // HEAD_TO_HEAD only: the specific next pairing's roundGroupIndex this winner advances to
+    nextMatchSlot?: '1' | '2' | null    // HEAD_TO_HEAD only: which performanceNumber slot in the next pairing this winner fills
 }
 
 /**
@@ -25,14 +38,15 @@ export interface PoomsaeMatchSpec {
 export function generatePoomsaeBracket(
     players: PlayerWithClub[],
     categoryType: string = 'INDIVIDUAL',
-    requiredForms: string | null = null
+    requiredForms: string | null = null,
+    format: 'SCORED' | 'HEAD_TO_HEAD' = 'SCORED'
 ): PoomsaeMatchSpec[] {
     if (players.length === 0) return []
 
     const isTeamOrPair = categoryType === 'TEAM' || categoryType === 'PAIR'
     const typeLabel = categoryType === 'TEAM' ? 'Team' : 'Pair'
 
-    let performers: { representative: PlayerWithClub, members?: PlayerWithClub[], displayName?: string, memberIds?: string, memberNames?: string }[] = []
+    let performers: PoomsaePerformerEntry[] = []
 
     if (!isTeamOrPair) {
         performers = players.map(p => ({ representative: p }))
@@ -77,6 +91,10 @@ export function generatePoomsaeBracket(
                 memberNames: teamPlayers.map(p => p.name).join(', ')
             })
         })
+    }
+
+    if (format === 'HEAD_TO_HEAD') {
+        return generateHeadToHeadPoomsaeSpecs(performers, requiredForms)
     }
 
     const count = performers.length
@@ -168,4 +186,77 @@ export function generatePoomsaeBracket(
     })
 
     return allMatchSpecs
+}
+
+/**
+ * Generates a head-to-head single-elimination poomsae bracket.
+ * Reuses the generic Kyorugi seeding/pairing/bye logic — performers are paired
+ * directly (rather than ranked in round groups), and each pairing's winner
+ * (determined by score comparison) advances to a specific next-round pairing.
+ */
+export function generateHeadToHeadPoomsaeSpecs(
+    performers: PoomsaePerformerEntry[],
+    requiredForms: string | null = null
+): PoomsaeMatchSpec[] {
+    if (performers.length < 2) return []
+
+    const performerByPlayerId = new Map(performers.map(p => [p.representative.id, p]))
+    const bracketSpecs = generateSingleEliminationBracket(performers.map(p => p.representative))
+    if (bracketSpecs.length === 0) return []
+
+    // generateSingleEliminationBracket assigns ids final-round-first (so its
+    // internal linking math works top-down). Renumber round-1-first here so
+    // ascending roundGroupIndex values sort into round order downstream,
+    // matching the SCORED format's convention (and every other consumer's
+    // assumption that a higher matchId means a later round).
+    const idRemap = new Map<number, number>()
+    const orderedByRound = [...bracketSpecs].sort((a, b) => a.round - b.round || a.id - b.id)
+    orderedByRound.forEach((match, idx) => idRemap.set(match.id, idx + 1))
+    bracketSpecs.forEach(match => {
+        match.id = idRemap.get(match.id)!
+        match.nextMatchId = match.nextMatchId ? idRemap.get(match.nextMatchId)! : null
+    })
+
+    const totalRounds = Math.max(...bracketSpecs.map(s => s.round))
+    const formsList = requiredForms ? requiredForms.split(',').map(f => f.trim()) : []
+    const getFormsForRound = (round: number) => {
+        if (formsList.length === 0) return null
+        const roundsFromFinal = totalRounds - round
+        const idx = Math.max(0, formsList.length - 1 - roundsFromFinal)
+        return formsList[idx]
+    }
+
+    const specs: PoomsaeMatchSpec[] = []
+
+    // Every match slot in the tree gets a row now — including rounds where
+    // neither side is known yet — so the winner-advancement logic (which
+    // looks up a specific row by matchId + performanceNumber) always has
+    // somewhere to write the winner in later. This mirrors how Kyorugi
+    // pre-creates "TBD" rows for the whole bracket tree upfront.
+    for (const match of bracketSpecs) {
+        const sides: [Player | null, 1 | 2][] = [[match.player1, 1], [match.player2, 2]]
+        for (const [side, performanceNumber] of sides) {
+            const performer = side ? performerByPlayerId.get(side.id) : undefined
+            const isTeamOrPair = !!performer?.displayName
+
+            specs.push({
+                roundGroupIndex: match.id,
+                round: match.round,
+                performanceNumber,
+                targetRank: null,
+                playerId: side && !isTeamOrPair ? side.id : null,
+                player: side && !isTeamOrPair ? side : null,
+                displayName: performer?.displayName || null,
+                memberIds: performer?.memberIds || null,
+                memberNames: performer?.memberNames || null,
+                teamMembers: performer?.members,
+                assignedForms: getFormsForRound(match.round),
+                status: 'Pending',
+                nextRoundGroupIndex: match.nextMatchId,
+                nextMatchSlot: match.nextMatchSlot === 'player1' ? '1' : match.nextMatchSlot === 'player2' ? '2' : null,
+            })
+        }
+    }
+
+    return specs
 }

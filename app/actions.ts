@@ -575,7 +575,8 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
             const poomsaeSpecs = generatePoomsaeBracket(
                 reconciledPlayers,
                 category.subtype || 'INDIVIDUAL',
-                category.poomsaeForms
+                category.poomsaeForms,
+                category.poomsaeFormat as 'SCORED' | 'HEAD_TO_HEAD'
             )
 
             // Map roundGroupIndex -> Global Match ID
@@ -594,7 +595,9 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
 
             const createPromises = poomsaeSpecs.map(spec => {
                 const sharedMatchId = groupMapping.get(spec.roundGroupIndex) || 0
-                const nextGroupSharedId = groupMapping.get(spec.roundGroupIndex + 1) || null
+                const nextGroupSharedId = spec.nextRoundGroupIndex !== undefined
+                    ? (spec.nextRoundGroupIndex !== null ? groupMapping.get(spec.nextRoundGroupIndex) || null : null)
+                    : groupMapping.get(spec.roundGroupIndex + 1) || null
 
                 // Compute scheduledDay for this poomsae match
                 const poomsaeTotalRounds = Math.max(...poomsaeSpecs.map(s => s.round))
@@ -611,6 +614,7 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
                         round: spec.round,
                         matchId: sharedMatchId,
                         nextMatchId: nextGroupSharedId,
+                        nextMatchSlot: spec.nextMatchSlot ?? undefined,
 
                         targetRank: spec.targetRank,
                         performanceNumber: spec.performanceNumber,
@@ -848,7 +852,8 @@ export async function generateBracketsForCategory(categoryId: string, court?: st
         const poomsaeSpecs = generatePoomsaeBracket(
             reconciledForPoomsae,
             category.subtype || 'INDIVIDUAL',
-            category.poomsaeForms
+            category.poomsaeForms,
+            category.poomsaeFormat as 'SCORED' | 'HEAD_TO_HEAD'
         )
 
         // Get count of distinct groups to assign global match IDs
@@ -877,7 +882,9 @@ export async function generateBracketsForCategory(categoryId: string, court?: st
             const sharedMatchId = groupMapping.get(spec.roundGroupIndex) || 0
 
             // Pointer to the next group's shared matchId
-            const nextGroupSharedId = groupMapping.get(spec.roundGroupIndex + 1) || null
+            const nextGroupSharedId = spec.nextRoundGroupIndex !== undefined
+                    ? (spec.nextRoundGroupIndex !== null ? groupMapping.get(spec.nextRoundGroupIndex) || null : null)
+                    : groupMapping.get(spec.roundGroupIndex + 1) || null
 
             // Construct full category name including belt
             const displayName = category.belt && !category.name.toLowerCase().includes(category.belt.toLowerCase())
@@ -891,6 +898,7 @@ export async function generateBracketsForCategory(categoryId: string, court?: st
                     round: spec.round,
                     matchId: sharedMatchId,
                     nextMatchId: nextGroupSharedId,
+                    nextMatchSlot: spec.nextMatchSlot ?? undefined,
                     targetRank: spec.targetRank,
                     performanceNumber: spec.performanceNumber,
                     playerId: spec.playerId || undefined,
@@ -2133,7 +2141,7 @@ export async function bulkDeleteRegistrations(playerIds: string[]) {
     }
 }
 
-export async function updateCategory(categoryId: string, tournamentId: string, data: { name?: string; type?: string; court?: string; skillLevel?: string }) {
+export async function updateCategory(categoryId: string, tournamentId: string, data: { name?: string; type?: string; court?: string; skillLevel?: string; poomsaeFormat?: string }) {
     try {
         await prisma.category.update({
             where: { id: categoryId },
@@ -2141,7 +2149,8 @@ export async function updateCategory(categoryId: string, tournamentId: string, d
                 name: data.name,
                 type: data.type,
                 court: data.court || null,
-                skillLevel: data.skillLevel
+                skillLevel: data.skillLevel,
+                poomsaeFormat: data.poomsaeFormat
             }
         })
         revalidatePath(`/tournament/${tournamentId}`)
@@ -2152,7 +2161,7 @@ export async function updateCategory(categoryId: string, tournamentId: string, d
     }
 }
 
-export async function createCategory(tournamentId: string, name: string, type: string = 'KYORUGI', court: string = '', skillLevel: string = 'Novice') {
+export async function createCategory(tournamentId: string, name: string, type: string = 'KYORUGI', court: string = '', skillLevel: string = 'Novice', poomsaeFormat: string = 'SCORED') {
     try {
         await prisma.category.create({
             data: {
@@ -2160,7 +2169,8 @@ export async function createCategory(tournamentId: string, name: string, type: s
                 name,
                 type,
                 court: court || null,
-                skillLevel
+                skillLevel,
+                poomsaeFormat
             }
         })
         revalidatePath(`/tournament/${tournamentId}`)
@@ -4907,7 +4917,8 @@ export async function previewAllBrackets(tournamentId: string, type: string) {
             poomsaeSpecs = generatePoomsaeBracket(
                 orderedPlayers,
                 cat.subtype || 'INDIVIDUAL',
-                cat.poomsaeForms
+                cat.poomsaeForms,
+                cat.poomsaeFormat as 'SCORED' | 'HEAD_TO_HEAD'
             )
         } else if (cat.type === 'KYORUGI' && cat.players.length >= 2) {
             const orderedPlayers = cat.seedOrder && cat.seedOrder.length > 0
@@ -4923,6 +4934,7 @@ export async function previewAllBrackets(tournamentId: string, type: string) {
             skillLevel:   cat.skillLevel,
             type:         cat.type,
             subtype:      cat.subtype,
+            poomsaeFormat: cat.poomsaeFormat,
             playerCount:  cat.players.length,
             players: cat.players.map(p => ({
                 id:          p.id,
@@ -4949,16 +4961,19 @@ export async function previewAllBrackets(tournamentId: string, type: string) {
                 nextMatchSlot: s.nextMatchSlot,
                 isFinal:       s.isFinal,
             })),
-            // Poomsae specs (performance slots)
+            // Poomsae specs (performance slots for SCORED, pairings for HEAD_TO_HEAD)
             poomsaeSpecs: poomsaeSpecs.map(s => ({
-                round:             s.round,
-                performanceNumber: s.performanceNumber,
-                playerId:          s.playerId || null,
-                playerName:        s.player?.name || null,
-                displayName:       s.displayName || null,
-                memberNames:       s.memberNames || null,
-                targetRank:        s.targetRank ?? null,
-                assignedForms:     s.assignedForms || null,
+                roundGroupIndex:    s.roundGroupIndex,
+                round:              s.round,
+                performanceNumber:  s.performanceNumber,
+                playerId:           s.playerId || null,
+                playerName:         s.player?.name || null,
+                displayName:        s.displayName || null,
+                memberNames:        s.memberNames || null,
+                targetRank:         s.targetRank ?? null,
+                assignedForms:      s.assignedForms || null,
+                nextRoundGroupIndex: s.nextRoundGroupIndex ?? null,
+                nextMatchSlot:      s.nextMatchSlot ?? null,
             })),
         }
     })
@@ -4985,7 +5000,8 @@ export async function previewCategoryBracket(categoryId: string) {
         poomsaeSpecs = generatePoomsaeBracket(
             cat.players as any,
             cat.subtype || 'INDIVIDUAL',
-            cat.poomsaeForms
+            cat.poomsaeForms,
+            cat.poomsaeFormat as 'SCORED' | 'HEAD_TO_HEAD'
         )
     } else if (cat.type === 'KYORUGI' && cat.players.length >= 2) {
         kyorugiSpecs = generateSingleEliminationBracket(cat.players as any)
@@ -4996,6 +5012,7 @@ export async function previewCategoryBracket(categoryId: string) {
         categoryName: cat.name,
         type:         cat.type,
         subtype:      cat.subtype,
+        poomsaeFormat: cat.poomsaeFormat,
         playerCount:  cat.players.length,
         players: cat.players.map(p => ({
             id:          p.id,
@@ -5022,14 +5039,17 @@ export async function previewCategoryBracket(categoryId: string) {
             isFinal:       s.isFinal,
         })),
         poomsaeSpecs: poomsaeSpecs.map(s => ({
-            round:             s.round,
-            performanceNumber: s.performanceNumber,
-            playerId:          s.playerId || null,
-            playerName:        s.player?.name || null,
-            displayName:       s.displayName || null,
-            memberNames:       s.memberNames || null,
-            targetRank:        s.targetRank ?? null,
-            assignedForms:     s.assignedForms || null,
+            roundGroupIndex:    s.roundGroupIndex,
+            round:              s.round,
+            performanceNumber:  s.performanceNumber,
+            playerId:           s.playerId || null,
+            playerName:         s.player?.name || null,
+            displayName:        s.displayName || null,
+            memberNames:        s.memberNames || null,
+            targetRank:         s.targetRank ?? null,
+            assignedForms:      s.assignedForms || null,
+            nextRoundGroupIndex: s.nextRoundGroupIndex ?? null,
+            nextMatchSlot:      s.nextMatchSlot ?? null,
         })),
     }
 }
@@ -5057,7 +5077,7 @@ export async function simulateMatchSequence(
         let currentMatchNumber = 1
 
         for (const category of validCategories) {
-            const poomsaeSpecs = generatePoomsaeBracket(category.players as any, category.subtype || 'INDIVIDUAL', category.poomsaeForms)
+            const poomsaeSpecs = generatePoomsaeBracket(category.players as any, category.subtype || 'INDIVIDUAL', category.poomsaeForms, category.poomsaeFormat as 'SCORED' | 'HEAD_TO_HEAD')
             const distinctGroupIndices = Array.from(new Set(poomsaeSpecs.map(s => s.roundGroupIndex))).sort((a, b) => a - b)
             const groupMapping = new Map<number, number>()
             distinctGroupIndices.forEach(idx => { groupMapping.set(idx, currentMatchNumber++) })
@@ -5215,7 +5235,8 @@ export async function generateAllBracketsFromPreview(
             const poomsaeSpecs = generatePoomsaeBracket(
                 orderedPlayers,
                 category.subtype || 'INDIVIDUAL',
-                category.poomsaeForms
+                category.poomsaeForms,
+                category.poomsaeFormat as 'SCORED' | 'HEAD_TO_HEAD'
             )
             const distinctGroupIndices = Array.from(new Set(poomsaeSpecs.map(s => s.roundGroupIndex))).sort((a, b) => a - b)
             const groupMapping = new Map<number, number>()
@@ -5224,11 +5245,14 @@ export async function generateAllBracketsFromPreview(
                 ? `${category.name} ${category.belt}` : category.name
             const createPromises = poomsaeSpecs.map(spec => {
                 const sharedMatchId = groupMapping.get(spec.roundGroupIndex) || 0
-                const nextGroupSharedId = groupMapping.get(spec.roundGroupIndex + 1) || null
+                const nextGroupSharedId = spec.nextRoundGroupIndex !== undefined
+                    ? (spec.nextRoundGroupIndex !== null ? groupMapping.get(spec.nextRoundGroupIndex) || null : null)
+                    : groupMapping.get(spec.roundGroupIndex + 1) || null
                 return prisma.poomsaeMatch.create({
                     data: {
                         categoryRefId: category.id, category: displayName,
                         round: spec.round, matchId: sharedMatchId, nextMatchId: nextGroupSharedId,
+                        nextMatchSlot: spec.nextMatchSlot ?? undefined,
                         targetRank: spec.targetRank, performanceNumber: spec.performanceNumber,
                         playerId: spec.playerId || undefined,
                         displayName: spec.displayName || undefined,

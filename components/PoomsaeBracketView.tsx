@@ -89,6 +89,16 @@ export default function PoomsaeBracketView({ matches, tournamentName = "Tourname
                     const nextMatchId = groupMatches[0].nextMatchId
                     const categoryName = groupMatches[0].category || 'Category'
 
+                    // Head-to-head pairings are exactly 2 performers per group — once both
+                    // are Completed, highlight the higher score as the winner (tie-break by
+                    // accuracy, matching the API's advancement logic).
+                    let winnerId: number | null = null
+                    if (groupMatches.length === 2 && groupMatches.every(m => m.status === 'Completed')) {
+                        const [a, b] = groupMatches
+                        if (a.totalScore !== b.totalScore) winnerId = a.totalScore > b.totalScore ? a.id : b.id
+                        else if (a.accuracy !== b.accuracy) winnerId = a.accuracy > b.accuracy ? a.id : b.id
+                    }
+
                     return (
                         <div key={mid} className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
                             <div className="bg-indigo-600 px-5 py-4 border-b border-indigo-700 flex justify-between items-center">
@@ -121,9 +131,10 @@ export default function PoomsaeBracketView({ matches, tournamentName = "Tourname
                                     const isTeamEvent = match.teamMembers && match.teamMembers.length > 1;
                                     const clubName = match.player?.club?.name || 'Independent';
                                     const teamId = match.player?.teamId;
+                                    const isWinner = winnerId === match.id
 
                                     return (
-                                        <div key={match.id} className="p-5 flex items-center justify-between hover:bg-gray-50/80 transition-all group">
+                                        <div key={match.id} className={`p-5 flex items-center justify-between hover:bg-gray-50/80 transition-all group ${isWinner ? 'bg-green-50/50' : ''}`}>
                                             <div className="flex items-center gap-8">
                                                 <div className="flex flex-col items-center justify-center bg-gray-50 rounded-lg p-2.5 min-w-[70px] border border-gray-100 group-hover:bg-white group-hover:border-indigo-100 transition-colors">
                                                     <span className="text-[10px] font-bold text-gray-400 uppercase leading-none mb-1">Order #</span>
@@ -180,7 +191,7 @@ export default function PoomsaeBracketView({ matches, tournamentName = "Tourname
                                                         ? 'bg-green-50 text-green-600 border-green-100 shadow-sm'
                                                         : 'bg-gray-50 text-gray-400 border-gray-100'
                                                         }`}>
-                                                        {match.status}
+                                                        {isWinner ? 'Winner' : match.status}
                                                     </div>
                                                 </div>
                                             </div>

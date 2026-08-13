@@ -42,6 +42,7 @@ interface PreviewMatch {
 }
 
 interface PoomsaePreviewSlot {
+    roundGroupIndex: number
     round: number
     performanceNumber: number
     playerId: string | null
@@ -50,6 +51,8 @@ interface PoomsaePreviewSlot {
     memberNames: string | null
     targetRank: number | null
     assignedForms: string | null
+    nextRoundGroupIndex?: number | null
+    nextMatchSlot?: string | null
 }
 
 interface PreviewCategoryData {
@@ -59,6 +62,7 @@ interface PreviewCategoryData {
     skillLevel: string | null
     type: string
     subtype?: string | null
+    poomsaeFormat?: string | null
     playerCount: number
     players: PreviewPlayer[]
     specs: PreviewMatch[]
@@ -777,6 +781,7 @@ function CategoryCard({
     const skill = getSkillColor(cat.skillLevel)
     const isKyorugiBracket = cat.type === 'KYORUGI' && cat.playerCount >= 2
     const isPoomsae = cat.type === 'POOMSAE' || cat.type === 'KYUKPA'
+    const isHeadToHeadPoomsae = isPoomsae && cat.poomsaeFormat === 'HEAD_TO_HEAD'
     const maxRound = localSpecs.length > 0 ? Math.max(...localSpecs.map(s => s.round)) : 0
     const rounds = Array.from(new Set(localSpecs.map(s => s.round))).sort((a, b) => a - b)
     const hasSelection = selected?.catId === cat.categoryId
@@ -1030,8 +1035,41 @@ function CategoryCard({
                                                 </span>
                                             </div>
 
-                                            {/* Performance slots */}
-                                            {roundSlots.sort((a, b) => a.performanceNumber - b.performanceNumber).map((slot, idx) => {
+                                            {/* Performance slots (Head-to-Head: paired by roundGroupIndex) */}
+                                            {isHeadToHeadPoomsae ? (
+                                                Array.from(
+                                                    roundSlots.reduce((groups, s) => {
+                                                        const arr = groups.get(s.roundGroupIndex) || []
+                                                        arr.push(s)
+                                                        groups.set(s.roundGroupIndex, arr)
+                                                        return groups
+                                                    }, new Map<number, PoomsaePreviewSlot[]>()).entries()
+                                                ).map(([groupIdx, pair]) => {
+                                                    const sideA = pair.find(s => s.performanceNumber === 1)
+                                                    const sideB = pair.find(s => s.performanceNumber === 2)
+                                                    const label = (s?: PoomsaePreviewSlot) => s ? (s.displayName || s.playerName || 'TBD') : 'BYE'
+                                                    return (
+                                                        <div key={groupIdx} className="rounded-xl px-3 py-2.5"
+                                                            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                                            <div className="text-sm font-bold" style={{ color: sideA ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.3)' }}>
+                                                                {label(sideA)}
+                                                            </div>
+                                                            <div className="text-[10px] font-black uppercase my-1" style={{ color: 'rgba(255,255,255,0.35)' }}>vs</div>
+                                                            <div className="text-sm font-bold" style={{ color: sideB ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.3)' }}>
+                                                                {label(sideB)}
+                                                            </div>
+                                                            {(sideA?.assignedForms || sideB?.assignedForms) && (
+                                                                <div className="mt-1.5">
+                                                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+                                                                        style={{ background: 'rgba(139,92,246,0.15)', color: '#a78bfa' }}>
+                                                                        {sideA?.assignedForms || sideB?.assignedForms}
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )
+                                                })
+                                            ) : roundSlots.sort((a, b) => a.performanceNumber - b.performanceNumber).map((slot, idx) => {
                                                 const pInfo = slot.playerId ? playerMap.get(slot.playerId) : null
                                                 const displayLabel = slot.displayName || slot.playerName || (slot.targetRank ? `Rank #${slot.targetRank}` : 'TBD')
                                                 const hasPlayer = !!slot.playerId || !!slot.displayName

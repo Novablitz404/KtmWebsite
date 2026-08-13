@@ -130,6 +130,7 @@ model Category {
   type         String  @default("KYORUGI") // "KYORUGI", "POOMSAE"
   subtype      String  @default("INDIVIDUAL") // "INDIVIDUAL", "PAIR", "TEAM"
   poomsaeForms String? // Assigned Forms
+  poomsaeFormat String @default("SCORED") // "SCORED", "HEAD_TO_HEAD" — only meaningful when type = "POOMSAE"
 
   court String? // Assigned Court Number
 
@@ -617,9 +618,10 @@ model PoomsaeMatch {
 
   round Int // 1=Prelim, 2=Semi, 3=Final
 
-  matchId     Int? // Shared ID for all performances in this round group (e.g. 001)
-  nextMatchId Int? // Points to the shared matchId of the next round group (e.g. 002)
-  targetRank  Int? // The rank required to fill this slot (e.g. Rank 8 -> Perf #1)
+  matchId     Int? // Shared ID for all performances in this round group (SCORED format), or a unique per-pairing ID (HEAD_TO_HEAD format)
+  nextMatchId Int? // Points to the shared matchId of the next round group (SCORED), or the specific next pairing's matchId (HEAD_TO_HEAD)
+  nextMatchSlot String? // "1" or "2" — which performanceNumber slot in the nextMatchId pairing this row's winner fills (HEAD_TO_HEAD only)
+  targetRank  Int? // The rank required to fill this slot (e.g. Rank 8 -> Perf #1) — SCORED format only
 
   performanceNumber Int? // Official order (1, 2, 3...) within the group
 

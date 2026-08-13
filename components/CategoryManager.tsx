@@ -14,6 +14,7 @@ interface Category {
     court: string | null
     skillLevel: string | null
     deferFinals: boolean
+    poomsaeFormat?: string
 }
 
 interface CategoryManagerProps {
@@ -56,16 +57,17 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
     const [newType, setNewType]           = useState('KYORUGI')
     const [newSkillLevel, setNewSkillLevel] = useState('Novice')
     const [newCourt, setNewCourt]         = useState('')
+    const [newPoomsaeFormat, setNewPoomsaeFormat] = useState('SCORED')
 
     const openAddModal = () => {
-        setNewName(''); setNewType('KYORUGI'); setNewSkillLevel('Novice'); setNewCourt('')
+        setNewName(''); setNewType('KYORUGI'); setNewSkillLevel('Novice'); setNewCourt(''); setNewPoomsaeFormat('SCORED')
         setIsAddModalOpen(true)
     }
 
     const handleAddCategory = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
-        const res = await createCategory(tournamentId, newName, newType, newCourt, newSkillLevel)
+        const res = await createCategory(tournamentId, newName, newType, newCourt, newSkillLevel, newPoomsaeFormat)
         setLoading(false)
         if (res.success) { setIsAddModalOpen(false); router.refresh(); toast.success('Category created') }
         else toast.error(res.error || 'Failed to create category')
@@ -76,6 +78,7 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
         setEditingCategory(cat); setNewName(cat.name); setNewType(cat.type)
         // @ts-ignore
         setNewSkillLevel(cat.skillLevel || 'Novice'); setNewCourt(cat.court || '')
+        setNewPoomsaeFormat(cat.poomsaeFormat || 'SCORED')
     }
 
     const handleUpdateCategory = async (e: React.FormEvent) => {
@@ -83,7 +86,7 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
         if (!editingCategory) return
         setLoading(true)
         const res = await updateCategory(editingCategory.id, tournamentId, {
-            name: newName, type: newType, court: newCourt, skillLevel: newSkillLevel
+            name: newName, type: newType, court: newCourt, skillLevel: newSkillLevel, poomsaeFormat: newPoomsaeFormat
         })
         setLoading(false)
         if (res.success) { setEditingCategory(null); router.refresh(); toast.success('Category updated') }
@@ -457,6 +460,44 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
                                     />
                                 </div>
                             </div>
+
+                            {/* Poomsae Format (Poomsae discipline only) */}
+                            {newType === 'POOMSAE' && (
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
+                                        Match Format
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setNewPoomsaeFormat('SCORED')}
+                                            className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition-all ${
+                                                newPoomsaeFormat === 'SCORED'
+                                                    ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                                                    : 'bg-white text-gray-600 border-gray-200 hover:border-purple-300'
+                                            }`}
+                                        >
+                                            Scored
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setNewPoomsaeFormat('HEAD_TO_HEAD')}
+                                            className={`px-3 py-2.5 rounded-xl text-sm font-bold border transition-all ${
+                                                newPoomsaeFormat === 'HEAD_TO_HEAD'
+                                                    ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                                                    : 'bg-white text-gray-600 border-gray-200 hover:border-purple-300'
+                                            }`}
+                                        >
+                                            Head-to-Head
+                                        </button>
+                                    </div>
+                                    <p className="text-[11px] text-gray-400 mt-1.5">
+                                        {newPoomsaeFormat === 'SCORED'
+                                            ? 'Performers ranked by score within each round; top scores advance.'
+                                            : 'Performers paired directly; the higher score in each pairing advances through a bracket.'}
+                                    </p>
+                                </div>
+                            )}
 
                             {/* Court */}
                             <div>

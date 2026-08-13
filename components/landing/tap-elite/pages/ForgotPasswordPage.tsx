@@ -38,13 +38,19 @@ export default function TapEliteForgotPasswordPage() {
     return (
         <main className="min-h-screen bg-black flex items-center justify-center px-4 relative overflow-hidden">
             <div className="absolute inset-0">
-                <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#EAB308]/10 rounded-full blur-[150px]" />
+                <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#E10600]/10 rounded-full blur-[150px]" />
             </div>
 
             <div className="relative z-10 w-full max-w-md">
                 <div className="text-center mb-8">
                     <Link href={`/${qs}`}>
-                        <Image src="/tap-elite/logo.svg" alt="Tap-Elite" width={64} height={64} className="mx-auto mb-4 rounded-full" />
+                        <Image
+                            src="/tap-elite/tap_elite_horizontal_transparent.png"
+                            alt="Tap Elite"
+                            width={180}
+                            height={72}
+                            className="mx-auto mb-5 h-auto"
+                        />
                     </Link>
                     <h1 className="text-2xl md:text-3xl font-black text-white uppercase tracking-wider">
                         {sent ? "Check Your Email" : "Forgot Password"}
@@ -57,8 +63,8 @@ export default function TapEliteForgotPasswordPage() {
                 <div className="bg-[#0A0A0A] border border-white/5 rounded-2xl p-6 md:p-8">
                     {sent ? (
                         <div className="text-center space-y-6">
-                            <div className="w-16 h-16 mx-auto bg-[#EAB308]/10 rounded-full flex items-center justify-center">
-                                <CheckCircle className="w-8 h-8 text-[#EAB308]" />
+                            <div className="w-16 h-16 mx-auto bg-[#E10600]/10 rounded-full flex items-center justify-center">
+                                <CheckCircle className="w-8 h-8 text-[#E10600]" />
                             </div>
                             <div className="space-y-2">
                                 <p className="text-gray-400 text-sm leading-relaxed">
@@ -78,7 +84,7 @@ export default function TapEliteForgotPasswordPage() {
                                 </button>
                                 <Link
                                     href={`/sign-in${qs}`}
-                                    className="w-full flex items-center justify-center gap-2 bg-white text-black font-bold text-sm uppercase tracking-widest py-3.5 rounded-full hover:bg-gray-200 transition-colors"
+                                    className="w-full flex items-center justify-center gap-2 bg-[#E10600] text-white font-bold text-sm uppercase tracking-widest py-3.5 rounded-full hover:bg-[#FF2A21] transition-colors"
                                 >
                                     Back to Sign In
                                 </Link>
@@ -102,7 +108,7 @@ export default function TapEliteForgotPasswordPage() {
                                     onChange={(e) => setEmail(e.target.value)}
                                     required
                                     autoFocus
-                                    className="w-full bg-black border border-white/10 text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-[#6D28D9] transition-colors placeholder:text-gray-700"
+                                    className="w-full bg-black border border-white/10 text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-[#E10600] transition-colors placeholder:text-gray-700"
                                     placeholder="name@example.com"
                                 />
                             </div>
@@ -110,7 +116,7 @@ export default function TapEliteForgotPasswordPage() {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full bg-white text-black font-bold text-sm uppercase tracking-widest py-3.5 rounded-full hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                                className="w-full bg-[#E10600] text-white font-bold text-sm uppercase tracking-widest py-3.5 rounded-full hover:bg-[#FF2A21] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                             >
                                 {loading && <Loader2 size={16} className="animate-spin" />}
                                 {loading ? "Sending..." : "Send Reset Link"}
@@ -129,11 +135,6 @@ export default function TapEliteForgotPasswordPage() {
                     )}
                 </div>
 
-                <div className="flex justify-center gap-1.5 mt-8">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#6D28D9]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#EAB308]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-white" />
-                </div>
                 <div className="mt-8 flex items-center justify-center gap-2">
                     <span className="text-[11px] text-gray-500 font-medium">Powered by</span>
                     <Image src="/ktmnav_white.png" alt="KTM Sports" width={54} height={18} className="opacity-60" />
