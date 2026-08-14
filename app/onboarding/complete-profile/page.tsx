@@ -1008,6 +1008,29 @@ export default function CompleteProfilePage() {
                                 </div>
                             )}
 
+                            {/* Sub-step 2 fallback: no payment method configured for this org */}
+                            {paymentStep === 2 && !activeMethod && (
+                                <div className="space-y-5 text-center py-6">
+                                    <div className="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center mx-auto">
+                                        <Banknote className="w-7 h-7 text-amber-600" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-900">No payment method available yet</p>
+                                        <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
+                                            {paymentOrgName} hasn&apos;t set up a payment method for affiliation fees yet.
+                                            Please contact them directly, or check back later.
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setStep('details')}
+                                        className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-50 transition-colors"
+                                    >
+                                        <ArrowLeft className="w-4 h-4" /> Back to Club Details
+                                    </button>
+                                </div>
+                            )}
+
                             {/* Sub-step 3: Upload Proof */}
                             {paymentStep === 3 && (
                                 <div className="space-y-5">
