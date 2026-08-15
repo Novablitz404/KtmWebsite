@@ -3500,7 +3500,7 @@ export async function orgResetPassword(targetUserId: string) {
             const resend = new Resend(process.env.RESEND_API_KEY)
 
             await resend.emails.send({
-                from: `${dbUser.organization.name} <noreply@wo-tf.com>`,
+                from: `${dbUser.organization.name} <noreply@tap-elite.com>`,
                 to: [targetUser.email],
                 subject: `Your password has been reset — ${dbUser.organization.name}`,
                 react: OrgPasswordResetEmail({

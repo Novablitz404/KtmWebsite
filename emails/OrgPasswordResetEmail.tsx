@@ -81,7 +81,7 @@ export const OrgPasswordResetEmail = ({
                             Powered by
                         </Text>
                         <Img
-                            src="https://www.wo-tf.com/ktmnav.png"
+                            src="https://www.tap-elite.com/ktmnav.png"
                             width="50"
                             alt="KTM"
                             style={{ margin: '4px auto 0', opacity: 0.5 }}

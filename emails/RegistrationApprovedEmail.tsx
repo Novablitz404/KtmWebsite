@@ -26,7 +26,7 @@ interface RegistrationApprovedEmailProps {
     emailBannerUrl?: string
 }
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.wo-tf.com'
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.tap-elite.com'
 
 export default function RegistrationApprovedEmail({
     athleteName = 'John Doe',
@@ -66,11 +66,19 @@ export default function RegistrationApprovedEmail({
                             />
                         </Section>
                     )}
-                    <Section style={{ backgroundColor: '#0f172a', borderRadius: emailBannerUrl ? '0' : '16px 16px 0 0', padding: '32px 24px', textAlign: 'center' as const }}>
+                    <Section style={{ backgroundColor: '#000000', borderRadius: emailBannerUrl ? '0' : '16px 16px 0 0', padding: '28px 24px 24px', textAlign: 'center' as const, borderBottom: '2px solid #E10600' }}>
+                        {!emailBannerUrl && (
+                            <Img
+                                src="https://www.tap-elite.com/tap-elite/tap_elite_horizontal_transparent.png"
+                                width="180"
+                                alt="Tap Elite"
+                                style={{ margin: '0 auto 16px' }}
+                            />
+                        )}
                         <Heading style={{ color: '#ffffff', fontSize: '24px', fontWeight: 800, margin: 0 }}>
                             Registration Approved ✅
                         </Heading>
-                        <Text style={{ color: '#94a3b8', fontSize: '14px', margin: '8px 0 0' }}>
+                        <Text style={{ color: '#9ca3af', fontSize: '14px', margin: '8px 0 0' }}>
                             {eventName}
                         </Text>
                     </Section>
@@ -92,7 +100,7 @@ export default function RegistrationApprovedEmail({
                         {items.map((item, idx) => (
                             <Section key={idx} style={{ textAlign: 'center' as const, margin: '24px 0', backgroundColor: '#fafafa', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0' }}>
                                 {hasMultiple && (
-                                    <Text style={{ color: '#6366f1', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '1.5px', margin: '0 0 12px' }}>
+                                    <Text style={{ color: '#E10600', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '1.5px', margin: '0 0 12px' }}>
                                         {item.eventType === 'Tournament' ? '🥋' : '📚'} {item.categoryName || item.eventType} — QR {idx + 1} of {items.length}
                                     </Text>
                                 )}
@@ -121,7 +129,7 @@ export default function RegistrationApprovedEmail({
                                     href={`${appUrl}/qr/${item.registrationId}`}
                                     style={{
                                         display: 'inline-block',
-                                        backgroundColor: '#0f172a',
+                                        backgroundColor: '#E10600',
                                         color: '#ffffff',
                                         padding: '10px 24px',
                                         borderRadius: '8px',
@@ -176,13 +184,13 @@ export default function RegistrationApprovedEmail({
                     {/* Footer */}
                     <Section style={{ backgroundColor: '#f8fafc', borderRadius: '0 0 16px 16px', padding: '20px 24px', textAlign: 'center' as const }}>
                         <Text style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>
-                            © {new Date().getFullYear()} World Olympics Taekwondo Federation Philippines
+                            © {new Date().getFullYear()} Elite Taekwondo Association of the Philippines
                         </Text>
                         <Text style={{ fontSize: '11px', color: '#d1d5db', textAlign: 'center' as const, margin: '8px 0 2px' }}>
                             Powered by
                         </Text>
                         <Img
-                            src="https://www.wo-tf.com/ktmnav.png"
+                            src="https://www.tap-elite.com/ktmnav.png"
                             width="50"
                             alt="KTM"
                             style={{ margin: '0 auto', opacity: 0.5 }}

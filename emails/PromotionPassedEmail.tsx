@@ -45,10 +45,10 @@ export const PromotionPassedEmail = ({
     athleteName = 'Athlete',
     beltName = 'Black',
     clubName = 'Your Club',
-    organizationName = 'World Olympic Taekwondo Federation - Philippines (WOTF)',
+    organizationName = 'Elite Taekwondo Association of the Philippines',
     promotionTestName = 'Promotion Test',
     emailBannerUrl = null,
-    dashboardUrl = 'https://ktmsports.com/athlete',
+    dashboardUrl = 'https://www.tap-elite.com/athlete',
 }: PromotionPassedEmailProps) => {
     const formalRank = getFormalBeltRank(beltName)
 
@@ -72,16 +72,10 @@ export const PromotionPassedEmail = ({
                         ) : (
                             <Section style={imageSection}>
                                 <Img
-                                    src="https://www.wo-tf.com/wotf/logo_image.png"
-                                    width="80"
-                                    alt="WOTF Logo"
+                                    src="https://www.tap-elite.com/tap-elite/tap_elite_horizontal_transparent.png"
+                                    width="200"
+                                    alt="Tap Elite"
                                     style={logo}
-                                />
-                                <Img
-                                    src="https://www.wo-tf.com/wotf/wotf_logo_word.png"
-                                    width="80"
-                                    alt="WOTF Philippines"
-                                    style={{ margin: '12px auto 0' }}
                                 />
                             </Section>
                         )}
@@ -127,13 +121,13 @@ export const PromotionPassedEmail = ({
                             </Text>
                             <Hr style={hr} />
                             <Text style={{ ...footerText, fontSize: '12px', color: '#9ca3af', textAlign: 'center' as const, margin: '16px 0 0' }}>
-                                © {new Date().getFullYear()} WOTF Philippines. All rights reserved.
+                                © {new Date().getFullYear()} Elite Taekwondo Association of the Philippines. All rights reserved.
                             </Text>
                             <Text style={{ fontSize: '11px', color: '#d1d5db', textAlign: 'center' as const, margin: '6px 0 2px' }}>
                                 Powered by
                             </Text>
                             <Img
-                                src="https://www.wo-tf.com/ktmnav.png"
+                                src="https://www.tap-elite.com/ktmnav.png"
                                 width="50"
                                 alt="KTM"
                                 style={{ margin: '0 auto', opacity: 0.5 }}
@@ -182,10 +176,10 @@ const bannerImage = {
 }
 
 const imageSection = {
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#000000',
     padding: '30px 0',
     textAlign: 'center' as const,
-    borderBottom: '1px solid #eee',
+    borderBottom: '2px solid #E10600',
 }
 
 const logo = {
@@ -205,7 +199,7 @@ const h1 = {
 }
 
 const h2 = {
-    color: '#dc2626',
+    color: '#E10600',
     fontSize: '24px',
     fontWeight: '700',
     lineHeight: '32px',
@@ -233,7 +227,7 @@ const buttonContainer = {
 }
 
 const button = {
-    backgroundColor: '#dc2626',
+    backgroundColor: '#E10600',
     borderRadius: '8px',
     color: '#fff',
     fontSize: '16px',

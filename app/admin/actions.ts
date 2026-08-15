@@ -936,7 +936,7 @@ export async function sendInvoiceEmail(orgId: string, email: string, orgName: st
 
         // Resend API allows base64 content in attachments
         await resend.emails.send({
-                from: 'KTM Platform <noreply@wo-tf.com>',
+                from: 'Tap Elite <noreply@tap-elite.com>',
             to: [email],
             subject: `KTM Monthly Billing Invoice - ${monthStr}`,
             react: InvoiceEmail({ orgName, monthStr }),

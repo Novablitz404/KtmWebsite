@@ -1,6 +1,6 @@
 import * as React from 'react'
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.wotf-global.com'
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.tap-elite.com'
 
 interface WOTFAthleteApprovedEmailProps {
     athleteName: string
@@ -30,14 +30,13 @@ export default function WOTFAthleteApprovedEmail({
             <div style={{
                 textAlign: 'center' as const,
                 padding: '40px 32px 28px',
-                background: 'linear-gradient(135deg, rgba(0,133,199,0.15) 0%, #000000 100%)',
-                borderBottom: '1px solid rgba(255,255,255,0.06)',
+                background: 'linear-gradient(135deg, rgba(225,6,0,0.15) 0%, #000000 100%)',
+                borderBottom: '2px solid #E10600',
             }}>
                 <img
-                    src={`${appUrl}/wotf-global/Wotf_logo_Final.png`}
-                    alt="WOTF Global"
-                    width={80}
-                    height={80}
+                    src={`${appUrl}/tap-elite/tap_elite_horizontal_transparent.png`}
+                    alt="Tap Elite"
+                    width={180}
                     style={{ margin: '0 auto 20px', display: 'block' }}
                 />
                 <h1 style={{
@@ -51,7 +50,7 @@ export default function WOTFAthleteApprovedEmail({
                     You&apos;re Approved!
                 </h1>
                 <p style={{ color: '#6b7280', fontSize: '14px', margin: 0 }}>
-                    Your WOTF Global athlete profile has been verified
+                    Your Tap Elite athlete profile has been verified
                 </p>
             </div>
 
@@ -127,7 +126,7 @@ export default function WOTFAthleteApprovedEmail({
                 </div>
 
                 <p style={{ color: '#4b5563', fontSize: '12px', lineHeight: '1.6', margin: 0 }}>
-                    If you have any questions, contact your clubmaster or reach out to the WOTF Global support team.
+                    If you have any questions, contact your clubmaster or reach out to the Tap Elite support team.
                 </p>
             </div>
 
@@ -137,26 +136,17 @@ export default function WOTFAthleteApprovedEmail({
                 padding: '24px 32px',
                 borderTop: '1px solid rgba(255,255,255,0.05)',
             }}>
-                <div style={{ marginBottom: '12px' }}>
-                    {[
-                        { color: '#0085C7' },
-                        { color: '#F4C300' },
-                        { color: '#ffffff' },
-                        { color: '#009F3D' },
-                        { color: '#DF0024' },
-                    ].map(({ color }, i) => (
-                        <span key={i} style={{
-                            display: 'inline-block',
-                            width: 6,
-                            height: 6,
-                            borderRadius: '50%',
-                            backgroundColor: color,
-                            margin: '0 3px',
-                        }} />
-                    ))}
-                </div>
+                <p style={{ color: '#6b7280', fontSize: '10px', margin: '0 0 6px' }}>
+                    Powered by
+                </p>
+                <img
+                    src="https://www.tap-elite.com/ktmnav_white.png"
+                    width={54}
+                    alt="KTM Sports"
+                    style={{ margin: '0 auto 12px', opacity: 0.6 }}
+                />
                 <p style={{ color: '#4b5563', fontSize: '11px', margin: 0 }}>
-                    World Olympics Taekwondo Federation
+                    Elite Taekwondo Association of the Philippines
                 </p>
             </div>
         </div>

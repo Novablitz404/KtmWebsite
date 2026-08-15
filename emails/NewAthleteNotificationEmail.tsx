@@ -29,10 +29,9 @@ export default function NewAthleteNotificationEmail({
                 borderBottom: '1px solid rgba(255,255,255,0.05)',
             }}>
                 <img
-                    src="https://wotf-global.com/wotf/logo_image.png"
-                    alt="WOTF"
-                    width={48}
-                    height={48}
+                    src="https://www.tap-elite.com/tap-elite/tap_elite_horizontal_transparent.png"
+                    alt="Tap Elite"
+                    width={180}
                     style={{ margin: '0 auto 16px' }}
                 />
                 <h1 style={{
@@ -41,7 +40,7 @@ export default function NewAthleteNotificationEmail({
                     letterSpacing: '2px',
                     textTransform: 'uppercase' as const,
                     margin: 0,
-                    color: '#F4C300',
+                    color: '#E10600',
                 }}>
                     New Athlete Awaiting Approval
                 </h1>
@@ -96,7 +95,7 @@ export default function NewAthleteNotificationEmail({
                 {/* CTA Button */}
                 <div style={{ textAlign: 'center' as const }}>
                     <a
-                        href="https://wotf-global.com/club"
+                        href="https://www.tap-elite.com/club"
                         style={{
                             display: 'inline-block',
                             backgroundColor: '#ffffff',
@@ -121,15 +120,17 @@ export default function NewAthleteNotificationEmail({
                 padding: '24px 32px',
                 borderTop: '1px solid rgba(255,255,255,0.05)',
             }}>
-                <div style={{ marginBottom: '12px' }}>
-                    <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', backgroundColor: '#0085C7', margin: '0 3px' }} />
-                    <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', backgroundColor: '#F4C300', margin: '0 3px' }} />
-                    <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', backgroundColor: '#ffffff', margin: '0 3px' }} />
-                    <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', backgroundColor: '#009F3D', margin: '0 3px' }} />
-                    <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', backgroundColor: '#DF0024', margin: '0 3px' }} />
-                </div>
+                <p style={{ color: '#6b7280', fontSize: '10px', margin: '0 0 6px' }}>
+                    Powered by
+                </p>
+                <img
+                    src="https://www.tap-elite.com/ktmnav_white.png"
+                    width={54}
+                    alt="KTM Sports"
+                    style={{ margin: '0 auto 12px', opacity: 0.6 }}
+                />
                 <p style={{ color: '#4b5563', fontSize: '11px', margin: 0 }}>
-                    World Olympic Taekwondo Federation
+                    Elite Taekwondo Association of the Philippines
                 </p>
             </div>
         </div>

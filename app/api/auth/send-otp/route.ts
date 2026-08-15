@@ -54,9 +54,9 @@ export async function POST(request: NextRequest) {
 
         // Send email via Resend
         const { error } = await resend.emails.send({
-            from: 'WOTF Global <noreply@wo-tf.com>',
+            from: 'Tap Elite <noreply@tap-elite.com>',
             to: [email],
-            subject: `${code} — Your WOTF Verification Code`,
+            subject: `${code} — Your Tap Elite Verification Code`,
             react: VerifyOTPEmail({ code, name }),
         })
 

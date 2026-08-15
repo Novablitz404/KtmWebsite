@@ -1,6 +1,6 @@
 import * as React from 'react'
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.wotf-global.com'
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.tap-elite.com'
 
 interface VerifyOTPEmailProps {
     code: string
@@ -21,13 +21,12 @@ export default function VerifyOTPEmail({ code, name }: VerifyOTPEmailProps) {
             <div style={{
                 textAlign: 'center' as const,
                 padding: '40px 32px 24px',
-                borderBottom: '1px solid rgba(255,255,255,0.05)',
+                borderBottom: '2px solid #E10600',
             }}>
                 <img
-                    src={`${appUrl}/wotf-global/Wotf_logo_Final.png`}
-                    alt="WOTF"
-                    width={72}
-                    height={72}
+                    src={`${appUrl}/tap-elite/tap_elite_horizontal_transparent.png`}
+                    alt="Tap Elite"
+                    width={180}
                     style={{ margin: '0 auto 16px', display: 'block' }}
                 />
                 <h1 style={{
@@ -97,20 +96,21 @@ export default function VerifyOTPEmail({ code, name }: VerifyOTPEmailProps) {
                 padding: '24px 32px',
                 borderTop: '1px solid rgba(255,255,255,0.05)',
             }}>
-                {/* Olympic dots */}
-                <div style={{ marginBottom: '12px' }}>
-                    <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', backgroundColor: '#0085C7', margin: '0 3px' }} />
-                    <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', backgroundColor: '#F4C300', margin: '0 3px' }} />
-                    <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', backgroundColor: '#ffffff', margin: '0 3px' }} />
-                    <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', backgroundColor: '#009F3D', margin: '0 3px' }} />
-                    <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', backgroundColor: '#DF0024', margin: '0 3px' }} />
-                </div>
+                <p style={{ color: '#6b7280', fontSize: '10px', margin: '0 0 6px' }}>
+                    Powered by
+                </p>
+                <img
+                    src="https://www.tap-elite.com/ktmnav_white.png"
+                    width={54}
+                    alt="KTM Sports"
+                    style={{ margin: '0 auto 12px', opacity: 0.6 }}
+                />
                 <p style={{
                     color: '#4b5563',
                     fontSize: '11px',
                     margin: 0,
                 }}>
-                    World Olympic Taekwondo Federation
+                    Elite Taekwondo Association of the Philippines
                 </p>
             </div>
         </div>

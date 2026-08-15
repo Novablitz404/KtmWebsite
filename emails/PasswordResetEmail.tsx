@@ -28,9 +28,9 @@ export const PasswordResetEmail = ({
                     {/* Header */}
                     <Section style={headerSection}>
                         <Img
-                            src="https://www.wo-tf.com/ktmnav.png"
-                            width="80"
-                            alt="KTM Logo"
+                            src="https://www.tap-elite.com/tap-elite/tap_elite_horizontal_transparent.png"
+                            width="200"
+                            alt="Tap Elite"
                             style={logo}
                         />
                     </Section>
@@ -66,8 +66,15 @@ export const PasswordResetEmail = ({
 
                     {/* Footer */}
                     <Section style={footer}>
+                        <Text style={footerPoweredBy}>Powered by</Text>
+                        <Img
+                            src="https://www.tap-elite.com/ktmnav.png"
+                            width="72"
+                            alt="KTM Sports"
+                            style={footerLogo}
+                        />
                         <Text style={footerText}>
-                            © {new Date().getFullYear()} KTM Platform. All rights reserved.
+                            © {new Date().getFullYear()} Elite Taekwondo Association of the Philippines. All rights reserved.
                         </Text>
                     </Section>
                 </Container>
@@ -95,9 +102,9 @@ const container = {
 
 const headerSection = {
     padding: '30px',
-    backgroundColor: '#0f172a',
+    backgroundColor: '#000000',
     textAlign: 'center' as const,
-    borderBottom: '1px solid #1e293b',
+    borderBottom: '2px solid #E10600',
 };
 
 const logo = {
@@ -125,8 +132,8 @@ const text = {
 };
 
 const passwordBox = {
-    backgroundColor: '#f8fafc',
-    border: '2px dashed #e2e8f0',
+    backgroundColor: '#FFF5F5',
+    border: '2px dashed #E10600',
     borderRadius: '8px',
     padding: '20px',
     textAlign: 'center' as const,
@@ -134,7 +141,7 @@ const passwordBox = {
 };
 
 const passwordLabel = {
-    color: '#6b7280',
+    color: '#E10600',
     fontSize: '11px',
     fontWeight: '700',
     textTransform: 'uppercase' as const,
@@ -167,6 +174,20 @@ const hr = {
 const footer = {
     padding: '24px 40px',
     backgroundColor: '#fafafa',
+    textAlign: 'center' as const,
+};
+
+const footerPoweredBy = {
+    color: '#9ca3af',
+    fontSize: '11px',
+    fontWeight: '600',
+    letterSpacing: '0.5px',
+    margin: '0 0 8px',
+};
+
+const footerLogo = {
+    margin: '0 auto 12px',
+    opacity: 0.8,
 };
 
 const footerText = {

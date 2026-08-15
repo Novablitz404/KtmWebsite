@@ -30,19 +30,13 @@ export const InviteEmail = ({
             <Head />
             <Body style={main}>
                 <Container style={container}>
-                    {/* Header Image (Optional, default WOTF logo or org banner) */}
+                    {/* Header */}
                     <Section style={headerSection}>
                         <Img
-                            src="https://www.wo-tf.com/wotf/logo_image.png"
-                            width="60"
-                            alt="WOTF Logo"
+                            src="https://www.tap-elite.com/tap-elite/tap_elite_horizontal_transparent.png"
+                            width="200"
+                            alt="Tap Elite"
                             style={logo}
-                        />
-                        <Img
-                            src="https://www.wo-tf.com/wotf/wotf_logo_word.png"
-                            width="160"
-                            alt="WOTF Philippines"
-                            style={{ margin: '12px auto 0' }}
                         />
                     </Section>
 
@@ -79,13 +73,13 @@ export const InviteEmail = ({
                     {/* Footer */}
                     <Section style={footer}>
                         <Text style={footerText}>
-                            © {new Date().getFullYear()} WOTF Philippines. All rights reserved.
+                            © {new Date().getFullYear()} Elite Taekwondo Association of the Philippines. All rights reserved.
                         </Text>
                         <Text style={{ ...footerText, margin: '0' }}>
                             Powered by
                         </Text>
                         <Img
-                            src="https://www.wo-tf.com/ktmnav.png"
+                            src="https://www.tap-elite.com/ktmnav.png"
                             width="50"
                             alt="KTM"
                             style={{ margin: '4px auto 0', opacity: 0.5 }}
@@ -116,9 +110,9 @@ const container = {
 
 const headerSection = {
     padding: '30px',
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#000000',
     textAlign: 'center' as const,
-    borderBottom: '1px solid #eee',
+    borderBottom: '2px solid #E10600',
 };
 
 const logo = {
@@ -151,7 +145,7 @@ const buttonContainer = {
 };
 
 const button = {
-    backgroundColor: '#0f172a',
+    backgroundColor: '#E10600',
     borderRadius: '6px',
     color: '#fff',
     fontSize: '16px',

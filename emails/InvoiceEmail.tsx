@@ -30,9 +30,9 @@ export const InvoiceEmail = ({
                     {/* Header Section */}
                     <Section style={headerSection}>
                         <Img
-                            src="https://www.wo-tf.com/ktmnav.png"
-                            width="140"
-                            alt="KTM Platform"
+                            src="https://www.tap-elite.com/tap-elite/tap_elite_horizontal_transparent.png"
+                            width="200"
+                            alt="Tap Elite"
                             style={logo}
                         />
                     </Section>
@@ -63,13 +63,13 @@ export const InvoiceEmail = ({
                     {/* Footer */}
                     <Section style={footer}>
                         <Text style={footerText}>
-                            © {new Date().getFullYear()} KTM Sports. All rights reserved.
+                            © {new Date().getFullYear()} Elite Taekwondo Association of the Philippines. All rights reserved.
                         </Text>
                         <Text style={{ ...footerText, margin: '0' }}>
                             Powered by
                         </Text>
                         <Img
-                            src="https://www.wo-tf.com/ktmnav.png"
+                            src="https://www.tap-elite.com/ktmnav.png"
                             width="50"
                             alt="KTM"
                             style={{ margin: '4px auto 0', opacity: 0.5 }}
@@ -100,9 +100,9 @@ const container = {
 
 const headerSection = {
     padding: '30px',
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#000000',
     textAlign: 'center' as const,
-    borderBottom: '1px solid #eee',
+    borderBottom: '2px solid #E10600',
 }
 
 const logo = {

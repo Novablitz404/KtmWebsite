@@ -24,7 +24,7 @@ export async function sendEmail({
 
     try {
         const data = await resend.emails.send({
-            from: 'World Olympics Taekwondo Federation <noreply@wo-tf.com>',
+            from: 'Tap Elite <noreply@tap-elite.com>',
             to: [to],
             subject: subject,
             react: reactData,
