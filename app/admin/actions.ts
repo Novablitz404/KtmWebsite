@@ -1090,7 +1090,7 @@ export async function adminResetPassword(targetUserId: string) {
             const resend = new Resend(process.env.RESEND_API_KEY)
 
             await resend.emails.send({
-                from: 'KTM Platform <noreply@wo-tf.com>',
+                from: 'Tap Elite <noreply@tap-elite.com>',
                 to: [targetUser.email],
                 subject: 'Your password has been reset',
                 react: PasswordResetEmail({
