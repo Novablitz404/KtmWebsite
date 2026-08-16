@@ -22,6 +22,7 @@ import { Suspense } from 'react'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import ClubSidebar from '@/components/club/ClubSidebar'
+import SupportPanel from '@/components/support/SupportPanel'
 import ClubGrowthCard from '@/components/club/ClubGrowthCard'
 import ClubTopBar from '@/components/club/ClubTopBar'
 
@@ -193,7 +194,7 @@ export default function ClubDashboard({
     const searchParams = useSearchParams()
     const [submitting, setSubmitting] = useState(false)
     const initialView = (searchParams.get('tab') as any) || 'home'
-    const [activeView, setActiveView] = useState<'home' | 'settings' | 'members' | 'notifications' | 'tournaments'>(initialView)
+    const [activeView, setActiveView] = useState<'home' | 'settings' | 'members' | 'notifications' | 'tournaments' | 'support'>(initialView)
 
     // Sync tab param (optional, for deeplinking)
     useEffect(() => {
@@ -1198,6 +1199,18 @@ export default function ClubDashboard({
                             <div className="bg-gray-50 min-h-full">
                                 <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                                     {settingsContent}
+                                </div>
+                            </div>
+                        )
+                    }
+
+                    {
+                        activeView === 'support' && (
+                            <div className="bg-gray-50 min-h-full">
+                                <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                                        <SupportPanel userName={userData?.name} userEmail={userData?.email} />
+                                    </div>
                                 </div>
                             </div>
                         )

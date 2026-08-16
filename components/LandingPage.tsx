@@ -664,6 +664,7 @@ export default function LandingPage({ upcomingTournaments, user, stats }: Landin
                                 <li><Link href="/events" className="text-gray-400 hover:text-white text-sm transition-colors duration-200">Events</Link></li>
                                 <li><Link href="/rankings" className="text-gray-400 hover:text-white text-sm transition-colors duration-200">Rankings</Link></li>
                                 <li><Link href="/about" className="text-gray-400 hover:text-white text-sm transition-colors duration-200">About Us</Link></li>
+                                <li><Link href="/support" className="text-gray-400 hover:text-white text-sm transition-colors duration-200">Support</Link></li>
                             </ul>
                         </div>
 

@@ -6,10 +6,14 @@ export async function sendEmail({
     to,
     subject,
     reactData,
+    from,
+    replyTo,
 }: {
     to: string
     subject: string
     reactData: React.ReactElement
+    from?: string
+    replyTo?: string
 }) {
     // Safety-net: never send to ghost accounts
     if (to.includes('@member.ktm')) {
@@ -24,10 +28,11 @@ export async function sendEmail({
 
     try {
         const data = await resend.emails.send({
-            from: 'Tap Elite <noreply@tap-elite.com>',
+            from: from || 'Tap Elite <noreply@tap-elite.com>',
             to: [to],
             subject: subject,
             react: reactData,
+            ...(replyTo ? { replyTo } : {}),
         })
 
         return { data }

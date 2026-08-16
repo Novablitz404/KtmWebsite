@@ -214,6 +214,9 @@ model User {
   pushSubscriptions PushSubscription[]
   notifications     Notification[]
 
+  // Support Tickets
+  supportTickets SupportTicket[]
+
   // Timestamps
   createdAt DateTime? // Set when athlete card number is generated
 
@@ -375,8 +378,50 @@ model Organization {
   advancePayments  AdvancePayment[]
   expenses         Expense[]
 
+  // Support Tickets
+  supportTickets SupportTicket[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model SupportTicket {
+  id             String        @id @default(cuid())
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  userId         String?
+  user           User?         @relation(fields: [userId], references: [id])
+
+  guestName  String? // Only set for guest (logged-out) submissions
+  guestEmail String  // Always populated — own email if logged in, or guest-entered
+
+  subject  String
+  category String? // "Account Access", "Payment", "Bug Report", "Other"
+  status   String  @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED, CLOSED
+
+  messages SupportMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([status])
+}
+
+model SupportMessage {
+  id       String        @id @default(cuid())
+  ticketId String
+  ticket   SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  authorType String // "USER" | "ADMIN" | "GUEST"
+  authorId   String? // User ID of the admin/user who wrote it; null for guest
+  authorName String? // Display name snapshot at time of send
+  body       String  @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
 }
 
 // Platform-level configuration (singleton — one row)

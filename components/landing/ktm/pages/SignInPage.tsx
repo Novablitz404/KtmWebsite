@@ -349,6 +349,13 @@ export default function KtmSignInPage() {
                     </div>
                 </form>
 
+                <p className="text-center text-xs text-gray-600 mt-5">
+                    Need help?{" "}
+                    <Link href="/support" className="text-gray-400 hover:text-white transition-colors">
+                        Contact Support
+                    </Link>
+                </p>
+
                 <AccentDots />
             </div>
         </main>

@@ -10,12 +10,13 @@ import {
     Settings,
     LogOut,
     ChevronRight,
-    Search
+    Search,
+    LifeBuoy,
 } from 'lucide-react'
 
 interface ClubSidebarProps {
-    activeView: 'home' | 'members' | 'tournaments' | 'notifications' | 'settings'
-    onNavigate: (view: 'home' | 'members' | 'tournaments' | 'notifications' | 'settings') => void
+    activeView: 'home' | 'members' | 'tournaments' | 'notifications' | 'settings' | 'support'
+    onNavigate: (view: 'home' | 'members' | 'tournaments' | 'notifications' | 'settings' | 'support') => void
     clubLogo?: string | null
     clubName?: string
     isOpen: boolean
@@ -40,6 +41,7 @@ const NAV_SECTIONS = [
         label: 'Admin',
         items: [
             { id: 'settings', label: 'Settings', icon: Settings },
+            { id: 'support', label: 'Support', icon: LifeBuoy },
         ],
     },
 ] as const

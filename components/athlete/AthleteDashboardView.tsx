@@ -12,6 +12,7 @@ import AthleteTopBar from '@/components/athlete/AthleteTopBar'
 
 
 import AthleteProfileView from '@/app/settings/AthleteProfileView'
+import SupportPanel from '@/components/support/SupportPanel'
 import { QRCodeSVG } from 'qrcode.react'
 import { toast } from 'sonner'
 
@@ -40,7 +41,7 @@ export default function AthleteDashboardView({
     // ALL HOOKS MUST BE AT THE TOP - before any early returns
     const searchParams = useSearchParams()
     const initialView = (searchParams.get('tab') as any) || 'home'
-    const [activeView, setActiveView] = useState<'home' | 'events' | 'achievements' | 'settings' | 'ranking'>(initialView)
+    const [activeView, setActiveView] = useState<'home' | 'events' | 'achievements' | 'settings' | 'ranking' | 'support'>(initialView)
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
     const [registrationTab, setRegistrationTab] = useState<'tournament' | 'seminar' | 'promotion'>('tournament')
     const [achievementsPage, setAchievementsPage] = useState(1)
@@ -1318,6 +1319,14 @@ export default function AthleteDashboardView({
                                 medals: 0
                             }}
                         />
+                    </div>
+                )}
+
+                {activeView === 'support' && (
+                    <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                            <SupportPanel userName={dbUser?.name} userEmail={dbUser?.email} />
+                        </div>
                     </div>
                 )}
 

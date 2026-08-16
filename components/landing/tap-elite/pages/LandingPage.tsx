@@ -216,7 +216,7 @@ export function TapEliteFooter({ qs, standalone = false }: { qs: string; standal
                         <a href={sectionHref("method")}>The standard</a>
                         <a href={sectionHref("board")}>Tap Board</a>
                     </div>
-                    <div><p>Account</p><Link href={`/sign-in${qs}`}>Sign in</Link><Link href={`/sign-up${qs}`}>Create account</Link></div>
+                    <div><p>Account</p><Link href={`/sign-in${qs}`}>Sign in</Link><Link href={`/sign-up${qs}`}>Create account</Link><Link href="/support">Support</Link></div>
                 </div>
                 <div className={styles.footerBottom}>
                     <span>© 2026 Elite Taekwondo Association of the Philippines</span>

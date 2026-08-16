@@ -20,6 +20,7 @@ import OrganizationTopBar from '@/components/organization/OrganizationTopBar'
 import OrganizationCoOrganizers from '@/components/OrganizationCoOrganizers'
 import OrganizationAthletesView from '@/components/organization/OrganizationAthletesView'
 import OrganizationFinancialsView from '@/components/organization/OrganizationFinancialsView'
+import SupportPanel from '@/components/support/SupportPanel'
 import { LayoutDashboard, Building2, Calendar, Settings, Users, IdCard, DollarSign } from 'lucide-react'
 
 interface OrganizationDashboardProps {
@@ -34,7 +35,7 @@ interface OrganizationDashboardProps {
     settingsContent?: React.ReactNode
 }
 
-type ViewType = 'home' | 'clubs' | 'events' | 'athletes' | 'financials' | 'team' | 'settings'
+type ViewType = 'home' | 'clubs' | 'events' | 'athletes' | 'financials' | 'team' | 'settings' | 'support'
 
 export default function OrganizationDashboard({
     initialData,
@@ -210,6 +211,15 @@ export default function OrganizationDashboard({
                                         <p className="text-sm text-gray-400">Settings management coming soon.</p>
                                     </div>
                                 )}
+                            </div>
+                        )}
+
+                        {/* Support View */}
+                        {activeView === 'support' && (
+                            <div className="p-6 md:p-8">
+                                <div className="max-w-3xl mx-auto bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+                                    <SupportPanel userName={userData.name} userEmail={userData.email} />
+                                </div>
                             </div>
                         )}
 
