@@ -88,7 +88,13 @@ export async function POST(request: NextRequest) {
         data: { status: ['RESOLVED', 'CLOSED'].includes(ticket.status) ? 'OPEN' : ticket.status },
     })
 
-    const admins = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { email: true } })
+    const admins = await prisma.user.findMany({
+        where: {
+            role: 'ADMIN',
+            NOT: { email: { equals: senderEmail, mode: 'insensitive' } },
+        },
+        select: { email: true },
+    })
     await Promise.all(admins.map(admin => sendEmail({
         to: admin.email,
         subject: `New reply via email on ticket: ${ticket.subject}`,

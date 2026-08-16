@@ -17,7 +17,13 @@ function replyToFor(ticketId: string) {
 }
 
 async function alertAdmins(payload: { heading: string; fromName: string; fromEmail: string; subject: string; body: string; emailSubject: string }) {
-    const admins = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { email: true } })
+    const admins = await prisma.user.findMany({
+        where: {
+            role: 'ADMIN',
+            NOT: { email: { equals: payload.fromEmail, mode: 'insensitive' } },
+        },
+        select: { email: true },
+    })
     await Promise.all(admins.map(admin => sendEmail({
         to: admin.email,
         subject: payload.emailSubject,
