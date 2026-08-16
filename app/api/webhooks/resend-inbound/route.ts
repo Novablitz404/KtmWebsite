@@ -17,6 +17,16 @@ function extractTicketId(to: string): string | null {
     return match ? match[1] : null
 }
 
+// Strips the quoted "On ... wrote:" history that email clients (Gmail,
+// Outlook, Apple Mail) append below a reply, so only the new message is saved.
+function stripQuotedReply(text: string): string {
+    const marker = text.match(/\n\s*(On\s[\s\S]{0,300}?wrote:|-{2,}\s*Original Message\s*-{2,}|From:\s.{0,200}\nSent:)\s*\n?/i)
+    let stripped = marker && typeof marker.index === 'number' ? text.slice(0, marker.index) : text
+    // Drop any remaining trailing quoted (">") lines
+    stripped = stripped.replace(/(\n\s*>.*)+\s*$/, '')
+    return stripped.trim()
+}
+
 export async function POST(request: NextRequest) {
     const secret = process.env.RESEND_WEBHOOK_SECRET
     if (!secret) {
@@ -84,9 +94,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ received: true })
     }
 
-    let text = fullEmail.text || fullEmail.html || ''
-    if (text.includes('<') && text.includes('>')) {
-        text = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+    let text = fullEmail.text || ''
+    if (text) {
+        text = stripQuotedReply(text)
+    }
+    if (!text && fullEmail.html) {
+        text = fullEmail.html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
     }
 
     if (!text) {
