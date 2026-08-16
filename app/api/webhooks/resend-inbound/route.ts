@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Webhook } from 'svix'
+import { Resend } from 'resend'
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email-service'
 import SupportAdminAlertEmail from '@/emails/SupportAdminAlertEmail'
+
+const resend = new Resend(process.env.RESEND_API_KEY)
 
 const ADMIN_PANEL_URL = `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.tap-elite.com'}/admin?tab=support`
 
@@ -50,28 +53,6 @@ export async function POST(request: NextRequest) {
     const fromRaw: string = typeof data.from === 'string' ? data.from : data.from?.email
     const subject: string = data.subject || ''
 
-    // The exact field name for the message body varies across Resend's
-    // inbound payload shapes — try every candidate we know of before
-    // giving up. `text` is preferred; HTML is stripped as a fallback.
-    const textCandidates: unknown[] = [
-        data.text,
-        data.html,
-        data.text_body,
-        data.html_body,
-        data.textBody,
-        data.htmlBody,
-        data.body,
-        data.body?.text,
-        data.body?.html,
-        data.content?.text,
-        data.content?.html,
-        data.content,
-    ]
-    let text = (textCandidates.find(c => typeof c === 'string' && c.trim().length > 0) as string) || ''
-    if (text.includes('<') && text.includes('>')) {
-        text = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
-    }
-
     if (!toRaw || !fromRaw) {
         console.error('[resend-inbound] Missing to/from in payload:', JSON.stringify(data))
         return NextResponse.json({ received: true })
@@ -89,10 +70,27 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ received: true })
     }
 
+    // The webhook payload itself only carries metadata (from/to/subject/
+    // email_id) — the actual body has to be fetched separately via the
+    // Receiving API using email_id.
+    if (!data.email_id) {
+        console.error('[resend-inbound] No email_id in payload, cannot fetch body:', JSON.stringify(data))
+        return NextResponse.json({ received: true })
+    }
+
+    const { data: fullEmail, error: fetchError } = await resend.emails.receiving.get(data.email_id)
+    if (fetchError || !fullEmail) {
+        console.error('[resend-inbound] Failed to fetch email content:', fetchError)
+        return NextResponse.json({ received: true })
+    }
+
+    let text = fullEmail.text || fullEmail.html || ''
+    if (text.includes('<') && text.includes('>')) {
+        text = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+    }
+
     if (!text) {
-        // Don't save a blank message — log the full payload instead so the
-        // real field name can be identified and added to textCandidates above.
-        console.error('[resend-inbound] Could not extract message body. Raw payload data:', JSON.stringify(data))
+        console.error('[resend-inbound] Fetched email had no text/html content:', JSON.stringify(fullEmail))
         return NextResponse.json({ received: true })
     }
 
