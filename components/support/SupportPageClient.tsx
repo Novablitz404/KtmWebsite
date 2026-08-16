@@ -25,16 +25,16 @@ export default function SupportPageClient({ user }: SupportPageClientProps) {
                             <Image
                                 src={tenant.logoUrl}
                                 alt={tenant.name}
-                                width={64}
-                                height={64}
-                                className="mx-auto mb-4 rounded-xl object-contain"
+                                width={240}
+                                height={96}
+                                className="mx-auto mb-4 h-auto max-h-24 w-auto object-contain"
                             />
                         ) : (
                             <div
-                                className="w-16 h-16 mx-auto mb-4 rounded-xl flex items-center justify-center"
+                                className="w-20 h-20 mx-auto mb-4 rounded-xl flex items-center justify-center"
                                 style={{ backgroundColor: tenant.primaryColor }}
                             >
-                                <LifeBuoy className="w-8 h-8 text-white" />
+                                <LifeBuoy className="w-10 h-10 text-white" />
                             </div>
                         )}
                     </Link>

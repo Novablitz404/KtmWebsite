@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Loader2, Send } from 'lucide-react'
 import { createSupportTicket } from '@/app/actions/support'
+import GlobalDropdown from '@/components/GlobalDropdown'
 
 const CATEGORIES = ['Account Access', 'Payment', 'Bug Report', 'Other']
 
@@ -87,13 +88,12 @@ export default function NewTicketForm({ mode, defaultName, defaultEmail, onSucce
 
             <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1.5">Category</label>
-                <select
+                <GlobalDropdown
+                    options={CATEGORIES}
                     value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-3.5 py-2.5 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-300 outline-none transition-all bg-white"
-                >
-                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                    onChange={setCategory}
+                    fullWidth
+                />
             </div>
 
             <div>
