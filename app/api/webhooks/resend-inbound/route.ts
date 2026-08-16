@@ -48,8 +48,29 @@ export async function POST(request: NextRequest) {
 
     const toRaw: string = Array.isArray(data.to) ? data.to[0] : data.to
     const fromRaw: string = typeof data.from === 'string' ? data.from : data.from?.email
-    const text: string = data.text || data.html || ''
     const subject: string = data.subject || ''
+
+    // The exact field name for the message body varies across Resend's
+    // inbound payload shapes — try every candidate we know of before
+    // giving up. `text` is preferred; HTML is stripped as a fallback.
+    const textCandidates: unknown[] = [
+        data.text,
+        data.html,
+        data.text_body,
+        data.html_body,
+        data.textBody,
+        data.htmlBody,
+        data.body,
+        data.body?.text,
+        data.body?.html,
+        data.content?.text,
+        data.content?.html,
+        data.content,
+    ]
+    let text = (textCandidates.find(c => typeof c === 'string' && c.trim().length > 0) as string) || ''
+    if (text.includes('<') && text.includes('>')) {
+        text = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+    }
 
     if (!toRaw || !fromRaw) {
         console.error('[resend-inbound] Missing to/from in payload:', JSON.stringify(data))
@@ -65,6 +86,13 @@ export async function POST(request: NextRequest) {
     const ticket = await prisma.supportTicket.findUnique({ where: { id: ticketId } })
     if (!ticket) {
         console.warn(`[resend-inbound] Ticket not found: ${ticketId}`)
+        return NextResponse.json({ received: true })
+    }
+
+    if (!text) {
+        // Don't save a blank message — log the full payload instead so the
+        // real field name can be identified and added to textCandidates above.
+        console.error('[resend-inbound] Could not extract message body. Raw payload data:', JSON.stringify(data))
         return NextResponse.json({ received: true })
     }
 
