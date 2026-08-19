@@ -1078,6 +1078,23 @@ export async function bulkUpdateDeferFinals(categoryIds: string[], deferFinals: 
 // MULTI-DAY: Update day scheduling settings for a category
 // ─────────────────────────────────────────────────────────────
 
+export async function bulkUpdatePoomsaeFormat(categoryIds: string[], poomsaeFormat: string, tournamentId: string) {
+    if (!categoryIds.length || !tournamentId) return { success: false }
+
+    try {
+        await prisma.category.updateMany({
+            where: { id: { in: categoryIds }, type: 'POOMSAE' },
+            data: { poomsaeFormat }
+        })
+
+        revalidatePath(`/tournament/${tournamentId}`)
+        return { success: true }
+    } catch (error) {
+        console.error("Bulk poomsaeFormat update failed:", error)
+        return { success: false, message: "Failed to update match format" }
+    }
+}
+
 export async function updateCategoryDaySettings(
     categoryId: string,
     scheduleDay: number | null,

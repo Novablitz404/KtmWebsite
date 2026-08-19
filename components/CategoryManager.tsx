@@ -3,8 +3,8 @@
 import GlobalDropdown from '@/components/GlobalDropdown'
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { createCategory, updateCategory, bulkUpdateCourts, bulkUpdateDeferFinals } from '@/app/actions'
-import { Plus, Edit2, X, Check, Save, Loader2, GripVertical, LayoutGrid, Layers } from 'lucide-react'
+import { createCategory, updateCategory, bulkUpdateCourts, bulkUpdateDeferFinals, bulkUpdatePoomsaeFormat } from '@/app/actions'
+import { Plus, Edit2, X, Check, Save, Loader2, GripVertical, LayoutGrid, Layers, Repeat } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface Category {
@@ -53,6 +53,9 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
     const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(new Set())
     const [targetCourtValue, setTargetCourtValue]     = useState('')
 
+    const [isEditingFormat, setIsEditingFormat] = useState(false)
+    const [formatUpdates, setFormatUpdates]     = useState<Record<string, string>>({})
+
     const [newName, setNewName]           = useState('')
     const [newType, setNewType]           = useState('KYORUGI')
     const [newSkillLevel, setNewSkillLevel] = useState('Novice')
@@ -100,8 +103,16 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
         setSelectedCategoryIds(new Set()); setTargetCourtValue('')
     }
 
-    const handleToggleSelect = (id: string) => {
-        if (!isEditingCourts) return
+    const handleStartEditingFormat = () => {
+        const initial: Record<string, string> = {}
+        categories.forEach(c => { if (c.type === 'POOMSAE') initial[c.id] = c.poomsaeFormat || 'SCORED' })
+        setFormatUpdates(initial); setIsEditingFormat(true)
+        setSelectedCategoryIds(new Set())
+    }
+
+    const handleToggleSelect = (id: string, category?: Category) => {
+        if (isEditingFormat && category?.type !== 'POOMSAE') return
+        if (!isEditingCourts && !isEditingFormat) return
         const next = new Set(selectedCategoryIds)
         next.has(id) ? next.delete(id) : next.add(id)
         setSelectedCategoryIds(next)
@@ -130,6 +141,35 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
             const result = await bulkUpdateCourts(updates, tournamentId)
             if (result?.success) { toast.success('Courts saved!'); setIsEditingCourts(false) }
             else toast.error('Failed to update courts.')
+        })
+    }
+
+    const handleAssignFormatToSelected = (format: string) => {
+        if (selectedCategoryIds.size === 0) { toast.error('Select at least one Poomsae category'); return }
+        const next = { ...formatUpdates }
+        selectedCategoryIds.forEach(id => { next[id] = format })
+        setFormatUpdates(next)
+        toast.success(`Set ${selectedCategoryIds.size} categories to ${format === 'HEAD_TO_HEAD' ? 'Head-to-Head' : 'Scored'}`)
+        setSelectedCategoryIds(new Set())
+    }
+
+    const handleSaveFormat = async () => {
+        startTransition(async () => {
+            const byFormat = new Map<string, string[]>()
+            Object.entries(formatUpdates).forEach(([categoryId, format]) => {
+                const original = categories.find(c => c.id === categoryId)?.poomsaeFormat || 'SCORED'
+                if (format === original) return
+                if (!byFormat.has(format)) byFormat.set(format, [])
+                byFormat.get(format)!.push(categoryId)
+            })
+
+            if (byFormat.size === 0) { setIsEditingFormat(false); return }
+
+            const results = await Promise.all(
+                Array.from(byFormat.entries()).map(([format, ids]) => bulkUpdatePoomsaeFormat(ids, format, tournamentId))
+            )
+            if (results.every(r => r?.success)) { toast.success('Match formats saved!'); setIsEditingFormat(false); router.refresh() }
+            else toast.error('Failed to update some match formats.')
         })
     }
 
@@ -167,8 +207,16 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
                     </p>
                 </div>
 
-                {!isEditingCourts && (
+                {!isEditingCourts && !isEditingFormat && (
                     <div className="flex items-center gap-2.5">
+                        <button
+                            onClick={handleStartEditingFormat}
+                            disabled={!categories.some(c => c.type === 'POOMSAE')}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300 rounded-xl text-sm font-semibold transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            <Repeat size={15} />
+                            Bulk Poomsae Format
+                        </button>
                         <button
                             onClick={handleStartEditingCourts}
                             disabled={categories.length === 0}
@@ -187,6 +235,52 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
                     </div>
                 )}
             </div>
+
+            {/* ── Format edit toolbar ───────────────────────────── */}
+            {isEditingFormat && (
+                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-2xl px-5 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                        <div>
+                            <p className="text-[10px] font-black text-purple-600 uppercase tracking-widest mb-2">
+                                Set Format for {selectedCategoryIds.size > 0 ? selectedCategoryIds.size : '…'} Selected
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => handleAssignFormatToSelected('SCORED')}
+                                    disabled={selectedCategoryIds.size === 0}
+                                    className="px-4 py-2 bg-white border border-purple-300 text-purple-700 rounded-xl font-bold text-sm hover:bg-purple-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm whitespace-nowrap"
+                                >
+                                    Scored
+                                </button>
+                                <button
+                                    onClick={() => handleAssignFormatToSelected('HEAD_TO_HEAD')}
+                                    disabled={selectedCategoryIds.size === 0}
+                                    className="px-4 py-2 bg-purple-600 text-white rounded-xl font-bold text-sm hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm whitespace-nowrap"
+                                >
+                                    Head-to-Head
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                        <button
+                            onClick={() => setIsEditingFormat(false)}
+                            disabled={isPending}
+                            className="px-4 py-2 text-sm text-gray-600 hover:bg-white border border-transparent hover:border-gray-200 rounded-xl font-semibold transition-all"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleSaveFormat}
+                            disabled={isPending}
+                            className="flex items-center gap-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm transition-all shadow-md hover:shadow-lg disabled:opacity-50"
+                        >
+                            {isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                            Save Format
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* ── Court edit toolbar ─────────────────────────────── */}
             {isEditingCourts && (
@@ -234,7 +328,7 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
 
             {/* ── Category list card ─────────────────────────────── */}
             <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${
-                isEditingCourts ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
+                isEditingCourts ? 'border-red-300 ring-1 ring-red-100' : isEditingFormat ? 'border-purple-300 ring-1 ring-purple-100' : 'border-gray-200'
             }`}>
                 {/* Card header */}
                 <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/60">
@@ -252,6 +346,11 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
                             Tap cards to select · then assign court
                         </span>
                     )}
+                    {isEditingFormat && (
+                        <span className="text-xs text-purple-600 font-semibold animate-pulse">
+                            Tap Poomsae cards to select · then set format
+                        </span>
+                    )}
                 </div>
 
                 {categories.length === 0 ? (
@@ -266,8 +365,13 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
                     <div className="divide-y divide-gray-100">
                         {sortedDivisions.map(([division, cats]) => {
                             const allIds      = cats.map(c => c.id)
+                            const poomsaeIds  = cats.filter(c => c.type === 'POOMSAE').map(c => c.id)
                             const allDeferred = cats.every(c => c.deferFinals)
-                            const isAllSelected = isEditingCourts && allIds.every(id => selectedCategoryIds.has(id))
+                            const isAllSelected = isEditingCourts
+                                ? allIds.every(id => selectedCategoryIds.has(id))
+                                : isEditingFormat
+                                    ? poomsaeIds.length > 0 && poomsaeIds.every(id => selectedCategoryIds.has(id))
+                                    : false
 
                             return (
                                 <div key={division} className="p-5">
@@ -276,7 +380,7 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
                                         <h4 className="text-base font-black text-gray-800">{division}</h4>
                                         <span className="text-xs text-gray-400 font-medium">{cats.length} {cats.length === 1 ? 'category' : 'categories'}</span>
 
-                                        {!isEditingCourts && (
+                                        {!isEditingCourts && !isEditingFormat && (
                                             <>
                                                 {/* Defer Finals toggle */}
                                                 <button
@@ -317,28 +421,51 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
                                                 {isAllSelected ? 'Deselect Group' : 'Select Group'}
                                             </button>
                                         )}
+
+                                        {isEditingFormat && poomsaeIds.length > 0 && (
+                                            <button
+                                                onClick={() => handleSelectAll(poomsaeIds)}
+                                                className="text-xs font-semibold text-purple-600 hover:text-purple-800 hover:underline ml-auto"
+                                            >
+                                                {isAllSelected ? 'Deselect Poomsae' : 'Select All Poomsae'}
+                                            </button>
+                                        )}
                                     </div>
 
                                     {/* Category cards grid */}
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                                         {cats.map(cat => {
-                                            const isSelected    = selectedCategoryIds.has(cat.id)
-                                            const currentCourt  = courtUpdates[cat.id] ?? cat.court
-                                            const courtChanged  = isEditingCourts && courtUpdates[cat.id] !== (cat.court || '')
+                                            const isSelected     = selectedCategoryIds.has(cat.id)
+                                            const currentCourt   = courtUpdates[cat.id] ?? cat.court
+                                            const courtChanged   = isEditingCourts && courtUpdates[cat.id] !== (cat.court || '')
+                                            const isPoomsae      = cat.type === 'POOMSAE'
+                                            const currentFormat  = formatUpdates[cat.id] ?? cat.poomsaeFormat ?? 'SCORED'
+                                            const formatChanged  = isEditingFormat && isPoomsae && currentFormat !== (cat.poomsaeFormat || 'SCORED')
+                                            const formatDisabled = isEditingFormat && !isPoomsae
                                             const typeCfg       = TYPE_CONFIG[cat.type] || TYPE_CONFIG.KYORUGI
                                             const skillCfg      = cat.skillLevel ? SKILL_CONFIG[cat.skillLevel] : null
 
                                             return (
                                                 <div
                                                     key={cat.id}
-                                                    onClick={() => isEditingCourts ? handleToggleSelect(cat.id) : openEditModal(cat)}
+                                                    onClick={() => {
+                                                        if (isEditingCourts || isEditingFormat) handleToggleSelect(cat.id, cat)
+                                                        else openEditModal(cat)
+                                                    }}
                                                     className={`
-                                                        relative rounded-xl border p-3.5 transition-all duration-150 cursor-pointer group
+                                                        relative rounded-xl border p-3.5 transition-all duration-150 group
+                                                        ${formatDisabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
                                                         ${isEditingCourts
                                                             ? isSelected
                                                                 ? 'border-red-500 bg-red-50 ring-1 ring-red-400 shadow-sm'
                                                                 : 'border-gray-200 bg-white hover:border-red-300 hover:bg-red-50/30'
-                                                            : `border-gray-200 hover:border-red-300 hover:shadow-md ${typeCfg.cardBg || 'bg-white'}`
+                                                            : isEditingFormat
+                                                                ? isSelected
+                                                                    ? 'border-purple-500 bg-purple-50 ring-1 ring-purple-400 shadow-sm'
+                                                                    : formatDisabled
+                                                                        ? 'border-gray-200 bg-white'
+                                                                        : 'border-gray-200 bg-white hover:border-purple-300 hover:bg-purple-50/30'
+                                                                : `border-gray-200 hover:border-red-300 hover:shadow-md ${typeCfg.cardBg || 'bg-white'}`
                                                         }
                                                     `}
                                                 >
@@ -346,7 +473,7 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
                                                     <div className={`absolute left-0 top-3 bottom-3 w-0.5 rounded-full ${typeCfg.dot} opacity-60`} />
 
                                                     <div className="flex items-start justify-between pl-2">
-                                                        <span className={`text-sm font-semibold pr-4 leading-snug ${isSelected ? 'text-red-900' : 'text-gray-900'}`}>
+                                                        <span className={`text-sm font-semibold pr-4 leading-snug ${isSelected ? (isEditingFormat ? 'text-purple-900' : 'text-red-900') : 'text-gray-900'}`}>
                                                             {cat.name}
                                                         </span>
                                                         {isEditingCourts ? (
@@ -355,6 +482,14 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
                                                             }`}>
                                                                 {isSelected && <Check size={10} className="text-white" strokeWidth={3} />}
                                                             </div>
+                                                        ) : isEditingFormat ? (
+                                                            !formatDisabled && (
+                                                                <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                                                                    isSelected ? 'bg-purple-500 border-purple-500' : 'border-gray-300 bg-white group-hover:border-purple-300'
+                                                                }`}>
+                                                                    {isSelected && <Check size={10} className="text-white" strokeWidth={3} />}
+                                                                </div>
+                                                            )
                                                         ) : (
                                                             <Edit2 size={11} className="text-gray-300 group-hover:text-red-400 transition-colors flex-shrink-0 mt-0.5" />
                                                         )}
@@ -368,6 +503,15 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
                                                         {skillCfg && (
                                                             <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${skillCfg.badge}`}>
                                                                 {cat.skillLevel}
+                                                            </span>
+                                                        )}
+                                                        {isPoomsae && (
+                                                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider transition-all ${
+                                                                formatChanged
+                                                                    ? 'bg-emerald-100 text-emerald-800 animate-pulse'
+                                                                    : 'bg-indigo-100 text-indigo-700'
+                                                            }`}>
+                                                                {currentFormat === 'HEAD_TO_HEAD' ? 'VS' : 'Scored'}
                                                             </span>
                                                         )}
                                                         {currentCourt && (
