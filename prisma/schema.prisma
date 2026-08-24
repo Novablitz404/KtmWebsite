@@ -58,6 +58,7 @@ model WeightCategory {
   subtype      String  @default("INDIVIDUAL") // "INDIVIDUAL", "PAIR", "TEAM"
   poomsaeForms String? // Comma separated list of assigned forms
   belt         String? // Explicit belt requirement (e.g. "Yellow", "Black")
+  poomsaeFormat String? @default("SCORED") // "SCORED", "HEAD_TO_HEAD" — only meaningful when type = "POOMSAE"
 
   divisionId String
   division   Division @relation(fields: [divisionId], references: [id], onDelete: Cascade)

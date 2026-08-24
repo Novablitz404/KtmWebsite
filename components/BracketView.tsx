@@ -10,6 +10,13 @@ interface BracketViewProps {
     matches: Match[]
     tournamentName?: string
     categoryName?: string
+    // Set only for a not-yet-generated draw preview (Poomsae HEAD_TO_HEAD routed
+    // through this same tree component) — suppresses the normal "#matchId" badge,
+    // since that id is just a local pairing index there, not a real match number.
+    isPreview?: boolean
+    // From the toolbar's "Simulate Sequence", keyed by matchId — only meaningful
+    // when isPreview is set. Not persisted, purely illustrative until generated.
+    simulatedMatches?: Record<number, { globalId: number; day: number }> | null
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -106,7 +113,14 @@ function getRoundLabel(round: number, maxRound: number): string {
 
 // ─── Match Card ──────────────────────────────────────────────────────────────
 
-function MatchCard({ match, maxRound, side, feederMap }: { match: Match; maxRound: number; side: 'A' | 'B' | 'final' | null; feederMap?: Map<string, number | string> }) {
+function MatchCard({ match, maxRound, side, feederMap, isPreview, simulatedMatches }: {
+    match: Match
+    maxRound: number
+    side: 'A' | 'B' | 'final' | null
+    feederMap?: Map<string, number | string>
+    isPreview?: boolean
+    simulatedMatches?: Record<number, { globalId: number; day: number }> | null
+}) {
     const isFiller = match.player1 === 'BYE' && match.player2 === 'BYE'
     const isFinal = match.round === maxRound
 
@@ -156,7 +170,18 @@ function MatchCard({ match, maxRound, side, feederMap }: { match: Match; maxRoun
                         {match.court && match.court !== 'Unassigned' && (
                             <span className="text-[9px] font-bold bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded">C{match.court}</span>
                         )}
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${getStatusColor()}`}>#{match.matchId ?? match.id}</span>
+                        {isPreview ? (
+                            simulatedMatches?.[match.matchId ?? match.id] && (
+                                <span
+                                    title="From Simulate Sequence — not committed until you generate"
+                                    className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-violet-600 text-white"
+                                >
+                                    Sim #{simulatedMatches[match.matchId ?? match.id].globalId}
+                                </span>
+                            )
+                        ) : (
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${getStatusColor()}`}>#{match.matchId ?? match.id}</span>
+                        )}
                     </div>
                 </div>
 
@@ -225,7 +250,7 @@ function SvgConnectors({ paths, containerRef }: { paths: BracketPath[]; containe
 
 // ─── Side Bracket (tree-positioned round columns) ────────────────────────────
 
-function SideBracket({ rounds, maxRound, side, setCardRef, positions, leafCount, feederMap }: {
+function SideBracket({ rounds, maxRound, side, setCardRef, positions, leafCount, feederMap, isPreview, simulatedMatches }: {
     rounds: Match[][]
     maxRound: number
     side: 'A' | 'B'
@@ -233,6 +258,8 @@ function SideBracket({ rounds, maxRound, side, setCardRef, positions, leafCount,
     feederMap: Map<string, number | string>
     positions: Map<number, number>
     leafCount: number
+    isPreview?: boolean
+    simulatedMatches?: Record<number, { globalId: number; day: number }> | null
 }) {
     const totalHeight = leafCount * CARD_SLOT
 
@@ -253,7 +280,7 @@ function SideBracket({ rounds, maxRound, side, setCardRef, positions, leafCount,
                                     style={{ top: `${centerY}px`, transform: 'translateY(-50%)' }}
                                 >
                                     <div ref={setCardRef(m.id)}>
-                                        <MatchCard match={m} maxRound={maxRound} side={side} feederMap={feederMap} />
+                                        <MatchCard match={m} maxRound={maxRound} side={side} feederMap={feederMap} isPreview={isPreview} simulatedMatches={simulatedMatches} />
                                     </div>
                                 </div>
                             )
@@ -267,7 +294,7 @@ function SideBracket({ rounds, maxRound, side, setCardRef, positions, leafCount,
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-export default function BracketView({ matches, tournamentName = "Tournament", categoryName = "Category" }: BracketViewProps) {
+export default function BracketView({ matches, tournamentName = "Tournament", categoryName = "Category", isPreview, simulatedMatches }: BracketViewProps) {
     const containerRef = useRef<HTMLDivElement>(null)
     const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map())
     const [connectorPaths, setConnectorPaths] = useState<BracketPath[]>([])
@@ -470,7 +497,7 @@ export default function BracketView({ matches, tournamentName = "Tournament", ca
                                                 style={{ top: `${centerY}px`, transform: 'translateY(-50%)' }}
                                             >
                                                 <div ref={setCardRef(m.id)}>
-                                                    <MatchCard match={m} maxRound={maxRound} side={null} feederMap={feederMap} />
+                                                    <MatchCard match={m} maxRound={maxRound} side={null} feederMap={feederMap} isPreview={isPreview} simulatedMatches={simulatedMatches} />
                                                 </div>
                                             </div>
                                         )
@@ -529,6 +556,8 @@ export default function BracketView({ matches, tournamentName = "Tournament", ca
                             positions={aPositions}
                             leafCount={aLeafCount}
                             feederMap={feederMap}
+                            isPreview={isPreview}
+                            simulatedMatches={simulatedMatches}
                         />
                     </div>
 
@@ -541,7 +570,7 @@ export default function BracketView({ matches, tournamentName = "Tournament", ca
                         </div>
                         <div className="flex justify-center" style={{ width: `${COL_WIDTH}px` }}>
                             <div ref={setCardRef(finalsMatch.id)}>
-                                <MatchCard match={finalsMatch} maxRound={maxRound} side="final" feederMap={feederMap} />
+                                <MatchCard match={finalsMatch} maxRound={maxRound} side="final" feederMap={feederMap} isPreview={isPreview} simulatedMatches={simulatedMatches} />
                             </div>
                         </div>
                     </div>
@@ -563,6 +592,8 @@ export default function BracketView({ matches, tournamentName = "Tournament", ca
                             positions={bPositions}
                             leafCount={bLeafCount}
                             feederMap={feederMap}
+                            isPreview={isPreview}
+                            simulatedMatches={simulatedMatches}
                         />
                     </div>
                 </div>

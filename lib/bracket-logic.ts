@@ -9,7 +9,7 @@ function nextPowerOf2(n: number) {
 /**
  * Fisher-Yates shuffle — randomizes player order for fair draws
  */
-function shuffleArray<T>(arr: T[]): T[] {
+export function shuffleArray<T>(arr: T[]): T[] {
     const shuffled = [...arr];
     for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -176,9 +176,33 @@ export function generateSingleEliminationBracket(
     // Step 2: Club separation — swap same-club matchups
     const separatedSlots = separateClubs(slots, bracketSize);
 
-    // Step 3: Build matches from the slot assignments
+    // Step 3: Identify the slot pairs that have both players (actual fights) vs a
+    // lone player (bye) — done BEFORE building/linking match objects so linking can
+    // use each pair's true slot-pair index (0..bracketSize/2-1). Doing this after
+    // (as before) meant Round 1 matches were linked by their position in the
+    // *compacted* fights-only array, which loses all correspondence to the real
+    // bracket geometry once byes are involved — e.g. two unrelated Round 1 matches
+    // could end up sharing a next-round slot while the byes meant to pair with them
+    // landed elsewhere, instead of each Round 1 winner meeting one bye recipient.
+    const fightPairs: { p1: Player; p2: Player; slotIdx: number }[] = [];
+    const byePlayers: { player: Player; halfIdx: number }[] = [];
+
+    for (let slotIdx = 0; slotIdx < bracketSize / 2; slotIdx++) {
+        const p1 = separatedSlots[slotIdx * 2];
+        const p2 = separatedSlots[slotIdx * 2 + 1];
+
+        if (p1 && p2) {
+            fightPairs.push({ p1, p2, slotIdx });
+        } else if (p1) {
+            byePlayers.push({ player: p1, halfIdx: slotIdx });
+        } else if (p2) {
+            byePlayers.push({ player: p2, halfIdx: slotIdx });
+        }
+    }
+
+    // Step 4: Build matches from the slot assignments
     // Only Round 1 matches where BOTH players exist (no bye matches)
-    const numFirstRoundMatches = (bracketSize / 2) - numByes;
+    const numFirstRoundMatches = fightPairs.length;
 
     const matchesByRound = new Map<number, BracketMatchSpec[]>();
     let matchIdCounter = startMatchId;
@@ -207,78 +231,69 @@ export function generateSingleEliminationBracket(
         matchesByRound.set(roundNum, roundMatches);
     }
 
-    // Step 4: Link matches to next-round matches
-    for (let roundNum = 1; roundNum < totalRounds; roundNum++) {
+    // Step 5: Link Round 1 matches to Round 2, and place bye recipients into Round 2,
+    // grouped by which Round 2 match each slot-pair feeds (Math.floor(slotIdx / 2)).
+    // Within a group of one fight pair + one bye, the fight's winner always lands on
+    // top (player1) and the bye always lands on the bottom (player2) — a fixed
+    // display convention, independent of the pair's raw slot-pair parity (which only
+    // determines which Round 2 match the group feeds, not top/bottom placement).
+    const firstRoundMatches = matchesByRound.get(1) || [];
+    const secondRoundMatches = matchesByRound.get(2) || [];
+
+    type Group = { fights: typeof fightPairs; byes: typeof byePlayers };
+    const round2Groups = new Map<number, Group>();
+    const groupFor = (idx: number): Group => {
+        if (!round2Groups.has(idx)) round2Groups.set(idx, { fights: [], byes: [] });
+        return round2Groups.get(idx)!;
+    };
+    fightPairs.forEach(fp => groupFor(Math.floor(fp.slotIdx / 2)).fights.push(fp));
+    byePlayers.forEach(bp => groupFor(Math.floor(bp.halfIdx / 2)).byes.push(bp));
+
+    round2Groups.forEach((group, groupIdx) => {
+        const targetMatch = secondRoundMatches[groupIdx];
+        if (!targetMatch) return;
+
+        if (group.fights.length === 1 && group.byes.length === 1) {
+            // One Round 1 match + one bye — winner on top, bye on bottom.
+            const fightMatchIdx = fightPairs.indexOf(group.fights[0]);
+            firstRoundMatches[fightMatchIdx].nextMatchId = targetMatch.id;
+            firstRoundMatches[fightMatchIdx].nextMatchSlot = 'player1';
+            targetMatch.player2 = group.byes[0].player;
+        } else if (group.fights.length === 2) {
+            // Two Round 1 matches feed the same slot — both TBD, order is arbitrary.
+            [...group.fights].sort((a, b) => a.slotIdx - b.slotIdx).forEach((fp, i) => {
+                const fightMatchIdx = fightPairs.indexOf(fp);
+                firstRoundMatches[fightMatchIdx].nextMatchId = targetMatch.id;
+                firstRoundMatches[fightMatchIdx].nextMatchSlot = i === 0 ? 'player1' : 'player2';
+            });
+        } else if (group.byes.length === 2) {
+            // Two byes meeting directly — both known players, order is arbitrary.
+            const sorted = [...group.byes].sort((a, b) => a.halfIdx - b.halfIdx);
+            targetMatch.player1 = sorted[0].player;
+            targetMatch.player2 = sorted[1].player;
+        }
+    });
+
+    for (let roundNum = 2; roundNum < totalRounds; roundNum++) {
         const currentMatches = matchesByRound.get(roundNum) || [];
         const nextRoundMatches = matchesByRound.get(roundNum + 1) || [];
 
         if (nextRoundMatches.length === 0) continue;
 
-        if (roundNum === 1) {
-            currentMatches.forEach((match, idx) => {
-                const nextMatchIdx = Math.floor(idx / 2);
-                if (nextMatchIdx < nextRoundMatches.length) {
-                    match.nextMatchId = nextRoundMatches[nextMatchIdx].id;
-                    match.nextMatchSlot = (idx % 2 === 0) ? 'player1' : 'player2';
-                }
-            });
-        } else {
-            currentMatches.forEach((match, idx) => {
-                const nextMatchIdx = Math.floor(idx / 2);
-                if (nextMatchIdx < nextRoundMatches.length) {
-                    match.nextMatchId = nextRoundMatches[nextMatchIdx].id;
-                    match.nextMatchSlot = (idx % 2 === 0) ? 'player1' : 'player2';
-                }
-            });
-        }
+        currentMatches.forEach((match, idx) => {
+            const nextMatchIdx = Math.floor(idx / 2);
+            if (nextMatchIdx < nextRoundMatches.length) {
+                match.nextMatchId = nextRoundMatches[nextMatchIdx].id;
+                match.nextMatchSlot = (idx % 2 === 0) ? 'player1' : 'player2';
+            }
+        });
     }
 
-    // Step 5: Place players from separated slots into matches
-    // Determine which slots have actual fights vs byes
-    const firstRoundMatches = matchesByRound.get(1) || [];
-    const secondRoundMatches = matchesByRound.get(2) || matchesByRound.get(1) || [];
-
-    // Identify the slot pairs that have both players (actual fights)
-    const fightPairs: { p1: Player; p2: Player; slotIdx: number }[] = [];
-    const byePlayers: { player: Player; halfIdx: number }[] = [];
-
-    for (let slotIdx = 0; slotIdx < bracketSize / 2; slotIdx++) {
-        const p1 = separatedSlots[slotIdx * 2];
-        const p2 = separatedSlots[slotIdx * 2 + 1];
-
-        if (p1 && p2) {
-            fightPairs.push({ p1, p2, slotIdx });
-        } else if (p1) {
-            byePlayers.push({ player: p1, halfIdx: slotIdx });
-        } else if (p2) {
-            byePlayers.push({ player: p2, halfIdx: slotIdx });
-        }
-    }
-
-    // Place fighters into Round 1 matches
+    // Step 6: Place fighters into Round 1 matches (fightPairs is already in
+    // ascending slotIdx order, matching firstRoundMatches' creation order above).
     for (let i = 0; i < firstRoundMatches.length && i < fightPairs.length; i++) {
         firstRoundMatches[i].player1 = fightPairs[i].p1;
         firstRoundMatches[i].player2 = fightPairs[i].p2;
-    }
-
-    // Place bye recipients directly into Round 2 slots
-    let byeIdx = 0;
-    for (let i = 0; i < secondRoundMatches.length && byeIdx < byePlayers.length; i++) {
-        const match = secondRoundMatches[i];
-
-        const feedingMatch1 = firstRoundMatches.find(m =>
-            m.nextMatchId === match.id && m.nextMatchSlot === 'player1'
-        );
-        if (!feedingMatch1 && byeIdx < byePlayers.length) {
-            match.player1 = byePlayers[byeIdx++].player;
-        }
-
-        const feedingMatch2 = firstRoundMatches.find(m =>
-            m.nextMatchId === match.id && m.nextMatchSlot === 'player2'
-        );
-        if (!feedingMatch2 && byeIdx < byePlayers.length) {
-            match.player2 = byePlayers[byeIdx++].player;
-        }
     }
 
     // Collect all matches and return (Round 1 first, Finals last)

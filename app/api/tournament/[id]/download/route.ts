@@ -108,12 +108,14 @@ export async function GET(
 
         tournament.categories.forEach(category => {
             const playerMap = new Map<string, { id: string, club: string }>() // Name -> { ID, Club }
+            const playerIdToClub = new Map<string, string>() // Player.id -> Club (for resolving TEAM/PAIR memberIds)
 
             // Populate playerMap from category players
             category.players.forEach(p => {
                 const clubName = p.club?.name || p.user?.clubName || ''
                 const fullName = p.user?.name || p.name
                 playerMap.set(fullName, { id: p.id, club: clubName })
+                playerIdToClub.set(p.id, clubName)
             })
 
             // Master List Construction with Team ID Logic
@@ -245,16 +247,24 @@ export async function GET(
             // Process Poomsae Matches
             // displayName and memberIds are stored directly on PoomsaeMatch for TEAM/PAIR
             category.poomsaeMatches.forEach(match => {
-                // Resolve player name for INDIVIDUAL (from relation)
+                // Resolve player name + club for INDIVIDUAL (from relation), or club only for
+                // TEAM/PAIR (no player relation — derive from the first member's Player record,
+                // since a team's members are ordinarily entered under the same club).
                 let playerName = ""
+                let playerClub = ""
                 if (match.player) {
                     playerName = match.player.user?.name || match.player.name
+                    playerClub = match.player.club?.name || match.player.user?.clubName || ""
+                } else if (match.memberIds) {
+                    const firstMemberId = match.memberIds.split(',')[0]?.trim()
+                    if (firstMemberId) playerClub = playerIdToClub.get(firstMemberId) || ""
                 }
 
                 poomsaeMatchesList.push({
                     id: match.id,
                     matchId: match.matchId,
                     nextMatchId: match.nextMatchId,
+                    nextMatchSlot: match.nextMatchSlot,
                     category: category.name,
                     subtype: category.subtype || "INDIVIDUAL",
                     round: match.round,
@@ -262,6 +272,7 @@ export async function GET(
                     performanceNumber: match.performanceNumber,
                     playerId: match.playerId,
                     player: playerName,
+                    playerClub: playerClub,
                     displayName: match.displayName,
                     memberIds: match.memberIds,
                     memberNames: match.memberNames,

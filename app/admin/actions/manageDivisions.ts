@@ -86,6 +86,11 @@ export async function addCategory(divisionId: string, data: FormData) {
         const minHeight = parseFloat(data.get('minHeight') as string) || 0
         const maxHeight = parseFloat(data.get('maxHeight') as string) || 0
         const displayOrder = parseInt(data.get('displayOrder') as string) || 0
+        const type = (data.get('type') as string) || 'KYORUGI'
+        const subtype = (data.get('subtype') as string) || 'INDIVIDUAL'
+        const poomsaeForms = (data.get('poomsaeForms') as string) || null
+        const belt = (data.get('belt') as string) || null
+        const poomsaeFormat = (data.get('poomsaeFormat') as string) || 'SCORED'
 
         if (!divisionId || !name || !gender) throw new Error('Missing required fields')
 
@@ -98,7 +103,56 @@ export async function addCategory(divisionId: string, data: FormData) {
                 maxWeight,
                 minHeight,
                 maxHeight,
-                displayOrder
+                displayOrder,
+                type,
+                subtype,
+                poomsaeForms,
+                belt,
+                // @ts-ignore — poomsaeFormat is present in the DB (migrated via db push) but the
+                // generated Prisma Client types haven't been regenerated yet (dev server file lock)
+                poomsaeFormat
+            }
+        })
+
+        revalidatePath('/admin')
+        return { success: true }
+    } catch (error: any) {
+        return { error: error.message }
+    }
+}
+
+export async function updateCategory(id: string, data: FormData) {
+    try {
+        await checkAdmin()
+        const name = data.get('name') as string
+        const gender = data.get('gender') as string
+        const minWeight = parseFloat(data.get('minWeight') as string) || 0
+        const maxWeight = parseFloat(data.get('maxWeight') as string) || 0
+        const minHeight = parseFloat(data.get('minHeight') as string) || 0
+        const maxHeight = parseFloat(data.get('maxHeight') as string) || 0
+        const type = (data.get('type') as string) || 'KYORUGI'
+        const subtype = (data.get('subtype') as string) || 'INDIVIDUAL'
+        const poomsaeForms = (data.get('poomsaeForms') as string) || null
+        const belt = (data.get('belt') as string) || null
+        const poomsaeFormat = (data.get('poomsaeFormat') as string) || 'SCORED'
+
+        if (!id || !name || !gender) throw new Error('Missing required fields')
+
+        await prisma.weightCategory.update({
+            where: { id },
+            data: {
+                name,
+                gender,
+                minWeight,
+                maxWeight,
+                minHeight,
+                maxHeight,
+                type,
+                subtype,
+                poomsaeForms,
+                belt,
+                // @ts-ignore — see addCategory
+                poomsaeFormat
             }
         })
 

@@ -5,7 +5,7 @@ import { Plus, Trash2, Edit2, GripVertical, Check, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchGuidelineDetails } from '@/app/admin/fetch'
-import { addDivision, deleteDivision, addCategory, deleteCategory, updateDivision } from '@/app/admin/actions/manageDivisions'
+import { addDivision, deleteDivision, addCategory, updateCategory, deleteCategory, updateDivision } from '@/app/admin/actions/manageDivisions'
 import { Skeleton } from '@/components/ui/Skeleton'
 
 interface AdminGuidelineBuilderProps {
@@ -18,6 +18,9 @@ export default function AdminGuidelineBuilder({ templateId, onClose }: AdminGuid
     const [selectedDivisionId, setSelectedDivisionId] = useState<string | null>(null)
     const [isAddDivisionOpen, setIsAddDivisionOpen] = useState(false)
     const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false)
+    const [addCategoryType, setAddCategoryType] = useState('KYORUGI')
+    const [editingCategory, setEditingCategory] = useState<any | null>(null)
+    const [editCategoryType, setEditCategoryType] = useState('KYORUGI')
 
     // Fetch Full Details
     const { data: template, isLoading } = useQuery({
@@ -58,6 +61,26 @@ export default function AdminGuidelineBuilder({ templateId, onClose }: AdminGuid
         if (res.success) {
             toast.success('Category added')
             setIsAddCategoryOpen(false)
+            setAddCategoryType('KYORUGI')
+            queryClient.invalidateQueries({ queryKey: ['guideline-details', templateId] })
+        } else {
+            toast.error(res.error)
+        }
+    }
+
+    const openEditCategory = (cat: any) => {
+        setEditingCategory(cat)
+        setEditCategoryType(cat.type || 'KYORUGI')
+    }
+
+    const handleUpdateCategory = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!editingCategory) return
+        const formData = new FormData(e.target as HTMLFormElement)
+        const res = await updateCategory(editingCategory.id, formData)
+        if (res.success) {
+            toast.success('Category updated')
+            setEditingCategory(null)
             queryClient.invalidateQueries({ queryKey: ['guideline-details', templateId] })
         } else {
             toast.error(res.error)
@@ -180,15 +203,31 @@ export default function AdminGuidelineBuilder({ templateId, onClose }: AdminGuid
                                     <thead className="bg-gray-50 text-gray-500 text-xs uppercase border-b border-gray-100 sticky top-0">
                                         <tr>
                                             <th className="px-4 py-2 font-medium">Name</th>
+                                            <th className="px-4 py-2 font-medium">Type</th>
                                             <th className="px-4 py-2 font-medium">Gender</th>
                                             <th className="px-4 py-2 font-medium text-right">Limits</th>
-                                            <th className="px-4 py-2 w-10"></th>
+                                            <th className="px-4 py-2 w-16"></th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-50">
                                         {selectedDivision.categories.map((cat: any) => (
                                             <tr key={cat.id} className="group hover:bg-gray-50/50">
                                                 <td className="px-4 py-2.5 font-medium text-gray-900">{cat.name}</td>
+                                                <td className="px-4 py-2.5">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${cat.type === 'POOMSAE' ? 'bg-amber-50 text-amber-700' :
+                                                            cat.type === 'KYUKPA' ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-700'
+                                                            }`}>
+                                                            {cat.type || 'KYORUGI'}
+                                                        </span>
+                                                        {cat.type === 'POOMSAE' && (
+                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${cat.poomsaeFormat === 'HEAD_TO_HEAD' ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-500'
+                                                                }`}>
+                                                                {cat.poomsaeFormat === 'HEAD_TO_HEAD' ? 'VS' : 'SCORED'}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
                                                 <td className="px-4 py-2.5 text-gray-600">
                                                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${cat.gender === 'Male' ? 'bg-blue-50 text-blue-700' :
                                                         cat.gender === 'Female' ? 'bg-pink-50 text-pink-700' : 'bg-purple-50 text-purple-700'
@@ -204,7 +243,13 @@ export default function AdminGuidelineBuilder({ templateId, onClose }: AdminGuid
                                                         <div title="Height" className="text-blue-600">{cat.minHeight} - {cat.maxHeight === 999 ? '+' : cat.maxHeight} cm</div>
                                                     ) : null}
                                                 </td>
-                                                <td className="px-4 py-2.5 text-right">
+                                                <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                                                    <button
+                                                        onClick={() => openEditCategory(cat)}
+                                                        className="text-gray-300 hover:text-gray-600 transition-colors mr-2"
+                                                    >
+                                                        <Edit2 className="w-4 h-4" />
+                                                    </button>
                                                     <button
                                                         onClick={() => handleDeleteCategory(cat.id)}
                                                         className="text-gray-300 hover:text-red-500 transition-colors"
@@ -216,7 +261,7 @@ export default function AdminGuidelineBuilder({ templateId, onClose }: AdminGuid
                                         ))}
                                         {selectedDivision.categories.length === 0 && (
                                             <tr>
-                                                <td colSpan={4} className="px-4 py-12 text-center text-gray-400 text-sm italic">
+                                                <td colSpan={5} className="px-4 py-12 text-center text-gray-400 text-sm italic">
                                                     No categories yet. Click "Add Category" to create one.
                                                 </td>
                                             </tr>
@@ -230,12 +275,20 @@ export default function AdminGuidelineBuilder({ templateId, onClose }: AdminGuid
                                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                                         <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
                                             <h4 className="font-bold text-gray-800 text-sm">Add Category</h4>
-                                            <button onClick={() => setIsAddCategoryOpen(false)}><X className="w-4 h-4 text-gray-400 hover:text-gray-600" /></button>
+                                            <button onClick={() => { setIsAddCategoryOpen(false); setAddCategoryType('KYORUGI') }}><X className="w-4 h-4 text-gray-400 hover:text-gray-600" /></button>
                                         </div>
                                         <form onSubmit={handleAddCategory} className="p-4 space-y-4">
                                             <div>
                                                 <label className="block text-xs font-semibold text-gray-500 mb-1">Category Name</label>
                                                 <input name="name" placeholder="e.g. Fin or Under 58kg" className="w-full text-sm border-gray-200 rounded-lg focus:ring-red-500 focus:border-red-500" required autoFocus />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-500 mb-1">Type</label>
+                                                <select name="type" value={addCategoryType} onChange={(e) => setAddCategoryType(e.target.value)} className="w-full text-sm border-gray-200 rounded-lg focus:ring-red-500 focus:border-red-500">
+                                                    <option value="KYORUGI">Kyorugi</option>
+                                                    <option value="POOMSAE">Poomsae</option>
+                                                    <option value="KYUKPA">Kyukpa</option>
+                                                </select>
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-semibold text-gray-500 mb-1">Gender</label>
@@ -255,11 +308,114 @@ export default function AdminGuidelineBuilder({ templateId, onClose }: AdminGuid
                                                     <input name="maxWeight" type="number" step="0.01" placeholder="999 for +" className="w-full text-sm border-gray-200 rounded-lg focus:ring-red-500 focus:border-red-500" required />
                                                 </div>
                                             </div>
+                                            {addCategoryType === 'POOMSAE' && (
+                                                <div className="space-y-3 p-3 bg-amber-50/50 rounded-lg border border-amber-100">
+                                                    <div>
+                                                        <label className="block text-xs font-semibold text-gray-500 mb-1">Belt</label>
+                                                        <input name="belt" placeholder="e.g. Yellow, Black" className="w-full text-sm border-gray-200 rounded-lg focus:ring-red-500 focus:border-red-500" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-semibold text-gray-500 mb-1">Assigned Forms</label>
+                                                        <input name="poomsaeForms" placeholder="e.g. Taegeuk 4" className="w-full text-sm border-gray-200 rounded-lg focus:ring-red-500 focus:border-red-500" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-semibold text-gray-500 mb-1">Subtype</label>
+                                                        <select name="subtype" defaultValue="INDIVIDUAL" className="w-full text-sm border-gray-200 rounded-lg focus:ring-red-500 focus:border-red-500">
+                                                            <option value="INDIVIDUAL">Individual</option>
+                                                            <option value="PAIR">Pair</option>
+                                                            <option value="TEAM">Team</option>
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-semibold text-gray-500 mb-1">Format</label>
+                                                        <select name="poomsaeFormat" defaultValue="SCORED" className="w-full text-sm border-gray-200 rounded-lg focus:ring-red-500 focus:border-red-500">
+                                                            <option value="SCORED">Scored (ranked rounds)</option>
+                                                            <option value="HEAD_TO_HEAD">Head-to-Head (VS bracket)</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            )}
                                             <input name="displayOrder" type="hidden" value={selectedDivision.categories.length + 1} />
 
                                             <div className="pt-2">
                                                 <button type="submit" className="w-full py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm">
                                                     Add Category
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            )}
+
+                            {editingCategory && (
+                                <div className="absolute inset-0 bg-black/10 backdrop-blur-[1px] flex items-center justify-center p-4 z-20">
+                                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                        <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                                            <h4 className="font-bold text-gray-800 text-sm">Edit Category</h4>
+                                            <button onClick={() => setEditingCategory(null)}><X className="w-4 h-4 text-gray-400 hover:text-gray-600" /></button>
+                                        </div>
+                                        <form onSubmit={handleUpdateCategory} className="p-4 space-y-4">
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-500 mb-1">Category Name</label>
+                                                <input name="name" defaultValue={editingCategory.name} className="w-full text-sm border-gray-200 rounded-lg focus:ring-red-500 focus:border-red-500" required autoFocus />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-500 mb-1">Type</label>
+                                                <select name="type" value={editCategoryType} onChange={(e) => setEditCategoryType(e.target.value)} className="w-full text-sm border-gray-200 rounded-lg focus:ring-red-500 focus:border-red-500">
+                                                    <option value="KYORUGI">Kyorugi</option>
+                                                    <option value="POOMSAE">Poomsae</option>
+                                                    <option value="KYUKPA">Kyukpa</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-500 mb-1">Gender</label>
+                                                <select name="gender" defaultValue={editingCategory.gender} className="w-full text-sm border-gray-200 rounded-lg focus:ring-red-500 focus:border-red-500" required>
+                                                    <option value="Male">Male</option>
+                                                    <option value="Female">Female</option>
+                                                    <option value="Mixed">Mixed</option>
+                                                </select>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-gray-500 mb-1">Min Weight (kg)</label>
+                                                    <input name="minWeight" type="number" step="0.01" defaultValue={editingCategory.minWeight ?? 0} className="w-full text-sm border-gray-200 rounded-lg focus:ring-red-500 focus:border-red-500" required />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-gray-500 mb-1">Max Weight (kg)</label>
+                                                    <input name="maxWeight" type="number" step="0.01" defaultValue={editingCategory.maxWeight ?? 0} placeholder="999 for +" className="w-full text-sm border-gray-200 rounded-lg focus:ring-red-500 focus:border-red-500" required />
+                                                </div>
+                                            </div>
+                                            {editCategoryType === 'POOMSAE' && (
+                                                <div className="space-y-3 p-3 bg-amber-50/50 rounded-lg border border-amber-100">
+                                                    <div>
+                                                        <label className="block text-xs font-semibold text-gray-500 mb-1">Belt</label>
+                                                        <input name="belt" defaultValue={editingCategory.belt || ''} placeholder="e.g. Yellow, Black" className="w-full text-sm border-gray-200 rounded-lg focus:ring-red-500 focus:border-red-500" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-semibold text-gray-500 mb-1">Assigned Forms</label>
+                                                        <input name="poomsaeForms" defaultValue={editingCategory.poomsaeForms || ''} placeholder="e.g. Taegeuk 4" className="w-full text-sm border-gray-200 rounded-lg focus:ring-red-500 focus:border-red-500" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-semibold text-gray-500 mb-1">Subtype</label>
+                                                        <select name="subtype" defaultValue={editingCategory.subtype || 'INDIVIDUAL'} className="w-full text-sm border-gray-200 rounded-lg focus:ring-red-500 focus:border-red-500">
+                                                            <option value="INDIVIDUAL">Individual</option>
+                                                            <option value="PAIR">Pair</option>
+                                                            <option value="TEAM">Team</option>
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-semibold text-gray-500 mb-1">Format</label>
+                                                        <select name="poomsaeFormat" defaultValue={editingCategory.poomsaeFormat || 'SCORED'} className="w-full text-sm border-gray-200 rounded-lg focus:ring-red-500 focus:border-red-500">
+                                                            <option value="SCORED">Scored (ranked rounds)</option>
+                                                            <option value="HEAD_TO_HEAD">Head-to-Head (VS bracket)</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="pt-2">
+                                                <button type="submit" className="w-full py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-colors shadow-sm">
+                                                    Save Changes
                                                 </button>
                                             </div>
                                         </form>

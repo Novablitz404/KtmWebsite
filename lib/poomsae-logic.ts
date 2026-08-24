@@ -39,7 +39,12 @@ export function generatePoomsaeBracket(
     players: PlayerWithClub[],
     categoryType: string = 'INDIVIDUAL',
     requiredForms: string | null = null,
-    format: 'SCORED' | 'HEAD_TO_HEAD' = 'SCORED'
+    format: 'SCORED' | 'HEAD_TO_HEAD' = 'SCORED',
+    // When true, use `players`' given order as-is instead of randomizing — for
+    // reproducing a previously-shown/persisted draw (see previewCategoryBracket
+    // in app/actions.ts). Randomization still happens exactly once, the first
+    // time a category is ever previewed/generated with no saved seedOrder yet.
+    preOrdered: boolean = false
 ): PoomsaeMatchSpec[] {
     if (players.length === 0) return []
 
@@ -94,7 +99,7 @@ export function generatePoomsaeBracket(
     }
 
     if (format === 'HEAD_TO_HEAD') {
-        return generateHeadToHeadPoomsaeSpecs(performers, requiredForms)
+        return generateHeadToHeadPoomsaeSpecs(performers, requiredForms, preOrdered)
     }
 
     const count = performers.length
@@ -142,11 +147,13 @@ export function generatePoomsaeBracket(
         }
 
         if (rnd === startRound) {
-            // SHUFFLE STARTING ROUND ONLY
+            // SHUFFLE STARTING ROUND ONLY (skipped when reproducing a stable/edited draw)
             const tempPerformers = [...performers];
-            for (let i = tempPerformers.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [tempPerformers[i], tempPerformers[j]] = [tempPerformers[j], tempPerformers[i]];
+            if (!preOrdered) {
+                for (let i = tempPerformers.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [tempPerformers[i], tempPerformers[j]] = [tempPerformers[j], tempPerformers[i]];
+                }
             }
             tempPerformers.forEach((p, i) => {
                 if (isTeamOrPair) {
@@ -164,10 +171,12 @@ export function generatePoomsaeBracket(
                 specs[i].teamMembers = p.members
             })
 
-            // Double shuffle for slots
-            for (let i = specs.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [specs[i], specs[j]] = [specs[j], specs[i]];
+            // Double shuffle for slots (skipped when reproducing a stable/edited draw)
+            if (!preOrdered) {
+                for (let i = specs.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [specs[i], specs[j]] = [specs[j], specs[i]];
+                }
             }
             specs.forEach((s, i) => {
                 s.performanceNumber = i + 1
@@ -196,12 +205,18 @@ export function generatePoomsaeBracket(
  */
 export function generateHeadToHeadPoomsaeSpecs(
     performers: PoomsaePerformerEntry[],
-    requiredForms: string | null = null
+    requiredForms: string | null = null,
+    preOrdered: boolean = false
 ): PoomsaeMatchSpec[] {
     if (performers.length < 2) return []
 
     const performerByPlayerId = new Map(performers.map(p => [p.representative.id, p]))
-    const bracketSpecs = generateSingleEliminationBracket(performers.map(p => p.representative))
+    const representatives = performers.map(p => p.representative)
+    // preOrdered bypasses generateSingleEliminationBracket's own internal shuffle by
+    // feeding the same array back as its preOrderedPlayers argument.
+    const bracketSpecs = preOrdered
+        ? generateSingleEliminationBracket(representatives, 1, representatives)
+        : generateSingleEliminationBracket(representatives)
     if (bracketSpecs.length === 0) return []
 
     // generateSingleEliminationBracket assigns ids final-round-first (so its

@@ -8,7 +8,8 @@ import { getAuthUser } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { getClubEventsData } from '@/app/club/data'
 import { generatePoomsaeBracket } from '@/lib/poomsae-logic'
-import { BracketMatchSpec, generateSingleEliminationBracket } from '@/lib/bracket-logic'
+import { BracketMatchSpec, generateSingleEliminationBracket, shuffleArray } from '@/lib/bracket-logic'
+import type { PreviewMatch } from '@/lib/bracket-preview-helpers'
 import { deriveSkillLevel, extractBeltFromCategoryName } from '@/lib/skill-logic'
 import { toTitleCase } from '@/lib/utils'
 import { encrypt } from '@/lib/encryption'
@@ -191,6 +192,9 @@ export async function createTournament(formData: FormData) {
                                 type: weightCat.type,
                                 subtype: weightCat.subtype,
                                 poomsaeForms: weightCat.poomsaeForms,
+                                // @ts-ignore — poomsaeFormat is present in the DB but the generated
+                                // Prisma Client types haven't been regenerated (dev server file lock)
+                                poomsaeFormat: (weightCat as any).poomsaeFormat || 'SCORED',
                                 court: null,
                                 minAge: division.minAge,
                                 maxAge: division.maxAge,
@@ -746,6 +750,59 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
             return aGroupByCategory ? -1 : 1
         })
 
+        // Step 2.5: Rest spacing — a player shouldn't be scheduled again too soon
+        // after their previous match. Prefers a 2-match gap, falls back to a
+        // 1-match gap when 2 isn't achievable nearby, and only reorders within a
+        // small local lookahead so it never disturbs the day/category/skill-level
+        // ordering established above. Never schedules a match before the match(es)
+        // that feed it (isReady), which the round-ascending sort above guarantees
+        // is always satisfiable.
+        const keyOf = (s: SpecWithCategory) => `${s.categoryId}:${s.id}`
+        const feedersOf = new Map<string, string[]>()
+        allSpecs.forEach(s => {
+            if (s.nextMatchId !== null) {
+                const targetKey = `${s.categoryId}:${s.nextMatchId}`
+                if (!feedersOf.has(targetKey)) feedersOf.set(targetKey, [])
+                feedersOf.get(targetKey)!.push(keyOf(s))
+            }
+        })
+
+        const placed = new Set<string>()
+        const isReady = (s: SpecWithCategory) => {
+            const feeders = feedersOf.get(keyOf(s))
+            return !feeders || feeders.every(f => placed.has(f))
+        }
+        const playersOf = (s: SpecWithCategory) => [s.player1?.id, s.player2?.id].filter((id): id is string => !!id)
+
+        const remaining = [...allSpecs]
+        const spaced: SpecWithCategory[] = []
+        const recentMatches: string[][] = [] // trailing window of the last 2 scheduled matches' player ids
+        const conflicts = (s: SpecWithCategory, gap: number) => {
+            const ids = new Set(recentMatches.slice(-gap).flat())
+            return playersOf(s).some(id => ids.has(id))
+        }
+
+        const LOOKAHEAD = 12
+        while (remaining.length > 0) {
+            // window's indices line up 1:1 with remaining's (it's remaining's own prefix),
+            // so whatever index we settle on is directly valid for remaining.splice below.
+            const window = remaining.slice(0, Math.min(LOOKAHEAD, remaining.length))
+            let idx = window.findIndex(s => isReady(s) && !conflicts(s, 2))
+            if (idx === -1) idx = window.findIndex(s => isReady(s) && !conflicts(s, 1))
+            if (idx === -1) idx = window.findIndex(s => isReady(s))
+            if (idx === -1) idx = remaining.findIndex(s => isReady(s)) // guaranteed to exist
+            if (idx === -1) idx = 0 // unreachable given a valid topological input order
+
+            const [chosen] = remaining.splice(idx, 1)
+            spaced.push(chosen)
+            placed.add(keyOf(chosen))
+            recentMatches.push(playersOf(chosen))
+            if (recentMatches.length > 2) recentMatches.shift()
+        }
+
+        allSpecs.length = 0
+        allSpecs.push(...spaced)
+
         // Step 3: Insert matches (Pass 1)
         const idLookup = new Map<string, number>();
 
@@ -814,7 +871,18 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
     return { success: true, count: validCategories.length }
 }
 
-export async function generateBracketsForCategory(categoryId: string, court?: string) {
+export async function generateBracketsForCategory(
+    categoryId: string,
+    court?: string,
+    seedOrder?: string[],
+    // A hand-edited preview (user manually swapped players via click-to-swap in the
+    // UI) — passed verbatim instead of `seedOrder` because it's already the exact
+    // final bracket structure (round1 pairings + bye placements resolved). Re-deriving
+    // it through generateSingleEliminationBracket via `seedOrder` would treat this
+    // slot arrangement as a seed-RANK order and re-apply the seeding transform,
+    // scrambling the very swap the user just made. Kyorugi only.
+    editedSpecs?: PreviewMatch[]
+) {
     if (!categoryId) return
 
     // Update category court if provided
@@ -844,16 +912,23 @@ export async function generateBracketsForCategory(categoryId: string, court?: st
 
         // REMOVED: Global sequence reset (unsafe for multi-tenant and unnecessary)
 
-        // Reconcile seed order: use saved order if available, shuffle otherwise
-        const reconciledForPoomsae = category.seedOrder && category.seedOrder.length > 0
-            ? reconcileSeedOrder(category.seedOrder, players)
+        // Reconcile seed order: prefer an explicitly passed-in order (e.g. from an
+        // edited preview), fall back to the category's saved order, shuffle otherwise.
+        // The trailing `true` below (when an order was actually resolved) is what makes
+        // this reproduce it instead of shuffling again — omitting it (as before) meant
+        // the reconciliation above was computed but silently discarded.
+        const effectivePoomsaeSeedOrder = (seedOrder && seedOrder.length > 0) ? seedOrder : category.seedOrder
+        const hasEffectivePoomsaeOrder = !!(effectivePoomsaeSeedOrder && effectivePoomsaeSeedOrder.length > 0)
+        const reconciledForPoomsae = hasEffectivePoomsaeOrder
+            ? reconcileSeedOrder(effectivePoomsaeSeedOrder!, players)
             : players
 
         const poomsaeSpecs = generatePoomsaeBracket(
             reconciledForPoomsae,
             category.subtype || 'INDIVIDUAL',
             category.poomsaeForms,
-            category.poomsaeFormat as 'SCORED' | 'HEAD_TO_HEAD'
+            category.poomsaeFormat as 'SCORED' | 'HEAD_TO_HEAD',
+            hasEffectivePoomsaeOrder
         )
 
         // Get count of distinct groups to assign global match IDs
@@ -948,12 +1023,45 @@ export async function generateBracketsForCategory(categoryId: string, court?: st
 
     let currentMatchNumber = await getNextKyorugiId(category.tournamentId)
 
-    // Reconcile seed order: use saved order if available, shuffle otherwise
-    const reconciledForKyorugi = category.seedOrder && category.seedOrder.length > 0
-        ? reconcileSeedOrder(category.seedOrder, players)
-        : players
+    let bracketSpecs: BracketMatchSpec[]
+    let seedOrderToPersist: string[] | null = null
 
-    const bracketSpecs = generateSingleEliminationBracket(reconciledForKyorugi)
+    if (editedSpecs && editedSpecs.length > 0) {
+        // Exact reproduction of a hand-edited preview — these specs already ARE the
+        // final bracket (round1 pairings + bye placements resolved), so persist them
+        // verbatim instead of re-deriving via generateSingleEliminationBracket. The
+        // player ids are trusted against the freshly-fetched `players` list rather
+        // than used as-is, since the client only sends {id, name}.
+        const byId = new Map(players.map(p => [p.id, p]))
+        bracketSpecs = editedSpecs.map(s => ({
+            id: s.id,
+            round: s.round,
+            player1: s.player1 ? (byId.get(s.player1.id) ?? null) : null,
+            player2: s.player2 ? (byId.get(s.player2.id) ?? null) : null,
+            nextMatchId: s.nextMatchId,
+            nextMatchSlot: s.nextMatchSlot,
+            isFinal: s.isFinal,
+        }))
+        // Not updating category.seedOrder here — it stays at whatever rank order
+        // produced the pre-edit preview, which is the closest meaningful fallback if
+        // this category's matches ever get cleared and re-previewed later.
+    } else {
+        // Reconcile seed order: prefer an explicitly passed-in order, fall back to the
+        // category's saved order, shuffle otherwise. Passing reconciledForKyorugi as
+        // preOrderedPlayers too is what actually makes this reproduce that order
+        // instead of shuffling again — omitting it (as before) meant the
+        // reconciliation above was computed but silently discarded.
+        const effectiveKyorugiSeedOrder = (seedOrder && seedOrder.length > 0) ? seedOrder : category.seedOrder
+        const hasEffectiveOrder = !!(effectiveKyorugiSeedOrder && effectiveKyorugiSeedOrder.length > 0)
+        const reconciledForKyorugi = hasEffectiveOrder
+            ? reconcileSeedOrder(effectiveKyorugiSeedOrder!, players)
+            : players
+
+        bracketSpecs = hasEffectiveOrder
+            ? generateSingleEliminationBracket(reconciledForKyorugi, 1, reconciledForKyorugi)
+            : generateSingleEliminationBracket(reconciledForKyorugi)
+        seedOrderToPersist = reconciledForKyorugi.map(p => p.id)
+    }
     // Two-pass approach due to auto-increment IDs:
     // Pass 1: Create all matches WITHOUT nextMatchId
     // Pass 2: Update matches with correct links
@@ -1006,11 +1114,13 @@ export async function generateBracketsForCategory(categoryId: string, court?: st
         data: { match_count: currentMatchNumber - 1 }
     })
 
-    // Save seed order
-    await prisma.category.update({
-        where: { id: categoryId },
-        data: { seedOrder: reconciledForKyorugi.map(p => p.id) }
-    })
+    // Save seed order (skipped for the edited-specs path — see comment above)
+    if (seedOrderToPersist) {
+        await prisma.category.update({
+            where: { id: categoryId },
+            data: { seedOrder: seedOrderToPersist }
+        })
+    }
 
     revalidatePath(`/tournament/${category.tournamentId}`)
 }
@@ -1953,7 +2063,9 @@ export async function selectGuidelineTemplate(tournamentId: string, templateId: 
                         poomsaeForms: weightCat.poomsaeForms,
                         court: null,
                         // @ts-ignore
-                        belt: belt
+                        belt: belt,
+                        // @ts-ignore
+                        poomsaeFormat: (weightCat as any).poomsaeFormat || 'SCORED'
                     })
                 } else {
                     // KYORUGI: Create Novice, Intermediate & Advance Variants
@@ -2158,7 +2270,7 @@ export async function bulkDeleteRegistrations(playerIds: string[]) {
     }
 }
 
-export async function updateCategory(categoryId: string, tournamentId: string, data: { name?: string; type?: string; court?: string; skillLevel?: string; poomsaeFormat?: string }) {
+export async function updateCategory(categoryId: string, tournamentId: string, data: { name?: string; type?: string; court?: string; skillLevel?: string | null; poomsaeFormat?: string; subtype?: string; poomsaeForms?: string | null }) {
     try {
         await prisma.category.update({
             where: { id: categoryId },
@@ -2167,7 +2279,9 @@ export async function updateCategory(categoryId: string, tournamentId: string, d
                 type: data.type,
                 court: data.court || null,
                 skillLevel: data.skillLevel,
-                poomsaeFormat: data.poomsaeFormat
+                poomsaeFormat: data.poomsaeFormat,
+                subtype: data.subtype,
+                poomsaeForms: data.poomsaeForms || null
             }
         })
         revalidatePath(`/tournament/${tournamentId}`)
@@ -2178,7 +2292,11 @@ export async function updateCategory(categoryId: string, tournamentId: string, d
     }
 }
 
-export async function createCategory(tournamentId: string, name: string, type: string = 'KYORUGI', court: string = '', skillLevel: string = 'Novice', poomsaeFormat: string = 'SCORED') {
+export async function createCategory(
+    tournamentId: string, name: string, type: string = 'KYORUGI', court: string = '',
+    skillLevel: string | null = 'Novice', poomsaeFormat: string = 'SCORED',
+    subtype: string = 'INDIVIDUAL', poomsaeForms: string | null = null
+) {
     try {
         await prisma.category.create({
             data: {
@@ -2187,7 +2305,9 @@ export async function createCategory(tournamentId: string, name: string, type: s
                 type,
                 court: court || null,
                 skillLevel,
-                poomsaeFormat
+                poomsaeFormat,
+                subtype,
+                poomsaeForms: poomsaeForms || null
             }
         })
         revalidatePath(`/tournament/${tournamentId}`)
@@ -4996,32 +5116,54 @@ export async function previewAllBrackets(tournamentId: string, type: string) {
     })
 }
 
-export async function previewCategoryBracket(categoryId: string) {
-    const cat = await prisma.category.findUnique({
-        where:   { id: categoryId },
+const PREVIEW_CATEGORY_INCLUDE = {
+    players: {
         include: {
-            players: {
-                include: {
-                    club: { select: { id: true, name: true, logoUrl: true } },
-                    user: { select: { birthDate: true, weight: true, height: true, belt: true } }
-                }
-            }
-        },
+            club: { select: { id: true, name: true, logoUrl: true } },
+            user: { select: { birthDate: true, weight: true, height: true, belt: true } }
+        }
+    }
+} as const
+
+// Shared by previewCategoryBracket (stable — reproduces the last-shown/saved draw)
+// and reshuffleCategoryPreview (forced — always a fresh random draw).
+//
+// `orderedPlayers` here is the SEED-RANK order ("who is seed 1, seed 2, ..."), not
+// the resulting bracket-SLOT order — those are two different things, since
+// generateSingleEliminationBracket maps seed ranks into bracket slots via a fixed
+// seed-position table. Persisting and reusing this seed-rank array directly (as
+// BOTH the players list and preOrderedPlayers) is what makes a draw reproduce
+// identically next time; deriving it by reverse-engineering the OUTPUT specs
+// doesn't work, because the seed-position transform isn't its own inverse.
+async function buildCategoryPreview(categoryId: string, forceReshuffle: boolean) {
+    const cat = await prisma.category.findUnique({
+        where: { id: categoryId },
+        include: PREVIEW_CATEGORY_INCLUDE,
     })
     if (!cat) return null
+
+    const hasSavedOrder = !forceReshuffle && !!cat.seedOrder && cat.seedOrder.length > 0
+    const orderedPlayers: any[] = hasSavedOrder
+        ? reconcileSeedOrder(cat.seedOrder, cat.players as any[])
+        : shuffleArray(cat.players as any[])
+
+    // Always persist this exact seed-rank order, so the next load (or "Generate
+    // This Category") reproduces this same draw instead of shuffling again.
+    await prisma.category.update({ where: { id: categoryId }, data: { seedOrder: orderedPlayers.map((p: any) => p.id) } })
 
     let kyorugiSpecs: ReturnType<typeof generateSingleEliminationBracket> = []
     let poomsaeSpecs: ReturnType<typeof generatePoomsaeBracket> = []
 
     if (cat.type === 'POOMSAE' || cat.type === 'KYUKPA') {
         poomsaeSpecs = generatePoomsaeBracket(
-            cat.players as any,
+            orderedPlayers,
             cat.subtype || 'INDIVIDUAL',
             cat.poomsaeForms,
-            cat.poomsaeFormat as 'SCORED' | 'HEAD_TO_HEAD'
+            cat.poomsaeFormat as 'SCORED' | 'HEAD_TO_HEAD',
+            true
         )
     } else if (cat.type === 'KYORUGI' && cat.players.length >= 2) {
-        kyorugiSpecs = generateSingleEliminationBracket(cat.players as any)
+        kyorugiSpecs = generateSingleEliminationBracket(orderedPlayers, 1, orderedPlayers)
     }
 
     return {
@@ -5071,6 +5213,17 @@ export async function previewCategoryBracket(categoryId: string) {
     }
 }
 
+// Stable load — reproduces the last-shown/saved draw (only randomizes + persists
+// once, the very first time a category has no saved seedOrder yet).
+export async function previewCategoryBracket(categoryId: string) {
+    return buildCategoryPreview(categoryId, false)
+}
+
+// Forced re-randomization — always a fresh draw, persisted as the new stable one.
+export async function reshuffleCategoryPreview(categoryId: string) {
+    return buildCategoryPreview(categoryId, true)
+}
+
 // ─────────────────────────────────────────────────────────────
 // SIMULATE MATCH SEQUENCE
 // ─────────────────────────────────────────────────────────────
@@ -5094,16 +5247,27 @@ export async function simulateMatchSequence(
         let currentMatchNumber = 1
 
         for (const category of validCategories) {
-            const poomsaeSpecs = generatePoomsaeBracket(category.players as any, category.subtype || 'INDIVIDUAL', category.poomsaeForms, category.poomsaeFormat as 'SCORED' | 'HEAD_TO_HEAD')
+            // Reuse the persisted seed order (set the first time this category's
+            // preview was loaded) so the simulated numbering matches what
+            // "Generate This Category" will actually produce, instead of a fresh
+            // random draw every time this is run.
+            const hasOrder = !!(category.seedOrder && category.seedOrder.length > 0)
+            const orderedPlayers = hasOrder ? reconcileSeedOrder(category.seedOrder, category.players as any[]) : category.players
+            const poomsaeSpecs = generatePoomsaeBracket(orderedPlayers as any, category.subtype || 'INDIVIDUAL', category.poomsaeForms, category.poomsaeFormat as 'SCORED' | 'HEAD_TO_HEAD', hasOrder)
             const distinctGroupIndices = Array.from(new Set(poomsaeSpecs.map(s => s.roundGroupIndex))).sort((a, b) => a - b)
             const groupMapping = new Map<number, number>()
             distinctGroupIndices.forEach(idx => { groupMapping.set(idx, currentMatchNumber++) })
             
             result[category.id] = {}
             poomsaeSpecs.forEach(s => {
-                // Map by round rather than performanceNumber, so we don't overwrite!
-                if (!result[category.id][s.round]) {
-                    result[category.id][s.round] = { globalId: groupMapping.get(s.roundGroupIndex) || 0, day: category.scheduleDay ?? 1 }
+                // Keyed by roundGroupIndex (the same "shared match record" grouping key
+                // generateBracketsForCategory uses): for SCORED, one entry per round
+                // (every slot in a round shares one roundGroupIndex); for HEAD_TO_HEAD,
+                // one entry per pairing (each pairing has its own roundGroupIndex) —
+                // keying by round alone would collapse multiple HEAD_TO_HEAD pairings
+                // in the same round down to a single number.
+                if (!result[category.id][s.roundGroupIndex]) {
+                    result[category.id][s.roundGroupIndex] = { globalId: groupMapping.get(s.roundGroupIndex) || 0, day: category.scheduleDay ?? 1 }
                 }
             })
         }
@@ -5123,11 +5287,17 @@ export async function simulateMatchSequence(
         for (const category of validCategories) {
             if (category.players.length < 2) continue
             let preOrdered: typeof category.players | undefined = undefined
-            const order = seedOrders[category.id]
+            // Same fallback as above: prefer an explicitly passed-in order, otherwise
+            // fall back to the persisted seed order from this category's last preview.
+            // Uses the same reconcileSeedOrder as buildCategoryPreview/
+            // generateBracketsForCategory (merges in any newly-added players instead
+            // of silently falling back to a fresh random shuffle) so the simulated
+            // ids always match what's actually shown in the preview.
+            const order = (seedOrders[category.id] && seedOrders[category.id].length > 0)
+                ? seedOrders[category.id]
+                : category.seedOrder
             if (order && order.length > 0) {
-                const playerMap = new Map(category.players.map(p => [p.id, p]))
-                const ordered = order.map(id => playerMap.get(id)).filter(Boolean) as typeof category.players
-                if (ordered.length === category.players.length) preOrdered = ordered
+                preOrdered = reconcileSeedOrder(order, category.players as any[]) as typeof category.players
             }
             const specs = generateSingleEliminationBracket(category.players, 1, preOrdered)
 

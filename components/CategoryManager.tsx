@@ -15,7 +15,15 @@ interface Category {
     skillLevel: string | null
     deferFinals: boolean
     poomsaeFormat?: string
+    subtype?: string
+    poomsaeForms?: string | null
 }
+
+const SUBTYPE_OPTIONS = [
+    { label: 'Individual',    value: 'INDIVIDUAL' },
+    { label: 'Pair (Mixed)',  value: 'PAIR'       }, // exactly 1 Male + 1 Female, enforced at bracket generation
+    { label: 'Team',          value: 'TEAM'       }, // exactly 3 players, all same gender
+]
 
 interface CategoryManagerProps {
     tournamentId: string
@@ -32,13 +40,31 @@ const SKILL_CONFIG: Record<string, { badge: string }> = {
     Novice:       { badge: 'bg-emerald-100 text-emerald-700' },
     Intermediate: { badge: 'bg-blue-100 text-blue-700'     },
     Advance:      { badge: 'bg-red-100 text-red-700'        },
+    Open:         { badge: 'bg-amber-100 text-amber-700'    },
 }
 
 const SKILL_OPTIONS = [
     { label: 'Novice',       value: 'Novice'       },
     { label: 'Intermediate', value: 'Intermediate' },
     { label: 'Advance',      value: 'Advance'      },
+    { label: 'Open',         value: 'Open'         },
 ]
+
+// Same list CategoryManager uses to group categories by division (prefix match on
+// cat.name below) — shared here so the Add/Edit form can offer the same divisions
+// instead of admins typing a free-text name that falls into the "Other" bucket.
+const DIVISION_OPTIONS = ['Supertoddler', 'Toddler', 'Grade School', 'Cadet', 'Junior', 'Senior']
+
+// Detects which division (if any) a category's name already starts with, so editing
+// an existing category pre-fills the division dropdown instead of double-prefixing it.
+function splitDivisionFromName(name: string): { division: string; rest: string } {
+    for (const div of DIVISION_OPTIONS) {
+        if (name.startsWith(div)) {
+            return { division: div, rest: name.slice(div.length).trim() }
+        }
+    }
+    return { division: '', rest: name }
+}
 
 export default function CategoryManager({ tournamentId, categories }: CategoryManagerProps) {
     const router = useRouter()
@@ -57,20 +83,31 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
     const [formatUpdates, setFormatUpdates]     = useState<Record<string, string>>({})
 
     const [newName, setNewName]           = useState('')
+    const [newDivision, setNewDivision]   = useState('')
     const [newType, setNewType]           = useState('KYORUGI')
     const [newSkillLevel, setNewSkillLevel] = useState('Novice')
     const [newCourt, setNewCourt]         = useState('')
     const [newPoomsaeFormat, setNewPoomsaeFormat] = useState('SCORED')
+    const [newSubtype, setNewSubtype]     = useState('INDIVIDUAL')
+    const [newPoomsaeForms, setNewPoomsaeForms] = useState('')
 
     const openAddModal = () => {
-        setNewName(''); setNewType('KYORUGI'); setNewSkillLevel('Novice'); setNewCourt(''); setNewPoomsaeFormat('SCORED')
+        setNewName(''); setNewDivision(''); setNewType('KYORUGI'); setNewSkillLevel('Novice'); setNewCourt(''); setNewPoomsaeFormat('SCORED')
+        setNewSubtype('INDIVIDUAL'); setNewPoomsaeForms('')
         setIsAddModalOpen(true)
     }
 
     const handleAddCategory = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
-        const res = await createCategory(tournamentId, newName, newType, newCourt, newSkillLevel, newPoomsaeFormat)
+        const fullName = newDivision ? `${newDivision} ${newName}`.trim() : newName.trim()
+        // Poomsae categories use Belt, not Skill Level (see app/actions.ts's template-generation flow)
+        const skillLevelToSave = newType === 'POOMSAE' ? null : newSkillLevel
+        const res = await createCategory(
+            tournamentId, fullName, newType, newCourt, skillLevelToSave, newPoomsaeFormat,
+            newType === 'POOMSAE' ? newSubtype : 'INDIVIDUAL',
+            newType === 'POOMSAE' ? newPoomsaeForms : null
+        )
         setLoading(false)
         if (res.success) { setIsAddModalOpen(false); router.refresh(); toast.success('Category created') }
         else toast.error(res.error || 'Failed to create category')
@@ -78,18 +115,25 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
 
     const openEditModal = (cat: Category) => {
         if (isEditingCourts) return
-        setEditingCategory(cat); setNewName(cat.name); setNewType(cat.type)
+        const { division, rest } = splitDivisionFromName(cat.name)
+        setEditingCategory(cat); setNewName(rest); setNewDivision(division); setNewType(cat.type)
         // @ts-ignore
         setNewSkillLevel(cat.skillLevel || 'Novice'); setNewCourt(cat.court || '')
         setNewPoomsaeFormat(cat.poomsaeFormat || 'SCORED')
+        setNewSubtype(cat.subtype || 'INDIVIDUAL'); setNewPoomsaeForms(cat.poomsaeForms || '')
     }
 
     const handleUpdateCategory = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!editingCategory) return
         setLoading(true)
+        const fullName = newDivision ? `${newDivision} ${newName}`.trim() : newName.trim()
+        // Poomsae categories use Belt, not Skill Level (see app/actions.ts's template-generation flow)
+        const skillLevelToSave = newType === 'POOMSAE' ? null : newSkillLevel
         const res = await updateCategory(editingCategory.id, tournamentId, {
-            name: newName, type: newType, court: newCourt, skillLevel: newSkillLevel, poomsaeFormat: newPoomsaeFormat
+            name: fullName, type: newType, court: newCourt, skillLevel: skillLevelToSave, poomsaeFormat: newPoomsaeFormat,
+            subtype: newType === 'POOMSAE' ? newSubtype : 'INDIVIDUAL',
+            poomsaeForms: newType === 'POOMSAE' ? newPoomsaeForms : null
         })
         setLoading(false)
         if (res.success) { setEditingCategory(null); router.refresh(); toast.success('Category updated') }
@@ -173,7 +217,7 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
         })
     }
 
-    const divisionOrder = ['Supertoddler', 'Toddler', 'Grade School', 'Cadet', 'Junior', 'Senior']
+    const divisionOrder = DIVISION_OPTIONS
 
     const groupedCategories = categories.reduce((acc, cat) => {
         let division = 'Other'
@@ -560,23 +604,46 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
 
                         {/* Modal body */}
                         <form onSubmit={editingCategory ? handleUpdateCategory : handleAddCategory} className="p-6 space-y-4">
+                            {/* Division */}
+                            <div>
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
+                                    Division <span className="font-medium text-gray-400 normal-case">(groups this category in the list below)</span>
+                                </label>
+                                <GlobalDropdown
+                                    value={newDivision}
+                                    onChange={setNewDivision}
+                                    fullWidth
+                                    options={[
+                                        { label: '— No Division —', value: '' },
+                                        ...DIVISION_OPTIONS.map(d => ({ label: d, value: d })),
+                                    ]}
+                                />
+                            </div>
+
                             {/* Name */}
                             <div>
                                 <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
                                     Category Name
                                 </label>
-                                <input
-                                    type="text"
-                                    value={newName}
-                                    onChange={e => setNewName(e.target.value)}
-                                    className="w-full px-4 py-2.5 border border-gray-200 bg-gray-50 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 focus:bg-white transition-all"
-                                    placeholder="e.g. Junior Female -49kg Kyorugi"
-                                    required
-                                />
+                                <div className="flex items-stretch rounded-xl border border-gray-200 bg-gray-50 focus-within:ring-2 focus-within:ring-red-500/20 focus-within:border-red-300 focus-within:bg-white transition-all overflow-hidden">
+                                    {newDivision && (
+                                        <span className="flex items-center px-3 text-sm font-bold text-gray-500 bg-gray-100 border-r border-gray-200 whitespace-nowrap">
+                                            {newDivision}
+                                        </span>
+                                    )}
+                                    <input
+                                        type="text"
+                                        value={newName}
+                                        onChange={e => setNewName(e.target.value)}
+                                        className="w-full px-4 py-2.5 bg-transparent text-sm font-medium focus:outline-none"
+                                        placeholder={newDivision ? 'e.g. Female -49kg Kyorugi' : 'e.g. Junior Female -49kg Kyorugi'}
+                                        required
+                                    />
+                                </div>
                             </div>
 
-                            {/* Type + Skill Level */}
-                            <div className="grid grid-cols-2 gap-3">
+                            {/* Type + Skill Level (Poomsae uses Belt instead — no skill level) */}
+                            <div className={newType === 'POOMSAE' ? '' : 'grid grid-cols-2 gap-3'}>
                                 <div>
                                     <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
                                         Discipline
@@ -592,17 +659,19 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
                                         ]}
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
-                                        Skill Level
-                                    </label>
-                                    <GlobalDropdown
-                                        value={newSkillLevel}
-                                        onChange={setNewSkillLevel}
-                                        fullWidth
-                                        options={SKILL_OPTIONS}
-                                    />
-                                </div>
+                                {newType !== 'POOMSAE' && (
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
+                                            Skill Level
+                                        </label>
+                                        <GlobalDropdown
+                                            value={newSkillLevel}
+                                            onChange={setNewSkillLevel}
+                                            fullWidth
+                                            options={SKILL_OPTIONS}
+                                        />
+                                    </div>
+                                )}
                             </div>
 
                             {/* Poomsae Format (Poomsae discipline only) */}
@@ -643,6 +712,42 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
                                 </div>
                             )}
 
+                            {/* Subtype + Assigned Forms (Poomsae discipline only) */}
+                            {newType === 'POOMSAE' && (
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
+                                            Subtype
+                                        </label>
+                                        <GlobalDropdown
+                                            value={newSubtype}
+                                            onChange={setNewSubtype}
+                                            fullWidth
+                                            options={SUBTYPE_OPTIONS}
+                                        />
+                                        {newSubtype === 'PAIR' && (
+                                            <p className="text-[11px] text-gray-400 mt-1.5">Groups players by club + team ID; needs exactly 1 male + 1 female per team.</p>
+                                        )}
+                                        {newSubtype === 'TEAM' && (
+                                            <p className="text-[11px] text-gray-400 mt-1.5">Groups players by club + team ID; needs exactly 3 players, all the same gender.</p>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
+                                            Assigned Forms <span className="font-medium text-gray-400 normal-case">(optional)</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={newPoomsaeForms}
+                                            onChange={e => setNewPoomsaeForms(e.target.value)}
+                                            className="w-full px-4 py-2.5 border border-gray-200 bg-gray-50 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 focus:bg-white transition-all"
+                                            placeholder="e.g. Taegeuk 4, Taegeuk 5, Koryo"
+                                        />
+                                        <p className="text-[11px] text-gray-400 mt-1.5">Comma-separated, in round order — the last one is performed in the Final.</p>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Court */}
                             <div>
                                 <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
@@ -658,10 +763,11 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
                             </div>
 
                             {/* Skill level preview */}
-                            {newSkillLevel && (
+                            {newType !== 'POOMSAE' && newSkillLevel && (
                                 <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border ${
                                     newSkillLevel === 'Novice'       ? 'bg-emerald-50 border-emerald-100' :
                                     newSkillLevel === 'Intermediate' ? 'bg-blue-50 border-blue-100' :
+                                    newSkillLevel === 'Open'         ? 'bg-amber-50 border-amber-100' :
                                     'bg-red-50 border-red-100'
                                 }`}>
                                     <span className={`text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full ${
@@ -672,6 +778,7 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
                                     <span className="text-xs text-gray-500 font-medium">
                                         {newSkillLevel === 'Novice'       ? 'Open to beginners — white through blue belt' :
                                          newSkillLevel === 'Intermediate' ? 'Mid-level — red belt and below' :
+                                         newSkillLevel === 'Open'         ? 'No skill restriction — all belts may compete together' :
                                          'Advanced — black belt and above'}
                                     </span>
                                 </div>

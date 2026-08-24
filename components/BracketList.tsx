@@ -1,20 +1,28 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useEffect, useTransition, useMemo } from 'react'
 import { Category, Match, PoomsaeMatch } from '@prisma/client'
 import BracketView from './BracketView'
 import PoomsaeBracketView from './PoomsaeBracketView'
 import type { ExtendedPoomsaeMatch } from './PoomsaeBracketView'
-import BracketPreviewModal from './BracketPreviewModal'
-import { generateAllBrackets, getTournamentAlerts, initiateSmartProposal, forceExecuteSmartAction, bulkSendUncontestedProposals, bulkUpdateCourts } from '@/app/actions'
+import { adaptPoomsaeMatchesToBracket, adaptPoomsaePreviewToBracket } from '@/lib/poomsae-bracket-adapter'
+import PreviewBracketTree from './bracket/PreviewBracketTree'
+import PoomsaePreviewGrid from './bracket/PoomsaePreviewGrid'
+import { isHeightBased, getCompetitorCount, getMedalMultiplier, type PreviewMatch } from '@/lib/bracket-preview-helpers'
+import {
+    generateAllBrackets, getTournamentAlerts, initiateSmartProposal, forceExecuteSmartAction,
+    bulkSendUncontestedProposals, bulkUpdateCourts, previewCategoryBracket, reshuffleCategoryPreview, movePlayerToCategory,
+    updateCategoryDaySettings, generateBracketsForCategory, simulateMatchSequence
+} from '@/app/actions'
 import {
     Trophy, Medal, Wand2, Loader2, AlertCircle, Search,
     ShieldAlert, Split, Merge, Users, X, ChevronDown, Zap, ArrowRight, Clock, Send, ChevronRight, Eye, Calendar,
-    Download, MapPin, FileStack
+    Download, MapPin, FileStack, Shuffle, ArrowRightLeft, Shield, CheckSquare, Layers
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import dynamic from 'next/dynamic'
+import { useRouter } from 'next/navigation'
 import DaySchedulePDF from '@/components/pdf/DaySchedulePDF'
 import type { DayScheduleMatch } from '@/components/pdf/DaySchedulePDF'
 import BracketPDF from '@/components/pdf/BracketPDF'
@@ -25,13 +33,16 @@ const PDFDownloadLink = dynamic(
     { ssr: false }
 )
 
+type SimulatedMatchMap = Record<string, Record<number, { globalId: number; day: number }>>
+
 interface BracketListProps {
-    categories: (Category & { matches: Match[], poomsaeMatches?: (PoomsaeMatch & { player: { name: string; club?: { name: string } | null } })[] })[]
+    categories: (Category & { matches: Match[], poomsaeMatches?: (PoomsaeMatch & { player: { name: string; club?: { name: string } | null } })[], _count?: { players: number } })[]
     tournamentName?: string
     publicView?: boolean
 }
 
 export default function BracketList({ categories, tournamentName, publicView = false }: BracketListProps) {
+    const router = useRouter()
     const [activeTab, setActiveTab] = useState<'kyorugi' | 'poomsae' | 'kyukpa'>('kyorugi')
     const [isPending, startTransition] = useTransition()
     const [searchQuery, setSearchQuery] = useState('')
@@ -39,10 +50,33 @@ export default function BracketList({ categories, tournamentName, publicView = f
     const [sendingAll, setSendingAll] = useState(false)
     const [sendingClub, setSendingClub] = useState<string | null>(null)
     const [clubDropdownOpen, setClubDropdownOpen] = useState(false)
-    const [previewOpen, setPreviewOpen] = useState(false)
     const [dayFilter, setDayFilter] = useState<0|1|2|3>(0)
     const [courtPanelOpen, setCourtPanelOpen] = useState(true)
     const [downloadingBracketsDay, setDownloadingBracketsDay] = useState<number | null>(null)
+
+    // ── Division / skill filters ──────────────────────────────────────────────
+    const [divisionFilter, setDivisionFilter] = useState<string>('All')
+    const [skillFilter, setSkillFilter] = useState<string>('All')
+
+    // ── Bulk selection (Day/Defer apply across many categories at once) ───────
+    const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set())
+    const [bulkApplying, setBulkApplying] = useState(false)
+    const [bulkDay, setBulkDay] = useState<string>('')
+    const [bulkDefer, setBulkDefer] = useState<string>('')
+
+    // ── Simulate Match Sequence (global numbering preview, no commit) ─────────
+    const [globalMatchIds, setGlobalMatchIds] = useState<SimulatedMatchMap | null>(null)
+    const [simulatingSequence, setSimulatingSequence] = useState(false)
+
+    // ── Alerts-pending banner — dismissible; reappears if the alert count changes ──
+    const [dismissedAlertsCount, setDismissedAlertsCount] = useState<number | null>(null)
+
+    useEffect(() => {
+        setDivisionFilter('All')
+        setSkillFilter('All')
+        setBulkSelected(new Set())
+        setGlobalMatchIds(null)
+    }, [activeTab])
 
     const tournamentId = categories[0]?.tournamentId
 
@@ -99,18 +133,108 @@ export default function BracketList({ categories, tournamentName, publicView = f
         })
     }
 
+    // Division = the leading words of a category name before the gender token,
+    // e.g. "Cadet Female Intermediate Kyorugi - Feather" -> "Cadet"
+    function divisionOf(name: string): string {
+        const parts = name.split(' ')
+        const genderIdx = parts.findIndex(p => ['Male', 'Female', 'Mixed'].includes(p))
+        return genderIdx > 0 ? parts.slice(0, genderIdx).join(' ') : parts[0]
+    }
+    const divisions = ['All', ...Array.from(new Set(displayedCategories.map(c => divisionOf(c.name)))).sort()]
+    const skillLevels = ['All', 'Novice', 'Intermediate', 'Advance']
+
+    if (divisionFilter !== 'All') {
+        filteredCategories = filteredCategories.filter(c => divisionOf(c.name) === divisionFilter)
+    }
+    if (skillFilter !== 'All' && activeTab === 'kyorugi') {
+        filteredCategories = filteredCategories.filter(c => (c.skillLevel || 'Novice').toLowerCase() === skillFilter.toLowerCase())
+    }
+
+    // Medal tally — how many of each medal this discipline's (filtered) categories
+    // will award. PAIR/TEAM categories award multiple medals per placement.
+    const isPerformanceDiscipline = activeTab === 'poomsae' || activeTab === 'kyukpa'
+    const medalEligible = filteredCategories.filter(c => {
+        const cc = getCompetitorCount(c._count?.players ?? 0, c.subtype)
+        return isPerformanceDiscipline ? cc >= 1 : cc >= 2
+    })
+    const totalGold = medalEligible.reduce((sum, c) => sum + getMedalMultiplier(c.subtype), 0)
+    const totalSilver = medalEligible
+        .filter(c => getCompetitorCount(c._count?.players ?? 0, c.subtype) >= 2)
+        .reduce((sum, c) => sum + getMedalMultiplier(c.subtype), 0)
+    const totalBronze = medalEligible.reduce((sum, c) => {
+        const cc = getCompetitorCount(c._count?.players ?? 0, c.subtype)
+        const m = getMedalMultiplier(c.subtype)
+        return sum + (cc > 3 ? 2 * m : cc === 3 ? 1 * m : 0)
+    }, 0)
+
     const handleGenerateAll = () => {
-        if (!confirm(`Regenerate ALL ${activeTab} matches? This will overwrite existing brackets.`)) return
+        const alertWarning = totalAlerts > 0
+            ? `\n\nNote: ${totalAlerts} pending alert${totalAlerts !== 1 ? 's' : ''} (uncontested/merge/split/cross-division) have not been resolved — generating now will lock in the current category groupings as-is.`
+            : ''
+        if (!confirm(`Regenerate ALL ${activeTab} matches? This will overwrite existing brackets.${alertWarning}`)) return
         startTransition(async () => {
             try {
                 const targetType = activeTab === 'kyorugi' ? 'KYORUGI' : activeTab === 'poomsae' ? 'POOMSAE' : 'KYUKPA'
                 const result = await generateAllBrackets(tournamentId, targetType)
-                if (result?.success) toast.success(`Generated matches for ${result.count} categories!`)
+                if (result?.success) { toast.success(`Generated matches for ${result.count} categories!`); setGlobalMatchIds(null) }
                 else toast.error(result?.message || 'Failed to generate matches.')
             } catch {
                 toast.error('An error occurred while generating matches.')
             }
         })
+    }
+
+    async function handleBulkApply() {
+        if (!bulkSelected.size || (!bulkDay && !bulkDefer)) return
+        setBulkApplying(true)
+        try {
+            let deferFinals = true
+            let deferFinalsToDay: number | null = null
+            let deferSemisToDay: number | null = null
+            if (bulkDefer === 'seq') deferFinals = false
+            else if (bulkDefer === 'end') deferFinals = true
+            else if (bulkDefer === 'finals-d2') { deferFinals = true; deferFinalsToDay = 2 }
+            else if (bulkDefer === 'finals-d3') { deferFinals = true; deferFinalsToDay = 3 }
+            else if (bulkDefer === 'semis-d2') { deferFinals = true; deferSemisToDay = 2 }
+            else if (bulkDefer === 'semis-d3') { deferFinals = true; deferSemisToDay = 3 }
+
+            await Promise.all(Array.from(bulkSelected).map(catId => {
+                const cat = displayedCategories.find(c => c.id === catId)
+                const day = bulkDay ? parseInt(bulkDay) : (cat?.scheduleDay ?? null)
+                const df  = bulkDefer ? deferFinals      : (cat?.deferFinals      ?? true)
+                const dfd = bulkDefer ? deferFinalsToDay : (cat?.deferFinalsToDay ?? null)
+                const dsd = bulkDefer ? deferSemisToDay  : ((cat as any)?.deferSemisToDay ?? null)
+                return updateCategoryDaySettings(catId, day, df, dfd, dsd)
+            }))
+
+            toast.success(`Applied to ${bulkSelected.size} ${bulkSelected.size === 1 ? 'category' : 'categories'}`)
+            setBulkSelected(new Set())
+            setBulkDay('')
+            setBulkDefer('')
+            router.refresh()
+        } catch {
+            toast.error('Bulk apply failed')
+        } finally {
+            setBulkApplying(false)
+        }
+    }
+
+    async function handleSimulateSequence() {
+        setSimulatingSequence(true)
+        try {
+            const targetType = activeTab === 'kyorugi' ? 'KYORUGI' : activeTab === 'poomsae' ? 'POOMSAE' : 'KYUKPA'
+            const res = await simulateMatchSequence(tournamentId, targetType, {})
+            if (res.success && res.mapping) {
+                setGlobalMatchIds(res.mapping)
+                toast.success('Match numbers simulated')
+            } else {
+                toast.error(res.message || 'Simulation failed')
+            }
+        } catch {
+            toast.error('Simulation failed')
+        } finally {
+            setSimulatingSequence(false)
+        }
     }
 
     const uncontestedCount  = alerts.filter(a => a.type === 'UNCONTESTED').length
@@ -354,7 +478,7 @@ export default function BracketList({ categories, tournamentName, publicView = f
         <div className="space-y-5">
 
             {/* ── Alert Strip ─────────────────────────────────────── */}
-            {totalAlerts > 0 && !publicView && (() => {
+            {totalAlerts > 0 && !publicView && dismissedAlertsCount !== totalAlerts && (() => {
                 // Build per-club map from uncontested alerts
                 const clubsWithUncontested = new Map<string, { id: string; name: string; logoUrl: string | null; count: number }>()
                 for (const a of alerts) {
@@ -392,8 +516,17 @@ export default function BracketList({ categories, tournamentName, publicView = f
                 }
 
                 return (
-                    <div className="relative rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-50 px-5 py-4 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="relative rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-50 pl-5 pr-10 py-4 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
                         <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-amber-200/40 blur-2xl pointer-events-none" />
+
+                        {/* Dismiss */}
+                        <button
+                            onClick={() => setDismissedAlertsCount(totalAlerts)}
+                            title="Dismiss — reappears if the alert count changes"
+                            className="absolute top-3 right-3 w-6 h-6 rounded-lg flex items-center justify-center text-amber-500 hover:bg-amber-100 hover:text-amber-700 transition-colors"
+                        >
+                            <X size={13} />
+                        </button>
 
                         {/* Row 1: label + filter pills */}
                         <div className="flex items-center gap-4 flex-wrap relative">
@@ -406,7 +539,7 @@ export default function BracketList({ categories, tournamentName, publicView = f
                                         {totalAlerts} Alert{totalAlerts !== 1 ? 's' : ''} Pending
                                     </p>
                                     <p className="text-[10px] text-amber-600 font-medium">
-                                        Resolve before generating brackets
+                                        Optional — you can generate brackets without resolving these
                                     </p>
                                 </div>
                             </div>
@@ -568,6 +701,18 @@ export default function BracketList({ categories, tournamentName, publicView = f
 
                     {/* Search + Generate */}
                     <div className="flex items-center gap-3">
+                        {/* Medal tally — how many medals this discipline's (filtered) categories will award */}
+                        {medalEligible.length > 0 && (
+                            <span
+                                title={`${medalEligible.length} medal-eligible ${medalEligible.length === 1 ? 'category' : 'categories'} in view`}
+                                className="hidden md:inline-flex items-center gap-2 text-[11px] font-bold px-2.5 py-1.5 rounded-xl bg-amber-50 border border-amber-200"
+                            >
+                                <span className="text-amber-600">🥇{totalGold}</span>
+                                <span className="text-gray-400">🥈{totalSilver}</span>
+                                <span className="text-orange-700">🥉{totalBronze}</span>
+                            </span>
+                        )}
+
                         {/* Search */}
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={13} />
@@ -591,28 +736,21 @@ export default function BracketList({ categories, tournamentName, publicView = f
                         {!publicView && (
                             <>
                                 <div className="h-6 w-px bg-gray-200" />
-                                {totalAlerts > 0 && (
-                                    <span className="text-xs text-amber-600 font-semibold max-w-[140px] leading-tight hidden lg:block">
-                                        Resolve {totalAlerts} alert{totalAlerts !== 1 ? 's' : ''} first
-                                    </span>
-                                )}
-                                {/* Preview All */}
+                                {/* Simulate Match Sequence */}
                                 <button
-                                    onClick={() => setPreviewOpen(true)}
-                                    disabled={displayedCategories.length === 0}
-                                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all
-                                        bg-gradient-to-br from-indigo-500 to-purple-600
-                                        shadow-md shadow-indigo-500/20
-                                        hover:shadow-lg hover:shadow-indigo-500/30 hover:-translate-y-0.5
-                                        disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:translate-y-0"
+                                    onClick={handleSimulateSequence}
+                                    disabled={simulatingSequence || displayedCategories.length === 0}
+                                    title="Preview the global match numbering for this discipline, without generating anything"
+                                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
-                                    <Eye size={15} /> Preview All
+                                    {simulatingSequence ? <Loader2 size={14} className="animate-spin" /> : <Shuffle size={14} />}
+                                    Simulate Sequence
                                 </button>
                                 {/* Generate All */}
                                 <button
                                     onClick={handleGenerateAll}
-                                    disabled={isPending || displayedCategories.length === 0 || totalAlerts > 0}
-                                    title={totalAlerts > 0 ? `Resolve ${totalAlerts} alert(s) first` : undefined}
+                                    disabled={isPending || displayedCategories.length === 0}
+                                    title={totalAlerts > 0 ? `${totalAlerts} alert(s) pending — you'll get a warning before generating` : undefined}
                                     className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold text-white transition-all
                                         bg-gradient-to-br from-red-600 to-red-700
                                         shadow-md shadow-red-500/20
@@ -630,32 +768,132 @@ export default function BracketList({ categories, tournamentName, publicView = f
                     </div>
                 </div>
 
-            </div>
+                {/* ── Day / Division / Skill filter row ──────────────── */}
+                {(dayTabs.length > 1 || divisions.length > 2 || activeTab === 'kyorugi') && (
+                    <div className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-100 overflow-x-auto flex-nowrap">
+                        {!publicView && dayTabs.length > 1 && (
+                            <div className="flex items-center gap-1.5 flex-nowrap flex-shrink-0">
+                                <Calendar size={12} className="text-gray-400 flex-shrink-0" />
+                                {dayTabs.map(d => (
+                                    <button
+                                        key={d}
+                                        onClick={() => setDayFilter(d)}
+                                        className={`flex-shrink-0 px-3 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                                            dayFilter === d
+                                                ? 'bg-indigo-600 text-white shadow-sm'
+                                                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                        }`}
+                                    >
+                                        {d === 0 ? 'All Days' : `Day ${d}`}
+                                    </button>
+                                ))}
+                                {dayFilter > 0 && (
+                                    <span className="text-[10px] text-gray-400 ml-1">
+                                        {dayScheduleRows.length} matches
+                                    </span>
+                                )}
+                            </div>
+                        )}
+                        {!publicView && dayTabs.length > 1 && (divisions.length > 2 || activeTab === 'kyorugi') && (
+                            <div className="h-4 w-px bg-gray-200 flex-shrink-0" />
+                        )}
+                        {divisions.length > 2 && (
+                            <div className="flex items-center gap-1.5 flex-nowrap flex-shrink-0">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 flex-shrink-0">Division</span>
+                                {divisions.map(div => (
+                                    <button
+                                        key={div}
+                                        onClick={() => setDivisionFilter(div)}
+                                        className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                                            divisionFilter === div
+                                                ? 'bg-indigo-600 text-white shadow-sm'
+                                                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                        }`}
+                                    >
+                                        {div}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                        {divisions.length > 2 && activeTab === 'kyorugi' && (
+                            <div className="h-4 w-px bg-gray-200 flex-shrink-0" />
+                        )}
+                        {activeTab === 'kyorugi' && (
+                            <div className="flex items-center gap-1.5 flex-nowrap flex-shrink-0">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 flex-shrink-0">Skill</span>
+                                {skillLevels.map(sk => (
+                                    <button
+                                        key={sk}
+                                        onClick={() => setSkillFilter(sk)}
+                                        className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                                            skillFilter === sk
+                                                ? 'bg-indigo-600 text-white shadow-sm'
+                                                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                        }`}
+                                    >
+                                        {sk}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
 
-            {/* ── Day Filter Tabs ────────────────────────────────── */}
-            {!publicView && dayTabs.length > 1 && (
-                <div className="flex items-center gap-1.5 px-1">
-                    <Calendar size={12} className="text-gray-400 flex-shrink-0" />
-                    {dayTabs.map(d => (
-                        <button
-                            key={d}
-                            onClick={() => setDayFilter(d)}
-                            className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                                dayFilter === d
-                                    ? 'bg-indigo-600 text-white shadow-sm'
-                                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                            }`}
+                {/* ── Bulk selection action bar ──────────────────────── */}
+                {!publicView && bulkSelected.size > 0 && (
+                    <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-indigo-200 bg-indigo-50 flex-wrap">
+                        <div className="flex items-center gap-1.5">
+                            <Layers size={13} className="text-indigo-600" />
+                            <span className="text-xs font-black text-indigo-700">{bulkSelected.size} selected</span>
+                        </div>
+                        <div className="w-px h-4 bg-indigo-200" />
+                        <select
+                            value={bulkDay}
+                            onChange={e => setBulkDay(e.target.value)}
+                            className="text-[11px] font-bold bg-white text-indigo-700 border border-indigo-200 rounded-lg px-2 py-1 cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-400"
                         >
-                            {d === 0 ? 'All Days' : `Day ${d}`}
+                            <option value="">— Keep Day</option>
+                            <option value="1">Day 1</option>
+                            <option value="2">Day 2</option>
+                            <option value="3">Day 3</option>
+                        </select>
+                        <select
+                            value={bulkDefer}
+                            onChange={e => setBulkDefer(e.target.value)}
+                            className="text-[11px] font-bold bg-white text-amber-700 border border-amber-200 rounded-lg px-2 py-1 cursor-pointer focus:outline-none focus:ring-1 focus:ring-amber-400"
+                        >
+                            <option value="">— Keep Defer</option>
+                            <option value="seq">Sequential</option>
+                            <option value="end">End of Day</option>
+                            <option value="finals-d2">Finals → Day 2</option>
+                            <option value="finals-d3">Finals → Day 3</option>
+                            <option value="semis-d2">Semis + Finals → Day 2</option>
+                            <option value="semis-d3">Semis + Finals → Day 3</option>
+                        </select>
+                        <button
+                            onClick={handleBulkApply}
+                            disabled={bulkApplying || (!bulkDay && !bulkDefer)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black bg-indigo-600 text-white hover:bg-indigo-700 transition-all disabled:opacity-40"
+                        >
+                            {bulkApplying ? <Loader2 size={11} className="animate-spin" /> : <CheckSquare size={11} />}
+                            Apply to {bulkSelected.size}
                         </button>
-                    ))}
-                    {dayFilter > 0 && (
-                        <span className="text-[10px] text-gray-400 ml-1">
-                            {dayScheduleRows.length} matches
-                        </span>
-                    )}
-                </div>
-            )}
+                        <button
+                            onClick={() => setBulkSelected(new Set(filteredCategories.map(c => c.id)))}
+                            className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors"
+                        >
+                            Select all {filteredCategories.length}
+                        </button>
+                        <button
+                            onClick={() => { setBulkSelected(new Set()); setBulkDay(''); setBulkDefer('') }}
+                            className="text-[11px] font-bold text-gray-400 hover:text-gray-600 transition-colors ml-auto"
+                        >
+                            Clear
+                        </button>
+                    </div>
+                )}
+
+            </div>
 
             {/* ── All Days: Bulk Bracket PDF Download panel ──────────────── */}
             {!publicView && dayFilter === 0 && dayTabs.length > 1 && (() => {
@@ -934,23 +1172,22 @@ export default function BracketList({ categories, tournamentName, publicView = f
                                 tournamentId={tournamentId}
                                 publicView={publicView}
                                 onAlertResolved={() => queryClient.invalidateQueries({ queryKey: ['tournament-smart-alerts', tournamentId] })}
+                                allCategoriesInDiscipline={displayedCategories.map(c => ({ id: c.id, name: c.name }))}
+                                isBulkSelected={bulkSelected.has(cat.id)}
+                                onBulkToggle={() => setBulkSelected(prev => {
+                                    const next = new Set(prev)
+                                    if (next.has(cat.id)) next.delete(cat.id)
+                                    else next.add(cat.id)
+                                    return next
+                                })}
+                                simulatedMatches={globalMatchIds?.[cat.id] ?? null}
+                                onBracketShapeChanged={() => setGlobalMatchIds(null)}
                             />
                         ))
                     )
                 )}
             </div>
         </div>
-
-        {/* Bracket Preview Modal */}
-        {!publicView && (
-            <BracketPreviewModal
-                tournamentId={tournamentId}
-                tournamentName={tournamentName || ''}
-                disciplineType={activeTab === 'kyorugi' ? 'KYORUGI' : activeTab === 'poomsae' ? 'POOMSAE' : 'KYUKPA'}
-                open={previewOpen}
-                onClose={() => setPreviewOpen(false)}
-            />
-        )}
         </>
     )
 }
@@ -960,17 +1197,31 @@ export default function BracketList({ categories, tournamentName, publicView = f
 // ─────────────────────────────────────────────
 function CollapsibleBracket({
     category, isPoomsae = false, isKyorugi = true, tournamentName,
-    alerts, proposals, tournamentId, publicView, onAlertResolved
+    alerts, proposals, tournamentId, publicView, onAlertResolved, allCategoriesInDiscipline,
+    isBulkSelected, onBulkToggle, simulatedMatches, onBracketShapeChanged
 }: {
-    category: Category & { matches: Match[], poomsaeMatches?: (PoomsaeMatch & { player: { name: string; club?: { name: string } | null } })[] },
+    category: Category & { matches: Match[], poomsaeMatches?: (PoomsaeMatch & { player: { name: string; club?: { name: string } | null } })[], _count?: { players: number } },
     isPoomsae?: boolean, isKyorugi?: boolean, tournamentName?: string, alerts: any[], proposals: any[],
-    tournamentId: string, publicView?: boolean, onAlertResolved: () => void
+    tournamentId: string, publicView?: boolean, onAlertResolved: () => void,
+    allCategoriesInDiscipline: { id: string; name: string }[],
+    isBulkSelected?: boolean, onBulkToggle?: () => void,
+    simulatedMatches?: Record<number, { globalId: number; day: number }> | null,
+    // Called after a move or a single-category generate — either can change the
+    // bracket shape or the shared tournament-wide numbering, which makes any
+    // previously-simulated match numbers (for this or other categories) stale.
+    onBracketShapeChanged?: () => void
 }) {
     const [isOpen, setIsOpen] = useState(false)
     const [isAlertOpen, setIsAlertOpen] = useState(false)
     const [localCourt, setLocalCourt] = useState(category.court || '')
     const [savingCourt, setSavingCourt] = useState(false)
-    const matchCount = isPoomsae ? (category.poomsaeMatches?.length || 0) : category.matches.length
+    // HEAD_TO_HEAD rows are one-per-side (two rows per pairing) — count unique pairings.
+    const matchCount = isPoomsae
+        ? (category.poomsaeFormat === 'HEAD_TO_HEAD'
+            ? new Set((category.poomsaeMatches || []).map(m => m.matchId)).size
+            : (category.poomsaeMatches?.length || 0))
+        : category.matches.length
+    const isGenerated = matchCount > 0
 
     async function handleCourtBlur() {
         const trimmed = localCourt.trim()
@@ -984,10 +1235,122 @@ function CollapsibleBracket({
         finally { setSavingCourt(false) }
     }
 
+    // ── Day / Defer scheduling — a plain Category field, editable regardless of
+    // whether this category's bracket has been generated yet ──────────────────
+    const [savingDay, startDayTransition] = useTransition()
+    const [localScheduleDay, setLocalScheduleDay] = useState<number | null>(category.scheduleDay ?? null)
+    const [localDeferFinals, setLocalDeferFinals] = useState<boolean>(category.deferFinals ?? true)
+    const [localDeferDay, setLocalDeferDay] = useState<number | null>(category.deferFinalsToDay ?? null)
+    const [localDeferSemisToDay, setLocalDeferSemisToDay] = useState<number | null>((category as any).deferSemisToDay ?? null)
+
+    // ── Not-yet-generated interactive preview (lazy-loaded on expand) ─────────
+    const queryClient = useQueryClient()
+    const { data: previewData, isLoading: previewLoading } = useQuery({
+        queryKey: ['category-preview', category.id],
+        queryFn: () => previewCategoryBracket(category.id),
+        enabled: isOpen && !isGenerated && !publicView,
+    })
+
+    const [localSpecs, setLocalSpecs] = useState<PreviewMatch[]>([])
+    // Tracks whether the user has manually swapped players since the last fresh
+    // load/reshuffle — gates which path handleGenerateThisCategory takes below.
+    const [hasManualEdits, setHasManualEdits] = useState(false)
+    useEffect(() => {
+        if (previewData) { setLocalSpecs(previewData.specs); setHasManualEdits(false) }
+    }, [previewData])
+
+    const [selected, setSelected] = useState<{ matchId: number; slot: 'player1' | 'player2'; player: { id: string; name: string } } | null>(null)
+    const [reshuffling, setReshuffling] = useState(false)
+    const [movePicker, setMovePicker] = useState<{ playerId: string; playerName: string } | null>(null)
+    const [movingPlayer, setMovingPlayer] = useState(false)
+    const [generatingThis, setGeneratingThis] = useState(false)
+
+    const otherCategories = allCategoriesInDiscipline.filter(c => c.id !== category.id)
+
+    function handlePlayerClick(matchId: number, slot: 'player1' | 'player2', player: { id: string; name: string }) {
+        if (selected && selected.matchId === matchId && selected.slot === slot) { setSelected(null); return }
+        if (!selected) { setSelected({ matchId, slot, player }); return }
+        setLocalSpecs(prev => {
+            const specs = prev.map(s => ({ ...s }))
+            const matchA = specs.find(s => s.id === selected.matchId)
+            const matchB = specs.find(s => s.id === matchId)
+            if (!matchA || !matchB) return prev
+            const pA = selected.slot === 'player1' ? matchA.player1 : matchA.player2
+            const pB = slot === 'player1' ? matchB.player1 : matchB.player2
+            if (selected.slot === 'player1') matchA.player1 = pB; else matchA.player2 = pB
+            if (slot === 'player1') matchB.player1 = pA; else matchB.player2 = pA
+            return specs
+        })
+        setHasManualEdits(true)
+        setSelected(null)
+    }
+
+    async function handleReshuffle() {
+        setReshuffling(true)
+        try {
+            const result = await reshuffleCategoryPreview(category.id)
+            // Push into the same query cache the lazy preview fetch populates — the
+            // useEffect below already syncs localSpecs (Kyorugi) from previewData, and
+            // Poomsae's render reads previewData directly, so this one update covers both.
+            if (result) { queryClient.setQueryData(['category-preview', category.id], result); setSelected(null) }
+        } catch { toast.error('Failed to reshuffle') }
+        finally { setReshuffling(false) }
+    }
+
+    async function handleMoveTo(targetCategoryId: string) {
+        if (!movePicker) return
+        setMovingPlayer(true)
+        try {
+            const result = await movePlayerToCategory(movePicker.playerId, targetCategoryId, tournamentId)
+            if (result?.error) { toast.error(result.error); return }
+            toast.success(`${movePicker.playerName} moved successfully`)
+            setMovePicker(null); setSelected(null)
+            await queryClient.invalidateQueries({ queryKey: ['category-preview', category.id] })
+            await queryClient.invalidateQueries({ queryKey: ['category-preview', targetCategoryId] })
+            onBracketShapeChanged?.()
+        } catch { toast.error('Move failed') }
+        finally { setMovingPlayer(false) }
+    }
+
+    async function handleGenerateThisCategory() {
+        setGeneratingThis(true)
+        try {
+            // Poomsae generation already reproduces the shown preview on its own via
+            // category.seedOrder (server-side fallback) — nothing to pass here.
+            // Kyorugi: with no manual edits, same story — omitting seedOrder lets the
+            // server fall back to category.seedOrder and regenerate the identical
+            // bracket. Only when the user has actually swapped players do we need to
+            // send the edited specs verbatim (see generateBracketsForCategory) —
+            // passing a *derived* seed order in that case would get re-scrambled by
+            // the seeding transform instead of reproducing the hand-made swap.
+            const editedSpecs = (!isPoomsae && hasManualEdits) ? localSpecs : undefined
+            await generateBracketsForCategory(category.id, undefined, undefined, editedSpecs)
+            toast.success(`Generated bracket for "${category.name}"`)
+            await queryClient.invalidateQueries({ queryKey: ['category-preview', category.id] })
+            onBracketShapeChanged?.()
+        } catch { toast.error('Failed to generate bracket') }
+        finally { setGeneratingThis(false) }
+    }
+
     const hasAlert  = alerts.some(a => a.type === 'UNCONTESTED')
     const hasMerge  = alerts.some(a => a.type === 'MERGE_SUGGESTION')
     const hasSplit  = alerts.some(a => a.type === 'SPLIT_SUGGESTION')
     const hasAnAlert = alerts.length > 0
+
+    // Medal count for this category — PAIR/TEAM award multiple medals per placement
+    const competitorCount = getCompetitorCount(category._count?.players ?? 0, category.subtype)
+    const medalMultiplier = getMedalMultiplier(category.subtype)
+    const showMedals = (category.type === 'POOMSAE' || category.type === 'KYUKPA') ? competitorCount >= 1 : competitorCount >= 2
+
+    // Simulated match numbering (from "Simulate Sequence" in the toolbar, if run)
+    const simulatedValues = simulatedMatches ? Object.values(simulatedMatches) : []
+    const simulatedRange = simulatedValues.length > 0
+        ? {
+            min: Math.min(...simulatedValues.map(v => v.globalId)),
+            max: Math.max(...simulatedValues.map(v => v.globalId)),
+            days: Array.from(new Set(simulatedValues.map(v => v.day))).sort((a, b) => a - b),
+        }
+        : null
 
     // Left accent colour
     const accentClass = hasAlert  ? 'bg-gradient-to-b from-amber-400 to-yellow-500'
@@ -1011,6 +1374,19 @@ function CollapsibleBracket({
                     className="flex-1 flex items-center gap-3 px-4 py-3.5 cursor-pointer select-none hover:bg-gray-50/50 transition-colors"
                     onClick={() => setIsOpen(!isOpen)}
                 >
+                    {/* Bulk-select checkbox */}
+                    {!publicView && onBulkToggle && (
+                        <button
+                            onClick={e => { e.stopPropagation(); onBulkToggle() }}
+                            title="Select for bulk Day/Defer apply"
+                            className={`w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 border transition-all ${
+                                isBulkSelected ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-gray-300 hover:border-indigo-400'
+                            }`}
+                        >
+                            {isBulkSelected && <CheckSquare size={12} className="text-white" />}
+                        </button>
+                    )}
+
                     {/* Chevron */}
                     <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all ${
                         isOpen ? 'bg-red-50 border border-red-100' : 'bg-gray-100 border border-gray-200'
@@ -1029,6 +1405,15 @@ function CollapsibleBracket({
                             <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md">
                                 {matchCount} Matches
                             </span>
+
+                            {/* Medal tally */}
+                            {showMedals && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200">
+                                    <span className="text-amber-600">🥇{1 * medalMultiplier}</span>
+                                    {competitorCount >= 2 && <span className="text-gray-400">🥈{1 * medalMultiplier}</span>}
+                                    {competitorCount >= 3 && <span className="text-orange-700">🥉{(competitorCount > 3 ? 2 : 1) * medalMultiplier}</span>}
+                                </span>
+                            )}
 
                             {/* Court */}
                             {!publicView ? (
@@ -1149,6 +1534,92 @@ function CollapsibleBracket({
                 </div>
             </div>
 
+            {/* Day / Defer / Reshuffle sub-row */}
+            {!publicView && (
+                <div className="flex items-center gap-2 px-4 py-2 border-t border-gray-100 bg-gray-50/60 flex-wrap">
+                    <select
+                        value={localScheduleDay ?? ''}
+                        onChange={e => {
+                            const parsed = e.target.value ? parseInt(e.target.value) : null
+                            setLocalScheduleDay(parsed)
+                            startDayTransition(async () => { await updateCategoryDaySettings(category.id, parsed, localDeferFinals, localDeferDay) })
+                        }}
+                        disabled={savingDay}
+                        title="Which day does this category play?"
+                        className="text-[10px] font-bold bg-white text-indigo-700 border border-indigo-200 rounded-lg px-2 py-1.5 cursor-pointer hover:bg-indigo-50 focus:outline-none focus:ring-1 focus:ring-indigo-400 disabled:opacity-50"
+                    >
+                        <option value="">— Day</option>
+                        <option value="1">Day 1</option>
+                        <option value="2">Day 2</option>
+                        <option value="3">Day 3</option>
+                    </select>
+                    {!isPoomsae && (
+                        <select
+                            value={
+                                !localDeferFinals ? 'seq'
+                                : localDeferSemisToDay === 2 ? 'semis-d2'
+                                : localDeferSemisToDay === 3 ? 'semis-d3'
+                                : localDeferDay === 2 ? 'finals-d2'
+                                : localDeferDay === 3 ? 'finals-d3'
+                                : 'end'
+                            }
+                            onChange={e => {
+                                const val = e.target.value
+                                let newDeferFinals = true
+                                let newDeferDay: number | null = null
+                                let newDeferSemisToDay: number | null = null
+                                if (val === 'seq') { newDeferFinals = false }
+                                else if (val === 'end') { newDeferFinals = true }
+                                else if (val === 'finals-d2') { newDeferFinals = true; newDeferDay = 2 }
+                                else if (val === 'finals-d3') { newDeferFinals = true; newDeferDay = 3 }
+                                else if (val === 'semis-d2') { newDeferFinals = true; newDeferSemisToDay = 2 }
+                                else if (val === 'semis-d3') { newDeferFinals = true; newDeferSemisToDay = 3 }
+                                setLocalDeferFinals(newDeferFinals)
+                                setLocalDeferDay(newDeferDay)
+                                setLocalDeferSemisToDay(newDeferSemisToDay)
+                                startDayTransition(async () => {
+                                    await updateCategoryDaySettings(category.id, localScheduleDay, newDeferFinals, newDeferDay, newDeferSemisToDay)
+                                })
+                            }}
+                            disabled={savingDay || !localScheduleDay}
+                            title="Finals / Semis handling"
+                            className="text-[10px] font-bold bg-white text-amber-700 border border-amber-200 rounded-lg px-2 py-1.5 cursor-pointer hover:bg-amber-50 focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:opacity-50"
+                        >
+                            <option value="seq">Sequential</option>
+                            <option value="end">End of Day</option>
+                            <option value="finals-d2">Finals → Day 2</option>
+                            <option value="finals-d3">Finals → Day 3</option>
+                            <option value="semis-d2">Semis + Finals → Day 2</option>
+                            <option value="semis-d3">Semis + Finals → Day 3</option>
+                        </select>
+                    )}
+                    {savingDay && <Loader2 size={11} className="animate-spin text-gray-400" />}
+
+                    {simulatedRange && (
+                        <span
+                            title="From the toolbar's Simulate Sequence — not committed until you generate"
+                            className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg bg-violet-50 text-violet-700 border border-violet-200"
+                        >
+                            <Shuffle size={10} />
+                            {simulatedRange.min === simulatedRange.max ? `Match #${simulatedRange.min}` : `Matches #${simulatedRange.min}–${simulatedRange.max}`}
+                            {simulatedRange.days.length > 0 && ` · Day ${simulatedRange.days.join('/')}`}
+                        </span>
+                    )}
+
+                    {!isGenerated && (
+                        <button
+                            onClick={() => { setIsOpen(true); handleReshuffle() }}
+                            disabled={reshuffling}
+                            title="Expand and re-randomize the seeding"
+                            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-all disabled:opacity-40"
+                        >
+                            {reshuffling ? <Loader2 size={11} className="animate-spin" /> : <Shuffle size={11} />}
+                            Reshuffle
+                        </button>
+                    )}
+                </div>
+            )}
+
             {/* Inline Alert Panel */}
             {isAlertOpen && hasAnAlert && !publicView && (
                 <div className="border-t border-amber-100 bg-gradient-to-b from-amber-50/60 to-transparent animate-in fade-in slide-in-from-top-1 duration-200">
@@ -1167,21 +1638,115 @@ function CollapsibleBracket({
             {/* Bracket content */}
             {isOpen && (
                 <div className="border-t border-gray-100 bg-white p-6 animate-in fade-in duration-200">
-                    <div className="overflow-x-auto">
-                        {isPoomsae ? (
-                            <PoomsaeBracketView
-                                matches={category.poomsaeMatches || []}
-                                tournamentName={tournamentName}
-                                categoryName={category.name}
-                            />
-                        ) : (
-                            <BracketView
-                                matches={category.matches}
-                                tournamentName={tournamentName}
-                                categoryName={category.name}
-                            />
-                        )}
-                    </div>
+                    {isGenerated ? (
+                        <div className="overflow-x-auto">
+                            {isPoomsae && category.poomsaeFormat === 'HEAD_TO_HEAD' ? (
+                                <BracketView
+                                    matches={adaptPoomsaeMatchesToBracket(category.poomsaeMatches || [])}
+                                    tournamentName={tournamentName}
+                                    categoryName={category.name}
+                                />
+                            ) : isPoomsae ? (
+                                <PoomsaeBracketView
+                                    matches={category.poomsaeMatches || []}
+                                    tournamentName={tournamentName}
+                                    categoryName={category.name}
+                                />
+                            ) : (
+                                <BracketView
+                                    matches={category.matches}
+                                    tournamentName={tournamentName}
+                                    categoryName={category.name}
+                                />
+                            )}
+                        </div>
+                    ) : publicView ? (
+                        <div className="py-8 text-center text-sm text-gray-400">Bracket not yet generated.</div>
+                    ) : previewLoading || !previewData ? (
+                        <div className="py-8 flex items-center justify-center gap-2 text-sm text-gray-400">
+                            <Loader2 size={14} className="animate-spin" /> Loading draw preview…
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            <p className="text-[11px] text-gray-400">
+                                {isPoomsae
+                                    ? 'Preview performance order · Reshuffle to re-randomize'
+                                    : 'Click two Round 1 players to swap their seed positions · ⇆ moves a player to another category'}
+                            </p>
+
+                            {/* Move picker */}
+                            {movePicker && !isPoomsae && (
+                                <div className="px-4 py-3 rounded-xl bg-purple-50 border border-purple-100">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="flex-1">
+                                            <p className="text-xs font-black mb-2 flex items-center gap-2 text-purple-700">
+                                                <ArrowRightLeft size={12} />
+                                                Move <span className="px-2 py-0.5 rounded-md text-[11px] bg-purple-100 text-purple-800">{movePicker.playerName}</span> to:
+                                            </p>
+                                            <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                                                {otherCategories.length === 0 ? (
+                                                    <p className="text-xs text-purple-400">No other categories available.</p>
+                                                ) : otherCategories.map(target => (
+                                                    <button key={target.id} onClick={() => handleMoveTo(target.id)}
+                                                        disabled={movingPlayer}
+                                                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-purple-100 text-purple-700 border border-purple-200 hover:bg-purple-200 transition-all disabled:opacity-40">
+                                                        {movingPlayer ? <Loader2 size={9} className="animate-spin" /> : <Shield size={9} />}
+                                                        {target.name}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <button onClick={() => setMovePicker(null)} className="text-purple-400 hover:text-purple-600 transition-colors mt-0.5">
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {isPoomsae && category.poomsaeFormat === 'HEAD_TO_HEAD' ? (
+                                // Same tree component the generated HEAD_TO_HEAD bracket uses —
+                                // read-only (no swap/move, matching the generated view too).
+                                <BracketView
+                                    matches={adaptPoomsaePreviewToBracket(previewData.poomsaeSpecs || [])}
+                                    tournamentName={tournamentName}
+                                    categoryName={category.name}
+                                    isPreview
+                                    simulatedMatches={simulatedMatches}
+                                />
+                            ) : isPoomsae ? (
+                                <PoomsaePreviewGrid
+                                    poomsaeSpecs={previewData.poomsaeSpecs || []}
+                                    playerMap={new Map(previewData.players.map(p => [p.id, p]))}
+                                    isHeadToHead={false}
+                                    simulatedMatches={simulatedMatches}
+                                />
+                            ) : (
+                                <PreviewBracketTree
+                                    specs={localSpecs}
+                                    playerMap={new Map(previewData.players.map(p => [p.id, p]))}
+                                    heightBased={isHeightBased(category.name)}
+                                    selected={selected}
+                                    onPlayerClick={handlePlayerClick}
+                                    onMoveRequest={(pId, pName) => setMovePicker({ playerId: pId, playerName: pName })}
+                                    hasMovePickerOpen={!!movePicker}
+                                    simulatedMatches={simulatedMatches}
+                                />
+                            )}
+
+                            {previewData.playerCount >= (isPoomsae ? 1 : 2) && (
+                                <div className="flex justify-end pt-2 border-t border-gray-100">
+                                    <button
+                                        onClick={handleGenerateThisCategory}
+                                        disabled={generatingThis}
+                                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white bg-gradient-to-br from-red-600 to-red-700 shadow-md shadow-red-500/20 hover:shadow-lg transition-all disabled:opacity-50"
+                                    >
+                                        {generatingThis ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+                                        Generate This Category
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             )}
         </div>
