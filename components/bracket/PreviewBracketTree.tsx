@@ -301,14 +301,18 @@ export default function PreviewBracketTree({
             <div className="overflow-x-auto rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-50 shadow-inner">
                 <div ref={containerRef} className="relative p-6" style={{ minWidth: `${totalWidth}px` }}>
                     <SvgConnectors paths={connectorPaths} containerRef={containerRef} />
+                    <div className="flex mb-8" style={{ position: 'relative', zIndex: 2 }}>
+                        {allRounds.map((_, i) => (
+                            <div key={i} className="text-center" style={{ width: `${COL_WIDTH}px` }}>
+                                <span className={`inline-block px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${i + 1 === maxRound ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-white shadow-md' : 'bg-slate-100 text-slate-500 border border-slate-200'}`}>
+                                    {getRoundLabel(i + 1, maxRound)}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
                     <div className="flex" style={{ position: 'relative', zIndex: 2, height: `${simpleHeight}px` }}>
                         {allRounds.map((roundMatches, i) => (
                             <div key={i} className="relative" style={{ width: `${COL_WIDTH}px` }}>
-                                <div className="absolute -top-10 left-0 right-0 text-center">
-                                    <span className={`inline-block px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${i + 1 === maxRound ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-white shadow-md' : 'bg-slate-100 text-slate-500 border border-slate-200'}`}>
-                                        {getRoundLabel(i + 1, maxRound)}
-                                    </span>
-                                </div>
                                 {roundMatches.map(m => {
                                     const centerY = allPositions.get(m.id) ?? 0
                                     return (

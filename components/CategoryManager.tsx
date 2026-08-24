@@ -3,8 +3,8 @@
 import GlobalDropdown from '@/components/GlobalDropdown'
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { createCategory, updateCategory, bulkUpdateCourts, bulkUpdateDeferFinals, bulkUpdatePoomsaeFormat } from '@/app/actions'
-import { Plus, Edit2, X, Check, Save, Loader2, GripVertical, LayoutGrid, Layers, Repeat } from 'lucide-react'
+import { createCategory, updateCategory, deleteCategory, bulkUpdateCourts, bulkUpdateDeferFinals, bulkUpdatePoomsaeFormat } from '@/app/actions'
+import { Plus, Edit2, X, Check, Save, Loader2, GripVertical, LayoutGrid, Layers, Repeat, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface Category {
@@ -17,6 +17,7 @@ interface Category {
     poomsaeFormat?: string
     subtype?: string
     poomsaeForms?: string | null
+    _count?: { players: number }
 }
 
 const SUBTYPE_OPTIONS = [
@@ -73,6 +74,7 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
 
     const [isAddModalOpen, setIsAddModalOpen]   = useState(false)
     const [editingCategory, setEditingCategory] = useState<Category | null>(null)
+    const [deletingId, setDeletingId] = useState<string | null>(null)
 
     const [isEditingCourts, setIsEditingCourts]       = useState(false)
     const [courtUpdates, setCourtUpdates]             = useState<Record<string, string>>({})
@@ -138,6 +140,22 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
         setLoading(false)
         if (res.success) { setEditingCategory(null); router.refresh(); toast.success('Category updated') }
         else toast.error(res.error || 'Failed to update category')
+    }
+
+    const handleDeleteCategory = async (e: React.MouseEvent, cat: Category) => {
+        e.stopPropagation()
+        const playerCount = cat._count?.players ?? 0
+        const warning = playerCount > 0
+            ? `\n\n${playerCount} registered player${playerCount !== 1 ? 's' : ''} will become unassigned (not deleted) — you can move them into another category afterward.`
+            : ''
+        if (!confirm(`Delete "${cat.name}"? This permanently removes the category and any generated matches.${warning}`)) return
+        setDeletingId(cat.id)
+        try {
+            const result = await deleteCategory(cat.id)
+            if (result?.success) { toast.success(`Deleted "${cat.name}"`); router.refresh() }
+            else toast.error(result?.error || 'Failed to delete category')
+        } catch { toast.error('Failed to delete category') }
+        finally { setDeletingId(null) }
     }
 
     const handleStartEditingCourts = () => {
@@ -535,7 +553,17 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
                                                                 </div>
                                                             )
                                                         ) : (
-                                                            <Edit2 size={11} className="text-gray-300 group-hover:text-red-400 transition-colors flex-shrink-0 mt-0.5" />
+                                                            <div className="flex items-center gap-1 flex-shrink-0">
+                                                                <button
+                                                                    onClick={e => handleDeleteCategory(e, cat)}
+                                                                    disabled={deletingId === cat.id}
+                                                                    title="Delete category"
+                                                                    className="w-5 h-5 rounded-md flex items-center justify-center text-gray-300 hover:!text-red-600 hover:bg-red-50 transition-all disabled:opacity-60"
+                                                                >
+                                                                    {deletingId === cat.id ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+                                                                </button>
+                                                                <Edit2 size={11} className="text-gray-300 group-hover:text-red-400 transition-colors mt-0.5" />
+                                                            </div>
                                                         )}
                                                     </div>
 

@@ -1224,6 +1224,25 @@ export async function updateCategoryDaySettings(
     }
 }
 
+// Deletes a category entirely — its matches/poomsaeMatches (any generated
+// bracket data), unassigning any registered players rather than deleting them
+// (they're real athlete registrations, not disposable draw data).
+export async function deleteCategory(categoryId: string) {
+    const category = await prisma.category.findUnique({
+        where: { id: categoryId },
+        include: { _count: { select: { players: true } } }
+    })
+    if (!category) return { error: 'Category not found' }
+
+    await prisma.match.deleteMany({ where: { categoryRefId: categoryId } })
+    await prisma.poomsaeMatch.deleteMany({ where: { categoryRefId: categoryId } })
+    await prisma.player.updateMany({ where: { categoryId }, data: { categoryId: null } })
+    await prisma.category.delete({ where: { id: categoryId } })
+
+    revalidatePath(`/tournament/${category.tournamentId}`)
+    return { success: true, unassignedPlayers: category._count.players }
+}
+
 export async function scheduleTournament(tournamentId: string, courtConfig: { name: string, categoryIds: string[] }[]) {
     if (!tournamentId) return { error: "Tournament ID required" }
 
