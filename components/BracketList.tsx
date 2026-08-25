@@ -287,7 +287,7 @@ export default function BracketList({ categories, tournamentName, publicView = f
     const dayScheduleRows: { matchId: number|null; categoryName: string; categoryId: string; round: number; court: string; isFinal: boolean; scheduledDay: number|null; player1Name: string; player2Name: string }[] = []
     if (dayFilter > 0) {
         for (const cat of displayedCategories) {
-            const isPoomsaeCat = activeTab === 'poomsae'
+            const isPoomsaeCat = activeTab === 'poomsae' || activeTab === 'kyukpa'
             if (isPoomsaeCat) {
                 // Group poomsae performances by matchId (multiple performers share one matchId)
                 const grouped = new Map<number, { names: string[]; round: number; court: string; scheduledDay: number | null }>()
@@ -394,7 +394,7 @@ export default function BracketList({ categories, tournamentName, publicView = f
     // ── Bulk bracket PDF download per day ────────────────────────────────────
     async function downloadBracketsForDay(day: number) {
         const { pdf } = await import('@react-pdf/renderer')
-        const isPoomsaeCat = activeTab === 'poomsae'
+        const isPoomsaeCat = activeTab === 'poomsae' || activeTab === 'kyukpa'
 
         // Collect categories that have at least one match on this day
         const catsForDay = displayedCategories.filter(cat => {
@@ -924,7 +924,7 @@ export default function BracketList({ categories, tournamentName, publicView = f
             {!publicView && dayFilter === 0 && dayTabs.length > 1 && (() => {
                 // Count categories per day for bracket downloads
                 const availableDays = dayTabs.filter(x => x > 0)
-                const isPoomsaeCat = activeTab === 'poomsae'
+                const isPoomsaeCat = activeTab === 'poomsae' || activeTab === 'kyukpa'
                 const bracketCatsPerDay: Record<number, number> = {}
                 for (const d of availableDays) {
                     bracketCatsPerDay[d] = displayedCategories.filter(cat =>
@@ -1060,7 +1060,7 @@ export default function BracketList({ categories, tournamentName, publicView = f
                                                     day={dayFilter}
                                                     matches={dayPdfMatches}
                                                     generatedAt={new Date().toLocaleString()}
-                                                    isPoomsae={activeTab === 'poomsae'}
+                                                    isPoomsae={activeTab === 'poomsae' || activeTab === 'kyukpa'}
                                                 />
                                             }
                                             fileName={`${(tournamentName || 'tournament').replace(/\s+/g, '-')}-day-${dayFilter}-${activeTab}-schedule.pdf`}
@@ -1189,8 +1189,8 @@ export default function BracketList({ categories, tournamentName, publicView = f
                             <CollapsibleBracket
                                 key={cat.id}
                                 category={cat}
-                                isPoomsae={activeTab === 'poomsae'}
-                                isKyorugi={activeTab === 'kyorugi' || activeTab === 'kyukpa'}
+                                isPoomsae={activeTab === 'poomsae' || activeTab === 'kyukpa'}
+                                isKyorugi={activeTab === 'kyorugi'}
                                 tournamentName={tournamentName}
                                 alerts={alertsByCategory.get(cat.id) || []}
                                 proposals={proposals}

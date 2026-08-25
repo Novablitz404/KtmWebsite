@@ -178,8 +178,9 @@ export async function createTournament(formData: FormData) {
                     for (const weightCat of division.categories) {
                         const genderLabel = weightCat.gender === 'Both' ? '' : weightCat.gender
 
-                        if (weightCat.type === 'POOMSAE') {
-                            // POOMSAE: Create single category (No Skill Level Split)
+                        if (weightCat.type === 'POOMSAE' || weightCat.type === 'KYUKPA') {
+                            // POOMSAE/KYUKPA: Create single category (No Skill Level Split) — both
+                            // are scored disciplines, unlike Kyorugi's Novice/Intermediate/Advance split.
                             const categoryName = `${division.name} ${genderLabel} ${weightCat.name}`.replace(/\s+/g, ' ').trim()
 
                             // Try to extract belt from name if not present in template
@@ -2104,8 +2105,9 @@ export async function selectGuidelineTemplate(tournamentId: string, templateId: 
         for (const division of template.divisions) {
             for (const weightCat of division.categories) {
                 const genderLabel = weightCat.gender === 'Both' ? '' : weightCat.gender
-                if (weightCat.type === 'POOMSAE') {
-                    // POOMSAE: Create single category (No Skill Level Split)
+                if (weightCat.type === 'POOMSAE' || weightCat.type === 'KYUKPA') {
+                    // POOMSAE/KYUKPA: Create single category (No Skill Level Split) — both are
+                    // scored disciplines, unlike Kyorugi's Novice/Intermediate/Advance split.
                     const categoryName = `${division.name} ${genderLabel} ${weightCat.name}`.replace(/\s+/g, ' ').trim()
                     // Try to extract belt from name if not present in template
                     // @ts-ignore
@@ -2121,7 +2123,10 @@ export async function selectGuidelineTemplate(tournamentId: string, templateId: 
                         // @ts-ignore
                         belt: belt,
                         // @ts-ignore
-                        poomsaeFormat: (weightCat as any).poomsaeFormat || 'SCORED'
+                        poomsaeFormat: (weightCat as any).poomsaeFormat || 'SCORED',
+                        // @ts-ignore — schema defaults skillLevel to "Novice" when omitted; must
+                        // null it out explicitly for scored disciplines (Poomsae/Kyukpa).
+                        skillLevel: null
                     })
                 } else {
                     // KYORUGI: Create Novice, Intermediate & Advance Variants
