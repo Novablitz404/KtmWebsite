@@ -498,7 +498,14 @@ function reconcileSeedOrder<T extends { id: string }>(savedOrder: string[], curr
     return ordered
 }
 
-export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' | 'POOMSAE' | 'KYUKPA') {
+export async function generateAllBrackets(
+    tournamentId: string,
+    type: 'KYORUGI' | 'POOMSAE' | 'KYUKPA',
+    // Hand-edited previews still open in the browser, keyed by categoryId — Kyorugi/
+    // Kyukpa only (Poomsae's preview has no swap capability). See generateBracketsForCategory
+    // for why these are persisted verbatim rather than re-derived from a seed order.
+    editedSpecsByCategory?: Record<string, PreviewMatch[]>
+) {
     if (!tournamentId) return
 
     // 1. Bulk Fetch Categories & Players
@@ -571,8 +578,11 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
                 where: { categoryId: category.id },
                 include: { club: true }
             })
-            // Reconcile seed order: use saved order if available, shuffle otherwise
-            const reconciledPlayers = category.seedOrder && category.seedOrder.length > 0
+            // Reconcile seed order: use saved order if available, shuffle otherwise.
+            // Passing `hasOrder` through as `preOrdered` is what actually makes this
+            // reproduce that order instead of shuffling again internally.
+            const hasOrder = !!(category.seedOrder && category.seedOrder.length > 0)
+            const reconciledPlayers = hasOrder
                 ? reconcileSeedOrder(category.seedOrder, players)
                 : players
 
@@ -580,7 +590,8 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
                 reconciledPlayers,
                 category.subtype || 'INDIVIDUAL',
                 category.poomsaeForms,
-                category.poomsaeFormat as 'SCORED' | 'HEAD_TO_HEAD'
+                category.poomsaeFormat as 'SCORED' | 'HEAD_TO_HEAD',
+                hasOrder
             )
 
             // Map roundGroupIndex -> Global Match ID
@@ -680,12 +691,36 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
         for (const category of validCategories) {
             if (category.players.length < 2) continue;
 
-            // Reconcile seed order: use saved order if available, otherwise shuffle
-            const reconciledPlayers = category.seedOrder && category.seedOrder.length > 0
-                ? reconcileSeedOrder(category.seedOrder, category.players)
-                : category.players
+            const editedSpecsForCat = editedSpecsByCategory?.[category.id]
+            let specs: BracketMatchSpec[]
 
-            const specs = generateSingleEliminationBracket(reconciledPlayers);
+            if (editedSpecsForCat && editedSpecsForCat.length > 0) {
+                // Exact reproduction of a hand-edited preview still open in the browser
+                // — same technique as generateBracketsForCategory: persist verbatim
+                // instead of re-deriving through the seeding algorithm, which would
+                // re-scramble the manual swap the user made.
+                const byId = new Map(category.players.map(p => [p.id, p]))
+                specs = editedSpecsForCat.map(s => ({
+                    id: s.id,
+                    round: s.round,
+                    player1: s.player1 ? (byId.get(s.player1.id) ?? null) : null,
+                    player2: s.player2 ? (byId.get(s.player2.id) ?? null) : null,
+                    nextMatchId: s.nextMatchId,
+                    nextMatchSlot: s.nextMatchSlot,
+                    isFinal: s.isFinal,
+                }))
+            } else {
+                // Reconcile seed order: use saved order if available, otherwise shuffle.
+                // Passing reconciledPlayers as preOrderedPlayers too is what actually
+                // makes this reproduce that order instead of shuffling again.
+                const hasOrder = !!(category.seedOrder && category.seedOrder.length > 0)
+                const reconciledPlayers = hasOrder
+                    ? reconcileSeedOrder(category.seedOrder, category.players)
+                    : category.players
+                specs = hasOrder
+                    ? generateSingleEliminationBracket(reconciledPlayers, 1, reconciledPlayers)
+                    : generateSingleEliminationBracket(reconciledPlayers)
+            }
             const catMinAge = category.minAge ?? 999;
             const catMinWeight = category.minWeight ?? 999;
             const catMinHeight = category.minHeight ?? 999;
@@ -852,9 +887,11 @@ export async function generateAllBrackets(tournamentId: string, type: 'KYORUGI' 
             data: { match_count: currentMatchNumber - 1 }
         })
 
-        // 6. Save seed orders back to each category
+        // 6. Save seed orders back to each category — skipped for categories generated
+        // from a hand-edited preview (see comment above); their seedOrder stays at
+        // whatever rank order produced the pre-edit preview.
         await Promise.all(validCategories
-            .filter(c => c.players.length >= 2)
+            .filter(c => c.players.length >= 2 && !(editedSpecsByCategory?.[c.id]?.length))
             .map(c => {
                 const reconciledPlayers = c.seedOrder && c.seedOrder.length > 0
                     ? reconcileSeedOrder(c.seedOrder, c.players)

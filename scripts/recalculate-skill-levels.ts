@@ -33,7 +33,9 @@ function deriveSkillLevel(beltInput: string | null): string {
         belt.includes('green') || belt.includes('purple')
     ) return 'Intermediate'
 
-    return 'Novice'
+    if (belt.includes('white')) return 'Novice'
+
+    return 'Novice' // fallback for missing/unrecognized belt values
 }
 
 // -- Simple Category Matching (mirrors lib/placement.ts) --

@@ -265,6 +265,7 @@ export async function GET(
                     matchId: match.matchId,
                     nextMatchId: match.nextMatchId,
                     nextMatchSlot: match.nextMatchSlot,
+                    format: category.poomsaeFormat || 'SCORED',
                     category: category.name,
                     subtype: category.subtype || "INDIVIDUAL",
                     round: match.round,

@@ -27,7 +27,13 @@ export function deriveSkillLevel(beltInput: string | null): string {
         return 'Intermediate';
     }
 
-    // Default to Novice (White and others)
+    // Novice: White belt
+    if (belt.includes('white')) {
+        return 'Novice';
+    }
+
+    // Fallback for missing/unrecognized belt values — still Novice, but this is
+    // a safety net for unclassified input, not what defines Novice.
     return 'Novice';
 }
 

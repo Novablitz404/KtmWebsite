@@ -71,11 +71,28 @@ export default function BracketList({ categories, tournamentName, publicView = f
     // ── Alerts-pending banner — dismissible; reappears if the alert count changes ──
     const [dismissedAlertsCount, setDismissedAlertsCount] = useState<number | null>(null)
 
+    // ── Manual edits currently open in a category's preview (not yet committed) —
+    // reported up by each CollapsibleBracket, carried into "Generate All" so it
+    // doesn't just fall back to the last persisted seed order. ─────────────────
+    const [dirtyEditsByCategory, setDirtyEditsByCategory] = useState<Record<string, PreviewMatch[]>>({})
+    const handleEditedSpecsChanged = (categoryId: string, specs: PreviewMatch[] | null) => {
+        setDirtyEditsByCategory(prev => {
+            if (!specs) {
+                if (!(categoryId in prev)) return prev
+                const next = { ...prev }
+                delete next[categoryId]
+                return next
+            }
+            return { ...prev, [categoryId]: specs }
+        })
+    }
+
     useEffect(() => {
         setDivisionFilter('All')
         setSkillFilter('All')
         setBulkSelected(new Set())
         setGlobalMatchIds(null)
+        setDirtyEditsByCategory({})
     }, [activeTab])
 
     const tournamentId = categories[0]?.tournamentId
@@ -171,12 +188,20 @@ export default function BracketList({ categories, tournamentName, publicView = f
         const alertWarning = totalAlerts > 0
             ? `\n\nNote: ${totalAlerts} pending alert${totalAlerts !== 1 ? 's' : ''} (uncontested/merge/split/cross-division) have not been resolved — generating now will lock in the current category groupings as-is.`
             : ''
-        if (!confirm(`Regenerate ALL ${activeTab} matches? This will overwrite existing brackets.${alertWarning}`)) return
+        const dirtyCount = Object.keys(dirtyEditsByCategory).length
+        const editsNote = dirtyCount > 0
+            ? `\n\n${dirtyCount} ${dirtyCount !== 1 ? 'categories' : 'category'} still ${dirtyCount !== 1 ? 'have' : 'has'} an unsaved manual swap open in the preview — those will be carried into the generated bracket as-is.`
+            : ''
+        if (!confirm(`Regenerate ALL ${activeTab} matches? This will overwrite existing brackets.${alertWarning}${editsNote}`)) return
         startTransition(async () => {
             try {
                 const targetType = activeTab === 'kyorugi' ? 'KYORUGI' : activeTab === 'poomsae' ? 'POOMSAE' : 'KYUKPA'
-                const result = await generateAllBrackets(tournamentId, targetType)
-                if (result?.success) { toast.success(`Generated matches for ${result.count} categories!`); setGlobalMatchIds(null) }
+                const result = await generateAllBrackets(tournamentId, targetType, dirtyEditsByCategory)
+                if (result?.success) {
+                    toast.success(`Generated matches for ${result.count} categories!`)
+                    setGlobalMatchIds(null)
+                    setDirtyEditsByCategory({})
+                }
                 else toast.error(result?.message || 'Failed to generate matches.')
             } catch {
                 toast.error('An error occurred while generating matches.')
@@ -1182,6 +1207,7 @@ export default function BracketList({ categories, tournamentName, publicView = f
                                 })}
                                 simulatedMatches={globalMatchIds?.[cat.id] ?? null}
                                 onBracketShapeChanged={() => setGlobalMatchIds(null)}
+                                onEditedSpecsChanged={handleEditedSpecsChanged}
                             />
                         ))
                     )
@@ -1198,7 +1224,7 @@ export default function BracketList({ categories, tournamentName, publicView = f
 function CollapsibleBracket({
     category, isPoomsae = false, isKyorugi = true, tournamentName,
     alerts, proposals, tournamentId, publicView, onAlertResolved, allCategoriesInDiscipline,
-    isBulkSelected, onBulkToggle, simulatedMatches, onBracketShapeChanged
+    isBulkSelected, onBulkToggle, simulatedMatches, onBracketShapeChanged, onEditedSpecsChanged
 }: {
     category: Category & { matches: Match[], poomsaeMatches?: (PoomsaeMatch & { player: { name: string; club?: { name: string } | null } })[], _count?: { players: number } },
     isPoomsae?: boolean, isKyorugi?: boolean, tournamentName?: string, alerts: any[], proposals: any[],
@@ -1209,7 +1235,11 @@ function CollapsibleBracket({
     // Called after a move or a single-category generate — either can change the
     // bracket shape or the shared tournament-wide numbering, which makes any
     // previously-simulated match numbers (for this or other categories) stale.
-    onBracketShapeChanged?: () => void
+    onBracketShapeChanged?: () => void,
+    // Reports this category's current hand-edited specs up to the top level (null
+    // when there are no pending manual edits), so a bulk "Generate All" can carry
+    // them forward instead of only reproducing the last persisted seed order.
+    onEditedSpecsChanged?: (categoryId: string, specs: PreviewMatch[] | null) => void
 }) {
     const [isOpen, setIsOpen] = useState(false)
     const [isAlertOpen, setIsAlertOpen] = useState(false)
@@ -1256,7 +1286,11 @@ function CollapsibleBracket({
     // load/reshuffle — gates which path handleGenerateThisCategory takes below.
     const [hasManualEdits, setHasManualEdits] = useState(false)
     useEffect(() => {
-        if (previewData) { setLocalSpecs(previewData.specs); setHasManualEdits(false) }
+        if (previewData) {
+            setLocalSpecs(previewData.specs)
+            setHasManualEdits(false)
+            onEditedSpecsChanged?.(category.id, null)
+        }
     }, [previewData])
 
     const [selected, setSelected] = useState<{ matchId: number; slot: 'player1' | 'player2'; player: { id: string; name: string } } | null>(null)
@@ -1270,18 +1304,18 @@ function CollapsibleBracket({
     function handlePlayerClick(matchId: number, slot: 'player1' | 'player2', player: { id: string; name: string }) {
         if (selected && selected.matchId === matchId && selected.slot === slot) { setSelected(null); return }
         if (!selected) { setSelected({ matchId, slot, player }); return }
-        setLocalSpecs(prev => {
-            const specs = prev.map(s => ({ ...s }))
-            const matchA = specs.find(s => s.id === selected.matchId)
-            const matchB = specs.find(s => s.id === matchId)
-            if (!matchA || !matchB) return prev
+        const specs = localSpecs.map(s => ({ ...s }))
+        const matchA = specs.find(s => s.id === selected.matchId)
+        const matchB = specs.find(s => s.id === matchId)
+        if (matchA && matchB) {
             const pA = selected.slot === 'player1' ? matchA.player1 : matchA.player2
             const pB = slot === 'player1' ? matchB.player1 : matchB.player2
             if (selected.slot === 'player1') matchA.player1 = pB; else matchA.player2 = pB
             if (slot === 'player1') matchB.player1 = pA; else matchB.player2 = pA
-            return specs
-        })
-        setHasManualEdits(true)
+            setLocalSpecs(specs)
+            setHasManualEdits(true)
+            onEditedSpecsChanged?.(category.id, specs)
+        }
         setSelected(null)
     }
 
@@ -1328,6 +1362,7 @@ function CollapsibleBracket({
             toast.success(`Generated bracket for "${category.name}"`)
             await queryClient.invalidateQueries({ queryKey: ['category-preview', category.id] })
             onBracketShapeChanged?.()
+            onEditedSpecsChanged?.(category.id, null)
         } catch { toast.error('Failed to generate bracket') }
         finally { setGeneratingThis(false) }
     }

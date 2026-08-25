@@ -4,7 +4,7 @@ import GlobalDropdown from '@/components/GlobalDropdown'
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createCategory, updateCategory, deleteCategory, bulkUpdateCourts, bulkUpdateDeferFinals, bulkUpdatePoomsaeFormat } from '@/app/actions'
-import { Plus, Edit2, X, Check, Save, Loader2, GripVertical, LayoutGrid, Layers, Repeat, Trash2 } from 'lucide-react'
+import { Plus, Edit2, X, Check, Save, Loader2, GripVertical, LayoutGrid, Layers, Repeat, Trash2, Search } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface Category {
@@ -75,6 +75,11 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
     const [isAddModalOpen, setIsAddModalOpen]   = useState(false)
     const [editingCategory, setEditingCategory] = useState<Category | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
+
+    // ── Search / Division / Skill filters ─────────────────────────────────────
+    const [searchQuery, setSearchQuery]     = useState('')
+    const [filterDivision, setFilterDivision] = useState('All')
+    const [filterSkill, setFilterSkill]     = useState('All')
 
     const [isEditingCourts, setIsEditingCourts]       = useState(false)
     const [courtUpdates, setCourtUpdates]             = useState<Record<string, string>>({})
@@ -237,7 +242,34 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
 
     const divisionOrder = DIVISION_OPTIONS
 
-    const groupedCategories = categories.reduce((acc, cat) => {
+    // Division of a category, by name prefix (same rule used for grouping below).
+    function divisionOf(cat: Category): string {
+        for (const div of divisionOrder) {
+            if (cat.name.startsWith(div)) return div
+        }
+        return 'Other'
+    }
+
+    // Chip lists derived from the full (unfiltered) category set, so they don't
+    // shrink away as the admin types a search query or picks another filter.
+    const presentDivisions = ['All', ...Array.from(new Set(categories.map(divisionOf))).sort((a, b) => {
+        const ia = divisionOrder.indexOf(a), ib = divisionOrder.indexOf(b)
+        if (ia !== -1 && ib !== -1) return ia - ib
+        if (ia !== -1) return -1
+        if (ib !== -1) return 1
+        return a.localeCompare(b)
+    })]
+    const skillLevels = ['All', ...SKILL_OPTIONS.map(s => s.value)]
+
+    const q = searchQuery.trim().toLowerCase()
+    const filteredCategories = categories.filter(cat => {
+        if (q && !cat.name.toLowerCase().includes(q)) return false
+        if (filterDivision !== 'All' && divisionOf(cat) !== filterDivision) return false
+        if (filterSkill !== 'All' && (cat.skillLevel || '') !== filterSkill) return false
+        return true
+    })
+
+    const groupedCategories = filteredCategories.reduce((acc, cat) => {
         let division = 'Other'
         for (const div of divisionOrder) {
             if (cat.name.startsWith(div)) { division = div; break }
@@ -271,6 +303,24 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
 
                 {!isEditingCourts && !isEditingFormat && (
                     <div className="flex items-center gap-2.5">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={13} />
+                            <input
+                                type="text"
+                                placeholder="Search categories..."
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                className="pl-8 pr-8 py-2 text-sm font-medium bg-gray-50 border border-gray-200 rounded-xl w-52 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-300 focus:bg-white transition-all"
+                            />
+                            {searchQuery && (
+                                <button
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                                >
+                                    <X size={13} />
+                                </button>
+                            )}
+                        </div>
                         <button
                             onClick={handleStartEditingFormat}
                             disabled={!categories.some(c => c.type === 'POOMSAE')}
@@ -297,6 +347,51 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
                     </div>
                 )}
             </div>
+
+            {/* ── Division / Skill filter chips ──────────────────── */}
+            {!isEditingCourts && !isEditingFormat && (presentDivisions.length > 2 || categories.some(c => c.skillLevel)) && (
+                <div className="flex flex-wrap items-center gap-3 bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm">
+                    {presentDivisions.length > 2 && (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 flex-shrink-0">Division</span>
+                            {presentDivisions.map(div => (
+                                <button
+                                    key={div}
+                                    onClick={() => setFilterDivision(div)}
+                                    className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                                        filterDivision === div
+                                            ? 'bg-indigo-600 text-white shadow-sm'
+                                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                    }`}
+                                >
+                                    {div}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                    {presentDivisions.length > 2 && categories.some(c => c.skillLevel) && (
+                        <div className="h-4 w-px bg-gray-200 flex-shrink-0" />
+                    )}
+                    {categories.some(c => c.skillLevel) && (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 flex-shrink-0">Skill</span>
+                            {skillLevels.map(sk => (
+                                <button
+                                    key={sk}
+                                    onClick={() => setFilterSkill(sk)}
+                                    className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                                        filterSkill === sk
+                                            ? 'bg-indigo-600 text-white shadow-sm'
+                                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                    }`}
+                                >
+                                    {sk}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* ── Format edit toolbar ───────────────────────────── */}
             {isEditingFormat && (
@@ -400,7 +495,7 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
                             All Categories
                         </span>
                         <span className="text-xs font-bold px-2 py-0.5 bg-gray-200 text-gray-600 rounded-full">
-                            {categories.length}
+                            {filteredCategories.length}{filteredCategories.length !== categories.length ? ` / ${categories.length}` : ''}
                         </span>
                     </div>
                     {isEditingCourts && (
@@ -422,6 +517,19 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
                         </div>
                         <p className="text-sm font-semibold text-gray-500">No categories yet</p>
                         <p className="text-xs text-gray-400 mt-1">Select a template or add manually.</p>
+                    </div>
+                ) : filteredCategories.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                        <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
+                            <Search size={20} className="text-gray-300" />
+                        </div>
+                        <p className="text-sm font-semibold text-gray-500">No categories match your filter.</p>
+                        <button
+                            onClick={() => { setSearchQuery(''); setFilterDivision('All'); setFilterSkill('All') }}
+                            className="text-red-600 text-xs font-semibold mt-2 hover:underline"
+                        >
+                            Clear all filters
+                        </button>
                     </div>
                 ) : (
                     <div className="divide-y divide-gray-100">
@@ -804,10 +912,10 @@ export default function CategoryManager({ tournamentId, categories }: CategoryMa
                                         {newSkillLevel}
                                     </span>
                                     <span className="text-xs text-gray-500 font-medium">
-                                        {newSkillLevel === 'Novice'       ? 'Open to beginners — white through blue belt' :
-                                         newSkillLevel === 'Intermediate' ? 'Mid-level — red belt and below' :
+                                        {newSkillLevel === 'Novice'       ? 'Open to beginners — white belt' :
+                                         newSkillLevel === 'Intermediate' ? 'Mid-level — yellow, orange, green, or purple belt' :
                                          newSkillLevel === 'Open'         ? 'No skill restriction — all belts may compete together' :
-                                         'Advanced — black belt and above'}
+                                         'Advanced — blue, red, maroon, brown, black, poom, or dan'}
                                     </span>
                                 </div>
                             )}
