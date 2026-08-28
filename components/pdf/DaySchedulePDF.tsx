@@ -150,11 +150,15 @@ interface DaySchedulePDFProps {
     matches: DayScheduleMatch[]
     generatedAt?: string
     isPoomsae?: boolean
+    // Simulated numbering from a not-yet-generated bracket — same guarantee as
+    // BracketPDF/PoomsaeBracketPDF's own isPreview: the numbers exactly match
+    // what Generate All will produce, but nothing is committed until you do.
+    isPreview?: boolean
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export default function DaySchedulePDF({ tournamentName, day, matches, generatedAt, isPoomsae = false }: DaySchedulePDFProps) {
+export default function DaySchedulePDF({ tournamentName, day, matches, generatedAt, isPoomsae = false, isPreview = false }: DaySchedulePDFProps) {
     const now = generatedAt || new Date().toLocaleString()
 
     // Summary stats
@@ -170,9 +174,16 @@ export default function DaySchedulePDF({ tournamentName, day, matches, generated
                 <View style={styles.pageHeader} fixed>
                     <View>
                         <Text style={styles.title}>{tournamentName}</Text>
-                        <Text style={styles.subtitle}>
-                            {isPoomsae ? 'Poomsae Schedule' : 'Match Schedule'} — Sorted by Match Number
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                            <Text style={{ ...styles.subtitle, marginTop: 0 }}>
+                                {isPoomsae ? 'Poomsae Schedule' : 'Match Schedule'} — Sorted by Match Number
+                            </Text>
+                            {isPreview && (
+                                <View style={{ paddingHorizontal: 6, paddingVertical: 2, backgroundColor: '#F59E0B', borderRadius: 2, marginLeft: 8 }}>
+                                    <Text style={{ fontSize: 7, fontFamily: 'Helvetica-Bold', color: 'white' }}>DRAFT — NOT YET GENERATED</Text>
+                                </View>
+                            )}
+                        </View>
                     </View>
                     <Text style={styles.dayBadge}>Day {day}</Text>
                 </View>

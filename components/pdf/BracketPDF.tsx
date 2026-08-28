@@ -15,6 +15,7 @@ interface BracketPDFProps {
     tournamentName: string;
     categoryName: string;
     matches: Match[];
+    isPreview?: boolean;
 }
 
 // ── A4 Landscape dimensions (pts) ───────────────────────────────────────────────
@@ -154,7 +155,7 @@ type Layout = ReturnType<typeof computeLayout>;
 
 // ── Main Component ──────────────────────────────────────────────────────────────
 
-export default function BracketPDF({ tournamentName, categoryName, matches }: BracketPDFProps) {
+export default function BracketPDF({ tournamentName, categoryName, matches, isPreview }: BracketPDFProps) {
     if (!matches || matches.length === 0) {
         return <Document><Page size="A4"><Text>No matches</Text></Page></Document>;
     }
@@ -228,9 +229,17 @@ export default function BracketPDF({ tournamentName, categoryName, matches }: Br
                         <Text style={{ fontSize: 8, color: COLORS.light, marginTop: 1 }}>{categoryName}</Text>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={{ fontSize: 7, fontFamily: 'Helvetica-Bold', color: COLORS.goldBorder, textTransform: 'uppercase', letterSpacing: 1.5 }}>
-                            Championship Bracket
-                        </Text>
+                        {isPreview ? (
+                            <View style={{ paddingHorizontal: 6, paddingVertical: 2, backgroundColor: '#F59E0B', borderRadius: 2 }}>
+                                <Text style={{ fontSize: 7, fontFamily: 'Helvetica-Bold', color: COLORS.white, letterSpacing: 1.5 }}>
+                                    DRAFT — NOT YET GENERATED
+                                </Text>
+                            </View>
+                        ) : (
+                            <Text style={{ fontSize: 7, fontFamily: 'Helvetica-Bold', color: COLORS.goldBorder, textTransform: 'uppercase', letterSpacing: 1.5 }}>
+                                Championship Bracket
+                            </Text>
+                        )}
                         <Text style={{ fontSize: 5.5, color: COLORS.light, marginTop: 2 }}>
                             {matches.length} Matches · {dateStr}
                         </Text>
@@ -415,6 +424,15 @@ export default function BracketPDF({ tournamentName, categoryName, matches }: Br
                                                 }}>
                                                     {displayPlayer(m.player1, 'player1')}
                                                 </Text>
+                                                {m.winner === m.player1 && (
+                                                    <Text style={{
+                                                        fontSize: Math.min(layout.headerFs, 5), fontFamily: 'Helvetica-Bold',
+                                                        color: COLORS.white, backgroundColor: COLORS.winBlueTxt,
+                                                        paddingHorizontal: 2.5, paddingVertical: 0.5, marginRight: 3,
+                                                    }}>
+                                                        WIN
+                                                    </Text>
+                                                )}
                                                 {(blueTotal > 0 || m.winner) && (
                                                     <Text style={{
                                                         fontSize: layout.playerFs, fontFamily: 'Helvetica-Bold',
@@ -440,6 +458,15 @@ export default function BracketPDF({ tournamentName, categoryName, matches }: Br
                                                 }}>
                                                     {displayPlayer(m.player2, 'player2')}
                                                 </Text>
+                                                {m.winner === m.player2 && (
+                                                    <Text style={{
+                                                        fontSize: Math.min(layout.headerFs, 5), fontFamily: 'Helvetica-Bold',
+                                                        color: COLORS.white, backgroundColor: COLORS.winRedTxt,
+                                                        paddingHorizontal: 2.5, paddingVertical: 0.5, marginRight: 3,
+                                                    }}>
+                                                        WIN
+                                                    </Text>
+                                                )}
                                                 {(redTotal > 0 || m.winner) && (
                                                     <Text style={{
                                                         fontSize: layout.playerFs, fontFamily: 'Helvetica-Bold',

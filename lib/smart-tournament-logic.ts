@@ -19,12 +19,51 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
     const categories = await prisma.category.findMany({
         where: { tournamentId },
         include: {
+            // Withdrawn athletes no longer count toward a category's size for any
+            // of the checks below (uncontested, merge, split) — a WITHDRAW
+            // resolution should actually clear the alert, not leave a "still 1
+            // player" category behind just because the row itself isn't deleted.
             players: {
+                where: { registrationStatus: { not: 'WITHDRAWN' } },
                 select: { id: true, clubId: true, name: true, weight: true, club: { select: { name: true, logoUrl: true } } }
+            },
+            _count: {
+                select: { matches: true, poomsaeMatches: true }
             }
         },
         orderBy: { minWeight: 'asc' }
     })
+
+    // A category whose bracket/matches are already generated can no longer be
+    // safely merged or split — the player list is locked in as generated matches.
+    const isGenerated = (cat: (typeof categories)[number]) =>
+        cat._count.matches > 0 || cat._count.poomsaeMatches > 0
+
+    // "Still an open, unresolved uncontested problem" for structural purposes
+    // (chain detection, merge suppression, etc.) — a category only truly stops
+    // being one once it has a generated match, from a normal Generate/Generate
+    // All pass (which auto-walkovers a lone player). Choosing WALKOVER doesn't
+    // change this on its own (see walkoverDecidedPlayerIds below) since nothing
+    // in the bracket has actually changed yet — only once Generate actually runs.
+    const isUnresolvedUncontested = (cat: (typeof categories)[number]) =>
+        cat.players.length === 1 && !isGenerated(cat)
+
+    // Players whose UNCONTESTED/CROSS_DIVISION alert has already been decided as
+    // WALKOVER but not yet generated — surfaced on the alert (details.resolution)
+    // so the UI can show "Walkover" instead of "Uncontested" and stop offering
+    // Request Resolution/Force Execute again, without suppressing the alert
+    // entirely (the category still needs an actual Generate to produce a match).
+    const completedProposals = await prisma.smartProposal.findMany({
+        where: { tournamentId, status: 'COMPLETED', type: { in: ['UNCONTESTED', 'CROSS_DIVISION'] } },
+        select: { data: true }
+    })
+    const walkoverDecidedPlayerIds = new Set<string>()
+    for (const p of completedProposals) {
+        try {
+            const d = JSON.parse(p.data)
+            if (d.decision === 'WALKOVER' && d.playerId) walkoverDecidedPlayerIds.add(d.playerId)
+        } catch { /* ignore malformed proposal data */ }
+    }
 
     const alerts: SmartAlert[] = []
 
@@ -61,8 +100,8 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
             // Uncontested only applies to Kyorugi (sparring)
             if (cat.type !== 'KYORUGI') continue
 
-            const isUncontested   = cat.players.length === 1
-            const prevUncontested = prev !== null && prev.players.length === 1
+            const isUncontested   = isUnresolvedUncontested(cat)
+            const prevUncontested = prev !== null && isUnresolvedUncontested(prev)
 
             if (isUncontested && prevUncontested && !willBeFilled.has(prev.id)) {
                 // prev's athlete is moving up to fill this category
@@ -98,7 +137,7 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
         entries.sort((a, b) => a.minAge - b.minAge)
         for (const entry of entries) {
             const lastCat = entry.cats[entry.cats.length - 1]
-            if (lastCat.players.length !== 1) continue
+            if (!isUnresolvedUncontested(lastCat)) continue
             if (willBeFilled.has(lastCat.id)) continue
             // Only the true last weight (no next sibling within the group)
             if (entry.cats.length > 1 && lastCat.id !== entry.cats[entry.cats.length - 1].id) continue
@@ -136,7 +175,7 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
             // Uncontested only applies to Kyorugi — Poomsae/Kyukpa are scored
             // individually so a single athlete simply wins their division
             if (cat.type !== 'KYORUGI') continue
-            if (cat.players.length !== 1) continue
+            if (!isUnresolvedUncontested(cat)) continue
             if (willBeFilled.has(cat.id)) continue  // will be resolved by the category below
 
             // Find the next sibling (move-up target)
@@ -160,6 +199,7 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
                     sourceCategoryName: cat.name,
                     targetCategoryId:   next?.id || null,
                     targetCategoryName: next?.name || null,
+                    resolution:         walkoverDecidedPlayerIds.has(cat.players[0].id) ? 'WALKOVER' : null,
                 }
             })
         }
@@ -169,7 +209,7 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
     // Uncontested in the highest weight class with a matching division above.
     for (const [catId, crossTarget] of crossDivisionTargets.entries()) {
         const cat = categories.find(c => c.id === catId)
-        if (!cat || cat.players.length !== 1) continue
+        if (!cat || !isUnresolvedUncontested(cat)) continue
         alerts.push({
             type: 'CROSS_DIVISION',
             categoryId: catId,
@@ -184,6 +224,7 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
                 sourceCategoryName: cat.name,
                 targetCategoryId:   crossTarget.targetCategoryId,
                 targetCategoryName: crossTarget.targetCategoryName,
+                resolution:         walkoverDecidedPlayerIds.has(cat.players[0].id) ? 'WALKOVER' : null,
             }
         })
     }
@@ -198,13 +239,17 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
     for (const group of catGroups.values()) {
         // Check if any category in this group still has a pending uncontested alert
         const groupHasUncontested = group.some(
-            cat => cat.players.length === 1 && !willBeFilled.has(cat.id)
+            cat => isUnresolvedUncontested(cat) && !willBeFilled.has(cat.id)
         )
         if (groupHasUncontested) continue
 
         for (let i = 0; i < group.length - 1; i++) {
             const current = group[i]
             const next    = group[i + 1]
+
+            // Skip: either side already has generated matches — merging would
+            // invalidate an already-generated bracket
+            if (isGenerated(current) || isGenerated(next)) continue
 
             // Effective count: actual players + 1 if an athlete is incoming from below
             const effectiveCount     = current.players.length + (willBeFilled.has(current.id) ? 1 : 0)
@@ -270,6 +315,7 @@ export async function detectSmartAlerts(tournamentId: string): Promise<SmartAler
 
     // ── Pass 4: SPLIT alerts ──────────────────────────────────────────────────
     for (const cat of categories) {
+        if (isGenerated(cat)) continue  // bracket already locked in — nothing to split
         if (cat.players.length > SPLIT_THRESHOLD) {
             alerts.push({
                 type: 'SPLIT_SUGGESTION',

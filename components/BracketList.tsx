@@ -8,11 +8,14 @@ import type { ExtendedPoomsaeMatch } from './PoomsaeBracketView'
 import { adaptPoomsaeMatchesToBracket, adaptPoomsaePreviewToBracket } from '@/lib/poomsae-bracket-adapter'
 import PreviewBracketTree from './bracket/PreviewBracketTree'
 import PoomsaePreviewGrid from './bracket/PoomsaePreviewGrid'
-import { isHeightBased, getCompetitorCount, getMedalMultiplier, type PreviewMatch } from '@/lib/bracket-preview-helpers'
+import {
+    isHeightBased, getCompetitorCount, getMedalMultiplier, type PreviewMatch,
+    previewSpecsToPdfMatches, poomsaePreviewToPdfMatches
+} from '@/lib/bracket-preview-helpers'
 import {
     generateAllBrackets, getTournamentAlerts, initiateSmartProposal, forceExecuteSmartAction,
     bulkSendUncontestedProposals, bulkUpdateCourts, previewCategoryBracket, reshuffleCategoryPreview, movePlayerToCategory,
-    updateCategoryDaySettings, generateBracketsForCategory, simulateMatchSequence
+    updateCategoryDaySettings, generateBracketsForCategory, simulateMatchSequence, previewDayMatchSchedule
 } from '@/app/actions'
 import {
     Trophy, Medal, Wand2, Loader2, AlertCircle, Search,
@@ -52,7 +55,10 @@ export default function BracketList({ categories, tournamentName, publicView = f
     const [clubDropdownOpen, setClubDropdownOpen] = useState(false)
     const [dayFilter, setDayFilter] = useState<0|1|2|3>(0)
     const [courtPanelOpen, setCourtPanelOpen] = useState(true)
+    const [bracketPdfPanelOpen, setBracketPdfPanelOpen] = useState(false)
+    const [previewBracketPdfPanelOpen, setPreviewBracketPdfPanelOpen] = useState(false)
     const [downloadingBracketsDay, setDownloadingBracketsDay] = useState<number | null>(null)
+    const [downloadingPreviewBracketsDay, setDownloadingPreviewBracketsDay] = useState<number | null>(null)
 
     // ── Division / skill filters ──────────────────────────────────────────────
     const [divisionFilter, setDivisionFilter] = useState<string>('All')
@@ -168,12 +174,12 @@ export default function BracketList({ categories, tournamentName, publicView = f
     }
 
     // Medal tally — how many of each medal this discipline's (filtered) categories
-    // will award. PAIR/TEAM categories award multiple medals per placement.
-    const isPerformanceDiscipline = activeTab === 'poomsae' || activeTab === 'kyukpa'
-    const medalEligible = filteredCategories.filter(c => {
-        const cc = getCompetitorCount(c._count?.players ?? 0, c.subtype)
-        return isPerformanceDiscipline ? cc >= 1 : cc >= 2
-    })
+    // will award. PAIR/TEAM categories award multiple medals per placement. A
+    // KYORUGI category with just 1 competitor still awards Gold (auto-walkover —
+    // see createUncontestedWalkoverMatch) — this used to require >= 2 back when a
+    // 1-player category could never actually resolve a winner, but that's no
+    // longer true, so it undercounted every uncontested category's projected gold.
+    const medalEligible = filteredCategories.filter(c => getCompetitorCount(c._count?.players ?? 0, c.subtype) >= 1)
     const totalGold = medalEligible.reduce((sum, c) => sum + getMedalMultiplier(c.subtype), 0)
     const totalSilver = medalEligible
         .filter(c => getCompetitorCount(c._count?.players ?? 0, c.subtype) >= 2)
@@ -262,10 +268,16 @@ export default function BracketList({ categories, tournamentName, publicView = f
         }
     }
 
-    const uncontestedCount  = alerts.filter(a => a.type === 'UNCONTESTED').length
+    // Already decided as WALKOVER (pending Generate) no longer counts as a
+    // "pending" alert — it has a resolution, it's just waiting on the organiser
+    // to click Generate rather than needing another decision. Without this, the
+    // top "Alerts Pending" banner and its "Uncontested" count would never clear
+    // even after choosing Walkover, since detectSmartAlerts still emits the
+    // alert (relabeled) until the category is actually generated.
+    const uncontestedCount  = alerts.filter(a => a.type === 'UNCONTESTED' && a.details?.resolution !== 'WALKOVER').length
     const mergeCount         = alerts.filter(a => a.type === 'MERGE_SUGGESTION').length
     const splitCount         = alerts.filter(a => a.type === 'SPLIT_SUGGESTION').length
-    const crossDivCount      = alerts.filter(a => a.type === 'CROSS_DIVISION').length
+    const crossDivCount      = alerts.filter(a => a.type === 'CROSS_DIVISION' && a.details?.resolution !== 'WALKOVER').length
     const totalAlerts        = uncontestedCount + mergeCount + splitCount + crossDivCount
 
 
@@ -283,16 +295,19 @@ export default function BracketList({ categories, tournamentName, publicView = f
     }, 1)
     const dayTabs = [0, 1, 2, 3].filter(d => d === 0 || d <= maxScheduleDay) as (0|1|2|3)[]
 
-    // Build flat schedule list for the day filter view
-    const dayScheduleRows: { matchId: number|null; categoryName: string; categoryId: string; round: number; court: string; isFinal: boolean; scheduledDay: number|null; player1Name: string; player2Name: string }[] = []
-    if (dayFilter > 0) {
+    // Build flat schedule list (running order, sorted by matchId) for an arbitrary
+    // day — factored out so it can be reused both for the currently-selected
+    // dayFilter tab and for the bulk per-day PDF download below, which needs it
+    // for whichever day button was clicked regardless of what's on screen.
+    function buildDayScheduleRows(day: number) {
+        const rows: { matchId: number|null; categoryName: string; categoryId: string; round: number; court: string; isFinal: boolean; scheduledDay: number|null; player1Name: string; player2Name: string }[] = []
+        const isPoomsaeCat = activeTab === 'poomsae' || activeTab === 'kyukpa'
         for (const cat of displayedCategories) {
-            const isPoomsaeCat = activeTab === 'poomsae' || activeTab === 'kyukpa'
             if (isPoomsaeCat) {
                 // Group poomsae performances by matchId (multiple performers share one matchId)
                 const grouped = new Map<number, { names: string[]; round: number; court: string; scheduledDay: number | null }>()
                 for (const m of (cat.poomsaeMatches || [])) {
-                    if ((m as any).scheduledDay === dayFilter) {
+                    if ((m as any).scheduledDay === day) {
                         const mid = (m as any).matchId as number
                         if (!grouped.has(mid)) {
                             grouped.set(mid, {
@@ -307,7 +322,7 @@ export default function BracketList({ categories, tournamentName, publicView = f
                     }
                 }
                 for (const [mid, g] of grouped) {
-                    dayScheduleRows.push({
+                    rows.push({
                         matchId: mid,
                         categoryName: cat.name,
                         categoryId: cat.id,
@@ -321,9 +336,9 @@ export default function BracketList({ categories, tournamentName, publicView = f
                 }
             } else {
                 for (const m of cat.matches) {
-                    if ((m as any).scheduledDay === dayFilter) {
+                    if ((m as any).scheduledDay === day) {
                         const maxRound = Math.max(...cat.matches.map(x => x.round))
-                        dayScheduleRows.push({
+                        rows.push({
                             matchId: (m as any).matchId,
                             categoryName: cat.name,
                             categoryId: cat.id,
@@ -338,8 +353,10 @@ export default function BracketList({ categories, tournamentName, publicView = f
                 }
             }
         }
-        dayScheduleRows.sort((a, b) => (a.matchId ?? 0) - (b.matchId ?? 0))
+        rows.sort((a, b) => (a.matchId ?? 0) - (b.matchId ?? 0))
+        return rows
     }
+    const dayScheduleRows = dayFilter > 0 ? buildDayScheduleRows(dayFilter) : []
 
     // Court editing state
     const [courtEdits, setCourtEdits] = useState<Record<string, string>>({})
@@ -438,6 +455,7 @@ export default function BracketList({ categories, tournamentName, publicView = f
                             tournamentName={tournamentName || 'Tournament'}
                             categoryName={cat.name}
                             matches={dayMatches}
+                            isHeadToHead={cat.poomsaeFormat === 'HEAD_TO_HEAD'}
                         />
                     ).toBlob()
                 } else {
@@ -480,9 +498,208 @@ export default function BracketList({ categories, tournamentName, publicView = f
             }
         }
 
+        // Also include a flat running-order match list (#1 through the final match
+        // number for this day), alongside the per-category bracket PDFs.
+        try {
+            const rows = buildDayScheduleRows(day)
+            if (rows.length > 0) {
+                const listMatches: DayScheduleMatch[] = rows.map(r => ({
+                    matchId: r.matchId,
+                    categoryName: r.categoryName,
+                    round: r.round,
+                    roundLabel: roundLabel(r.round, r.isFinal),
+                    isFinal: r.isFinal,
+                    court: r.court,
+                    player1Name: r.player1Name,
+                    player2Name: r.player2Name,
+                    isPoomsae: isPoomsaeCat,
+                }))
+                const listBlob = await pdf(
+                    <DaySchedulePDF
+                        tournamentName={tournamentName || 'Tournament'}
+                        day={day}
+                        matches={listMatches}
+                        isPoomsae={isPoomsaeCat}
+                    />
+                ).toBlob()
+                const listFileName = `Day${day}-Match-List.pdf`
+
+                if (dirHandle) {
+                    const fileHandle = await dirHandle.getFileHandle(listFileName, { create: true })
+                    const writable = await fileHandle.createWritable()
+                    await writable.write(listBlob)
+                    await writable.close()
+                } else {
+                    const url = URL.createObjectURL(listBlob)
+                    const link = document.createElement('a')
+                    link.href = url
+                    link.download = listFileName
+                    document.body.appendChild(link)
+                    link.click()
+                    document.body.removeChild(link)
+                    setTimeout(() => URL.revokeObjectURL(url), 2000)
+                }
+            }
+        } catch (err) {
+            console.error('Failed to generate match list PDF for day', day, err)
+            toast.error('Failed to generate the match list PDF')
+        }
+
         setDownloadingBracketsDay(null)
         if (successCount > 0) {
             toast.success(`${dirHandle ? 'Saved' : 'Downloaded'} ${successCount} bracket PDF${successCount !== 1 ? 's' : ''} for Day ${day}`)
+        }
+    }
+
+    // ── Bulk PREVIEW bracket PDF download per day (not yet generated) ────────
+    // Same flow as downloadBracketsForDay above, but built from
+    // previewCategoryBracket's in-memory draw instead of persisted Match/
+    // PoomsaeMatch rows — lets an organiser send a draft to clubs for
+    // verification before committing to "Generate". Calling
+    // previewCategoryBracket here also persists a seedOrder for any category
+    // that doesn't have one yet, so what's in the PDF is exactly what
+    // "Generate This Category" will produce later, not a different draw.
+    async function downloadPreviewBracketsForDay(day: number) {
+        const { pdf } = await import('@react-pdf/renderer')
+        const isPoomsaeCat = activeTab === 'poomsae' || activeTab === 'kyukpa'
+
+        const catsForDay = displayedCategories.filter(cat => {
+            const matchCount = isPoomsaeCat ? (cat.poomsaeMatches || []).length : cat.matches.length
+            if (matchCount > 0) return false // already generated — handled by the panel above instead
+            return (cat.scheduleDay ?? 1) === day
+        })
+
+        if (catsForDay.length === 0) {
+            toast.info(`No un-generated categories on Day ${day}`)
+            return
+        }
+
+        let dirHandle: FileSystemDirectoryHandle | null = null
+        if ('showDirectoryPicker' in window) {
+            try {
+                dirHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite' })
+            } catch (err: any) {
+                if (err?.name === 'AbortError') return
+                dirHandle = null
+            }
+        }
+
+        setDownloadingPreviewBracketsDay(day)
+        toast.info(`Generating draft bracket PDFs for Day ${day}…`)
+
+        let successCount = 0
+        for (const cat of catsForDay) {
+            try {
+                const preview = await previewCategoryBracket(cat.id)
+                if (!preview || preview.playerCount === 0) continue // nothing to draw
+
+                let blob: Blob
+                if (isPoomsaeCat) {
+                    const pdfMatches = poomsaePreviewToPdfMatches(preview.poomsaeSpecs as any, preview.players)
+                    blob = await pdf(
+                        <PoomsaeBracketPDF
+                            tournamentName={tournamentName || 'Tournament'}
+                            categoryName={cat.name}
+                            matches={pdfMatches}
+                            isHeadToHead={cat.poomsaeFormat === 'HEAD_TO_HEAD'}
+                            isPreview
+                        />
+                    ).toBlob()
+                } else {
+                    const pdfMatches = previewSpecsToPdfMatches(preview.specs as any, cat.name)
+                    blob = await pdf(
+                        <BracketPDF
+                            tournamentName={tournamentName || 'Tournament'}
+                            categoryName={cat.name}
+                            matches={pdfMatches}
+                            isPreview
+                        />
+                    ).toBlob()
+                }
+
+                const safeName = cat.name.replace(/\s+/g, '-').replace(/[^\w-]/g, '')
+                const fileName = `Day${day}-${safeName}-DRAFT-bracket.pdf`
+
+                if (dirHandle) {
+                    const fileHandle = await dirHandle.getFileHandle(fileName, { create: true })
+                    const writable = await fileHandle.createWritable()
+                    await writable.write(blob)
+                    await writable.close()
+                } else {
+                    const url = URL.createObjectURL(blob)
+                    const link = document.createElement('a')
+                    link.href = url
+                    link.download = fileName
+                    document.body.appendChild(link)
+                    link.click()
+                    document.body.removeChild(link)
+                    setTimeout(() => URL.revokeObjectURL(url), 2000)
+                    await new Promise(r => setTimeout(r, 400))
+                }
+
+                successCount++
+            } catch (err) {
+                console.error('Failed to generate preview bracket PDF for', cat.name, err)
+                toast.error(`Failed: ${cat.name}`)
+            }
+        }
+
+        // Also include a flat running-order match list — the preview equivalent of
+        // the real download's Match List, built from the exact same ordering
+        // buildOrderedKyorugiSpecs/buildOrderedPoomsaeSpecs will use once generated,
+        // so these numbers aren't just an approximation.
+        try {
+            const targetType = activeTab === 'kyorugi' ? 'KYORUGI' : activeTab === 'poomsae' ? 'POOMSAE' : 'KYUKPA'
+            const scheduleRows = await previewDayMatchSchedule(tournamentId, targetType, day)
+            if (scheduleRows.length > 0) {
+                const listMatches: DayScheduleMatch[] = scheduleRows.map(r => ({
+                    matchId: r.matchId,
+                    categoryName: r.categoryName,
+                    round: r.round,
+                    roundLabel: roundLabel(r.round, r.isFinal),
+                    isFinal: r.isFinal,
+                    court: r.court,
+                    player1Name: r.player1Name,
+                    player2Name: r.player2Name,
+                    isPoomsae: isPoomsaeCat,
+                }))
+                const listBlob = await pdf(
+                    <DaySchedulePDF
+                        tournamentName={tournamentName || 'Tournament'}
+                        day={day}
+                        matches={listMatches}
+                        isPoomsae={isPoomsaeCat}
+                        isPreview
+                    />
+                ).toBlob()
+                const listFileName = `Day${day}-Match-List-DRAFT.pdf`
+
+                if (dirHandle) {
+                    const fileHandle = await dirHandle.getFileHandle(listFileName, { create: true })
+                    const writable = await fileHandle.createWritable()
+                    await writable.write(listBlob)
+                    await writable.close()
+                } else {
+                    const url = URL.createObjectURL(listBlob)
+                    const link = document.createElement('a')
+                    link.href = url
+                    link.download = listFileName
+                    document.body.appendChild(link)
+                    link.click()
+                    document.body.removeChild(link)
+                    setTimeout(() => URL.revokeObjectURL(url), 2000)
+                }
+            }
+        } catch (err) {
+            console.error('Failed to generate preview match list PDF for day', day, err)
+            toast.error('Failed to generate the draft match list PDF')
+        }
+
+        setDownloadingPreviewBracketsDay(null)
+        if (successCount > 0) {
+            toast.success(`${dirHandle ? 'Saved' : 'Downloaded'} ${successCount} draft bracket PDF${successCount !== 1 ? 's' : ''} for Day ${day}`)
+        } else {
+            toast.info(`No categories with players on Day ${day}`)
         }
     }
 
@@ -937,37 +1154,109 @@ export default function BracketList({ categories, tournamentName, publicView = f
                 if (daysWithCats.length === 0) return null
                 return (
                     <div className="bg-white rounded-2xl border border-violet-100 shadow-sm overflow-hidden">
-                        <div className="px-5 py-3.5 border-b border-violet-100 flex items-center gap-2">
-                            <FileStack size={14} className="text-violet-500" />
-                            <span className="text-sm font-black text-gray-800">Download Bracket PDFs</span>
-                            <span className="text-xs text-gray-400 ml-1">— one PDF per category, saved to a folder of your choice</span>
-                        </div>
-                        <div className="px-5 py-4 flex flex-wrap gap-3">
-                            {daysWithCats.map(d => (
-                                <button
-                                    key={d}
-                                    onClick={() => downloadBracketsForDay(d)}
-                                    disabled={downloadingBracketsDay !== null}
-                                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-all
-                                        bg-gradient-to-br from-violet-500 to-purple-600
-                                        shadow-sm shadow-violet-500/20
-                                        hover:shadow-md hover:-translate-y-0.5
-                                        disabled:opacity-50 disabled:translate-y-0 disabled:cursor-not-allowed"
-                                >
-                                    {downloadingBracketsDay === d
-                                        ? <Loader2 size={13} className="animate-spin" />
-                                        : <FileStack size={13} />}
-                                    {downloadingBracketsDay === d
-                                        ? 'Downloading…'
-                                        : `Day ${d} Brackets`}
-                                    {downloadingBracketsDay !== d && (
-                                        <span className="text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded-md">
-                                            {bracketCatsPerDay[d]} cat{bracketCatsPerDay[d] !== 1 ? 's' : ''}
-                                        </span>
-                                    )}
-                                </button>
-                            ))}
-                        </div>
+                        <button
+                            className="w-full px-5 py-3.5 border-b border-violet-100 flex items-center justify-between hover:bg-violet-50/40 transition-colors"
+                            onClick={() => setBracketPdfPanelOpen(o => !o)}
+                        >
+                            <div className="flex items-center gap-2">
+                                <FileStack size={14} className="text-violet-500" />
+                                <span className="text-sm font-black text-gray-800">Download Bracket PDFs</span>
+                                <span className="text-xs text-gray-400 ml-1">— one PDF per category, plus a running match list, saved to a folder of your choice</span>
+                            </div>
+                            <ChevronDown
+                                size={14}
+                                className={`text-gray-400 transition-transform duration-200 ${bracketPdfPanelOpen ? 'rotate-180' : ''}`}
+                            />
+                        </button>
+                        {bracketPdfPanelOpen && (
+                            <div className="px-5 py-4 flex flex-wrap gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                                {daysWithCats.map(d => (
+                                    <button
+                                        key={d}
+                                        onClick={() => downloadBracketsForDay(d)}
+                                        disabled={downloadingBracketsDay !== null}
+                                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-all
+                                            bg-gradient-to-br from-violet-500 to-purple-600
+                                            shadow-sm shadow-violet-500/20
+                                            hover:shadow-md hover:-translate-y-0.5
+                                            disabled:opacity-50 disabled:translate-y-0 disabled:cursor-not-allowed"
+                                    >
+                                        {downloadingBracketsDay === d
+                                            ? <Loader2 size={13} className="animate-spin" />
+                                            : <FileStack size={13} />}
+                                        {downloadingBracketsDay === d
+                                            ? 'Downloading…'
+                                            : `Day ${d} Brackets`}
+                                        {downloadingBracketsDay !== d && (
+                                            <span className="text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded-md">
+                                                {bracketCatsPerDay[d]} cat{bracketCatsPerDay[d] !== 1 ? 's' : ''}
+                                            </span>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )
+            })()}
+
+            {/* ── All Days: Bulk PREVIEW Bracket PDF Download panel (not yet generated) ── */}
+            {!publicView && dayFilter === 0 && dayTabs.length > 1 && (() => {
+                const availableDays = dayTabs.filter(x => x > 0)
+                const isPoomsaeCat = activeTab === 'poomsae' || activeTab === 'kyukpa'
+                const previewCatsPerDay: Record<number, number> = {}
+                for (const d of availableDays) {
+                    previewCatsPerDay[d] = displayedCategories.filter(cat => {
+                        const matchCount = isPoomsaeCat ? (cat.poomsaeMatches || []).length : cat.matches.length
+                        return matchCount === 0 && (cat.scheduleDay ?? 1) === d
+                    }).length
+                }
+                const daysWithPreviewCats = availableDays.filter(d => previewCatsPerDay[d] > 0)
+                if (daysWithPreviewCats.length === 0) return null
+                return (
+                    <div className="bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden">
+                        <button
+                            className="w-full px-5 py-3.5 border-b border-amber-100 flex items-center justify-between hover:bg-amber-50/40 transition-colors"
+                            onClick={() => setPreviewBracketPdfPanelOpen(o => !o)}
+                        >
+                            <div className="flex items-center gap-2">
+                                <FileStack size={14} className="text-amber-500" />
+                                <span className="text-sm font-black text-gray-800">Download Bracket PDFs (Preview)</span>
+                                <span className="text-xs text-gray-400 ml-1">— not yet generated, one draft PDF per category, saved to a folder of your choice — great for sending to clubs for verification before generating</span>
+                            </div>
+                            <ChevronDown
+                                size={14}
+                                className={`text-gray-400 transition-transform duration-200 ${previewBracketPdfPanelOpen ? 'rotate-180' : ''}`}
+                            />
+                        </button>
+                        {previewBracketPdfPanelOpen && (
+                            <div className="px-5 py-4 flex flex-wrap gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                                {daysWithPreviewCats.map(d => (
+                                    <button
+                                        key={d}
+                                        onClick={() => downloadPreviewBracketsForDay(d)}
+                                        disabled={downloadingPreviewBracketsDay !== null}
+                                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-all
+                                            bg-gradient-to-br from-amber-500 to-orange-600
+                                            shadow-sm shadow-amber-500/20
+                                            hover:shadow-md hover:-translate-y-0.5
+                                            disabled:opacity-50 disabled:translate-y-0 disabled:cursor-not-allowed"
+                                    >
+                                        {downloadingPreviewBracketsDay === d
+                                            ? <Loader2 size={13} className="animate-spin" />
+                                            : <FileStack size={13} />}
+                                        {downloadingPreviewBracketsDay === d
+                                            ? 'Downloading…'
+                                            : `Day ${d} Drafts`}
+                                        {downloadingPreviewBracketsDay !== d && (
+                                            <span className="text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded-md">
+                                                {previewCatsPerDay[d]} cat{previewCatsPerDay[d] !== 1 ? 's' : ''}
+                                            </span>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )
             })()}
@@ -1242,7 +1531,6 @@ function CollapsibleBracket({
     onEditedSpecsChanged?: (categoryId: string, specs: PreviewMatch[] | null) => void
 }) {
     const [isOpen, setIsOpen] = useState(false)
-    const [isAlertOpen, setIsAlertOpen] = useState(false)
     const [localCourt, setLocalCourt] = useState(category.court || '')
     const [savingCourt, setSavingCourt] = useState(false)
     // HEAD_TO_HEAD rows are one-per-side (two rows per pairing) — count unique pairings.
@@ -1375,7 +1663,9 @@ function CollapsibleBracket({
     // Medal count for this category — PAIR/TEAM award multiple medals per placement
     const competitorCount = getCompetitorCount(category._count?.players ?? 0, category.subtype)
     const medalMultiplier = getMedalMultiplier(category.subtype)
-    const showMedals = (category.type === 'POOMSAE' || category.type === 'KYUKPA') ? competitorCount >= 1 : competitorCount >= 2
+    // A KYORUGI category with just 1 competitor still awards Gold via auto-walkover
+    // (see createUncontestedWalkoverMatch) — same as the toolbar's medalEligible tally above.
+    const showMedals = competitorCount >= 1
 
     // Simulated match numbering (from "Simulate Sequence" in the toolbar, if run)
     const simulatedValues = simulatedMatches ? Object.values(simulatedMatches) : []
@@ -1502,13 +1792,20 @@ function CollapsibleBracket({
                                 const agrees   = votes.filter(v => v.vote === 'AGREE').length
                                 const disagrees = votes.filter(v => v.vote === 'DISAGREE').length
 
+                                // Already decided as WALKOVER but not yet generated — same
+                                // "resolved" state as the InlineAlertPanel's own tag below.
+                                const isWalkoverDecidedPill = alert.details?.resolution === 'WALKOVER'
+
                                 return (
                                     <span key={`${alert.type}-${i}`} className="inline-flex items-center gap-1 flex-wrap">
-                                        {/* Alert type pill — clickable to open panel */}
+                                        {/* Alert type pill — clicking it opens the row (same as clicking
+                                            anywhere else on it now that alerts/bracket share one toggle) */}
                                         <button
-                                            onClick={e => { e.stopPropagation(); setIsAlertOpen(!isAlertOpen) }}
+                                            onClick={e => { e.stopPropagation(); setIsOpen(true) }}
                                             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all hover:scale-105 ${
-                                                alert.type === 'UNCONTESTED'
+                                                isWalkoverDecidedPill
+                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                                    : alert.type === 'UNCONTESTED'
                                                     ? 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100'
                                                     : alert.type === 'CROSS_DIVISION'
                                                     ? 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100'
@@ -1517,11 +1814,12 @@ function CollapsibleBracket({
                                                     : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
                                             }`}
                                         >
-                                            {alert.type === 'UNCONTESTED'     && <ShieldAlert size={9} />}
-                                            {alert.type === 'CROSS_DIVISION'  && <ArrowRight size={9} />}
+                                            {isWalkoverDecidedPill ? null : alert.type === 'UNCONTESTED'     && <ShieldAlert size={9} />}
+                                            {isWalkoverDecidedPill ? null : alert.type === 'CROSS_DIVISION'  && <ArrowRight size={9} />}
                                             {alert.type === 'MERGE_SUGGESTION' && <Merge size={9} />}
                                             {alert.type === 'SPLIT_SUGGESTION' && <Split size={9} />}
-                                            {alert.type === 'UNCONTESTED'     ? 'Uncontested'
+                                            {isWalkoverDecidedPill ? 'Resolved'
+                                                : alert.type === 'UNCONTESTED'     ? 'Uncontested'
                                                 : alert.type === 'CROSS_DIVISION'  ? 'Cross Div'
                                                 : alert.type === 'MERGE_SUGGESTION' ? 'Merge' : 'Split'}
                                         </button>
@@ -1655,8 +1953,10 @@ function CollapsibleBracket({
                 </div>
             )}
 
-            {/* Inline Alert Panel */}
-            {isAlertOpen && hasAnAlert && !publicView && (
+            {/* Inline Alert Panel — shares the same expand toggle as the bracket below,
+                so opening a category shows Uncontested/Merge/Split alongside it instead
+                of needing a separate click on the small alert pill. */}
+            {isOpen && hasAnAlert && !publicView && (
                 <div className="border-t border-amber-100 bg-gradient-to-b from-amber-50/60 to-transparent animate-in fade-in slide-in-from-top-1 duration-200">
                     {alerts.map((alert: any, idx: number) => (
                         <InlineAlertPanel
@@ -1869,7 +2169,11 @@ function InlineAlertPanel({ alert, proposals, tournamentId, onResolved }: {
         ? [{ name: details.playerName, clubName: details.clubName, clubLogoUrl: details.clubLogoUrl }]
         : [])
 
-    const alertColor = alert.type === 'UNCONTESTED'
+    const isWalkoverDecided = alert.details?.resolution === 'WALKOVER'
+
+    const alertColor = isWalkoverDecided
+        ? { bg: 'bg-emerald-100', text: 'text-emerald-700', btn: 'bg-emerald-500 hover:bg-emerald-600', btnPending: 'bg-gray-900 hover:bg-gray-800' }
+        : alert.type === 'UNCONTESTED'
         ? { bg: 'bg-amber-100',  text: 'text-amber-700',  btn: 'bg-amber-500 hover:bg-amber-600',   btnPending: 'bg-gray-900 hover:bg-gray-800' }
         : alert.type === 'CROSS_DIVISION'
         ? { bg: 'bg-orange-100', text: 'text-orange-700', btn: 'bg-orange-500 hover:bg-orange-600', btnPending: 'bg-gray-900 hover:bg-gray-800' }
@@ -1885,11 +2189,12 @@ function InlineAlertPanel({ alert, proposals, tournamentId, onResolved }: {
                     {/* Tag row */}
                     <div className="flex items-center gap-2 flex-wrap mb-2">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${alertColor.bg} ${alertColor.text}`}>
-                            {alert.type === 'UNCONTESTED'     && <ShieldAlert size={9} />}
-                            {alert.type === 'CROSS_DIVISION'  && <ArrowRight size={9} />}
+                            {isWalkoverDecided ? null : alert.type === 'UNCONTESTED'     && <ShieldAlert size={9} />}
+                            {isWalkoverDecided ? null : alert.type === 'CROSS_DIVISION'  && <ArrowRight size={9} />}
                             {alert.type === 'MERGE_SUGGESTION' && <Merge size={9} />}
                             {alert.type === 'SPLIT_SUGGESTION' && <Split size={9} />}
-                            {alert.type === 'UNCONTESTED'      ? 'Uncontested'
+                            {isWalkoverDecided ? 'Walkover'
+                                : alert.type === 'UNCONTESTED'      ? 'Uncontested'
                                 : alert.type === 'CROSS_DIVISION'   ? 'Cross Division'
                                 : alert.type === 'MERGE_SUGGESTION' ? 'Merge Suggestion'
                                 : 'Split Suggestion'}
@@ -1953,8 +2258,14 @@ function InlineAlertPanel({ alert, proposals, tournamentId, onResolved }: {
 
                 {/* Right: action button */}
                 <div className="flex-shrink-0 self-start">
-                    {/* UNCONTESTED / CROSS_DIVISION with no votes yet → show decision picker */}
-                    {isPending && voteCount === 0 && (alert.type === 'UNCONTESTED' || alert.type === 'CROSS_DIVISION') ? (
+                    {/* Already decided as WALKOVER but not yet generated — the actual
+                        match/medal only gets created when Generate/Generate All runs,
+                        so there's nothing left to do here, just show the decision. */}
+                    {alert.details?.resolution === 'WALKOVER' ? (
+                        <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black text-emerald-700 bg-emerald-50 border border-emerald-200">
+                            ✓ Walkover — will be generated
+                        </div>
+                    ) : isPending && voteCount === 0 && (alert.type === 'UNCONTESTED' || alert.type === 'CROSS_DIVISION') ? (
                         forceDecision ? (
                             <div className="flex flex-col gap-1.5">
                                 <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Choose outcome:</p>

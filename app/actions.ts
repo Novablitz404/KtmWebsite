@@ -7,7 +7,7 @@ import { redirect } from 'next/navigation'
 import { getAuthUser } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { getClubEventsData } from '@/app/club/data'
-import { generatePoomsaeBracket } from '@/lib/poomsae-logic'
+import { generatePoomsaeBracket, type PoomsaeMatchSpec } from '@/lib/poomsae-logic'
 import { BracketMatchSpec, generateSingleEliminationBracket, shuffleArray } from '@/lib/bracket-logic'
 import type { PreviewMatch } from '@/lib/bracket-preview-helpers'
 import { deriveSkillLevel, extractBeltFromCategoryName } from '@/lib/skill-logic'
@@ -499,6 +499,292 @@ function reconcileSeedOrder<T extends { id: string }>(savedOrder: string[], curr
     return ordered
 }
 
+export type OrderedKyorugiSpec = BracketMatchSpec & {
+    categoryId: string
+    categoryName: string
+    court: string
+    catMinAge: number
+    catMinWeight: number
+    catMinHeight: number
+    catSkillPriority: number
+    deferFinals: boolean
+    scheduleDay: number
+    deferFinalsToDay: number | null
+    deferSemisToDay: number | null
+    totalRounds: number
+}
+
+// Builds the exact final match order for a sparring discipline (Kyorugi) —
+// per-category bracket specs (including uncontested-walkover synthesis for a
+// lone competitor), sorted by day/category/skill-level, then rest-spaced so
+// the same player isn't scheduled back-to-back too soon. Shared by
+// generateAllBrackets (which persists this order as real matches) and
+// simulateMatchSequence (which just numbers it, for the "Simulate Sequence"
+// preview) — keeping this logic in exactly one place is what guarantees the
+// simulated numbers can never drift from what Generate All actually produces.
+async function buildOrderedKyorugiSpecs(
+    tournamentId: string,
+    type: 'KYORUGI' | 'KYUKPA',
+    editedSpecsByCategory?: Record<string, PreviewMatch[]>,
+    seedOrders?: Record<string, string[]>
+): Promise<OrderedKyorugiSpec[]> {
+    const categories = await prisma.category.findMany({
+        where: { tournamentId, type },
+        include: { players: true }
+    })
+    const validCategories = categories.filter(c => c.players.length > 0)
+
+    const skillPriority: Record<string, number> = {
+        'novice': 1, 'intermediate': 2, 'advance': 3, 'advanced': 3,
+    }
+
+    const allSpecs: OrderedKyorugiSpec[] = []
+
+    for (const category of validCategories) {
+        if (category.players.length === 1 && category.players[0].registrationStatus === 'WITHDRAWN') {
+            // No legitimate athlete remains — nothing to generate/simulate.
+            continue
+        }
+
+        const editedSpecsForCat = editedSpecsByCategory?.[category.id]
+        let specs: BracketMatchSpec[]
+
+        if (category.players.length === 1) {
+            // Uncontested — no opponent at all. Auto-resolve as a walkover (single
+            // terminal spec, no real player2) instead of silently producing nothing.
+            specs = [{
+                id: 0,
+                round: 1,
+                player1: category.players[0],
+                player2: null,
+                nextMatchId: null,
+                nextMatchSlot: null,
+                isFinal: true,
+            }]
+        } else if (editedSpecsForCat && editedSpecsForCat.length > 0) {
+            // Exact reproduction of a hand-edited preview still open in the browser
+            // — persisted verbatim instead of re-derived through the seeding
+            // algorithm, which would re-scramble the manual swap the user made.
+            const byId = new Map(category.players.map(p => [p.id, p]))
+            specs = editedSpecsForCat.map(s => ({
+                id: s.id,
+                round: s.round,
+                player1: s.player1 ? (byId.get(s.player1.id) ?? null) : null,
+                player2: s.player2 ? (byId.get(s.player2.id) ?? null) : null,
+                nextMatchId: s.nextMatchId,
+                nextMatchSlot: s.nextMatchSlot,
+                isFinal: s.isFinal,
+            }))
+        } else {
+            // Reconcile seed order: prefer an explicitly passed-in order, fall back
+            // to the category's saved order, shuffle otherwise.
+            const effectiveOrder = (seedOrders?.[category.id] && seedOrders[category.id].length > 0)
+                ? seedOrders[category.id]
+                : category.seedOrder
+            const hasOrder = !!(effectiveOrder && effectiveOrder.length > 0)
+            const reconciledPlayers = hasOrder
+                ? reconcileSeedOrder(effectiveOrder!, category.players)
+                : category.players
+            specs = hasOrder
+                ? generateSingleEliminationBracket(reconciledPlayers, 1, reconciledPlayers)
+                : generateSingleEliminationBracket(reconciledPlayers)
+        }
+
+        const catMinAge = category.minAge ?? 999
+        const catMinWeight = category.minWeight ?? 999
+        const catMinHeight = category.minHeight ?? 999
+        const catSkillPriority = skillPriority[(category.skillLevel || 'novice').toLowerCase()] || 1
+        const catTotalRounds = specs.length > 0 ? Math.max(...specs.map(s => s.round)) : 1
+
+        specs.forEach(s => {
+            allSpecs.push({
+                ...s,
+                categoryId: category.id,
+                categoryName: category.name,
+                court: category.court || "Unassigned",
+                catMinAge, catMinWeight, catMinHeight, catSkillPriority,
+                deferFinals: category.deferFinals,
+                scheduleDay: category.scheduleDay ?? 1,
+                deferFinalsToDay: category.deferFinalsToDay ?? null,
+                deferSemisToDay: (category as any).deferSemisToDay ?? null,
+                totalRounds: catTotalRounds,
+            })
+        })
+    }
+
+    // Sort globally — day first, then existing ordering within each day
+    allSpecs.sort((a, b) => {
+        const aIsSemiOrFinal = a.round >= a.totalRounds - 1
+        const bIsSemiOrFinal = b.round >= b.totalRounds - 1
+        const aDay = (a.deferSemisToDay && aIsSemiOrFinal) ? a.deferSemisToDay
+            : (a.isFinal && a.deferFinalsToDay) ? a.deferFinalsToDay : a.scheduleDay
+        const bDay = (b.deferSemisToDay && bIsSemiOrFinal) ? b.deferSemisToDay
+            : (b.isFinal && b.deferFinalsToDay) ? b.deferFinalsToDay : b.scheduleDay
+        if (aDay !== bDay) return aDay - bDay
+
+        const aDef = a.isFinal && a.deferFinals && !a.deferFinalsToDay && !a.deferSemisToDay
+        const bDef = b.isFinal && b.deferFinals && !b.deferFinalsToDay && !b.deferSemisToDay
+        if (aDef && !bDef) return 1
+        if (!aDef && bDef) return -1
+
+        const aGroupByCategory = !a.deferFinals && !a.deferSemisToDay
+        const bGroupByCategory = !b.deferFinals && !b.deferSemisToDay
+
+        if (aGroupByCategory && bGroupByCategory) {
+            if (a.catMinAge !== b.catMinAge) return a.catMinAge - b.catMinAge
+            if (a.catMinWeight !== b.catMinWeight) return a.catMinWeight - b.catMinWeight
+            if (a.catMinHeight !== b.catMinHeight) return a.catMinHeight - b.catMinHeight
+            if (a.catSkillPriority !== b.catSkillPriority) return a.catSkillPriority - b.catSkillPriority
+            if (a.round !== b.round) return a.round - b.round
+            return a.id - b.id
+        }
+        if (!aGroupByCategory && !bGroupByCategory) {
+            if (a.round !== b.round) return a.round - b.round
+            if (a.catMinAge !== b.catMinAge) return a.catMinAge - b.catMinAge
+            if (a.catMinWeight !== b.catMinWeight) return a.catMinWeight - b.catMinWeight
+            if (a.catMinHeight !== b.catMinHeight) return a.catMinHeight - b.catMinHeight
+            if (a.catSkillPriority !== b.catSkillPriority) return a.catSkillPriority - b.catSkillPriority
+            return a.id - b.id
+        }
+        return aGroupByCategory ? -1 : 1
+    })
+
+    // Rest spacing — a player shouldn't be scheduled again too soon after their
+    // previous match. Prefers a 2-match gap, falls back to a 1-match gap when 2
+    // isn't achievable nearby, and only reorders within a small local lookahead
+    // so it never disturbs the day/category/skill-level ordering established
+    // above. Never schedules a match before the match(es) that feed it (isReady),
+    // which the round-ascending sort above guarantees is always satisfiable.
+    const keyOf = (s: OrderedKyorugiSpec) => `${s.categoryId}:${s.id}`
+    const feedersOf = new Map<string, string[]>()
+    allSpecs.forEach(s => {
+        if (s.nextMatchId !== null) {
+            const targetKey = `${s.categoryId}:${s.nextMatchId}`
+            if (!feedersOf.has(targetKey)) feedersOf.set(targetKey, [])
+            feedersOf.get(targetKey)!.push(keyOf(s))
+        }
+    })
+
+    const placed = new Set<string>()
+    const isReady = (s: OrderedKyorugiSpec) => {
+        const feeders = feedersOf.get(keyOf(s))
+        return !feeders || feeders.every(f => placed.has(f))
+    }
+    const playersOf = (s: OrderedKyorugiSpec) => [s.player1?.id, s.player2?.id].filter((id): id is string => !!id)
+
+    const remaining = [...allSpecs]
+    const spaced: OrderedKyorugiSpec[] = []
+    const recentMatches: string[][] = [] // trailing window of the last 2 scheduled matches' player ids
+    const conflicts = (s: OrderedKyorugiSpec, gap: number) => {
+        const ids = new Set(recentMatches.slice(-gap).flat())
+        return playersOf(s).some(id => ids.has(id))
+    }
+
+    const LOOKAHEAD = 12
+    while (remaining.length > 0) {
+        const window = remaining.slice(0, Math.min(LOOKAHEAD, remaining.length))
+        let idx = window.findIndex(s => isReady(s) && !conflicts(s, 2))
+        if (idx === -1) idx = window.findIndex(s => isReady(s) && !conflicts(s, 1))
+        if (idx === -1) idx = window.findIndex(s => isReady(s))
+        if (idx === -1) idx = remaining.findIndex(s => isReady(s)) // guaranteed to exist
+        if (idx === -1) idx = 0 // unreachable given a valid topological input order
+
+        const [chosen] = remaining.splice(idx, 1)
+        spaced.push(chosen)
+        placed.add(keyOf(chosen))
+        recentMatches.push(playersOf(chosen))
+        if (recentMatches.length > 2) recentMatches.shift()
+    }
+
+    return spaced
+}
+
+export type OrderedPoomsaeSpec = PoomsaeMatchSpec & {
+    categoryId: string
+    categoryDisplayName: string
+    court: string
+    sharedMatchId: number
+    nextGroupSharedId: number | null
+    specDay: number
+}
+
+// Builds the exact final match order for a performance discipline (Poomsae/
+// Kyukpa) — per-category performance/pairing specs (uncontested-walkover
+// synthesis lives inside generatePoomsaeBracket itself, so every caller gets
+// it automatically), with global shared matchIds and each row's actual
+// scheduled day (respecting defer-to-day settings). Shared by
+// generateAllBrackets and simulateMatchSequence for the same reason as
+// buildOrderedKyorugiSpecs above — one source of truth, no drift.
+async function buildOrderedPoomsaeSpecs(
+    tournamentId: string,
+    type: 'POOMSAE' | 'KYUKPA',
+    seedOrders?: Record<string, string[]>
+): Promise<{ specs: OrderedPoomsaeSpec[]; seedOrderByCategory: Record<string, string[]> }> {
+    const categories = await prisma.category.findMany({
+        where: { tournamentId, type },
+        include: { players: { include: { club: true } } }
+    })
+    const validCategories = categories.filter(c => c.players.length > 0)
+
+    let currentGlobalMatchId = 1
+    const all: OrderedPoomsaeSpec[] = []
+    const seedOrderByCategory: Record<string, string[]> = {}
+
+    for (const category of validCategories) {
+        const effectiveOrder = (seedOrders?.[category.id] && seedOrders[category.id].length > 0)
+            ? seedOrders[category.id]
+            : category.seedOrder
+        const hasOrder = !!(effectiveOrder && effectiveOrder.length > 0)
+        const reconciledPlayers = hasOrder
+            ? reconcileSeedOrder(effectiveOrder!, category.players as any)
+            : category.players as any
+        seedOrderByCategory[category.id] = reconciledPlayers.map((p: any) => p.id)
+
+        const poomsaeSpecs = generatePoomsaeBracket(
+            reconciledPlayers,
+            category.subtype || 'INDIVIDUAL',
+            category.poomsaeForms,
+            category.poomsaeFormat as 'SCORED' | 'HEAD_TO_HEAD',
+            hasOrder
+        )
+
+        const distinctGroupIndices = Array.from(new Set(poomsaeSpecs.map(s => s.roundGroupIndex))).sort((a, b) => a - b)
+        const groupMapping = new Map<number, number>()
+        distinctGroupIndices.forEach(idx => { groupMapping.set(idx, currentGlobalMatchId++) })
+
+        const displayName = category.belt && !category.name.toLowerCase().includes(category.belt.toLowerCase())
+            ? `${category.name} ${category.belt}`
+            : category.name
+
+        const poomsaeTotalRounds = poomsaeSpecs.length > 0 ? Math.max(...poomsaeSpecs.map(s => s.round)) : 1
+
+        poomsaeSpecs.forEach(spec => {
+            const sharedMatchId = groupMapping.get(spec.roundGroupIndex) || 0
+            const nextGroupSharedId = spec.nextRoundGroupIndex !== undefined
+                ? (spec.nextRoundGroupIndex !== null ? groupMapping.get(spec.nextRoundGroupIndex) || null : null)
+                : groupMapping.get(spec.roundGroupIndex + 1) || null
+
+            const isFinalRound = spec.round === poomsaeTotalRounds
+            const isSemiOrFinal = spec.round >= poomsaeTotalRounds - 1
+            const catDay = category.scheduleDay ?? 1
+            const specDay = (category.deferSemisToDay && isSemiOrFinal) ? category.deferSemisToDay
+                : (isFinalRound && category.deferFinalsToDay) ? category.deferFinalsToDay : catDay
+
+            all.push({
+                ...spec,
+                categoryId: category.id,
+                categoryDisplayName: displayName,
+                court: category.court || 'Unassigned',
+                sharedMatchId,
+                nextGroupSharedId,
+                specDay,
+            })
+        })
+    }
+
+    return { specs: all, seedOrderByCategory }
+}
+
 export async function generateAllBrackets(
     tournamentId: string,
     type: 'KYORUGI' | 'POOMSAE' | 'KYUKPA',
@@ -565,287 +851,79 @@ export async function generateAllBrackets(
 
     if (type === 'POOMSAE' || type === 'KYUKPA') {
         // --- POOMSAE / KYUKPA GENERATION ---
+        // Ordering/numbering/day-computation lives in buildOrderedPoomsaeSpecs,
+        // shared with simulateMatchSequence so the two can never drift apart.
+        const { specs: orderedSpecs, seedOrderByCategory } = await buildOrderedPoomsaeSpecs(tournamentId, type, undefined)
 
-        // We need to execute sequentially or manage the shared ID counter carefully
-        // Since we are inside one action, we can just increment the local variable `currentGlobalMatchId`
+        const createPromises = orderedSpecs.flatMap(spec => {
+            const promises: any[] = [prisma.poomsaeMatch.create({
+                data: {
+                    categoryRefId: spec.categoryId,
+                    category: spec.categoryDisplayName,
+                    round: spec.round,
+                    matchId: spec.sharedMatchId,
+                    nextMatchId: spec.nextGroupSharedId,
+                    nextMatchSlot: spec.nextMatchSlot ?? undefined,
 
-        // --- POOMSAE GENERATION ---
+                    targetRank: spec.targetRank,
+                    performanceNumber: spec.performanceNumber,
+                    playerId: spec.playerId || undefined,
+                    displayName: spec.displayName || undefined,
+                    memberIds: spec.memberIds || undefined,
+                    memberNames: spec.memberNames || undefined,
+                    assignedForms: spec.assignedForms,
+                    // Normal specs are always 'Pending' — only the synthetic
+                    // uncontested-walkover spec comes pre-marked 'Completed'.
+                    status: spec.status,
+                    court: spec.court,
+                    scheduledDay: spec.specDay,
+                }
+            })]
 
-        // Always start from 1 for full sequential renumber
-        let currentGlobalMatchId = 1
+            if (spec.status === 'Completed') {
+                // A walkover winner never actually performs for a scoring app to
+                // report a medal back through the medals API — award it directly.
+                // TEAM/PAIR has no single playerId (uses memberIds instead), so
+                // every member individually gets credited.
+                const winnerIds = spec.playerId ? [spec.playerId] : (spec.memberIds || '').split(',').map(s => s.trim()).filter(Boolean)
+                if (winnerIds.length > 0) {
+                    promises.push(prisma.player.updateMany({ where: { id: { in: winnerIds } }, data: { medal: 'GOLD' } }))
+                }
+            }
 
-        for (const category of validCategories) {
-            const players = await prisma.player.findMany({
-                where: { categoryId: category.id },
-                include: { club: true }
-            })
-            // Reconcile seed order: use saved order if available, shuffle otherwise.
-            // Passing `hasOrder` through as `preOrdered` is what actually makes this
-            // reproduce that order instead of shuffling again internally.
-            const hasOrder = !!(category.seedOrder && category.seedOrder.length > 0)
-            const reconciledPlayers = hasOrder
-                ? reconcileSeedOrder(category.seedOrder, players)
-                : players
+            return promises
+        })
 
-            const poomsaeSpecs = generatePoomsaeBracket(
-                reconciledPlayers,
-                category.subtype || 'INDIVIDUAL',
-                category.poomsaeForms,
-                category.poomsaeFormat as 'SCORED' | 'HEAD_TO_HEAD',
-                hasOrder
+        await Promise.all(createPromises)
+
+        // Save seed order for each category
+        await Promise.all(
+            Object.entries(seedOrderByCategory).map(([categoryId, seedOrder]) =>
+                prisma.category.update({ where: { id: categoryId }, data: { seedOrder } })
             )
-
-            // Map roundGroupIndex -> Global Match ID
-            // Sort indices to ensure sequential ID assignment
-            const distinctGroupIndices = Array.from(new Set(poomsaeSpecs.map(s => s.roundGroupIndex))).sort((a, b) => a - b)
-            const groupMapping = new Map<number, number>()
-
-            distinctGroupIndices.forEach((idx) => {
-                groupMapping.set(idx, currentGlobalMatchId++)
-            })
-
-            // Construct full category name
-            const displayName = category.belt && !category.name.toLowerCase().includes(category.belt.toLowerCase())
-                ? `${category.name} ${category.belt}`
-                : category.name;
-
-            const createPromises = poomsaeSpecs.map(spec => {
-                const sharedMatchId = groupMapping.get(spec.roundGroupIndex) || 0
-                const nextGroupSharedId = spec.nextRoundGroupIndex !== undefined
-                    ? (spec.nextRoundGroupIndex !== null ? groupMapping.get(spec.nextRoundGroupIndex) || null : null)
-                    : groupMapping.get(spec.roundGroupIndex + 1) || null
-
-                // Compute scheduledDay for this poomsae match
-                const poomsaeTotalRounds = Math.max(...poomsaeSpecs.map(s => s.round))
-                const isFinalRound = spec.round === poomsaeTotalRounds
-                const isSemiOrFinal = spec.round >= poomsaeTotalRounds - 1
-                const catDay = category.scheduleDay ?? 1
-                const specDay = (category.deferSemisToDay && isSemiOrFinal) ? category.deferSemisToDay
-                    : (isFinalRound && category.deferFinalsToDay) ? category.deferFinalsToDay : catDay
-
-                return prisma.poomsaeMatch.create({
-                    data: {
-                        categoryRefId: category.id,
-                        category: displayName,
-                        round: spec.round,
-                        matchId: sharedMatchId,
-                        nextMatchId: nextGroupSharedId,
-                        nextMatchSlot: spec.nextMatchSlot ?? undefined,
-
-                        targetRank: spec.targetRank,
-                        performanceNumber: spec.performanceNumber,
-                        playerId: spec.playerId || undefined,
-                        displayName: spec.displayName || undefined,
-                        memberIds: spec.memberIds || undefined,
-                        memberNames: spec.memberNames || undefined,
-                        assignedForms: spec.assignedForms,
-                        status: 'Pending',
-                        court: category.court || "Unassigned",
-                        scheduledDay: specDay,
-                    }
-                })
-            })
-
-            await Promise.all(createPromises)
-
-            // Save seed order for this category
-            await prisma.category.update({
-                where: { id: category.id },
-                data: { seedOrder: reconciledPlayers.map(p => p.id) }
-            })
-        }
+        )
 
     } else {
-        // --- KYORUGI & KYUKPA GENERATION (interleaved by round, finals last) ---
+        // --- KYORUGI GENERATION (interleaved by round, finals last) ---
+        // Ordering/numbering/rest-spacing/uncontested-walkover handling all live
+        // in buildOrderedKyorugiSpecs, shared with simulateMatchSequence so the
+        // two can never drift apart.
 
-        // --- KYORUGI & KYUKPA GENERATION (interleaved by round, finals last) ---
-
-        // Always start from 1 for full sequential renumber
         let currentMatchNumber = 1
+        const allSpecs = await buildOrderedKyorugiSpecs(tournamentId, type as 'KYORUGI' | 'KYUKPA', editedSpecsByCategory, undefined)
 
-        // Skill level priority (lower = plays first)
-        const skillPriority: Record<string, number> = {
-            'novice': 1,
-            'intermediate': 2,
-            'advance': 3,
-            'advanced': 3,
-        };
-
-        type SpecWithCategory = ReturnType<typeof generateSingleEliminationBracket>[number] & {
-            categoryId: string;
-            categoryName: string;
-            court: string;
-            catMinAge: number;
-            catMinWeight: number;
-            catMinHeight: number;
-            catSkillPriority: number;
-            deferFinals: boolean;
-            scheduleDay: number;
-            deferFinalsToDay: number | null;
-            deferSemisToDay:  number | null;
-            totalRounds:      number;
-        };
-
-        const allSpecs: SpecWithCategory[] = [];
-
-        // Step 1: Generate brackets for all categories and collect specs
-        for (const category of validCategories) {
-            if (category.players.length < 2) continue;
-
-            const editedSpecsForCat = editedSpecsByCategory?.[category.id]
-            let specs: BracketMatchSpec[]
-
-            if (editedSpecsForCat && editedSpecsForCat.length > 0) {
-                // Exact reproduction of a hand-edited preview still open in the browser
-                // — same technique as generateBracketsForCategory: persist verbatim
-                // instead of re-deriving through the seeding algorithm, which would
-                // re-scramble the manual swap the user made.
-                const byId = new Map(category.players.map(p => [p.id, p]))
-                specs = editedSpecsForCat.map(s => ({
-                    id: s.id,
-                    round: s.round,
-                    player1: s.player1 ? (byId.get(s.player1.id) ?? null) : null,
-                    player2: s.player2 ? (byId.get(s.player2.id) ?? null) : null,
-                    nextMatchId: s.nextMatchId,
-                    nextMatchSlot: s.nextMatchSlot,
-                    isFinal: s.isFinal,
-                }))
-            } else {
-                // Reconcile seed order: use saved order if available, otherwise shuffle.
-                // Passing reconciledPlayers as preOrderedPlayers too is what actually
-                // makes this reproduce that order instead of shuffling again.
-                const hasOrder = !!(category.seedOrder && category.seedOrder.length > 0)
-                const reconciledPlayers = hasOrder
-                    ? reconcileSeedOrder(category.seedOrder, category.players)
-                    : category.players
-                specs = hasOrder
-                    ? generateSingleEliminationBracket(reconciledPlayers, 1, reconciledPlayers)
-                    : generateSingleEliminationBracket(reconciledPlayers)
-            }
-            const catMinAge = category.minAge ?? 999;
-            const catMinWeight = category.minWeight ?? 999;
-            const catMinHeight = category.minHeight ?? 999;
-            const catSkillPriority = skillPriority[(category.skillLevel || 'novice').toLowerCase()] || 1;
-
-            const catTotalRounds = specs.length > 0 ? Math.max(...specs.map(s => s.round)) : 1;
-            specs.forEach(s => {
-                allSpecs.push({
-                    ...s,
-                    categoryId: category.id,
-                    categoryName: category.name,
-                    court: category.court || "Unassigned",
-                    catMinAge,
-                    catMinWeight,
-                    catMinHeight,
-                    catSkillPriority,
-                    deferFinals:      category.deferFinals,
-                    scheduleDay:      category.scheduleDay      ?? 1,
-                    deferFinalsToDay: category.deferFinalsToDay ?? null,
-                    deferSemisToDay:  (category as any).deferSemisToDay  ?? null,
-                    totalRounds:      catTotalRounds,
-                });
-            });
-        }
-
-        // Step 2: Sort globally — day first, then existing ordering within each day
-        allSpecs.sort((a, b) => {
-            // Compute effective day (semis+finals deferral takes priority over finals-only)
-            const aIsSemiOrFinal = a.round >= a.totalRounds - 1
-            const bIsSemiOrFinal = b.round >= b.totalRounds - 1
-            const aDay = (a.deferSemisToDay && aIsSemiOrFinal) ? a.deferSemisToDay
-                : (a.isFinal && a.deferFinalsToDay) ? a.deferFinalsToDay : a.scheduleDay
-            const bDay = (b.deferSemisToDay && bIsSemiOrFinal) ? b.deferSemisToDay
-                : (b.isFinal && b.deferFinalsToDay) ? b.deferFinalsToDay : b.scheduleDay
-            if (aDay !== bDay) return aDay - bDay
-
-            // Within same day: deferred-finals-only (end of day) go last
-            const aDef = a.isFinal && a.deferFinals && !a.deferFinalsToDay && !a.deferSemisToDay
-            const bDef = b.isFinal && b.deferFinals && !b.deferFinalsToDay && !b.deferSemisToDay
-            if (aDef && !bDef) return 1
-            if (!aDef && bDef) return -1
-
-            const aGroupByCategory = !a.deferFinals && !a.deferSemisToDay
-            const bGroupByCategory = !b.deferFinals && !b.deferSemisToDay
-
-            if (aGroupByCategory && bGroupByCategory) {
-                if (a.catMinAge !== b.catMinAge) return a.catMinAge - b.catMinAge
-                if (a.catMinWeight !== b.catMinWeight) return a.catMinWeight - b.catMinWeight
-                if (a.catMinHeight !== b.catMinHeight) return a.catMinHeight - b.catMinHeight
-                if (a.catSkillPriority !== b.catSkillPriority) return a.catSkillPriority - b.catSkillPriority
-                if (a.round !== b.round) return a.round - b.round
-                return a.id - b.id
-            }
-            if (!aGroupByCategory && !bGroupByCategory) {
-                if (a.round !== b.round) return a.round - b.round
-                if (a.catMinAge !== b.catMinAge) return a.catMinAge - b.catMinAge
-                if (a.catMinWeight !== b.catMinWeight) return a.catMinWeight - b.catMinWeight
-                if (a.catMinHeight !== b.catMinHeight) return a.catMinHeight - b.catMinHeight
-                if (a.catSkillPriority !== b.catSkillPriority) return a.catSkillPriority - b.catSkillPriority
-                return a.id - b.id
-            }
-            return aGroupByCategory ? -1 : 1
-        })
-
-        // Step 2.5: Rest spacing — a player shouldn't be scheduled again too soon
-        // after their previous match. Prefers a 2-match gap, falls back to a
-        // 1-match gap when 2 isn't achievable nearby, and only reorders within a
-        // small local lookahead so it never disturbs the day/category/skill-level
-        // ordering established above. Never schedules a match before the match(es)
-        // that feed it (isReady), which the round-ascending sort above guarantees
-        // is always satisfiable.
-        const keyOf = (s: SpecWithCategory) => `${s.categoryId}:${s.id}`
-        const feedersOf = new Map<string, string[]>()
-        allSpecs.forEach(s => {
-            if (s.nextMatchId !== null) {
-                const targetKey = `${s.categoryId}:${s.nextMatchId}`
-                if (!feedersOf.has(targetKey)) feedersOf.set(targetKey, [])
-                feedersOf.get(targetKey)!.push(keyOf(s))
-            }
-        })
-
-        const placed = new Set<string>()
-        const isReady = (s: SpecWithCategory) => {
-            const feeders = feedersOf.get(keyOf(s))
-            return !feeders || feeders.every(f => placed.has(f))
-        }
-        const playersOf = (s: SpecWithCategory) => [s.player1?.id, s.player2?.id].filter((id): id is string => !!id)
-
-        const remaining = [...allSpecs]
-        const spaced: SpecWithCategory[] = []
-        const recentMatches: string[][] = [] // trailing window of the last 2 scheduled matches' player ids
-        const conflicts = (s: SpecWithCategory, gap: number) => {
-            const ids = new Set(recentMatches.slice(-gap).flat())
-            return playersOf(s).some(id => ids.has(id))
-        }
-
-        const LOOKAHEAD = 12
-        while (remaining.length > 0) {
-            // window's indices line up 1:1 with remaining's (it's remaining's own prefix),
-            // so whatever index we settle on is directly valid for remaining.splice below.
-            const window = remaining.slice(0, Math.min(LOOKAHEAD, remaining.length))
-            let idx = window.findIndex(s => isReady(s) && !conflicts(s, 2))
-            if (idx === -1) idx = window.findIndex(s => isReady(s) && !conflicts(s, 1))
-            if (idx === -1) idx = window.findIndex(s => isReady(s))
-            if (idx === -1) idx = remaining.findIndex(s => isReady(s)) // guaranteed to exist
-            if (idx === -1) idx = 0 // unreachable given a valid topological input order
-
-            const [chosen] = remaining.splice(idx, 1)
-            spaced.push(chosen)
-            placed.add(keyOf(chosen))
-            recentMatches.push(playersOf(chosen))
-            if (recentMatches.length > 2) recentMatches.shift()
-        }
-
-        allSpecs.length = 0
-        allSpecs.push(...spaced)
-
-        // Step 3: Insert matches (Pass 1)
+        // Insert matches (Pass 1)
         const idLookup = new Map<string, number>();
 
         for (const spec of allSpecs) {
             const isSemiOrFinal = spec.round >= spec.totalRounds - 1
             const specDay = (spec.deferSemisToDay && isSemiOrFinal) ? spec.deferSemisToDay
                 : (spec.isFinal && spec.deferFinalsToDay) ? spec.deferFinalsToDay : spec.scheduleDay
+            // A real bracket never produces a null player2 (byes are absorbed into
+            // slot placement, not written as matches) — the only source is the
+            // synthetic uncontested-walkover spec from buildOrderedKyorugiSpecs,
+            // so this is an unambiguous signal to write it as a resolved walkover.
+            const isWalkover = !!spec.player1 && !spec.player2
             const createdMatch = await prisma.match.create({
                 data: {
                     categoryRefId: spec.categoryId,
@@ -853,14 +931,21 @@ export async function generateAllBrackets(
                     round: spec.round,
                     matchId: currentMatchNumber++,
                     player1: spec.player1?.name || "TBD",
-                    player2: spec.player2?.name || "TBD",
-                    winner: null,
+                    player2: isWalkover ? 'BYE' : (spec.player2?.name || "TBD"),
+                    winner: isWalkover ? spec.player1!.name : null,
                     nextMatchSlot: spec.nextMatchSlot,
                     court: spec.court,
                     scheduledDay: specDay,
                 }
             })
             idLookup.set(`${spec.categoryId}:${spec.id}`, createdMatch.id)
+
+            // A walkover winner never plays a real match for a scoring app to report
+            // back through the medals API, so award Gold directly here — same as
+            // createUncontestedWalkoverMatch does for the single-category path.
+            if (isWalkover) {
+                await prisma.player.update({ where: { id: spec.player1!.id }, data: { medal: 'GOLD' } })
+            }
         }
 
         // Step 4: Link nextMatchId (Pass 2)
@@ -907,6 +992,60 @@ export async function generateAllBrackets(
 
     revalidatePath(`/tournament/${tournamentId}`)
     return { success: true, count: validCategories.length }
+}
+
+// Creates the single terminal match that represents an uncontested KYORUGI
+// category (exactly one athlete, no opponent at all): player1 = the lone
+// athlete, player2 = 'BYE', winner already set since there's no bout to play.
+// Also directly awards Gold — a walkover winner never plays a real match for a
+// scoring app to report back through the medals API, so without this the
+// medal tally would never count them at all. Being the sole entrant in the
+// entire category, Gold is the only placement that can exist here (no
+// silver/bronze possible with one athlete).
+// Only ever called at actual generation time (generateBracketsForCategory's
+// single-player branch, or forceExecuteSmartAction's WITHDRAW→regeneration
+// path) — NOT when WALKOVER is merely chosen, so nothing in the bracket
+// changes until the organiser actually clicks Generate.
+async function createUncontestedWalkoverMatch(categoryId: string, player: { id: string; name: string }) {
+    const category = await prisma.category.findUnique({ where: { id: categoryId } })
+    if (!category) return null
+
+    await prisma.match.deleteMany({ where: { categoryRefId: categoryId } })
+
+    const maxMatch = await prisma.match.findFirst({
+        where: { categoryRef: { tournamentId: category.tournamentId } },
+        orderBy: { matchId: 'desc' },
+        select: { matchId: true }
+    })
+    const matchId = (maxMatch?.matchId || 0) + 1
+
+    await prisma.match.create({
+        data: {
+            categoryRefId: categoryId,
+            category: category.name,
+            round: 1,
+            matchId,
+            player1: player.name,
+            player2: 'BYE',
+            winner: player.name,
+            court: category.court || 'Unassigned',
+            // Without this, the match's scheduledDay stays null and never matches
+            // any day's filter (`matches.some(m => m.scheduledDay === d)`) — the
+            // category silently drops out of the per-day "Download Bracket PDFs"
+            // panel even though it's fully generated.
+            scheduledDay: category.scheduleDay ?? 1,
+        }
+    })
+
+    await prisma.player.update({ where: { id: player.id }, data: { medal: 'GOLD' } })
+
+    await prisma.tournament.update({
+        where: { id: category.tournamentId },
+        data: { match_count: matchId }
+    })
+
+    revalidatePath(`/tournament/${category.tournamentId}`)
+    return category
 }
 
 export async function generateBracketsForCategory(
@@ -1019,11 +1158,26 @@ export async function generateBracketsForCategory(
                     memberIds: spec.memberIds || undefined,
                     memberNames: spec.memberNames || undefined,
                     assignedForms: spec.assignedForms,
-                    status: 'Pending',
+                    // Normal specs are always 'Pending' (see generatePoomsaeBracket) —
+                    // only the synthetic uncontested-walkover spec comes pre-marked
+                    // 'Completed', so respecting it here is what actually lets a solo
+                    // HEAD_TO_HEAD performer resolve as champion at generation time.
+                    status: spec.status,
                     court: category.court || "Unassigned",
                     scheduledDay: category.scheduleDay ?? 1,
                 }
             })
+
+            if (spec.status === 'Completed') {
+                // A walkover winner never actually performs for a scoring app to
+                // report a medal back through the medals API — award it directly.
+                // TEAM/PAIR has no single playerId (uses memberIds instead), so
+                // every member individually gets credited.
+                const winnerIds = spec.playerId ? [spec.playerId] : (spec.memberIds || '').split(',').map(s => s.trim()).filter(Boolean)
+                if (winnerIds.length > 0) {
+                    await prisma.player.updateMany({ where: { id: { in: winnerIds } }, data: { medal: 'GOLD' } })
+                }
+            }
         }
 
         // Update tournament match_count
@@ -1043,7 +1197,16 @@ export async function generateBracketsForCategory(
     }
 
     // KYORUGI LOGIC (Default)
-    if (players.length < 2) return
+    if (players.length === 0) return
+
+    if (players.length === 1) {
+        if (players[0].registrationStatus === 'WITHDRAWN') return // no legitimate athlete remains
+        // Uncontested — no opponent at all. Auto-resolve as a walkover instead of
+        // silently generating nothing, so "Generate"/"Generate All" always produces
+        // a result for every category with at least one athlete.
+        await createUncontestedWalkoverMatch(categoryId, players[0])
+        return
+    }
 
     await prisma.match.deleteMany({
         where: { categoryRefId: categoryId }
@@ -4057,7 +4220,7 @@ export async function getResolutionHistory(tournamentId: string) {
     const resolved = await prisma.smartProposal.findMany({
         where: {
             tournamentId,
-            status: 'EXECUTED'
+            status: 'COMPLETED' // forceExecuteSmartAction always sets this on completion — was mismatched to 'EXECUTED' here, so this history was silently always empty
         },
         include: {
             votes: true
@@ -4123,6 +4286,9 @@ export async function bulkSendUncontestedProposals(
 
         // Scope to club if requested
         if (clubId && alertClub !== clubId) { skipped++; continue }
+
+        // Already decided (e.g. WALKOVER, pending Generate) — don't re-propose
+        if (alert.details?.resolution) { alreadyPending++; continue }
 
         // Skip if a proposal already exists for this player
         if (pendingPlayerIds.has(playerId)) { alreadyPending++; continue }
@@ -4309,8 +4475,15 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
         }
         // ───────────────────────────────────────────────────────────────────────
 
+        // Hoisted so the final "mark completed" step below can persist which
+        // decision was made back onto the proposal's own data — needed because an
+        // organiser force-executing a WALKOVER never creates a SmartProposalVote
+        // row (that only happens when a club votes), so without this the decision
+        // would be lost the moment status flips to COMPLETED.
+        let decision: string | undefined
+
         if (proposal.type === 'UNCONTESTED' || proposal.type === 'CROSS_DIVISION') {
-            let decision = overrideVote
+            decision = overrideVote
 
             if (!decision) {
                 const vote = await prisma.smartProposalVote.findFirst({ where: { proposalId } })
@@ -4364,12 +4537,26 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
                     }
                 }
             } else if (decision === 'WITHDRAW') {
-                await prisma.player.update({
-                    where: { id: data.playerId },
-                    data: { registrationStatus: 'WITHDRAWN' }
-                })
+                // Actually remove them from the tournament (not just flag a status) —
+                // reuses the same path as the admin's manual "Remove Player" action,
+                // which also auto-regenerates brackets for the discipline if any were
+                // already generated (which in turn auto-walkovers any category this
+                // leaves uncontested, via the generateAllBrackets fix above).
+                const removeResult = await removePlayerFromTournament(data.playerId, proposal.tournamentId)
+                if ((removeResult as any)?.error) {
+                    // Bail out WITHOUT marking the proposal completed below — the
+                    // player is still in the tournament, so the alert must keep
+                    // showing as unresolved, not silently look "handled."
+                    return { error: (removeResult as any).error }
+                }
             }
-            // WALKOVER: Do nothing, just mark proposal complete (handled at end)
+            // WALKOVER: no data mutation here — this only records the decision (via
+            // the proposal update below). The actual match isn't created until the
+            // organiser clicks Generate/Generate All, which is when
+            // createUncontestedWalkoverMatch (or generateAllBrackets's equivalent
+            // inline path) actually runs for this category. detectSmartAlerts reads
+            // the persisted decision to show "Walkover" instead of "Uncontested" in
+            // the meantime, without anything in the bracket actually changing yet.
         }
         else if (proposal.type === 'MERGE') {
             const { sourceCategoryId, targetCategoryId } = data
@@ -4476,10 +4663,15 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
             }
         }
 
-        // Mark Proposal Completed
+        // Mark Proposal Completed — also persist which decision was made (only
+        // meaningful for UNCONTESTED/CROSS_DIVISION) so detectSmartAlerts can later
+        // tell a WALKOVER-pending category apart from a still-unresolved one.
         await prisma.smartProposal.update({
             where: { id: proposalId },
-            data: { status: 'COMPLETED' }
+            data: {
+                status: 'COMPLETED',
+                ...(decision ? { data: JSON.stringify({ ...data, decision }) } : {}),
+            }
         })
 
         revalidatePath(`/organization`)
@@ -5225,6 +5417,23 @@ async function buildCategoryPreview(categoryId: string, forceReshuffle: boolean)
         )
     } else if (cat.type === 'KYORUGI' && cat.players.length >= 2) {
         kyorugiSpecs = generateSingleEliminationBracket(orderedPlayers, 1, orderedPlayers)
+    } else if (cat.type === 'KYORUGI' && cat.players.length === 1) {
+        // Uncontested — a lone player with no opponent. generateSingleEliminationBracket
+        // refuses anything under 2 players, so PreviewBracketTree would otherwise render
+        // its "Not enough players" placeholder and hide this player's name/club entirely,
+        // forcing the organiser to go find them via the Uncontested alerts list instead.
+        // Synthesize a single finals-style card (id is local-only — never sent through
+        // generateBracketsForCategory, which is separately gated to playerCount >= 2)
+        // so the preview surfaces the name/club directly, same as any other category.
+        kyorugiSpecs = [{
+            id: 0,
+            round: 1,
+            player1: orderedPlayers[0],
+            player2: null,
+            nextMatchId: null,
+            nextMatchSlot: null,
+            isFinal: true,
+        }]
     }
 
     return {
@@ -5296,121 +5505,30 @@ export async function simulateMatchSequence(
 ) {
     if (!tournamentId) return { success: false, message: 'Missing tournament ID' }
 
-    const categories = await prisma.category.findMany({
-        where: { tournamentId, type },
-        include: { players: { include: { club: true } } }
-    })
-    
-    const validCategories = categories.filter(c => c.players.length > 0)
     const result: Record<string, Record<number, { globalId: number, day: number }>> = {} // categoryId -> { spec.id -> { globalId, day } }
 
+    // Both branches below reuse the exact same ordering functions generateAllBrackets
+    // itself uses — this is what guarantees the simulated numbers can never drift
+    // from what "Generate All" actually produces (rest-spacing, uncontested-walkover
+    // synthesis, and defer-to-day math all included).
     if (type === 'POOMSAE' || type === 'KYUKPA') {
-        let currentMatchNumber = 1
-
-        for (const category of validCategories) {
-            // Reuse the persisted seed order (set the first time this category's
-            // preview was loaded) so the simulated numbering matches what
-            // "Generate This Category" will actually produce, instead of a fresh
-            // random draw every time this is run.
-            const hasOrder = !!(category.seedOrder && category.seedOrder.length > 0)
-            const orderedPlayers = hasOrder ? reconcileSeedOrder(category.seedOrder, category.players as any[]) : category.players
-            const poomsaeSpecs = generatePoomsaeBracket(orderedPlayers as any, category.subtype || 'INDIVIDUAL', category.poomsaeForms, category.poomsaeFormat as 'SCORED' | 'HEAD_TO_HEAD', hasOrder)
-            const distinctGroupIndices = Array.from(new Set(poomsaeSpecs.map(s => s.roundGroupIndex))).sort((a, b) => a - b)
-            const groupMapping = new Map<number, number>()
-            distinctGroupIndices.forEach(idx => { groupMapping.set(idx, currentMatchNumber++) })
-            
-            result[category.id] = {}
-            poomsaeSpecs.forEach(s => {
-                // Keyed by roundGroupIndex (the same "shared match record" grouping key
-                // generateBracketsForCategory uses): for SCORED, one entry per round
-                // (every slot in a round shares one roundGroupIndex); for HEAD_TO_HEAD,
-                // one entry per pairing (each pairing has its own roundGroupIndex) —
-                // keying by round alone would collapse multiple HEAD_TO_HEAD pairings
-                // in the same round down to a single number.
-                if (!result[category.id][s.roundGroupIndex]) {
-                    result[category.id][s.roundGroupIndex] = { globalId: groupMapping.get(s.roundGroupIndex) || 0, day: category.scheduleDay ?? 1 }
-                }
-            })
+        const { specs: orderedSpecs } = await buildOrderedPoomsaeSpecs(tournamentId, type, seedOrders)
+        for (const spec of orderedSpecs) {
+            if (!result[spec.categoryId]) result[spec.categoryId] = {}
+            // Keyed by roundGroupIndex (the same "shared match record" grouping key
+            // generateBracketsForCategory uses): for SCORED, one entry per round
+            // (every slot in a round shares one roundGroupIndex); for HEAD_TO_HEAD,
+            // one entry per pairing (each pairing has its own roundGroupIndex) —
+            // keying by round alone would collapse multiple HEAD_TO_HEAD pairings
+            // in the same round down to a single number.
+            if (!result[spec.categoryId][spec.roundGroupIndex]) {
+                result[spec.categoryId][spec.roundGroupIndex] = { globalId: spec.sharedMatchId, day: spec.specDay }
+            }
         }
     } else {
+        const orderedSpecs = await buildOrderedKyorugiSpecs(tournamentId, type as 'KYORUGI' | 'KYUKPA', undefined, seedOrders)
         let currentMatchNumber = 1
-
-        const skillPriority: Record<string, number> = { 'novice': 1, 'intermediate': 2, 'advance': 3, 'advanced': 3 }
-
-        type SpecWithCategory = ReturnType<typeof generateSingleEliminationBracket>[number] & {
-            categoryId: string; catMinAge: number; catMinWeight: number; catMinHeight: number;
-            catSkillPriority: number; deferFinals: boolean; scheduleDay: number;
-            deferFinalsToDay: number | null; deferSemisToDay: number | null; totalRounds: number;
-        }
-
-        const allSpecs: SpecWithCategory[] = []
-
-        for (const category of validCategories) {
-            if (category.players.length < 2) continue
-            let preOrdered: typeof category.players | undefined = undefined
-            // Same fallback as above: prefer an explicitly passed-in order, otherwise
-            // fall back to the persisted seed order from this category's last preview.
-            // Uses the same reconcileSeedOrder as buildCategoryPreview/
-            // generateBracketsForCategory (merges in any newly-added players instead
-            // of silently falling back to a fresh random shuffle) so the simulated
-            // ids always match what's actually shown in the preview.
-            const order = (seedOrders[category.id] && seedOrders[category.id].length > 0)
-                ? seedOrders[category.id]
-                : category.seedOrder
-            if (order && order.length > 0) {
-                preOrdered = reconcileSeedOrder(order, category.players as any[]) as typeof category.players
-            }
-            const specs = generateSingleEliminationBracket(category.players, 1, preOrdered)
-
-            const catTotalRounds = specs.length > 0 ? Math.max(...specs.map(s => s.round)) : 1
-            specs.forEach(s => {
-                allSpecs.push({
-                    ...s, categoryId: category.id,
-                    catMinAge: category.minAge ?? 999, catMinWeight: category.minWeight ?? 999, catMinHeight: category.minHeight ?? 999,
-                    catSkillPriority: skillPriority[(category.skillLevel || 'novice').toLowerCase()] || 1,
-                    deferFinals: category.deferFinals, scheduleDay: category.scheduleDay ?? 1,
-                    deferFinalsToDay: category.deferFinalsToDay ?? null,
-                    deferSemisToDay:  (category as any).deferSemisToDay  ?? null,
-                    totalRounds:      catTotalRounds,
-                })
-            })
-        }
-
-        allSpecs.sort((a, b) => {
-            const aIsSemiOrFinal = a.round >= a.totalRounds - 1
-            const bIsSemiOrFinal = b.round >= b.totalRounds - 1
-            const aDay = (a.deferSemisToDay && aIsSemiOrFinal) ? a.deferSemisToDay
-                : (a.isFinal && a.deferFinalsToDay) ? a.deferFinalsToDay : a.scheduleDay
-            const bDay = (b.deferSemisToDay && bIsSemiOrFinal) ? b.deferSemisToDay
-                : (b.isFinal && b.deferFinalsToDay) ? b.deferFinalsToDay : b.scheduleDay
-            if (aDay !== bDay) return aDay - bDay
-
-            const aDef = a.isFinal && a.deferFinals && !a.deferFinalsToDay && !a.deferSemisToDay
-            const bDef = b.isFinal && b.deferFinals && !b.deferFinalsToDay && !b.deferSemisToDay
-            if (aDef && !bDef) return 1
-            if (!aDef && bDef) return -1
-            const aGroup = !a.deferFinals && !a.deferSemisToDay
-            const bGroup = !b.deferFinals && !b.deferSemisToDay
-            if (aGroup && bGroup) {
-                if (a.catMinAge !== b.catMinAge) return a.catMinAge - b.catMinAge
-                if (a.catMinWeight !== b.catMinWeight) return a.catMinWeight - b.catMinWeight
-                if (a.catMinHeight !== b.catMinHeight) return a.catMinHeight - b.catMinHeight
-                if (a.catSkillPriority !== b.catSkillPriority) return a.catSkillPriority - b.catSkillPriority
-                if (a.round !== b.round) return a.round - b.round
-                return a.id - b.id
-            }
-            if (!aGroup && !bGroup) {
-                if (a.round !== b.round) return a.round - b.round
-                if (a.catMinAge !== b.catMinAge) return a.catMinAge - b.catMinAge
-                if (a.catMinWeight !== b.catMinWeight) return a.catMinWeight - b.catMinWeight
-                if (a.catMinHeight !== b.catMinHeight) return a.catMinHeight - b.catMinHeight
-                if (a.catSkillPriority !== b.catSkillPriority) return a.catSkillPriority - b.catSkillPriority
-                return a.id - b.id
-            }
-            return aGroup ? -1 : 1
-        })
-
-        allSpecs.forEach(spec => {
+        orderedSpecs.forEach(spec => {
             if (!result[spec.categoryId]) result[spec.categoryId] = {}
             const isSemiOrFinal = spec.round >= spec.totalRounds - 1
             const specDay = (spec.deferSemisToDay && isSemiOrFinal) ? spec.deferSemisToDay
@@ -5420,6 +5538,68 @@ export async function simulateMatchSequence(
     }
 
     return { success: true, mapping: result }
+}
+
+// Flat running-order match list for a not-yet-generated day — the preview
+// equivalent of buildDayScheduleRows (which reads real persisted matches).
+// Reuses the exact same ordering helpers as generateAllBrackets/
+// simulateMatchSequence, so the numbers here are guaranteed to match what
+// Generate All will actually assign once run, not just an approximation.
+export async function previewDayMatchSchedule(
+    tournamentId: string,
+    type: 'KYORUGI' | 'POOMSAE' | 'KYUKPA',
+    day: number
+) {
+    const rows: { matchId: number; categoryName: string; round: number; isFinal: boolean; court: string; player1Name: string; player2Name: string }[] = []
+
+    if (type === 'POOMSAE' || type === 'KYUKPA') {
+        const { specs: orderedSpecs } = await buildOrderedPoomsaeSpecs(tournamentId, type, undefined)
+        const grouped = new Map<number, { names: string[]; round: number; court: string; categoryName: string; day: number }>()
+        for (const spec of orderedSpecs) {
+            if (spec.specDay !== day) continue
+            if (!grouped.has(spec.sharedMatchId)) {
+                grouped.set(spec.sharedMatchId, { names: [], round: spec.round, court: spec.court, categoryName: spec.categoryDisplayName, day: spec.specDay })
+            }
+            const name = spec.player?.name || spec.displayName || ''
+            if (name) grouped.get(spec.sharedMatchId)!.names.push(name)
+        }
+        for (const [mid, g] of grouped) {
+            rows.push({
+                matchId: mid,
+                categoryName: g.categoryName,
+                round: g.round,
+                // Same simplification the real (generated) match list already uses —
+                // Poomsae's scored format always tops out at round 3.
+                isFinal: g.round === 3,
+                court: g.court,
+                player1Name: g.names.join(', '),
+                player2Name: '',
+            })
+        }
+    } else {
+        const orderedSpecs = await buildOrderedKyorugiSpecs(tournamentId, type as 'KYORUGI' | 'KYUKPA', undefined, undefined)
+        let currentMatchNumber = 1
+        for (const spec of orderedSpecs) {
+            const isSemiOrFinal = spec.round >= spec.totalRounds - 1
+            const specDay = (spec.deferSemisToDay && isSemiOrFinal) ? spec.deferSemisToDay
+                : (spec.isFinal && spec.deferFinalsToDay) ? spec.deferFinalsToDay : spec.scheduleDay
+            const globalId = currentMatchNumber++
+            if (specDay !== day) continue
+            const isWalkover = !!spec.player1 && !spec.player2
+            rows.push({
+                matchId: globalId,
+                categoryName: spec.categoryName,
+                round: spec.round,
+                isFinal: spec.isFinal,
+                court: spec.court,
+                player1Name: spec.player1?.name || 'TBD',
+                player2Name: isWalkover ? 'BYE' : (spec.player2?.name || 'TBD'),
+            })
+        }
+    }
+
+    rows.sort((a, b) => a.matchId - b.matchId)
+    return rows
 }
 
 // ─────────────────────────────────────────────────────────────

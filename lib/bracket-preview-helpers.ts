@@ -1,6 +1,9 @@
 // Shared types/helpers for the inline bracket-preview UI in BracketList.tsx
 // (ported from the old BracketPreviewModal.tsx, restyled for a light theme).
 
+import type { Match } from '@prisma/client'
+import type { ExtendedPoomsaeMatch } from '@/components/PoomsaeBracketView'
+
 export interface PreviewPlayer {
     id: string
     name: string
@@ -115,4 +118,74 @@ export function extractSeedOrder(specs: PreviewMatch[]): string[] {
         if (m.player2 && !r1PlayerIds.has(m.player2.id)) { ids.push(m.player2.id); r1PlayerIds.add(m.player2.id) }
     }
     return ids
+}
+
+// ─── Preview → PDF-shaped data ──────────────────────────────────────────────
+// Lets the "Download Bracket PDFs" flow reuse the exact same BracketPDF /
+// PoomsaeBracketPDF renderers for a category that hasn't been generated yet —
+// so organisers can send a draft to clubs for verification before locking
+// anything in. Only the fields those renderers actually read are filled in;
+// the rest are inert placeholders since no real match rows exist yet.
+
+// Kyorugi/Kyukpa: a preview spec never has both player1 AND player2 null (that
+// combination only exists for real BYE-filler matches, which this app's
+// generator never produces — see bracket-logic.ts). A null player2 only ever
+// means the single-player uncontested-walkover synthetic spec, so it's an
+// unambiguous signal to render it as an already-decided walkover, matching
+// what createUncontestedWalkoverMatch would persist if this were generated.
+export function previewSpecsToPdfMatches(specs: PreviewMatch[], categoryName: string): Match[] {
+    return specs.map(s => ({
+        id: s.id,
+        category: categoryName,
+        categoryRefId: null,
+        round: s.round,
+        player1: s.player1?.name || 'TBD',
+        player2: s.player2 ? s.player2.name : (s.player1 ? 'BYE' : 'TBD'),
+        winner: (s.player1 && !s.player2) ? s.player1.name : null,
+        nextMatchId: s.nextMatchId,
+        nextMatchSlot: s.nextMatchSlot,
+        matchId: s.id,
+        court: '',
+        scheduledDay: null,
+        r1_blue_score: 0, r1_red_score: 0,
+        r2_blue_score: 0, r2_red_score: 0,
+        r3_blue_score: 0, r3_red_score: 0,
+        total_blue_score: 0, total_red_score: 0,
+        blue_gam_jeom: 0, red_gam_jeom: 0,
+        blue_rounds_won: 0, red_rounds_won: 0,
+    }))
+}
+
+// Poomsae/Kyukpa-poomsae: joins each slot's playerId against the preview's own
+// top-level `players[]` (which carries clubName) since poomsaeSpecs itself has
+// no club info. `roundGroupIndex` stands in for the real `matchId` grouping key
+// PoomsaeBracketPDF groups rows by — it plays the identical role pre-generation.
+export function poomsaePreviewToPdfMatches(
+    poomsaeSpecs: PoomsaePreviewSlot[],
+    players: PreviewPlayer[]
+): ExtendedPoomsaeMatch[] {
+    const clubByPlayerId = new Map(players.map(p => [p.id, p.clubName]))
+    // A group of exactly 1 (no sibling sharing the same roundGroupIndex) only
+    // happens for an uncontested walkover — mark it 'Completed' so the PDF's
+    // winner badge shows it as already decided, matching what generation will
+    // actually persist. Mirrors Kyorugi's preview mapper marking a null-player2
+    // spec as already having a winner.
+    const groupSizes = new Map<number, number>()
+    for (const s of poomsaeSpecs) groupSizes.set(s.roundGroupIndex, (groupSizes.get(s.roundGroupIndex) || 0) + 1)
+
+    return poomsaeSpecs.map((s, idx) => ({
+        id: idx,
+        matchId: s.roundGroupIndex,
+        nextMatchId: s.nextRoundGroupIndex ?? null,
+        round: s.round,
+        performanceNumber: s.performanceNumber,
+        playerId: s.playerId,
+        displayName: s.displayName,
+        memberNames: s.memberNames,
+        assignedForms: s.assignedForms,
+        targetRank: s.targetRank,
+        status: groupSizes.get(s.roundGroupIndex) === 1 ? 'Completed' : 'Pending',
+        totalScore: 0,
+        player: s.playerId ? { name: s.playerName || 'TBD', club: { name: clubByPlayerId.get(s.playerId) || null } } : null,
+    })) as unknown as ExtendedPoomsaeMatch[]
 }

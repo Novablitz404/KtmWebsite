@@ -189,7 +189,12 @@ function MatchCard({ match, maxRound, side, feederMap, isPreview, simulatedMatch
                 <div className={`px-3 py-2 flex justify-between items-center border-b border-gray-100 relative ${match.winner === match.player1 ? 'bg-blue-50/60' : ''}`}>
                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 rounded-r" />
                     <div className="flex flex-col pl-2 min-w-0 flex-1">
-                        <span className="text-[9px] text-blue-600 font-bold uppercase tracking-wider mb-0.5">Chong (Blue)</span>
+                        <div className="flex items-center gap-1 mb-0.5">
+                            <span className="text-[9px] text-blue-600 font-bold uppercase tracking-wider">Chong (Blue)</span>
+                            {match.winner === match.player1 && match.player1 !== 'BYE' && (
+                                <span className="text-[8px] font-black uppercase tracking-wide text-emerald-700 bg-emerald-100 px-1.5 py-[1px] rounded-full">Winner</span>
+                            )}
+                        </div>
                         <span className={`text-sm truncate transition-colors ${match.winner ? (match.winner === match.player1 ? 'font-black text-gray-900' : 'font-medium text-gray-400 line-through decoration-2') : 'font-bold text-gray-800'}`}>
                             {displayName(match.player1, 'player1')}
                         </span>
@@ -201,7 +206,12 @@ function MatchCard({ match, maxRound, side, feederMap, isPreview, simulatedMatch
                 <div className={`px-3 py-2 flex justify-between items-center relative ${match.winner === match.player2 ? 'bg-red-50/60' : ''}`}>
                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-500 rounded-r" />
                     <div className="flex flex-col pl-2 min-w-0 flex-1">
-                        <span className="text-[9px] text-red-600 font-bold uppercase tracking-wider mb-0.5">Hong (Red)</span>
+                        <div className="flex items-center gap-1 mb-0.5">
+                            <span className="text-[9px] text-red-600 font-bold uppercase tracking-wider">Hong (Red)</span>
+                            {match.winner === match.player2 && match.player2 !== 'BYE' && (
+                                <span className="text-[8px] font-black uppercase tracking-wide text-emerald-700 bg-emerald-100 px-1.5 py-[1px] rounded-full">Winner</span>
+                            )}
+                        </div>
                         <span className={`text-sm truncate transition-colors ${match.winner ? (match.winner === match.player2 ? 'font-black text-gray-900' : 'font-medium text-gray-400 line-through decoration-2') : 'font-bold text-gray-800'}`}>
                             {displayName(match.player2, 'player2')}
                         </span>

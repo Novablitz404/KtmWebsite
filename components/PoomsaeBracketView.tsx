@@ -89,11 +89,16 @@ export default function PoomsaeBracketView({ matches, tournamentName = "Tourname
                     const nextMatchId = groupMatches[0].nextMatchId
                     const categoryName = groupMatches[0].category || 'Category'
 
-                    // Head-to-head pairings are exactly 2 performers per group — once both
-                    // are Completed, highlight the higher score as the winner (tie-break by
-                    // accuracy, matching the API's advancement logic).
+                    // Head-to-head pairings are normally exactly 2 performers per group —
+                    // once both are Completed, highlight the higher score as the winner
+                    // (tie-break by accuracy, matching the API's advancement logic). A
+                    // group of exactly 1 only happens for an uncontested walkover (no
+                    // opponent existed in the whole category) — that lone performer is
+                    // the outright winner the moment it's Completed, no comparison needed.
                     let winnerId: number | null = null
-                    if (groupMatches.length === 2 && groupMatches.every(m => m.status === 'Completed')) {
+                    if (groupMatches.length === 1 && groupMatches[0].status === 'Completed') {
+                        winnerId = groupMatches[0].id
+                    } else if (groupMatches.length === 2 && groupMatches.every(m => m.status === 'Completed')) {
                         const [a, b] = groupMatches
                         if (a.totalScore !== b.totalScore) winnerId = a.totalScore > b.totalScore ? a.id : b.id
                         else if (a.accuracy !== b.accuracy) winnerId = a.accuracy > b.accuracy ? a.id : b.id

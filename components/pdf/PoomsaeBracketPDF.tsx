@@ -83,9 +83,15 @@ interface PoomsaeBracketPDFProps {
     tournamentName: string
     categoryName: string
     matches: ExtendedPoomsaeMatch[]
+    isPreview?: boolean
+    // Only meaningful for HEAD_TO_HEAD — a SCORED round-group can legitimately
+    // have any number of performers, so comparing two of them as if one "beat"
+    // the other would be wrong. Defaults to false (no winner badge) so SCORED
+    // exports are unaffected.
+    isHeadToHead?: boolean
 }
 
-export default function PoomsaeBracketPDF({ tournamentName, categoryName, matches }: PoomsaeBracketPDFProps) {
+export default function PoomsaeBracketPDF({ tournamentName, categoryName, matches, isPreview, isHeadToHead }: PoomsaeBracketPDFProps) {
     if (matches.length === 0) return <Document><Page size="A4"><Text>No matches</Text></Page></Document>
 
     // Group by shared matchId
@@ -120,13 +126,34 @@ export default function PoomsaeBracketPDF({ tournamentName, categoryName, matche
                         <Text style={styles.title}>{tournamentName.toUpperCase()}</Text>
                         <Text style={styles.subtitle}>{categoryName}</Text>
                     </View>
-                    <Text style={{ fontSize: 10, color: '#9ca3af' }}>Poomsae Draw</Text>
+                    {isPreview ? (
+                        <View style={{ paddingHorizontal: 6, paddingVertical: 2, backgroundColor: '#F59E0B', borderRadius: 2 }}>
+                            <Text style={{ fontSize: 8, fontFamily: 'Helvetica-Bold', color: 'white' }}>DRAFT — NOT YET GENERATED</Text>
+                        </View>
+                    ) : (
+                        <Text style={{ fontSize: 10, color: '#9ca3af' }}>Poomsae Draw</Text>
+                    )}
                 </View>
 
                 {matchIds.map(mid => {
                     const groupMatches = byMatch[mid].sort((a, b) => (a.performanceNumber || 0) - (b.performanceNumber || 0))
                     const round = groupMatches[0].round
                     const roundName = getRoundName(round)
+
+                    // Same logic as PoomsaeBracketView's live winner detection: a
+                    // group of 2 completed performers compares totalScore (tie-break
+                    // accuracy); a group of exactly 1 completed performer is an
+                    // uncontested walkover and is the winner outright.
+                    let winnerId: number | null = null
+                    if (isHeadToHead) {
+                        if (groupMatches.length === 1 && groupMatches[0].status === 'Completed') {
+                            winnerId = groupMatches[0].id
+                        } else if (groupMatches.length === 2 && groupMatches.every(m => m.status === 'Completed')) {
+                            const [a, b] = groupMatches
+                            if (a.totalScore !== b.totalScore) winnerId = a.totalScore > b.totalScore ? a.id : b.id
+                            else if (a.accuracy !== b.accuracy) winnerId = a.accuracy > b.accuracy ? a.id : b.id
+                        }
+                    }
 
                     return (
                         <View key={mid} style={styles.matchGroup} break={false}>
@@ -149,19 +176,31 @@ export default function PoomsaeBracketPDF({ tournamentName, categoryName, matche
                                 const clubName = match.player?.club?.name || 'Independent'
                                 const isTeam = !!match.displayName
                                 const displayName = match.displayName || match.player?.name || 'TBD'
+                                const isWinner = winnerId === match.id
 
                                 const subName = isTeam
                                     ? match.memberNames || ''
                                     : clubName
 
                                 return (
-                                    <View key={match.id} style={styles.tableRow}>
+                                    <View key={match.id} style={[styles.tableRow, isWinner ? { backgroundColor: '#f0fdf4' } : {}]}>
                                         <Text style={{ ...styles.colOrder, fontFamily: 'Helvetica-Bold' }}>
                                             {match.performanceNumber?.toString().padStart(2, '0') || '-'}
                                         </Text>
-                                        <View style={styles.colName}>
-                                            <Text style={{ fontFamily: 'Helvetica-Bold' }}>{displayName}</Text>
-                                            {subName && <Text style={{ fontSize: 8, color: '#6b7280' }}>{subName}</Text>}
+                                        <View style={{ ...styles.colName, flexDirection: 'row', alignItems: 'center' }}>
+                                            <View>
+                                                <Text style={{ fontFamily: 'Helvetica-Bold' }}>{displayName}</Text>
+                                                {subName && <Text style={{ fontSize: 8, color: '#6b7280' }}>{subName}</Text>}
+                                            </View>
+                                            {isWinner && (
+                                                <Text style={{
+                                                    fontSize: 7, fontFamily: 'Helvetica-Bold', color: 'white',
+                                                    backgroundColor: '#16a34a', paddingHorizontal: 4, paddingVertical: 1,
+                                                    marginLeft: 6, borderRadius: 2,
+                                                }}>
+                                                    WINNER
+                                                </Text>
+                                            )}
                                         </View>
                                         <Text style={styles.colClub}>
                                             {!isTeam && clubName}

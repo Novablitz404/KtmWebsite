@@ -208,7 +208,34 @@ export function generateHeadToHeadPoomsaeSpecs(
     requiredForms: string | null = null,
     preOrdered: boolean = false
 ): PoomsaeMatchSpec[] {
-    if (performers.length < 2) return []
+    if (performers.length === 0) return []
+
+    if (performers.length === 1) {
+        // Uncontested — no opponent at all in the whole category (mirrors
+        // Kyorugi's single-player walkover). No moving up exists for
+        // Poomsae/Kyukpa, so this is unconditionally the outright champion —
+        // status is already 'Completed' here since there's nothing left to
+        // decide or perform; callers persist it as-is at generation time.
+        const solo = performers[0]
+        const formsList = requiredForms ? requiredForms.split(',').map(f => f.trim()) : []
+        const isTeamOrPair = !!solo.displayName
+        return [{
+            roundGroupIndex: 1,
+            round: 1,
+            performanceNumber: 1,
+            targetRank: null,
+            playerId: isTeamOrPair ? null : solo.representative.id,
+            player: isTeamOrPair ? null : solo.representative,
+            displayName: solo.displayName || null,
+            memberIds: solo.memberIds || null,
+            memberNames: solo.memberNames || null,
+            teamMembers: solo.members,
+            assignedForms: formsList.length > 0 ? formsList[formsList.length - 1] : null,
+            status: 'Completed',
+            nextRoundGroupIndex: null,
+            nextMatchSlot: null,
+        }]
+    }
 
     const performerByPlayerId = new Map(performers.map(p => [p.representative.id, p]))
     const representatives = performers.map(p => p.representative)

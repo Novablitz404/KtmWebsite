@@ -47,6 +47,23 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
         }
 
+        // 1a. Enforce registration window/status server-side — this is a public,
+        // unauthenticated endpoint, so the guard has to live here, not just in the
+        // form UI (which can't be trusted to stop a direct POST after the deadline).
+        if (tournament.status === 'CANCELLED') {
+            return NextResponse.json({ error: 'This tournament has been cancelled.' }, { status: 403 })
+        }
+        if (tournament.status === 'COMPLETED') {
+            return NextResponse.json({ error: 'This tournament is already completed.' }, { status: 403 })
+        }
+        const registrationCheckNow = new Date()
+        if (tournament.registrationStart && registrationCheckNow < tournament.registrationStart) {
+            return NextResponse.json({ error: 'Registration has not started yet.' }, { status: 403 })
+        }
+        if (tournament.registrationEnd && registrationCheckNow > tournament.registrationEnd) {
+            return NextResponse.json({ error: 'Registration is closed.' }, { status: 403 })
+        }
+
         // 1b. Check club affiliation (if registering under a club)
         if (clubId) {
             const { checkClubAffiliation } = await import('@/lib/affiliation')
