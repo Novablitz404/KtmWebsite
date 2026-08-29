@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Search, Download, Loader2, Trophy } from 'lucide-react'
-import { searchPlayerMatches, type PlayerMatchResult } from '@/app/actions'
+import { searchPlayerMatches, getPlayerClubMap, type PlayerMatchResult } from '@/app/actions'
 import BracketPDF from '@/components/pdf/BracketPDF'
 import PoomsaeBracketPDF from '@/components/pdf/PoomsaeBracketPDF'
 
@@ -17,6 +17,9 @@ interface MatchesViewProps {
     // Light theme only — tenant.primaryColor. Dark theme always uses the
     // wotf-global brand red (#DF0024), matching GlobalPublicTournamentView.
     accentColor?: string
+    // "?tenant=<slug>" (or "") — appended to the "Back to Tournament" link so
+    // navigating back doesn't drop the tenant when it isn't domain-mapped.
+    qs?: string
 }
 
 const DISCIPLINE_BADGE: Record<string, string> = {
@@ -38,7 +41,7 @@ function opponentLabel(m: { opponentName: string | null; opponentStatus: string 
     return ''
 }
 
-export default function MatchesView({ tournament, theme = 'light', accentColor }: MatchesViewProps) {
+export default function MatchesView({ tournament, theme = 'light', accentColor, qs = '' }: MatchesViewProps) {
     const [query, setQuery] = useState('')
     const [status, setStatus] = useState<'idle' | 'loading' | 'no-results' | 'not-generated' | 'results' | 'rate-limited'>('idle')
     const [results, setResults] = useState<PlayerMatchResult[]>([])
@@ -77,13 +80,17 @@ export default function MatchesView({ tournament, theme = 'light', accentColor }
         try {
             const { pdf } = await import('@react-pdf/renderer')
             const blob = result.categoryType === 'KYORUGI'
-                ? await pdf(
-                    <BracketPDF
-                        tournamentName={tournament.name}
-                        categoryName={result.categoryName}
-                        matches={result.bracketMatches || []}
-                    />
-                ).toBlob()
+                ? await (async () => {
+                    const playerClubMap = await getPlayerClubMap(result.categoryId)
+                    return pdf(
+                        <BracketPDF
+                            tournamentName={tournament.name}
+                            categoryName={result.categoryName}
+                            matches={result.bracketMatches || []}
+                            playerClubMap={playerClubMap}
+                        />
+                    ).toBlob()
+                })()
                 : await pdf(
                     <PoomsaeBracketPDF
                         tournamentName={tournament.name}
@@ -129,7 +136,7 @@ export default function MatchesView({ tournament, theme = 'light', accentColor }
                 )}
 
                 <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20 text-white">
-                    <Link href={`/tournament/${tournament.id}`} className="inline-flex items-center text-sm font-medium text-white/70 hover:text-white transition-colors mb-6">
+                    <Link href={`/tournament/${tournament.id}${qs}`} className="inline-flex items-center text-sm font-medium text-white/70 hover:text-white transition-colors mb-6">
                         <ArrowLeft className="w-4 h-4 mr-1.5" />
                         Back to Tournament
                     </Link>

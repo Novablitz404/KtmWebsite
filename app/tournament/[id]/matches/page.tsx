@@ -20,12 +20,17 @@ export default async function MatchesPage({ params }: { params: Promise<{ id: st
 
     if (!tournament) return notFound()
 
+    // Preserve ?tenant=<slug> across internal navigation when this tenant
+    // isn't served from its own mapped domain — same convention used
+    // throughout the app (e.g. app/page.tsx, app/tournament/[id]/page.tsx).
+    const qs = tenant.slug !== 'ktm' && !tenant.isMappedDomain ? `?tenant=${tenant.slug}` : ''
+
     if (tenant.slug === 'wotf-global') {
         return (
             <I18nProvider>
                 <GlobalNavbar forceSolid={true} />
                 <div className="pt-20 bg-black min-h-screen">
-                    <MatchesView tournament={tournament} theme="dark" />
+                    <MatchesView tournament={tournament} theme="dark" qs={qs} />
                 </div>
                 <GlobalFooter />
             </I18nProvider>
@@ -35,13 +40,13 @@ export default async function MatchesPage({ params }: { params: Promise<{ id: st
     return (
         <>
             {tenant.slug === 'tap-elite'
-                ? <TapEliteNavbar qs={tenant.isMappedDomain ? '' : '?tenant=tap-elite'} light />
+                ? <TapEliteNavbar qs={qs} light />
                 : tenant.slug !== 'ktm' && <Navbar variant="dark" />}
             <div className="pt-20 bg-gray-50 min-h-screen">
-                <MatchesView tournament={tournament} theme="light" accentColor={tenant.primaryColor} />
+                <MatchesView tournament={tournament} theme="light" accentColor={tenant.primaryColor} qs={qs} />
             </div>
             {tenant.slug === 'tap-elite'
-                ? <TapEliteFooter qs={tenant.isMappedDomain ? '' : '?tenant=tap-elite'} standalone />
+                ? <TapEliteFooter qs={qs} standalone />
                 : tenant.slug !== 'ktm' && <Footer />}
         </>
     )

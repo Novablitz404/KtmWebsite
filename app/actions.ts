@@ -5237,6 +5237,26 @@ export async function searchPlayerMatches(tournamentId: string, query: string): 
     }
 }
 
+// Player name -> club name for one category — used to add a club line to
+// Kyorugi bracket-tree PDFs (BracketPDF), whose Match rows only carry
+// player1/player2 as plain name snapshots with no club relation.
+export async function getPlayerClubMap(categoryId: string): Promise<Record<string, string>> {
+    try {
+        const players = await prisma.player.findMany({
+            where: { categoryId },
+            select: { name: true, club: { select: { name: true } } },
+        })
+        const map: Record<string, string> = {}
+        for (const p of players) {
+            if (p.club?.name) map[p.name] = p.club.name
+        }
+        return map
+    } catch (error) {
+        console.error('getPlayerClubMap error:', error)
+        return {}
+    }
+}
+
 export async function getCheckedInPlayers(tournamentId: string) {
     try {
         const players = await prisma.player.findMany({

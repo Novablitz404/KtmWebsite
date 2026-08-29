@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Calendar, MapPin, ChevronRight, FileText } from 'lucide-react'
 import { Tournament, Player as PrismaPlayer } from '@prisma/client'
 
@@ -103,6 +103,9 @@ export default function GlobalPublicTournamentView(props: PublicTournamentViewPr
 
     const [activeTab, setActiveTab] = useState<'overview' | 'guidelines'>('overview')
     const router = useRouter()
+    const searchParams = useSearchParams()
+    const tenantParam = searchParams.get('tenant')
+    const tenantQs = tenantParam ? `?tenant=${tenantParam}` : ''
 
     return (
         <div className="space-y-8">
@@ -211,7 +214,7 @@ export default function GlobalPublicTournamentView(props: PublicTournamentViewPr
                     </button>
                 )}
                 <Link
-                    href={`/tournament/${tournament.id}/matches`}
+                    href={`/tournament/${tournament.id}/matches${tenantQs}`}
                     className="pb-3 px-1 text-sm font-bold uppercase tracking-widest border-b-2 border-transparent text-gray-500 hover:text-white transition-colors"
                 >
                     Find My Match

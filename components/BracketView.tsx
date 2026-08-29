@@ -10,6 +10,10 @@ interface BracketViewProps {
     matches: Match[]
     tournamentName?: string
     categoryName?: string
+    // Used to fetch a player -> club name map on demand for the "Download PDF"
+    // button — Match rows only carry player1/player2 as plain name snapshots,
+    // no club relation, so this needs a small separate lookup.
+    categoryId?: string
     // Set only for a not-yet-generated draw preview (Poomsae HEAD_TO_HEAD routed
     // through this same tree component) — suppresses the normal "#matchId" badge,
     // since that id is just a local pairing index there, not a real match number.
@@ -304,13 +308,14 @@ function SideBracket({ rounds, maxRound, side, setCardRef, positions, leafCount,
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-export default function BracketView({ matches, tournamentName = "Tournament", categoryName = "Category", isPreview, simulatedMatches }: BracketViewProps) {
+export default function BracketView({ matches, tournamentName = "Tournament", categoryName = "Category", categoryId, isPreview, simulatedMatches }: BracketViewProps) {
     const containerRef = useRef<HTMLDivElement>(null)
     const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map())
     const [connectorPaths, setConnectorPaths] = useState<BracketPath[]>([])
 
     const handleDownloadPDF = async () => {
-        const blob = await pdf(<BracketPDF tournamentName={tournamentName} categoryName={categoryName} matches={matches} />).toBlob()
+        const playerClubMap = categoryId ? await (await import('@/app/actions')).getPlayerClubMap(categoryId) : undefined
+        const blob = await pdf(<BracketPDF tournamentName={tournamentName} categoryName={categoryName} matches={matches} playerClubMap={playerClubMap} />).toBlob()
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url; a.download = `${categoryName}-bracket.pdf`

@@ -16,6 +16,10 @@ interface BracketPDFProps {
     categoryName: string;
     matches: Match[];
     isPreview?: boolean;
+    // Player name -> club name. When provided, each card shows a small club
+    // line under the player's name. Optional and additive — omitting it keeps
+    // the exact card sizing/layout PDFs already generated have today.
+    playerClubMap?: Record<string, string>;
 }
 
 // ── A4 Landscape dimensions (pts) ───────────────────────────────────────────────
@@ -139,23 +143,30 @@ function collectIds(node: MatchNode, target: Set<number>) {
 
 // ── Adaptive layout calculator ──────────────────────────────────────────────────
 
-function computeLayout(leafCount: number, maxRound: number) {
+function computeLayout(leafCount: number, maxRound: number, showClub: boolean) {
     const slotH = DRAW_H / leafCount;
     const colW = DRAW_W / maxRound;
     const cardW = Math.min(Math.max(colW - 16, 70), 165);
-    const cardH = Math.min(Math.max(slotH - 4, 26), 54);
+    // A club line needs a second row of text inside the same playerH budget —
+    // raise the floor (not the ceiling, which already has enough room) so
+    // dense/large brackets don't overlap the way the preview tree's fixed
+    // card slots did before club names were added there too.
+    const cardH = Math.min(Math.max(slotH - 4, showClub ? 38 : 26), 54);
     const headerFs = Math.min(Math.max(cardH * 0.17, 4), 6.5);
-    const playerFs = Math.min(Math.max(cardH * 0.21, 4.5), 7.5);
     const headerH = Math.max(cardH * 0.28, 8);
     const playerH = (cardH - headerH) / 2;
-    return { slotH, colW, cardW, cardH, headerFs, playerFs, headerH, playerH };
+    const playerFs = showClub
+        ? Math.min(Math.max(playerH * 0.34, 4.5), 7)
+        : Math.min(Math.max(cardH * 0.21, 4.5), 7.5);
+    const clubFs = showClub ? Math.min(Math.max(playerH * 0.24, 3.6), 5.5) : 0;
+    return { slotH, colW, cardW, cardH, headerFs, playerFs, clubFs, headerH, playerH, showClub };
 }
 
 type Layout = ReturnType<typeof computeLayout>;
 
 // ── Main Component ──────────────────────────────────────────────────────────────
 
-export default function BracketPDF({ tournamentName, categoryName, matches, isPreview }: BracketPDFProps) {
+export default function BracketPDF({ tournamentName, categoryName, matches, isPreview, playerClubMap }: BracketPDFProps) {
     if (!matches || matches.length === 0) {
         return <Document><Page size="A4"><Text>No matches</Text></Page></Document>;
     }
@@ -165,7 +176,9 @@ export default function BracketPDF({ tournamentName, categoryName, matches, isPr
 
     const maxRound = Math.max(...matches.map(m => m.round));
     const leafCount = countLeaves(tree);
-    const layout = computeLayout(leafCount, maxRound);
+    const showClub = !!playerClubMap && Object.keys(playerClubMap).length > 0;
+    const layout = computeLayout(leafCount, maxRound, showClub);
+    const clubOf = (name: string) => (playerClubMap && playerClubMap[name]) || null;
     const positions = assignPositions(tree, layout.slotH);
     const feederMap = buildFeederMap(matches);
 
@@ -416,14 +429,21 @@ export default function BracketPDF({ tournamentName, categoryName, matches, isPr
                                                 backgroundColor: blueBg, position: 'relative',
                                             }}>
                                                 <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 1.5, backgroundColor: COLORS.blue }} />
-                                                <Text style={{
-                                                    fontSize: layout.playerFs,
-                                                    fontFamily: m.winner === m.player1 ? 'Helvetica-Bold' : 'Helvetica',
-                                                    color: textColor(m.player1), marginLeft: 4, flex: 1,
-                                                    ...(m.winner && m.winner !== m.player1 ? { textDecoration: 'line-through' } : {}),
-                                                }}>
-                                                    {displayPlayer(m.player1, 'player1')}
-                                                </Text>
+                                                <View style={{ marginLeft: 4, flex: 1 }}>
+                                                    <Text style={{
+                                                        fontSize: layout.playerFs,
+                                                        fontFamily: m.winner === m.player1 ? 'Helvetica-Bold' : 'Helvetica',
+                                                        color: textColor(m.player1),
+                                                        ...(m.winner && m.winner !== m.player1 ? { textDecoration: 'line-through' } : {}),
+                                                    }}>
+                                                        {displayPlayer(m.player1, 'player1')}
+                                                    </Text>
+                                                    {showClub && clubOf(m.player1) && (
+                                                        <Text style={{ fontSize: layout.clubFs, color: COLORS.light }}>
+                                                            {clubOf(m.player1)}
+                                                        </Text>
+                                                    )}
+                                                </View>
                                                 {m.winner === m.player1 && (
                                                     <Text style={{
                                                         fontSize: Math.min(layout.headerFs, 5), fontFamily: 'Helvetica-Bold',
@@ -450,14 +470,21 @@ export default function BracketPDF({ tournamentName, categoryName, matches, isPr
                                                 alignItems: 'center', backgroundColor: redBg, position: 'relative',
                                             }}>
                                                 <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 1.5, backgroundColor: COLORS.red }} />
-                                                <Text style={{
-                                                    fontSize: layout.playerFs,
-                                                    fontFamily: m.winner === m.player2 ? 'Helvetica-Bold' : 'Helvetica',
-                                                    color: textColor(m.player2), marginLeft: 4, flex: 1,
-                                                    ...(m.winner && m.winner !== m.player2 ? { textDecoration: 'line-through' } : {}),
-                                                }}>
-                                                    {displayPlayer(m.player2, 'player2')}
-                                                </Text>
+                                                <View style={{ marginLeft: 4, flex: 1 }}>
+                                                    <Text style={{
+                                                        fontSize: layout.playerFs,
+                                                        fontFamily: m.winner === m.player2 ? 'Helvetica-Bold' : 'Helvetica',
+                                                        color: textColor(m.player2),
+                                                        ...(m.winner && m.winner !== m.player2 ? { textDecoration: 'line-through' } : {}),
+                                                    }}>
+                                                        {displayPlayer(m.player2, 'player2')}
+                                                    </Text>
+                                                    {showClub && clubOf(m.player2) && (
+                                                        <Text style={{ fontSize: layout.clubFs, color: COLORS.light }}>
+                                                            {clubOf(m.player2)}
+                                                        </Text>
+                                                    )}
+                                                </View>
                                                 {m.winner === m.player2 && (
                                                     <Text style={{
                                                         fontSize: Math.min(layout.headerFs, 5), fontFamily: 'Helvetica-Bold',

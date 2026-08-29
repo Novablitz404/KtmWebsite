@@ -18,8 +18,11 @@ interface MatchNode {
 const COL_WIDTH = 340
 // Wider than BracketView's 160 — this card carries an extra header row (the
 // Sim badge) that BracketView's cards don't, so it needs more vertical room
-// per slot to avoid crowding/overlapping neighboring cards.
-const CARD_SLOT = 190
+// per slot to avoid crowding/overlapping neighboring cards. A fully-populated
+// slot (name + club + belt/age/metric badges, both players) sits right at the
+// edge of this budget even with the club name truncated to one line, so this
+// has some margin built in on top of that measured worst case.
+const CARD_SLOT = 220
 
 function buildTree(matches: PreviewMatch[]): MatchNode | null {
     if (matches.length === 0) return null

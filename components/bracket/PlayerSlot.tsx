@@ -64,7 +64,7 @@ export default function PlayerSlot({
                 </div>
 
                 {playerInfo?.clubName && (
-                    <div className="text-[11px] font-medium mt-0.5 text-gray-500">
+                    <div className="text-[11px] font-medium mt-0.5 text-gray-500 truncate" title={playerInfo.clubName}>
                         {playerInfo.clubName}
                     </div>
                 )}

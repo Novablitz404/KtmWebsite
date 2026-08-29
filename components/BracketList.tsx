@@ -15,7 +15,7 @@ import {
 import {
     generateAllBrackets, getTournamentAlerts, initiateSmartProposal, forceExecuteSmartAction,
     bulkSendUncontestedProposals, bulkUpdateCourts, previewCategoryBracket, reshuffleCategoryPreview, movePlayerToCategory,
-    updateCategoryDaySettings, generateBracketsForCategory, simulateMatchSequence, previewDayMatchSchedule
+    updateCategoryDaySettings, generateBracketsForCategory, simulateMatchSequence, previewDayMatchSchedule, getPlayerClubMap
 } from '@/app/actions'
 import {
     Trophy, Medal, Wand2, Loader2, AlertCircle, Search,
@@ -518,11 +518,13 @@ export default function BracketList({ categories, tournamentName, publicView = f
                         />
                     ).toBlob()
                 } else {
+                    const playerClubMap = await getPlayerClubMap(cat.id)
                     blob = await pdf(
                         <BracketPDF
                             tournamentName={tournamentName || 'Tournament'}
                             categoryName={cat.name}
                             matches={cat.matches}
+                            playerClubMap={playerClubMap}
                         />
                     ).toBlob()
                 }
@@ -668,11 +670,15 @@ export default function BracketList({ categories, tournamentName, publicView = f
                     ).toBlob()
                 } else {
                     const pdfMatches = previewSpecsToPdfMatches(preview.specs as any, cat.name)
+                    const playerClubMap = Object.fromEntries(
+                        preview.players.filter(p => p.clubName).map(p => [p.name, p.clubName as string])
+                    )
                     blob = await pdf(
                         <BracketPDF
                             tournamentName={tournamentName || 'Tournament'}
                             categoryName={cat.name}
                             matches={pdfMatches}
+                            playerClubMap={playerClubMap}
                             isPreview
                         />
                     ).toBlob()
@@ -2126,6 +2132,7 @@ function CollapsibleBracket({
                                     matches={adaptPoomsaeMatchesToBracket(category.poomsaeMatches || [])}
                                     tournamentName={tournamentName}
                                     categoryName={category.name}
+                                    categoryId={category.id}
                                 />
                             ) : isPoomsae ? (
                                 <PoomsaeBracketView
@@ -2138,6 +2145,7 @@ function CollapsibleBracket({
                                     matches={category.matches}
                                     tournamentName={tournamentName}
                                     categoryName={category.name}
+                                    categoryId={category.id}
                                 />
                             )}
                         </div>
@@ -2191,6 +2199,7 @@ function CollapsibleBracket({
                                     matches={adaptPoomsaePreviewToBracket(previewData.poomsaeSpecs || [])}
                                     tournamentName={tournamentName}
                                     categoryName={category.name}
+                                    categoryId={category.id}
                                     isPreview
                                     simulatedMatches={simulatedMatches}
                                 />
