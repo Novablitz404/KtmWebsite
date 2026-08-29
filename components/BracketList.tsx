@@ -59,9 +59,12 @@ export default function BracketList({ categories, tournamentName, publicView = f
     const [courtPanelOpen, setCourtPanelOpen] = useState(true)
     const [bracketPdfPanelOpen, setBracketPdfPanelOpen] = useState(false)
     const [previewBracketPdfPanelOpen, setPreviewBracketPdfPanelOpen] = useState(false)
-    const [downloadingBracketsDay, setDownloadingBracketsDay] = useState<number | null>(null)
-    const [downloadingPreviewBracketsDay, setDownloadingPreviewBracketsDay] = useState<number | null>(null)
-    const [downloadingAllMatchList, setDownloadingAllMatchList] = useState(false)
+    const [downloadingBracketTreesDay, setDownloadingBracketTreesDay] = useState<number | null>(null)
+    const [downloadingMatchListDay, setDownloadingMatchListDay] = useState<number | null>(null)
+    const [downloadingByCategoryDay, setDownloadingByCategoryDay] = useState<number | null>(null)
+    const [downloadingPreviewBracketTreesDay, setDownloadingPreviewBracketTreesDay] = useState<number | null>(null)
+    const [downloadingPreviewMatchListDay, setDownloadingPreviewMatchListDay] = useState<number | null>(null)
+    const [downloadingPreviewByCategoryDay, setDownloadingPreviewByCategoryDay] = useState<number | null>(null)
 
     // ── Division / skill filters ──────────────────────────────────────────────
     const [divisionFilter, setDivisionFilter] = useState<string>('All')
@@ -361,69 +364,6 @@ export default function BracketList({ categories, tournamentName, publicView = f
     }
     const dayScheduleRows = dayFilter > 0 ? buildDayScheduleRows(dayFilter) : []
 
-    // Same underlying persisted matches as buildDayScheduleRows, but grouped by
-    // category instead of filtered to one day — this is what the combined,
-    // single-file "Full Match List" PDF is built from. Only includes categories
-    // that already have generated matches (matchCount > 0); un-generated ones
-    // have no persisted rows to list.
-    function buildAllCategoryMatchGroups() {
-        const isPoomsaeCat = activeTab === 'poomsae' || activeTab === 'kyukpa'
-        const groups: { categoryName: string; rows: ReturnType<typeof buildDayScheduleRows> }[] = []
-        for (const cat of displayedCategories) {
-            const rows: ReturnType<typeof buildDayScheduleRows> = []
-            if (isPoomsaeCat) {
-                const grouped = new Map<number, { names: string[]; round: number; court: string; scheduledDay: number | null }>()
-                for (const m of (cat.poomsaeMatches || [])) {
-                    const mid = (m as any).matchId as number
-                    if (!grouped.has(mid)) {
-                        grouped.set(mid, {
-                            names: [],
-                            round: (m as any).round,
-                            court: (m as any).court || 'Unassigned',
-                            scheduledDay: (m as any).scheduledDay ?? null,
-                        })
-                    }
-                    const name = (m as any).player?.name || (m as any).displayName || ''
-                    if (name) grouped.get(mid)!.names.push(name)
-                }
-                for (const [mid, g] of grouped) {
-                    rows.push({
-                        matchId: mid,
-                        categoryName: cat.name,
-                        categoryId: cat.id,
-                        round: g.round,
-                        court: g.court,
-                        isFinal: g.round === 3,
-                        scheduledDay: g.scheduledDay,
-                        player1Name: g.names.join(', '),
-                        player2Name: '',
-                    })
-                }
-            } else {
-                if (cat.matches.length > 0) {
-                    const maxRound = Math.max(...cat.matches.map(x => x.round))
-                    for (const m of cat.matches) {
-                        rows.push({
-                            matchId: (m as any).matchId,
-                            categoryName: cat.name,
-                            categoryId: cat.id,
-                            round: m.round,
-                            court: (m as any).court || 'Unassigned',
-                            isFinal: m.round === maxRound,
-                            scheduledDay: (m as any).scheduledDay ?? null,
-                            player1Name: m.player1 === 'BYE' ? 'BYE' : m.player1 || '',
-                            player2Name: m.player2 === 'BYE' ? 'BYE' : m.player2 || '',
-                        })
-                    }
-                }
-            }
-            if (rows.length === 0) continue
-            rows.sort((a, b) => (a.matchId ?? 0) - (b.matchId ?? 0))
-            groups.push({ categoryName: cat.name, rows })
-        }
-        return groups
-    }
-
     // Court editing state
     const [courtEdits, setCourtEdits] = useState<Record<string, string>>({})
     const [savingCourts, setSavingCourts] = useState(false)
@@ -524,12 +464,25 @@ export default function BracketList({ categories, tournamentName, publicView = f
         }
     }
 
-    // ── Bulk bracket PDF download per day ────────────────────────────────────
-    async function downloadBracketsForDay(day: number) {
+    // Requests a destination folder via the File System Access API, when
+    // available — used only by the multi-file "Bracket Trees" downloads below;
+    // the single-file Match List / By Category downloads don't need it.
+    async function pickDirectoryOrNull(): Promise<{ dirHandle: FileSystemDirectoryHandle | null; cancelled: boolean }> {
+        if (!('showDirectoryPicker' in window)) return { dirHandle: null, cancelled: false }
+        try {
+            const dirHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite' })
+            return { dirHandle, cancelled: false }
+        } catch (err: any) {
+            if (err?.name === 'AbortError') return { dirHandle: null, cancelled: true }
+            return { dirHandle: null, cancelled: false }
+        }
+    }
+
+    // ── Bracket Trees only (already generated) ───────────────────────────────
+    async function downloadBracketTreesForDay(day: number) {
         const { pdf } = await import('@react-pdf/renderer')
         const isPoomsaeCat = activeTab === 'poomsae' || activeTab === 'kyukpa'
 
-        // Collect categories that have at least one match on this day
         const catsForDay = displayedCategories.filter(cat => {
             if (isPoomsaeCat) {
                 return (cat.poomsaeMatches || []).some(m => (m as any).scheduledDay === day)
@@ -542,20 +495,10 @@ export default function BracketList({ categories, tournamentName, publicView = f
             return
         }
 
-        // Try to let the user pick a destination folder (File System Access API)
-        let dirHandle: FileSystemDirectoryHandle | null = null
-        if ('showDirectoryPicker' in window) {
-            try {
-                dirHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite' })
-            } catch (err: any) {
-                // User cancelled the picker — abort silently
-                if (err?.name === 'AbortError') return
-                // API not supported or denied — fall through to normal downloads
-                dirHandle = null
-            }
-        }
+        const { dirHandle, cancelled } = await pickDirectoryOrNull()
+        if (cancelled) return
 
-        setDownloadingBracketsDay(day)
+        setDownloadingBracketTreesDay(day)
         toast.info(`Generating ${catsForDay.length} bracket PDF${catsForDay.length !== 1 ? 's' : ''} for Day ${day}…`)
 
         let successCount = 0
@@ -586,26 +529,8 @@ export default function BracketList({ categories, tournamentName, publicView = f
 
                 const safeName = cat.name.replace(/\s+/g, '-').replace(/[^\w-]/g, '')
                 const fileName = `Day${day}-${safeName}-bracket.pdf`
-
-                if (dirHandle) {
-                    // Save directly to chosen folder
-                    const fileHandle = await dirHandle.getFileHandle(fileName, { create: true })
-                    const writable = await fileHandle.createWritable()
-                    await writable.write(blob)
-                    await writable.close()
-                } else {
-                    // Fallback: trigger browser download
-                    const url = URL.createObjectURL(blob)
-                    const link = document.createElement('a')
-                    link.href = url
-                    link.download = fileName
-                    document.body.appendChild(link)
-                    link.click()
-                    document.body.removeChild(link)
-                    setTimeout(() => URL.revokeObjectURL(url), 2000)
-                    // Small delay between downloads to avoid browser throttling
-                    await new Promise(r => setTimeout(r, 400))
-                }
+                await savePdfBlob(blob, fileName, dirHandle)
+                if (!dirHandle) await new Promise(r => setTimeout(r, 400)) // avoid browser throttling multiple downloads
 
                 successCount++
             } catch (err) {
@@ -614,72 +539,101 @@ export default function BracketList({ categories, tournamentName, publicView = f
             }
         }
 
-        // Also include a flat running-order match list (#1 through the final match
-        // number for this day), alongside the per-category bracket PDFs.
-        try {
-            const rows = buildDayScheduleRows(day)
-            if (rows.length > 0) {
-                const listMatches: DayScheduleMatch[] = rows.map(r => ({
-                    matchId: r.matchId,
-                    categoryName: r.categoryName,
-                    round: r.round,
-                    roundLabel: roundLabel(r.round, r.isFinal),
-                    isFinal: r.isFinal,
-                    court: r.court,
-                    player1Name: r.player1Name,
-                    player2Name: r.player2Name,
-                    isPoomsae: isPoomsaeCat,
-                }))
-                const listBlob = await pdf(
-                    <DaySchedulePDF
-                        tournamentName={tournamentName || 'Tournament'}
-                        day={day}
-                        matches={listMatches}
-                        isPoomsae={isPoomsaeCat}
-                    />
-                ).toBlob()
-                await savePdfBlob(listBlob, `Day${day}-Match-List.pdf`, dirHandle)
-
-                // Same matches, one PDF, but grouped under a header per category
-                // instead of a single flat run — a list, not a bracket tree.
-                const catGroups = groupRowsByCategory(rows)
-                const disciplineLabel = activeTab === 'kyorugi' ? 'Kyorugi' : activeTab === 'poomsae' ? 'Poomsae' : 'Kyukpa'
-                const catListBlob = await pdf(
-                    <AllCategoriesMatchListPDF
-                        tournamentName={tournamentName || 'Tournament'}
-                        groups={catGroups}
-                        isPoomsae={isPoomsaeCat}
-                        disciplineLabel={disciplineLabel}
-                    />
-                ).toBlob()
-                await savePdfBlob(catListBlob, `Day${day}-Match-List-By-Category.pdf`, dirHandle)
-            }
-        } catch (err) {
-            console.error('Failed to generate match list PDF for day', day, err)
-            toast.error('Failed to generate the match list PDF')
-        }
-
-        setDownloadingBracketsDay(null)
+        setDownloadingBracketTreesDay(null)
         if (successCount > 0) {
             toast.success(`${dirHandle ? 'Saved' : 'Downloaded'} ${successCount} bracket PDF${successCount !== 1 ? 's' : ''} for Day ${day}`)
         }
     }
 
-    // ── Bulk PREVIEW bracket PDF download per day (not yet generated) ────────
-    // Same flow as downloadBracketsForDay above, but built from
-    // previewCategoryBracket's in-memory draw instead of persisted Match/
-    // PoomsaeMatch rows — lets an organiser send a draft to clubs for
+    // ── Match List only — flat, sorted by match number (already generated) ───
+    async function downloadDayMatchListPDF(day: number) {
+        const { pdf } = await import('@react-pdf/renderer')
+        const isPoomsaeCat = activeTab === 'poomsae' || activeTab === 'kyukpa'
+
+        const rows = buildDayScheduleRows(day)
+        if (rows.length === 0) {
+            toast.info(`No matches scheduled on Day ${day}`)
+            return
+        }
+
+        setDownloadingMatchListDay(day)
+        try {
+            const listMatches: DayScheduleMatch[] = rows.map(r => ({
+                matchId: r.matchId,
+                categoryName: r.categoryName,
+                round: r.round,
+                roundLabel: roundLabel(r.round, r.isFinal),
+                isFinal: r.isFinal,
+                court: r.court,
+                player1Name: r.player1Name,
+                player2Name: r.player2Name,
+                isPoomsae: isPoomsaeCat,
+            }))
+            const listBlob = await pdf(
+                <DaySchedulePDF
+                    tournamentName={tournamentName || 'Tournament'}
+                    day={day}
+                    matches={listMatches}
+                    isPoomsae={isPoomsaeCat}
+                />
+            ).toBlob()
+            await savePdfBlob(listBlob, `Day${day}-Match-List.pdf`, null)
+            toast.success('Downloaded match list PDF')
+        } catch (err) {
+            console.error('Failed to generate match list PDF for day', day, err)
+            toast.error('Failed to generate the match list PDF')
+        } finally {
+            setDownloadingMatchListDay(null)
+        }
+    }
+
+    // ── Match List By Category only — grouped, one PDF (already generated) ───
+    async function downloadDayMatchListByCategoryPDF(day: number) {
+        const { pdf } = await import('@react-pdf/renderer')
+        const isPoomsaeCat = activeTab === 'poomsae' || activeTab === 'kyukpa'
+
+        const rows = buildDayScheduleRows(day)
+        if (rows.length === 0) {
+            toast.info(`No matches scheduled on Day ${day}`)
+            return
+        }
+
+        setDownloadingByCategoryDay(day)
+        try {
+            const catGroups = groupRowsByCategory(rows)
+            const disciplineLabel = activeTab === 'kyorugi' ? 'Kyorugi' : activeTab === 'poomsae' ? 'Poomsae' : 'Kyukpa'
+            const catListBlob = await pdf(
+                <AllCategoriesMatchListPDF
+                    tournamentName={tournamentName || 'Tournament'}
+                    groups={catGroups}
+                    isPoomsae={isPoomsaeCat}
+                    disciplineLabel={disciplineLabel}
+                />
+            ).toBlob()
+            await savePdfBlob(catListBlob, `Day${day}-Match-List-By-Category.pdf`, null)
+            toast.success('Downloaded match list by category PDF')
+        } catch (err) {
+            console.error('Failed to generate match list by category PDF for day', day, err)
+            toast.error('Failed to generate the match list PDF')
+        } finally {
+            setDownloadingByCategoryDay(null)
+        }
+    }
+
+    // ── Bracket Trees only (PREVIEW — not yet generated) ─────────────────────
+    // Built from previewCategoryBracket's in-memory draw instead of persisted
+    // Match/PoomsaeMatch rows — lets an organiser send a draft to clubs for
     // verification before committing to "Generate". Calling
     // previewCategoryBracket here also persists a seedOrder for any category
     // that doesn't have one yet, so what's in the PDF is exactly what
     // "Generate This Category" will produce later, not a different draw.
-    async function downloadPreviewBracketsForDay(day: number) {
+    async function downloadPreviewBracketTreesForDay(day: number) {
         const { pdf } = await import('@react-pdf/renderer')
         const isPoomsaeCat = activeTab === 'poomsae' || activeTab === 'kyukpa'
 
         const catsForDay = displayedCategories.filter(cat => {
             const matchCount = isPoomsaeCat ? (cat.poomsaeMatches || []).length : cat.matches.length
-            if (matchCount > 0) return false // already generated — handled by the panel above instead
+            if (matchCount > 0) return false // already generated — handled by the real panel instead
             return (cat.scheduleDay ?? 1) === day
         })
 
@@ -688,17 +642,10 @@ export default function BracketList({ categories, tournamentName, publicView = f
             return
         }
 
-        let dirHandle: FileSystemDirectoryHandle | null = null
-        if ('showDirectoryPicker' in window) {
-            try {
-                dirHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite' })
-            } catch (err: any) {
-                if (err?.name === 'AbortError') return
-                dirHandle = null
-            }
-        }
+        const { dirHandle, cancelled } = await pickDirectoryOrNull()
+        if (cancelled) return
 
-        setDownloadingPreviewBracketsDay(day)
+        setDownloadingPreviewBracketTreesDay(day)
         toast.info(`Generating draft bracket PDFs for Day ${day}…`)
 
         let successCount = 0
@@ -733,23 +680,8 @@ export default function BracketList({ categories, tournamentName, publicView = f
 
                 const safeName = cat.name.replace(/\s+/g, '-').replace(/[^\w-]/g, '')
                 const fileName = `Day${day}-${safeName}-DRAFT-bracket.pdf`
-
-                if (dirHandle) {
-                    const fileHandle = await dirHandle.getFileHandle(fileName, { create: true })
-                    const writable = await fileHandle.createWritable()
-                    await writable.write(blob)
-                    await writable.close()
-                } else {
-                    const url = URL.createObjectURL(blob)
-                    const link = document.createElement('a')
-                    link.href = url
-                    link.download = fileName
-                    document.body.appendChild(link)
-                    link.click()
-                    document.body.removeChild(link)
-                    setTimeout(() => URL.revokeObjectURL(url), 2000)
-                    await new Promise(r => setTimeout(r, 400))
-                }
+                await savePdfBlob(blob, fileName, dirHandle)
+                if (!dirHandle) await new Promise(r => setTimeout(r, 400))
 
                 successCount++
             } catch (err) {
@@ -758,58 +690,7 @@ export default function BracketList({ categories, tournamentName, publicView = f
             }
         }
 
-        // Also include a flat running-order match list — the preview equivalent of
-        // the real download's Match List, built from the exact same ordering
-        // buildOrderedKyorugiSpecs/buildOrderedPoomsaeSpecs will use once generated,
-        // so these numbers aren't just an approximation.
-        try {
-            const targetType = activeTab === 'kyorugi' ? 'KYORUGI' : activeTab === 'poomsae' ? 'POOMSAE' : 'KYUKPA'
-            const scheduleRows = await previewDayMatchSchedule(tournamentId, targetType, day)
-            if (scheduleRows.length > 0) {
-                const listMatches: DayScheduleMatch[] = scheduleRows.map(r => ({
-                    matchId: r.matchId,
-                    categoryName: r.categoryName,
-                    round: r.round,
-                    roundLabel: roundLabel(r.round, r.isFinal),
-                    isFinal: r.isFinal,
-                    court: r.court,
-                    player1Name: r.player1Name,
-                    player2Name: r.player2Name,
-                    isPoomsae: isPoomsaeCat,
-                }))
-                const listBlob = await pdf(
-                    <DaySchedulePDF
-                        tournamentName={tournamentName || 'Tournament'}
-                        day={day}
-                        matches={listMatches}
-                        isPoomsae={isPoomsaeCat}
-                        isPreview
-                    />
-                ).toBlob()
-                await savePdfBlob(listBlob, `Day${day}-Match-List-DRAFT.pdf`, dirHandle)
-
-                // Same draft matches, one PDF, grouped under a header per category
-                // instead of a single flat run — the preview equivalent of the
-                // real download's Match List By Category.
-                const catGroups = groupRowsByCategory(scheduleRows)
-                const disciplineLabel = activeTab === 'kyorugi' ? 'Kyorugi' : activeTab === 'poomsae' ? 'Poomsae' : 'Kyukpa'
-                const catListBlob = await pdf(
-                    <AllCategoriesMatchListPDF
-                        tournamentName={tournamentName || 'Tournament'}
-                        groups={catGroups}
-                        isPoomsae={isPoomsaeCat}
-                        disciplineLabel={disciplineLabel}
-                        isPreview
-                    />
-                ).toBlob()
-                await savePdfBlob(catListBlob, `Day${day}-Match-List-By-Category-DRAFT.pdf`, dirHandle)
-            }
-        } catch (err) {
-            console.error('Failed to generate preview match list PDF for day', day, err)
-            toast.error('Failed to generate the draft match list PDF')
-        }
-
-        setDownloadingPreviewBracketsDay(null)
+        setDownloadingPreviewBracketTreesDay(null)
         if (successCount > 0) {
             toast.success(`${dirHandle ? 'Saved' : 'Downloaded'} ${successCount} draft bracket PDF${successCount !== 1 ? 's' : ''} for Day ${day}`)
         } else {
@@ -817,69 +698,83 @@ export default function BracketList({ categories, tournamentName, publicView = f
         }
     }
 
-    // ── Single-file, category-grouped match list (all matches, all days) ────
-    // Unlike downloadBracketsForDay (one bracket-tree PDF per category, plus a
-    // day-scoped flat list), this produces exactly one PDF for the whole
-    // discipline tab: every already-generated category's matches, in a simple
-    // list (not a bracket tree), grouped under a header per category.
-    async function downloadAllCategoriesMatchListPDF() {
+    // ── Match List only — flat, sorted by match number (PREVIEW) ─────────────
+    // Built from the exact same ordering buildOrderedKyorugiSpecs/
+    // buildOrderedPoomsaeSpecs will use once generated, so these numbers aren't
+    // just an approximation.
+    async function downloadPreviewDayMatchListPDF(day: number) {
         const { pdf } = await import('@react-pdf/renderer')
         const isPoomsaeCat = activeTab === 'poomsae' || activeTab === 'kyukpa'
-        const groups = buildAllCategoryMatchGroups()
 
-        if (groups.length === 0) {
-            toast.info('No generated categories to include')
-            return
-        }
-
-        setDownloadingAllMatchList(true)
+        setDownloadingPreviewMatchListDay(day)
         try {
-            const spansMultipleDays = new Set(
-                groups.flatMap(g => g.rows.map(r => r.scheduledDay).filter((d): d is number => d != null))
-            ).size > 1
-
-            const pdfGroups: CategoryMatchGroup[] = groups.map(g => ({
-                categoryName: g.categoryName,
-                matches: g.rows.map(r => ({
-                    matchId: r.matchId,
-                    round: r.round,
-                    roundLabel: roundLabel(r.round, r.isFinal),
-                    isFinal: r.isFinal,
-                    court: r.court,
-                    day: r.scheduledDay,
-                    player1Name: r.player1Name,
-                    player2Name: r.player2Name,
-                })),
+            const targetType = activeTab === 'kyorugi' ? 'KYORUGI' : activeTab === 'poomsae' ? 'POOMSAE' : 'KYUKPA'
+            const scheduleRows = await previewDayMatchSchedule(tournamentId, targetType, day)
+            if (scheduleRows.length === 0) {
+                toast.info(`No draft matches on Day ${day}`)
+                return
+            }
+            const listMatches: DayScheduleMatch[] = scheduleRows.map(r => ({
+                matchId: r.matchId,
+                categoryName: r.categoryName,
+                round: r.round,
+                roundLabel: roundLabel(r.round, r.isFinal),
+                isFinal: r.isFinal,
+                court: r.court,
+                player1Name: r.player1Name,
+                player2Name: r.player2Name,
+                isPoomsae: isPoomsaeCat,
             }))
-
-            const disciplineLabel = activeTab === 'kyorugi' ? 'Kyorugi' : activeTab === 'poomsae' ? 'Poomsae' : 'Kyukpa'
-
-            const blob = await pdf(
-                <AllCategoriesMatchListPDF
+            const listBlob = await pdf(
+                <DaySchedulePDF
                     tournamentName={tournamentName || 'Tournament'}
-                    groups={pdfGroups}
+                    day={day}
+                    matches={listMatches}
                     isPoomsae={isPoomsaeCat}
-                    disciplineLabel={disciplineLabel}
-                    showDayColumn={spansMultipleDays}
+                    isPreview
                 />
             ).toBlob()
-
-            const fileName = `${(tournamentName || 'tournament').replace(/\s+/g, '-')}-${activeTab}-full-match-list.pdf`
-            const url = URL.createObjectURL(blob)
-            const link = document.createElement('a')
-            link.href = url
-            link.download = fileName
-            document.body.appendChild(link)
-            link.click()
-            document.body.removeChild(link)
-            setTimeout(() => URL.revokeObjectURL(url), 2000)
-
-            toast.success('Downloaded full match list PDF')
+            await savePdfBlob(listBlob, `Day${day}-Match-List-DRAFT.pdf`, null)
+            toast.success('Downloaded draft match list PDF')
         } catch (err) {
-            console.error('Failed to generate full match list PDF', err)
-            toast.error('Failed to generate the match list PDF')
+            console.error('Failed to generate preview match list PDF for day', day, err)
+            toast.error('Failed to generate the draft match list PDF')
         } finally {
-            setDownloadingAllMatchList(false)
+            setDownloadingPreviewMatchListDay(null)
+        }
+    }
+
+    // ── Match List By Category only — grouped, one PDF (PREVIEW) ─────────────
+    async function downloadPreviewDayMatchListByCategoryPDF(day: number) {
+        const { pdf } = await import('@react-pdf/renderer')
+        const isPoomsaeCat = activeTab === 'poomsae' || activeTab === 'kyukpa'
+
+        setDownloadingPreviewByCategoryDay(day)
+        try {
+            const targetType = activeTab === 'kyorugi' ? 'KYORUGI' : activeTab === 'poomsae' ? 'POOMSAE' : 'KYUKPA'
+            const scheduleRows = await previewDayMatchSchedule(tournamentId, targetType, day)
+            if (scheduleRows.length === 0) {
+                toast.info(`No draft matches on Day ${day}`)
+                return
+            }
+            const catGroups = groupRowsByCategory(scheduleRows)
+            const disciplineLabel = activeTab === 'kyorugi' ? 'Kyorugi' : activeTab === 'poomsae' ? 'Poomsae' : 'Kyukpa'
+            const catListBlob = await pdf(
+                <AllCategoriesMatchListPDF
+                    tournamentName={tournamentName || 'Tournament'}
+                    groups={catGroups}
+                    isPoomsae={isPoomsaeCat}
+                    disciplineLabel={disciplineLabel}
+                    isPreview
+                />
+            ).toBlob()
+            await savePdfBlob(catListBlob, `Day${day}-Match-List-By-Category-DRAFT.pdf`, null)
+            toast.success('Downloaded draft match list by category PDF')
+        } catch (err) {
+            console.error('Failed to generate preview match list by category PDF for day', day, err)
+            toast.error('Failed to generate the draft match list PDF')
+        } finally {
+            setDownloadingPreviewByCategoryDay(null)
         }
     }
 
@@ -1341,7 +1236,7 @@ export default function BracketList({ categories, tournamentName, publicView = f
                             <div className="flex items-center gap-2">
                                 <FileStack size={14} className="text-violet-500" />
                                 <span className="text-sm font-black text-gray-800">Download Bracket PDFs</span>
-                                <span className="text-xs text-gray-400 ml-1">— one PDF per category, plus a running match list, saved to a folder of your choice</span>
+                                <span className="text-xs text-gray-400 ml-1">— pick brackets, a match list, or a per-category match list, per day</span>
                             </div>
                             <ChevronDown
                                 size={14}
@@ -1351,28 +1246,56 @@ export default function BracketList({ categories, tournamentName, publicView = f
                         {bracketPdfPanelOpen && (
                             <div className="px-5 py-4 flex flex-wrap gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
                                 {daysWithCats.map(d => (
-                                    <button
-                                        key={d}
-                                        onClick={() => downloadBracketsForDay(d)}
-                                        disabled={downloadingBracketsDay !== null}
-                                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-all
-                                            bg-gradient-to-br from-violet-500 to-purple-600
-                                            shadow-sm shadow-violet-500/20
-                                            hover:shadow-md hover:-translate-y-0.5
-                                            disabled:opacity-50 disabled:translate-y-0 disabled:cursor-not-allowed"
-                                    >
-                                        {downloadingBracketsDay === d
-                                            ? <Loader2 size={13} className="animate-spin" />
-                                            : <FileStack size={13} />}
-                                        {downloadingBracketsDay === d
-                                            ? 'Downloading…'
-                                            : `Day ${d} Brackets`}
-                                        {downloadingBracketsDay !== d && (
-                                            <span className="text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded-md">
-                                                {bracketCatsPerDay[d]} cat{bracketCatsPerDay[d] !== 1 ? 's' : ''}
-                                            </span>
-                                        )}
-                                    </button>
+                                    <div key={d} className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-violet-50/60 border border-violet-100">
+                                        <span className="text-xs font-black text-violet-700 px-2 whitespace-nowrap">
+                                            Day {d} <span className="font-semibold text-violet-400">({bracketCatsPerDay[d]})</span>
+                                        </span>
+                                        <button
+                                            onClick={() => downloadBracketTreesForDay(d)}
+                                            disabled={downloadingBracketTreesDay !== null}
+                                            title="One bracket-tree PDF per category, saved to a folder of your choice"
+                                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white transition-all
+                                                bg-gradient-to-br from-violet-500 to-purple-600
+                                                shadow-sm shadow-violet-500/20
+                                                hover:shadow-md hover:-translate-y-0.5
+                                                disabled:opacity-50 disabled:translate-y-0 disabled:cursor-not-allowed"
+                                        >
+                                            {downloadingBracketTreesDay === d
+                                                ? <Loader2 size={12} className="animate-spin" />
+                                                : <FileStack size={12} />}
+                                            Brackets
+                                        </button>
+                                        <button
+                                            onClick={() => downloadDayMatchListPDF(d)}
+                                            disabled={downloadingMatchListDay !== null}
+                                            title="One PDF, flat list sorted by match number"
+                                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white transition-all
+                                                bg-gradient-to-br from-indigo-500 to-indigo-600
+                                                shadow-sm shadow-indigo-500/20
+                                                hover:shadow-md hover:-translate-y-0.5
+                                                disabled:opacity-50 disabled:translate-y-0 disabled:cursor-not-allowed"
+                                        >
+                                            {downloadingMatchListDay === d
+                                                ? <Loader2 size={12} className="animate-spin" />
+                                                : <Download size={12} />}
+                                            Match List
+                                        </button>
+                                        <button
+                                            onClick={() => downloadDayMatchListByCategoryPDF(d)}
+                                            disabled={downloadingByCategoryDay !== null}
+                                            title="One PDF, grouped under a header per category"
+                                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white transition-all
+                                                bg-gradient-to-br from-teal-500 to-cyan-600
+                                                shadow-sm shadow-teal-500/20
+                                                hover:shadow-md hover:-translate-y-0.5
+                                                disabled:opacity-50 disabled:translate-y-0 disabled:cursor-not-allowed"
+                                        >
+                                            {downloadingByCategoryDay === d
+                                                ? <Loader2 size={12} className="animate-spin" />
+                                                : <List size={12} />}
+                                            By Category
+                                        </button>
+                                    </div>
                                 ))}
                             </div>
                         )}
@@ -1402,7 +1325,7 @@ export default function BracketList({ categories, tournamentName, publicView = f
                             <div className="flex items-center gap-2">
                                 <FileStack size={14} className="text-amber-500" />
                                 <span className="text-sm font-black text-gray-800">Download Bracket PDFs (Preview)</span>
-                                <span className="text-xs text-gray-400 ml-1">— not yet generated, one draft PDF per category, saved to a folder of your choice — great for sending to clubs for verification before generating</span>
+                                <span className="text-xs text-gray-400 ml-1">— not yet generated, draft brackets/match lists per day — great for sending to clubs for verification before generating</span>
                             </div>
                             <ChevronDown
                                 size={14}
@@ -1412,70 +1335,59 @@ export default function BracketList({ categories, tournamentName, publicView = f
                         {previewBracketPdfPanelOpen && (
                             <div className="px-5 py-4 flex flex-wrap gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
                                 {daysWithPreviewCats.map(d => (
-                                    <button
-                                        key={d}
-                                        onClick={() => downloadPreviewBracketsForDay(d)}
-                                        disabled={downloadingPreviewBracketsDay !== null}
-                                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-all
-                                            bg-gradient-to-br from-amber-500 to-orange-600
-                                            shadow-sm shadow-amber-500/20
-                                            hover:shadow-md hover:-translate-y-0.5
-                                            disabled:opacity-50 disabled:translate-y-0 disabled:cursor-not-allowed"
-                                    >
-                                        {downloadingPreviewBracketsDay === d
-                                            ? <Loader2 size={13} className="animate-spin" />
-                                            : <FileStack size={13} />}
-                                        {downloadingPreviewBracketsDay === d
-                                            ? 'Downloading…'
-                                            : `Day ${d} Drafts`}
-                                        {downloadingPreviewBracketsDay !== d && (
-                                            <span className="text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded-md">
-                                                {previewCatsPerDay[d]} cat{previewCatsPerDay[d] !== 1 ? 's' : ''}
-                                            </span>
-                                        )}
-                                    </button>
+                                    <div key={d} className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-amber-50/60 border border-amber-100">
+                                        <span className="text-xs font-black text-amber-700 px-2 whitespace-nowrap">
+                                            Day {d} <span className="font-semibold text-amber-400">({previewCatsPerDay[d]})</span>
+                                        </span>
+                                        <button
+                                            onClick={() => downloadPreviewBracketTreesForDay(d)}
+                                            disabled={downloadingPreviewBracketTreesDay !== null}
+                                            title="One draft bracket-tree PDF per category, saved to a folder of your choice"
+                                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white transition-all
+                                                bg-gradient-to-br from-amber-500 to-orange-600
+                                                shadow-sm shadow-amber-500/20
+                                                hover:shadow-md hover:-translate-y-0.5
+                                                disabled:opacity-50 disabled:translate-y-0 disabled:cursor-not-allowed"
+                                        >
+                                            {downloadingPreviewBracketTreesDay === d
+                                                ? <Loader2 size={12} className="animate-spin" />
+                                                : <FileStack size={12} />}
+                                            Brackets
+                                        </button>
+                                        <button
+                                            onClick={() => downloadPreviewDayMatchListPDF(d)}
+                                            disabled={downloadingPreviewMatchListDay !== null}
+                                            title="One draft PDF, flat list sorted by match number"
+                                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white transition-all
+                                                bg-gradient-to-br from-orange-500 to-red-500
+                                                shadow-sm shadow-orange-500/20
+                                                hover:shadow-md hover:-translate-y-0.5
+                                                disabled:opacity-50 disabled:translate-y-0 disabled:cursor-not-allowed"
+                                        >
+                                            {downloadingPreviewMatchListDay === d
+                                                ? <Loader2 size={12} className="animate-spin" />
+                                                : <Download size={12} />}
+                                            Match List
+                                        </button>
+                                        <button
+                                            onClick={() => downloadPreviewDayMatchListByCategoryPDF(d)}
+                                            disabled={downloadingPreviewByCategoryDay !== null}
+                                            title="One draft PDF, grouped under a header per category"
+                                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white transition-all
+                                                bg-gradient-to-br from-yellow-500 to-amber-600
+                                                shadow-sm shadow-yellow-500/20
+                                                hover:shadow-md hover:-translate-y-0.5
+                                                disabled:opacity-50 disabled:translate-y-0 disabled:cursor-not-allowed"
+                                        >
+                                            {downloadingPreviewByCategoryDay === d
+                                                ? <Loader2 size={12} className="animate-spin" />
+                                                : <List size={12} />}
+                                            By Category
+                                        </button>
+                                    </div>
                                 ))}
                             </div>
                         )}
-                    </div>
-                )
-            })()}
-
-            {/* ── All Days: Single-file, category-grouped Match List PDF ──── */}
-            {!publicView && dayFilter === 0 && (() => {
-                const isPoomsaeCat = activeTab === 'poomsae' || activeTab === 'kyukpa'
-                const generatedCatCount = displayedCategories.filter(cat =>
-                    isPoomsaeCat ? (cat.poomsaeMatches || []).length > 0 : cat.matches.length > 0
-                ).length
-                if (generatedCatCount === 0) return null
-                return (
-                    <div className="bg-white rounded-2xl border border-teal-100 shadow-sm overflow-hidden">
-                        <div className="w-full px-5 py-3.5 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <List size={14} className="text-teal-500" />
-                                <span className="text-sm font-black text-gray-800">Download Full Match List</span>
-                                <span className="text-xs text-gray-400 ml-1">— every match for every category, in one PDF, grouped by category (list, not bracket)</span>
-                            </div>
-                            <button
-                                onClick={downloadAllCategoriesMatchListPDF}
-                                disabled={downloadingAllMatchList}
-                                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all
-                                    bg-gradient-to-br from-teal-500 to-cyan-600
-                                    shadow-sm shadow-teal-500/20
-                                    hover:shadow-md hover:-translate-y-0.5
-                                    disabled:opacity-50 disabled:translate-y-0 disabled:cursor-not-allowed"
-                            >
-                                {downloadingAllMatchList
-                                    ? <Loader2 size={13} className="animate-spin" />
-                                    : <List size={13} />}
-                                {downloadingAllMatchList ? 'Generating…' : 'Download Match List'}
-                                {!downloadingAllMatchList && (
-                                    <span className="text-[10px] font-bold bg-white/20 px-1.5 py-0.5 rounded-md">
-                                        {generatedCatCount} cat{generatedCatCount !== 1 ? 's' : ''}
-                                    </span>
-                                )}
-                            </button>
-                        </div>
                     </div>
                 )
             })()}
@@ -1590,18 +1502,33 @@ export default function BracketList({ categories, tournamentName, publicView = f
 
                                         {/* Bracket PDFs (bulk per category) */}
                                         <button
-                                            onClick={() => downloadBracketsForDay(dayFilter)}
-                                            disabled={downloadingBracketsDay !== null}
+                                            onClick={() => downloadBracketTreesForDay(dayFilter)}
+                                            disabled={downloadingBracketTreesDay !== null}
                                             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white transition-all
                                                 bg-gradient-to-br from-violet-500 to-purple-600
                                                 shadow-sm shadow-violet-500/20
                                                 hover:shadow-md hover:-translate-y-0.5
                                                 disabled:opacity-50 disabled:translate-y-0 disabled:cursor-not-allowed"
                                         >
-                                            {downloadingBracketsDay === dayFilter
+                                            {downloadingBracketTreesDay === dayFilter
                                                 ? <Loader2 size={11} className="animate-spin" />
                                                 : <FileStack size={11} />}
-                                            {downloadingBracketsDay === dayFilter ? 'Downloading…' : 'Bracket PDFs'}
+                                            {downloadingBracketTreesDay === dayFilter ? 'Downloading…' : 'Bracket PDFs'}
+                                        </button>
+                                        <button
+                                            onClick={() => downloadDayMatchListByCategoryPDF(dayFilter)}
+                                            disabled={downloadingByCategoryDay !== null}
+                                            title="One PDF, grouped under a header per category"
+                                            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white transition-all
+                                                bg-gradient-to-br from-teal-500 to-cyan-600
+                                                shadow-sm shadow-teal-500/20
+                                                hover:shadow-md hover:-translate-y-0.5
+                                                disabled:opacity-50 disabled:translate-y-0 disabled:cursor-not-allowed"
+                                        >
+                                            {downloadingByCategoryDay === dayFilter
+                                                ? <Loader2 size={11} className="animate-spin" />
+                                                : <List size={11} />}
+                                            {downloadingByCategoryDay === dayFilter ? 'Downloading…' : 'By Category'}
                                         </button>
                                     </div>
                                 </div>

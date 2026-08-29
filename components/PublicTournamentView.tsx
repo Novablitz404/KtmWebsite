@@ -236,6 +236,12 @@ export default function PublicTournamentView(props: PublicTournamentViewProps) {
                         Guidelines
                     </button>
                 )}
+                <Link
+                    href={`/tournament/${tournament.id}/matches`}
+                    className="pb-3 px-1 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                    Find My Match
+                </Link>
             </div>
 
             {/* CONTENT: Overview */}

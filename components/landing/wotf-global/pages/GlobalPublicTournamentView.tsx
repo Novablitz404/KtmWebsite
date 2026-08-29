@@ -210,6 +210,12 @@ export default function GlobalPublicTournamentView(props: PublicTournamentViewPr
                         Guidelines
                     </button>
                 )}
+                <Link
+                    href={`/tournament/${tournament.id}/matches`}
+                    className="pb-3 px-1 text-sm font-bold uppercase tracking-widest border-b-2 border-transparent text-gray-500 hover:text-white transition-colors"
+                >
+                    Find My Match
+                </Link>
             </div>
 
             {activeTab === 'overview' && (

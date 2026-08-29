@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import type { Match, PoomsaeMatch } from '@prisma/client'
 import { findCategoryForPlayer } from '@/lib/placement'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
@@ -5057,6 +5058,182 @@ export async function searchPlayersForCheckIn(tournamentId: string, query: strin
     } catch (error) {
         console.error('Search for check-in error:', error)
         return []
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// PUBLIC MATCH SEARCH ("Find My Match") — unauthenticated, used by
+// app/tournament/[id]/matches. Rate-limited since it's public.
+// ─────────────────────────────────────────────────────────────
+
+export type PlayerMatchOpponentStatus = 'KNOWN' | 'BYE' | 'TBD' | 'NA'
+
+export interface PlayerMatchSummary {
+    matchNum: number | null
+    round: number
+    roundLabel: string
+    isFinal: boolean
+    opponentName: string | null
+    opponentStatus: PlayerMatchOpponentStatus
+    court: string
+}
+
+export interface PlayerMatchResult {
+    playerId: string
+    playerName: string
+    clubName: string | null
+    categoryId: string
+    categoryName: string
+    categoryType: string
+    poomsaeFormat: string | null
+    generated: boolean
+    myMatches: PlayerMatchSummary[]
+    bracketMatches?: Match[]
+    bracketPoomsaeMatches?: (PoomsaeMatch & { player: { name: string; teamId?: string | null; club?: { name: string } | null } | null })[]
+}
+
+export type SearchPlayerMatchesResponse =
+    | { status: 'rate_limited'; retryAfterSeconds: number }
+    | { status: 'ok'; results: PlayerMatchResult[] }
+
+function roundLabelFor(round: number, isFinal: boolean): string {
+    if (isFinal) return 'Final'
+    if (round === 1) return 'Round 1'
+    return `Round ${round}`
+}
+
+export async function searchPlayerMatches(tournamentId: string, query: string): Promise<SearchPlayerMatchesResponse> {
+    const { headers } = await import('next/headers')
+    const { checkRateLimit } = await import('@/lib/rate-limit')
+    const headersList = await headers()
+    const ip = headersList.get('x-forwarded-for')?.split(',')[0]?.trim() || headersList.get('x-real-ip') || 'unknown'
+    const rateLimit = checkRateLimit(`search-player-matches:${ip}`, 15, 60_000)
+    if (!rateLimit.allowed) {
+        return { status: 'rate_limited', retryAfterSeconds: rateLimit.retryAfterSeconds }
+    }
+
+    const trimmed = query.trim()
+    if (trimmed.length < 2) return { status: 'ok', results: [] }
+
+    try {
+        const players = await prisma.player.findMany({
+            where: {
+                category: { tournamentId },
+                registrationStatus: 'APPROVED',
+                name: { contains: trimmed, mode: 'insensitive' },
+            },
+            select: {
+                id: true,
+                name: true,
+                clubId: true,
+                club: { select: { name: true } },
+                categoryId: true,
+                category: { select: { id: true, name: true, type: true, poomsaeFormat: true } },
+            },
+            take: 25,
+        })
+
+        if (players.length === 0) return { status: 'ok', results: [] }
+
+        const categoryIds = Array.from(new Set(players.map(p => p.categoryId).filter((id): id is string => !!id)))
+
+        const [matches, poomsaeMatches] = await Promise.all([
+            prisma.match.findMany({ where: { categoryRefId: { in: categoryIds } }, orderBy: { round: 'asc' } }),
+            prisma.poomsaeMatch.findMany({
+                where: { categoryRefId: { in: categoryIds } },
+                orderBy: { round: 'asc' },
+                include: { player: { include: { club: true } } },
+            }),
+        ])
+
+        const matchesByCategory = new Map<string, typeof matches>()
+        for (const m of matches) {
+            if (!m.categoryRefId) continue
+            if (!matchesByCategory.has(m.categoryRefId)) matchesByCategory.set(m.categoryRefId, [])
+            matchesByCategory.get(m.categoryRefId)!.push(m)
+        }
+        const poomsaeByCategory = new Map<string, typeof poomsaeMatches>()
+        for (const m of poomsaeMatches) {
+            if (!m.categoryRefId) continue
+            if (!poomsaeByCategory.has(m.categoryRefId)) poomsaeByCategory.set(m.categoryRefId, [])
+            poomsaeByCategory.get(m.categoryRefId)!.push(m)
+        }
+
+        const results: PlayerMatchResult[] = players.map(player => {
+            const category = player.category
+            const clubName = player.club?.name || null
+
+            if (!category) {
+                return {
+                    playerId: player.id, playerName: player.name, clubName,
+                    categoryId: '', categoryName: '', categoryType: '', poomsaeFormat: null,
+                    generated: false, myMatches: [],
+                }
+            }
+
+            if (category.type === 'KYORUGI') {
+                const catMatches = matchesByCategory.get(category.id) || []
+                const generated = catMatches.length > 0
+                const maxRound = generated ? Math.max(...catMatches.map(m => m.round)) : 0
+
+                const myMatches: PlayerMatchSummary[] = catMatches
+                    .filter(m => m.player1 === player.name || m.player2 === player.name)
+                    .map(m => {
+                        const isSelf1 = m.player1 === player.name
+                        const raw = isSelf1 ? m.player2 : m.player1
+                        const opponentStatus: PlayerMatchOpponentStatus = raw === 'BYE' ? 'BYE' : raw === 'TBD' ? 'TBD' : 'KNOWN'
+                        const opponentName = opponentStatus === 'KNOWN' ? raw : null
+                        const isFinal = m.round === maxRound
+                        return {
+                            matchNum: m.matchId, round: m.round, roundLabel: roundLabelFor(m.round, isFinal),
+                            isFinal, opponentName, opponentStatus, court: m.court,
+                        }
+                    })
+
+                return {
+                    playerId: player.id, playerName: player.name, clubName,
+                    categoryId: category.id, categoryName: category.name, categoryType: 'KYORUGI', poomsaeFormat: null,
+                    generated, myMatches, bracketMatches: generated ? catMatches : undefined,
+                }
+            }
+
+            // POOMSAE or KYUKPA
+            const catRows = poomsaeByCategory.get(category.id) || []
+            const generated = catRows.length > 0
+            const isHeadToHead = category.poomsaeFormat === 'HEAD_TO_HEAD'
+            const myRows = catRows.filter(r =>
+                r.playerId === player.id ||
+                (r.memberNames && r.memberNames.split(',').map(n => n.trim()).includes(player.name))
+            )
+            const maxRound = generated ? Math.max(...catRows.map(m => m.round)) : 0
+
+            const myMatches: PlayerMatchSummary[] = myRows.map(row => {
+                let opponentName: string | null = null
+                let opponentStatus: PlayerMatchOpponentStatus = 'NA'
+                if (isHeadToHead) {
+                    const sibling = catRows.find(r => r.matchId === row.matchId && r.id !== row.id)
+                    const oppLabel = sibling ? (sibling.player?.name || sibling.displayName || null) : null
+                    opponentName = oppLabel
+                    opponentStatus = oppLabel ? 'KNOWN' : 'TBD'
+                }
+                const isFinal = row.round === maxRound
+                return {
+                    matchNum: row.matchId, round: row.round, roundLabel: roundLabelFor(row.round, isFinal),
+                    isFinal, opponentName, opponentStatus, court: row.court,
+                }
+            })
+
+            return {
+                playerId: player.id, playerName: player.name, clubName,
+                categoryId: category.id, categoryName: category.name, categoryType: category.type, poomsaeFormat: category.poomsaeFormat,
+                generated, myMatches, bracketPoomsaeMatches: generated ? catRows : undefined,
+            }
+        })
+
+        return { status: 'ok', results }
+    } catch (error) {
+        console.error('searchPlayerMatches error:', error)
+        return { status: 'ok', results: [] }
     }
 }
 
