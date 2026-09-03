@@ -22,7 +22,6 @@ export default async function EventRegisterPage({ params, searchParams }: PagePr
             id: true,
             name: true,
             status: true,
-            xenditEnabled: true,
             regularPrice: true,
             earlyBirdPrice: true,
             earlyBirdDeadline: true,
@@ -94,6 +93,13 @@ export default async function EventRegisterPage({ params, searchParams }: PagePr
         orderBy: { name: 'asc' },
     })
 
+    // Fetch categories for manual selection
+    const categories = await prisma.category.findMany({
+        where: { tournamentId: tournament.id },
+        select: { id: true, name: true, type: true },
+        orderBy: { name: 'asc' },
+    })
+
     // Determine current price tier
     const now = new Date()
     const isEarlyBird = !!(tournament.earlyBirdDeadline && now < tournament.earlyBirdDeadline)
@@ -113,7 +119,6 @@ export default async function EventRegisterPage({ params, searchParams }: PagePr
         }
     }
 
-    // Check if payment just completed (redirect from Xendit)
     const paymentConfirmed = search.payment === 'success'
 
     return (
@@ -121,7 +126,6 @@ export default async function EventRegisterPage({ params, searchParams }: PagePr
             tournament={{
                 id: tournament.id,
                 name: tournament.name,
-                xenditEnabled: tournament.xenditEnabled,
                 currentPrice,
                 isEarlyBird,
                 regularPrice: tournament.regularPrice,
@@ -130,6 +134,7 @@ export default async function EventRegisterPage({ params, searchParams }: PagePr
                 currency: tournament.currency ?? 'PHP',
             }}
             clubs={clubs}
+            categories={categories}
             eventSlug={slug}
             paymentConfirmed={paymentConfirmed}
             registrationId={search.registrationId}

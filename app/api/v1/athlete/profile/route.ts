@@ -1,6 +1,7 @@
 import { authenticateApi, apiError, apiResponse } from '@/lib/auth-api'
 import { prisma } from '@/lib/prisma'
 import { uploadAvatar } from '@/lib/supabase-storage'
+import { toTitleCase } from '@/lib/utils'
 
 export async function PUT(request: Request) {
     try {
@@ -37,7 +38,7 @@ export async function PUT(request: Request) {
         const updatedUser = await prisma.user.update({
             where: { id: user.id },
             data: {
-                name,
+                name: toTitleCase(name),
                 clubName: clubName || user.clubName,
                 belt: belt || user.belt,
                 gender: gender || user.gender,

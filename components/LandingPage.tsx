@@ -235,61 +235,6 @@ export default function LandingPage({ upcomingTournaments, user, stats }: Landin
                 </div>
             </section>
 
-            {/* ═══════════════════ PARTNERS ═══════════════════ */}
-            <section className="relative bg-[#070709] py-12 sm:py-20 overflow-hidden">
-                {/* Subtle divider */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-px bg-gradient-to-r from-transparent via-red-600/30 to-transparent" />
-
-                <Reveal direction="up">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-10">
-                        <div className="text-center">
-                            <h2 className="text-2xl sm:text-3xl font-black text-white mb-4">Our Partners</h2>
-                            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/[0.04] border border-white/[0.08] rounded-full text-gray-500 text-xs font-bold uppercase tracking-wider">
-                                Powering the Combat Sports Community
-                            </div>
-                        </div>
-                    </div>
-                </Reveal>
-
-                {/* Infinite Scroll Track */}
-                <div className="relative overflow-hidden">
-                    {/* Fade edges — dark */}
-                    <div className="absolute left-0 top-0 bottom-0 w-24 sm:w-40 bg-gradient-to-r from-[#070709] to-transparent z-10" />
-                    <div className="absolute right-0 top-0 bottom-0 w-24 sm:w-40 bg-gradient-to-l from-[#070709] to-transparent z-10" />
-
-                    {(() => {
-                        const partners = [
-                            { src: '/Partners/world-taekwondo.png', alt: 'World Taekwondo' },
-                            { src: '/Partners/kukkiwon.png', alt: 'Kukkiwon' },
-                            { src: '/Partners/wotf-world.png', alt: 'WOTF World' },
-                        ]
-                        // Repeat logos enough times to guarantee viewport coverage
-                        const repeatedLogos = [...partners, ...partners, ...partners, ...partners]
-                        return (
-                            <div className="flex ktm-marquee-track w-max">
-                                {[0, 1].map((setIndex) => (
-                                    <div key={setIndex} className="flex shrink-0 items-center gap-16 sm:gap-24 px-8 sm:px-12" aria-hidden={setIndex === 1}>
-                                        {repeatedLogos.map((partner, i) => (
-                                            <div
-                                                key={`${setIndex}-${i}`}
-                                                className="shrink-0 opacity-40 hover:opacity-80 transition-opacity duration-300 cursor-default"
-                                            >
-                                                <img
-                                                    src={partner.src}
-                                                    alt={partner.alt}
-                                                    className="h-10 sm:h-14 w-auto object-contain brightness-0 invert"
-                                                />
-                                            </div>
-                                        ))}
-                                    </div>
-                                ))}
-                            </div>
-                        )
-                    })()}
-                </div>
-
-            </section>
-
             {/* ═══════════════════ FEATURES ═══════════════════ */}
             <section className="relative bg-[#070709] ktm-grain py-20 sm:py-32 overflow-hidden">
                 {/* Background accent */}

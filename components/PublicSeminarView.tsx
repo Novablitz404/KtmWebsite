@@ -73,6 +73,14 @@ export default function PublicSeminarView({ seminar, currentUserId, isRestricted
                             )
                         }
 
+                        if (userRole === 'ATHLETE') {
+                            return (
+                                <span className="px-6 py-2 bg-gray-100 text-gray-500 font-semibold rounded-lg border border-gray-200 text-sm">
+                                    Ask your club master to register you
+                                </span>
+                            )
+                        }
+
                         if (seminar.status === 'UPCOMING' || seminar.status === 'OPEN') {
                             return (
                                 <Link

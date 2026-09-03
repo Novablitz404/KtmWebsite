@@ -7,6 +7,7 @@ import { getNextBelt, canManagePromotion } from '@/lib/belt'
 import { sendEmail } from '@/lib/email-service'
 import PromotionPassedEmail from '@/emails/PromotionPassedEmail'
 import React from 'react'
+import { toTitleCase } from '@/lib/utils'
 
 export async function updateRegistrationStatus(registrationId: string, status: string) {
     const user = await getAuthUser()
@@ -37,8 +38,7 @@ export async function updateRegistrationStatus(registrationId: string, status: s
         where: { id: registrationId },
         data: {
             status,
-            // Auto-set payment to PAID for manual (non-Xendit) events
-            ...(status === 'APPROVED' && !registration.promotionTest.xenditEnabled && { paymentStatus: 'PAID' })
+            ...(status === 'APPROVED' && { paymentStatus: 'PAID' })
         }
     })
 
@@ -277,16 +277,13 @@ export async function getPromotionTests() {
     return promotionTests
 }
 
-export async function getUpcomingPromotions(clubId: string) {
+export async function getUpcomingPromotions() {
     try {
         const today = new Date()
         today.setHours(0, 0, 0, 0)
 
         const tests = await prisma.promotionTest.findMany({
             where: {
-                participatingClubs: {
-                    some: { clubId }
-                },
                 testDate: { gte: today },
                 status: 'UPCOMING'
             },
@@ -310,12 +307,18 @@ export async function registerForPromotion(input: {
 }) {
     const { promotionTestId, playerId, playerName, clubName, currentBelt, targetBelt, age } = input
 
+    const { verifyCanRegisterAthlete } = await import('@/lib/club-auth')
+    const authCheck = await verifyCanRegisterAthlete(playerId)
+    if (authCheck.error) {
+        return { error: authCheck.error }
+    }
+
     try {
         const registration = await prisma.promotionTestRegistration.create({
             data: {
                 promotionTestId,
                 playerId,
-                playerName,
+                playerName: toTitleCase(playerName),
                 clubName: clubName || null,
                 currentBelt,
                 targetBelt: targetBelt || null,

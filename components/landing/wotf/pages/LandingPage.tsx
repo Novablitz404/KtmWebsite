@@ -9,7 +9,6 @@ import StatsSection from "@/components/landing/wotf/StatsSection";
 import WelcomeSection from "@/components/landing/wotf/WelcomeSection";
 import AffiliationCTA from "@/components/landing/wotf/AffiliationCTA";
 import Footer from "@/components/landing/wotf/Footer";
-import AiChatWidget from "@/components/AiChatWidget";
 
 interface WOTFLandingPageProps {
     stats?: { athletes: number; clubs: number; events: number };
@@ -32,7 +31,6 @@ export default function WOTFLandingPage({ stats, upcomingEvents }: WOTFLandingPa
             <EventsSection events={upcomingEvents} qs={qs} />
             <AffiliationCTA qs={qs} />
             <Footer />
-            <AiChatWidget />
         </main>
     );
 }

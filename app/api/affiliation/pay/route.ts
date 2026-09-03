@@ -4,9 +4,9 @@ import { getAuthUser } from '@/lib/supabase/server'
 
 /**
  * POST /api/affiliation/pay
- * 
+ *
  * Initiates affiliation payment for a club.
- * Creates or updates a ClubAffiliation record and redirects to Xendit.
+ * Creates or updates a ClubAffiliation record for the manual payment flow.
  */
 export async function POST(req: NextRequest) {
     try {

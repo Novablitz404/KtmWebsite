@@ -127,11 +127,10 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
             orderBy: { category: { tournament: { startDate: 'desc' } } },
             take: 500
         }),
-        // 3. Participating Tournaments
+        // 3. Participating Tournaments (all-time — split into upcoming/past below)
         prisma.tournament.findMany({
             where: {
                 participatingClubs: { some: { clubId: clubId } },
-                startDate: { gte: today },
                 status: { not: 'CANCELLED' }
             },
             select: {
@@ -158,13 +157,12 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
                 }
             },
             orderBy: { startDate: 'desc' },
-            take: 50
+            take: 100
         }),
-        // 3.1 Participating Promotions
+        // 3.1 Participating Promotions (all-time — split into upcoming/past below)
         prisma.promotionTest.findMany({
             where: {
                 participatingClubs: { some: { clubId: clubId } },
-                testDate: { gte: today },
                 status: { not: 'CANCELLED' }
             },
             select: {
@@ -178,13 +176,13 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
                     }
                 }
             },
-            orderBy: { testDate: 'asc' }
+            orderBy: { testDate: 'desc' },
+            take: 100
         }),
-        // 3.2 Participating Seminars
+        // 3.2 Participating Seminars (all-time — split into upcoming/past below)
         prisma.seminar.findMany({
             where: {
                 participatingClubs: { some: { clubId: clubId } },
-                startDate: { gte: today },
                 status: { not: 'CANCELLED' }
             },
             select: {
@@ -198,7 +196,8 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
                     }
                 }
             },
-            orderBy: { startDate: 'asc' }
+            orderBy: { startDate: 'desc' },
+            take: 100
         }),
         // 4. Promotion Registrations (Pending & Approved)
         prisma.promotionTestRegistration.findMany({
@@ -307,30 +306,44 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
         }
     })
 
-    // Create unified upcomingEvents list
-    const upcomingEvents = [
+    // Create unified all-time joined-events list (every event this club has ever
+    // participated in), then split into upcoming vs past by date.
+    const joinedEvents = [
         ...clubTournaments.map(t => ({
             id: t.id,
             name: t.name,
             startDate: t.startDate,
             type: 'TOURNAMENT' as const,
-            athleteCount: t.athleteCount
+            athleteCount: t.athleteCount,
+            gold: t.gold,
+            silver: t.silver,
+            bronze: t.bronze
         })),
         ...participatingPromotions.map(p => ({
             id: p.id,
             name: p.name,
             startDate: p.testDate,
             type: 'PROMOTION' as const,
-            athleteCount: p._count.registrations
+            athleteCount: p._count.registrations,
+            gold: 0, silver: 0, bronze: 0
         })),
         ...participatingSeminars.map(s => ({
             id: s.id,
             name: s.name,
             startDate: s.startDate,
             type: 'SEMINAR' as const,
-            athleteCount: s._count.registrations
+            athleteCount: s._count.registrations,
+            gold: 0, silver: 0, bronze: 0
         }))
-    ].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
+    ]
+
+    const upcomingEvents = joinedEvents
+        .filter(e => new Date(e.startDate) >= today)
+        .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
+
+    const pastEvents = joinedEvents
+        .filter(e => new Date(e.startDate) < today)
+        .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime())
 
     // Calculate Top Performers across all fetched tournaments
     const athleteStats = new Map<string, { name: string, gold: number, silver: number, bronze: number }>()
@@ -414,6 +427,8 @@ export const getClubEventsData = cache(async (clubId: string, clubName: string) 
         approvedPlayers,
         clubTournaments,
         upcomingEvents,
+        pastEvents,
+        joinedEvents,
         topPerformers,
         promotionRegistrations: promotionRegistrations.map(reg => ({
             id: reg.id,
@@ -447,7 +462,7 @@ export const getClubMemberCount = cache(async (clubName: string) => {
 })
 
 export const getClubHomeData = cache(async (clubId: string, clubName: string) => {
-    const { pendingPlayers, approvedPlayers, clubTournaments, upcomingEvents, topPerformers, promotionRegistrations, seminarRegistrations } = await getClubEventsData(clubId, clubName)
+    const { pendingPlayers, approvedPlayers, clubTournaments, upcomingEvents, pastEvents, joinedEvents, topPerformers, promotionRegistrations, seminarRegistrations } = await getClubEventsData(clubId, clubName)
 
     // Parallel fetch: total members + member growth data
     const now = new Date()
@@ -511,6 +526,8 @@ export const getClubHomeData = cache(async (clubId: string, clubName: string) =>
         approvedPlayers,
         clubTournaments,
         upcomingEvents,
+        pastEvents,
+        joinedEvents,
         totalMembers,
         topPerformers,
         promotionRegistrations,

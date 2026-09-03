@@ -12,7 +12,6 @@ interface SeminarRegistrationFormProps {
         id: string
         name: string
         fee: number | null
-        xenditEnabled: boolean
     }
     user: {
         name: string | null
@@ -28,8 +27,7 @@ export default function SeminarRegistrationForm({ seminar, user, disabled = fals
     const [isSubmitting, setIsSubmitting] = useState(false)
 
     const handleSubmit = async () => {
-        // For non-Xendit flow, waiver is required before registration
-        if (!seminar.xenditEnabled && !waiverAccepted) {
+        if (!waiverAccepted) {
             toast.error('Please accept the waiver before registering.')
             return
         }
@@ -44,33 +42,6 @@ export default function SeminarRegistrationForm({ seminar, user, disabled = fals
 
             if (result.error) {
                 toast.error(result.error)
-            } else if (seminar.xenditEnabled && result.registrationId) {
-                // Redirect to Xendit checkout — will come back with ?payment=success
-                try {
-                    const currentUrl = window.location.origin + window.location.pathname
-                    const checkoutRes = await fetch('/api/checkout/xendit', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            eventType: 'seminar',
-                            eventId: seminar.id,
-                            registrationId: result.registrationId,
-                            payerEmail: user.email,
-                            payerName: user.name,
-                            amount: seminar.fee || 0,
-                            redirectUrl: currentUrl,
-                        })
-                    })
-                    const checkoutData = await checkoutRes.json()
-                    if (checkoutData.invoiceUrl) {
-                        window.location.href = checkoutData.invoiceUrl
-                        return
-                    } else {
-                        toast.error(checkoutData.error || 'Failed to create payment link')
-                    }
-                } catch {
-                    toast.error('Failed to redirect to payment. Please contact your club master.')
-                }
             } else {
                 toast.success('Registration submitted successfully! Waiting for approval.')
                 router.push('/athlete')
@@ -83,7 +54,6 @@ export default function SeminarRegistrationForm({ seminar, user, disabled = fals
         }
     }
 
-    // If returning from Xendit payment, show payment confirmed + waiver
     if (paymentConfirmed) {
         return (
             <div className="space-y-5">
@@ -157,21 +127,10 @@ export default function SeminarRegistrationForm({ seminar, user, disabled = fals
                     <div className="text-sm text-amber-800">
                         <p className="font-semibold mb-1">How it works</p>
                         <ol className="list-decimal pl-4 space-y-0.5 text-xs text-amber-700">
-                            {seminar.xenditEnabled ? (
-                                <>
-                                    <li>Submit your registration below</li>
-                                    <li>Complete payment via Xendit</li>
-                                    <li>Sign the waiver after payment</li>
-                                    <li>Your club master will approve your registration</li>
-                                </>
-                            ) : (
-                                <>
-                                    <li>Accept the waiver below</li>
-                                    <li>Submit your registration</li>
-                                    <li>Pay the registration fee to your club master</li>
-                                    <li>Your club master will approve your registration once payment is confirmed</li>
-                                </>
-                            )}
+                            <li>Accept the waiver below</li>
+                            <li>Submit your registration</li>
+                            <li>Pay the registration fee to your club master</li>
+                            <li>Your club master will approve your registration once payment is confirmed</li>
                         </ol>
                     </div>
                 </div>
@@ -192,9 +151,8 @@ export default function SeminarRegistrationForm({ seminar, user, disabled = fals
                 </div>
             </div>
 
-            {/* Waiver — only shown for non-Xendit flow */}
-            {!seminar.xenditEnabled && (
-                <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+            {/* Waiver */}
+            <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
                     <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
                         <span>📋</span> Waiver & Agreement
                     </h3>
@@ -225,18 +183,17 @@ export default function SeminarRegistrationForm({ seminar, user, disabled = fals
                         </span>
                     </label>
                 </div>
-            )}
 
             {/* Submit */}
             <div className="flex justify-center pt-2">
                 <LoadingButton
                     onClick={handleSubmit}
                     isLoading={isSubmitting}
-                    loadingText={seminar.xenditEnabled ? 'Proceeding to Payment...' : 'Registering...'}
+                    loadingText="Registering..."
                     disabled={disabled}
                     className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all disabled:opacity-50 disabled:shadow-none"
                 >
-                    {seminar.xenditEnabled ? 'Register & Pay' : 'Submit Registration'}
+                    Submit Registration
                 </LoadingButton>
             </div>
         </div>

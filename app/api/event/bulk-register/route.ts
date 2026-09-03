@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { findCategoryForPlayer } from '@/lib/placement'
 import { deriveSkillLevel } from '@/lib/skill-logic'
+import { toTitleCase } from '@/lib/utils'
 
 /**
  * POST /api/event/bulk-register
  * 
  * Bulk registration for clubs at event landing pages.
  * Creates a BulkRegistration parent + individual Player + GuestRegistration for each athlete.
- * Returns total amount for a single Xendit payment.
+ * Returns total amount for a single manual payment.
  */
 export async function POST(req: NextRequest) {
     try {
@@ -26,6 +26,8 @@ export async function POST(req: NextRequest) {
         if (!tournamentId || !clubName || !managerEmail || !managerName) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
         }
+
+        const normalizedManagerName = toTitleCase(managerName)
 
         if (!athletes || !Array.isArray(athletes) || athletes.length === 0) {
             return NextResponse.json({ error: 'At least one athlete is required' }, { status: 400 })
@@ -122,7 +124,7 @@ export async function POST(req: NextRequest) {
                     clubId: clubId || null,
                     clubName,
                     managerEmail: managerEmail.toLowerCase().trim(),
-                    managerName,
+                    managerName: normalizedManagerName,
                     totalAthletes: athletes.length,
                     totalAmount: 0, // Will be calculated below
                     paymentStatus: 'UNPAID',
@@ -133,25 +135,21 @@ export async function POST(req: NextRequest) {
             const registrations = []
 
             for (const athlete of athletes) {
-                const { email, fullName, birthday, beltRank, weightKg, heightCm, gender, country, eventType, poomsaeSubtype } = athlete
+                const { email, fullName: rawFullName, birthday, beltRank, weightKg, heightCm, gender, country, categoryId, poomsaeSubtype } = athlete
 
-                if (!email || !fullName || !birthday || !beltRank || !weightKg || !heightCm || !gender || !country) {
-                    throw new Error(`Missing required fields for athlete: ${fullName || 'Unknown'}`)
+                if (!email || !rawFullName || !birthday || !beltRank || !weightKg || !heightCm || !gender || !country || !categoryId) {
+                    throw new Error(`Missing required fields for athlete: ${rawFullName || 'Unknown'}`)
                 }
 
-                // Auto-detect category
-                const category = await findCategoryForPlayer(tournamentId, {
-                    birthDate: new Date(birthday),
-                    gender,
-                    weight: parseFloat(weightKg),
-                    height: parseFloat(heightCm),
-                    belt: beltRank,
-                    type: eventType || 'KYORUGI',
-                    poomsaeType: poomsaeSubtype,
+                const fullName = toTitleCase(rawFullName)
+
+                // Validate the manually selected category belongs to this tournament
+                const category = await tx.category.findFirst({
+                    where: { id: categoryId, tournamentId }
                 })
 
                 if (!category) {
-                    throw new Error(`No matching category found for athlete: ${fullName}`)
+                    throw new Error(`Invalid category selected for athlete: ${fullName}`)
                 }
 
                 // Calculate price per athlete

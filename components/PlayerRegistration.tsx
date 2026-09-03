@@ -1,15 +1,14 @@
 'use client'
 
-import { createPlayer, getTournamentPlayers, searchAllAthletes, findPlayerCategory } from '@/app/actions'
+import { createPlayer, getTournamentPlayers, searchAllAthletes } from '@/app/actions'
 import { useRef, useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 import {
     ChevronDown, ChevronUp, UserPlus, Loader2, Search,
-    CheckCircle2, AlertCircle, ChevronsUpDown, X, Users, Filter
+    AlertCircle, ChevronsUpDown, X, Users, Filter
 } from 'lucide-react'
 import GlobalDropdown from '@/components/GlobalDropdown'
 import { calculateAge } from '@/lib/placement'
-import MasterlistAudit from '@/components/MasterlistAudit'
 
 interface PlayerRegistrationProps {
     tournamentId: string
@@ -76,15 +75,10 @@ export default function PlayerRegistration({
     const [poomsaeType, setPoomsaeType]   = useState('INDIVIDUAL')
     const [teamId, setTeamId]             = useState('')
 
-    const [tentativeCategory, setTentativeCategory]   = useState<{ id: string; name: string; type: string } | null>(null)
-    const [isDetecting, setIsDetecting]               = useState(false)
-    const [isManualMode, setIsManualMode]             = useState(false)
     const [manualCategoryId, setManualCategoryId]     = useState('')
 
     const filteredCategories = categories.filter(c => (c as any).type === eventType)
-    const effectiveCategory  = isManualMode
-        ? filteredCategories.find(c => c.id === manualCategoryId) || null
-        : tentativeCategory
+    const effectiveCategory  = filteredCategories.find(c => c.id === manualCategoryId) || null
 
     const [players, setPlayers]           = useState(initialPlayers)
     const [currentPage, setCurrentPage]   = useState(1)
@@ -159,27 +153,10 @@ export default function PlayerRegistration({
         return () => clearTimeout(timer)
     }, [searchQuery])
 
+    // Reset category selection whenever the event type changes
     useEffect(() => {
-        const detect = async () => {
-            if (!selectedAthlete) { setTentativeCategory(null); return }
-            setIsDetecting(true)
-            try {
-                const category = await findPlayerCategory(tournamentId, {
-                    birthDate: selectedAthlete.birthDate || new Date(),
-                    gender: selectedAthlete.gender || 'Male',
-                    weight: parseFloat(weight) || 0,
-                    height: parseFloat(height) || 0,
-                    belt,
-                    poomsaeType: eventType === 'POOMSAE' ? poomsaeType : undefined,
-                    type: eventType,
-                })
-                setTentativeCategory(category)
-            } catch (e) { console.error(e); setTentativeCategory(null) }
-            finally { setIsDetecting(false) }
-        }
-        const timer = setTimeout(detect, 500)
-        return () => clearTimeout(timer)
-    }, [selectedAthlete, weight, height, belt, eventType, poomsaeType, tournamentId])
+        setManualCategoryId('')
+    }, [eventType])
 
     const handleSelectAthlete = (athlete: SearchResult) => {
         setSelectedAthlete(athlete)
@@ -189,13 +166,13 @@ export default function PlayerRegistration({
         setWeight(athlete.weight?.toString() || '')
         setHeight(athlete.height?.toString() || '')
         setSearchQuery(''); setSearchResults([])
-        setIsManualMode(false); setManualCategoryId('')
+        setManualCategoryId('')
     }
 
     const handleClearAthlete = () => {
         setSelectedAthlete(null); setAthleteName(''); setClubName('')
         setBelt('Black'); setWeight(''); setHeight('')
-        setTentativeCategory(null); setIsManualMode(false); setManualCategoryId('')
+        setManualCategoryId('')
     }
 
     const memberAge  = selectedAthlete?.birthDate ? calculateAge(selectedAthlete.birthDate) : null
@@ -413,7 +390,7 @@ export default function PlayerRegistration({
                                         <button
                                             key={type.value}
                                             type="button"
-                                            onClick={() => { setEventType(type.value); setIsManualMode(false); setManualCategoryId('') }}
+                                            onClick={() => { setEventType(type.value); setManualCategoryId('') }}
                                             className={`flex-1 px-3 py-2 text-xs font-bold rounded-lg transition-all ${
                                                 eventType === type.value
                                                     ? 'bg-white text-red-600 shadow-sm'
@@ -451,70 +428,21 @@ export default function PlayerRegistration({
                             </div>
                         )}
 
-                        {/* ── Category auto-detect / manual ── */}
+                        {/* ── Category selection ── */}
                         <div className={`rounded-2xl border p-4 transition-colors ${
                             effectiveCategory
                                 ? 'bg-emerald-50 border-emerald-100'
                                 : 'bg-gray-50 border-gray-200'
                         }`}>
-                            <div className="flex items-center justify-between mb-2">
-                                <label className={labelClass + ' mb-0'}>Category</label>
-                                <button
-                                    type="button"
-                                    onClick={() => { setIsManualMode(!isManualMode); setManualCategoryId('') }}
-                                    className="text-[11px] font-bold text-red-600 hover:text-red-800 transition-colors"
-                                >
-                                    {isManualMode ? '← Auto-Detect' : 'Choose Manually →'}
-                                </button>
-                            </div>
-
-                            {isManualMode ? (
-                                <div className="space-y-2">
-                                    <GlobalDropdown
-                                        value={manualCategoryId}
-                                        onChange={setManualCategoryId}
-                                        options={filteredCategories.map(c => ({ value: c.id, label: c.name }))}
-                                        label="Select category..."
-                                        fullWidth
-                                        searchable
-                                    />
-                                    {manualCategoryId && (
-                                        <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 font-semibold mt-1">
-                                            <CheckCircle2 size={12} />
-                                            Manually selected
-                                        </div>
-                                    )}
-                                </div>
-                            ) : !selectedAthlete ? (
-                                <div className="flex items-center gap-2.5">
-                                    <AlertCircle size={16} className="text-gray-400 flex-shrink-0" />
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-500">Select an athlete first</p>
-                                        <p className="text-xs text-gray-400">Category will auto-detect from profile.</p>
-                                    </div>
-                                </div>
-                            ) : isDetecting ? (
-                                <div className="flex items-center gap-2 text-gray-500 text-sm">
-                                    <Loader2 size={14} className="animate-spin" />
-                                    Detecting category...
-                                </div>
-                            ) : tentativeCategory ? (
-                                <div className="flex items-center gap-2.5">
-                                    <CheckCircle2 size={16} className="text-emerald-500 flex-shrink-0" />
-                                    <div>
-                                        <p className="font-bold text-gray-900 text-sm">{tentativeCategory.name}</p>
-                                        <p className="text-[11px] text-emerald-600 font-medium mt-0.5">Auto-detected from profile</p>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="flex items-center gap-2.5">
-                                    <AlertCircle size={16} className="text-amber-500 flex-shrink-0" />
-                                    <div>
-                                        <p className="font-medium text-gray-700 text-sm">No Category Found</p>
-                                        <p className="text-xs text-gray-400 mt-0.5">Try choosing manually or check weight/age.</p>
-                                    </div>
-                                </div>
-                            )}
+                            <label className={labelClass}>Category</label>
+                            <GlobalDropdown
+                                value={manualCategoryId}
+                                onChange={setManualCategoryId}
+                                options={filteredCategories.map(c => ({ value: c.id, label: c.name }))}
+                                label="Select category..."
+                                fullWidth
+                                searchable
+                            />
                         </div>
 
                         {categories.length === 0 && (
@@ -537,11 +465,6 @@ export default function PlayerRegistration({
                         </button>
                     </form>
                 </div>
-            )}
-
-            {/* ── Masterlist Audit ──────────────────────────────────── */}
-            {!readOnly && (
-                <MasterlistAudit tournamentId={tournamentId} />
             )}
 
             {/* ── Athletes table ───────────────────────────────────── */}

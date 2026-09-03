@@ -60,7 +60,7 @@ export async function GET(
             fee: org.affiliationFee,
             organizationName: org.name,
             paymentConfig: {
-                paymentMethod: org.affiliationPaymentMethod || 'manual',
+                paymentMethod: org.affiliationPaymentMethod === 'xendit' ? 'manual' : (org.affiliationPaymentMethod || 'manual'),
                 paymentMethods: paymentMethods.length > 0 ? paymentMethods : legacyMethod,
                 instructions: org.affiliationInstructions,
             }

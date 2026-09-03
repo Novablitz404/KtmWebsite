@@ -12,8 +12,6 @@ interface ClubTopBarProps {
     onSearchChange?: (term: string) => void
     searchPlaceholder?: string
     title?: string
-    onActionClick?: () => void
-    actionCount?: number
 }
 
 export default function ClubTopBar({
@@ -26,8 +24,6 @@ export default function ClubTopBar({
     onSearchChange,
     searchPlaceholder = 'Search...',
     title,
-    onActionClick,
-    actionCount = 0
 }: ClubTopBarProps) {
     if (title) {
         return (
@@ -40,7 +36,7 @@ export default function ClubTopBar({
 
     return (
         <div className="hidden md:flex items-center justify-between h-16 px-6">
-            {/* Search Bar OR Browse Events Button */}
+            {/* Search Bar */}
             <div className="flex-1 max-w-md">
                 {onSearchChange ? (
                     <div className="relative">

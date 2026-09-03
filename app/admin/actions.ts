@@ -5,6 +5,7 @@ import { getAuthUser } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { countryToCode } from '@/lib/countries'
+import { toTitleCase } from '@/lib/utils'
 
 export async function promoteToOrganizer(formData: FormData) {
     const user = await getAuthUser()
@@ -42,7 +43,7 @@ export async function updateAdminProfile(fullName: string) {
 
     await prisma.user.update({
         where: { id: dbUser.id },
-        data: { name: fullName }
+        data: { name: toTitleCase(fullName) }
     });
 
     // Cascade all profile changes (name) to related records

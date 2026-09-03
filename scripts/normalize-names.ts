@@ -13,17 +13,30 @@ const applyChanges = process.argv.includes('--apply')
 
 // ─── Title Case Helper ───
 const ROMAN_NUMERALS = new Set(['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV'])
-const LOWERCASE_WORDS = new Set(['of', 'the', 'and', 'in', 'at', 'for', 'de', 'del'])
+// Note: intentionally excludes "de"/"del" — in Philippine surnames (De Los Reyes,
+// De Castro, Del Fierro) these are conventionally capitalized, unlike French usage.
+const LOWERCASE_WORDS = new Set(['of', 'the', 'and', 'in', 'at', 'for'])
+
+// A word the user already typed in full uppercase (2+ letters, e.g. "TKD", "ITF")
+// is treated as an intentional acronym and left alone, rather than mangled to "Tkd".
+function isLikelyAcronym(word: string): boolean {
+    const letters = word.replace(/[^A-Za-z]/g, '')
+    return letters.length >= 2 && word === word.toUpperCase()
+}
 
 function toTitleCase(str: string): string {
     if (!str) return str
     return str
+        .trim()
+        .replace(/\s+/g, ' ')
         .split(' ')
         .map((word, index) => {
+            if (isLikelyAcronym(word)) return word
             if (word.includes('-')) {
                 return word.split('-').map(part => {
                     const upper = part.toUpperCase()
                     if (ROMAN_NUMERALS.has(upper)) return upper
+                    if (isLikelyAcronym(part)) return part
                     if (part.length <= 1) return upper
                     return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
                 }).join('-')

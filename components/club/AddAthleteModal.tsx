@@ -1,10 +1,10 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useScrollLock } from '@/hooks/useScrollLock'
-import { X, Search, Loader2, AlertCircle, CheckCircle2, Upload, CreditCard } from 'lucide-react'
+import { X, Search, Loader2, Upload, CreditCard } from 'lucide-react'
 import { toast } from 'sonner'
 import GlobalDropdown from '@/components/GlobalDropdown'
-import { searchClubMembers, getUpcomingTournaments, registerForTournament, findPlayerCategory } from '@/app/actions'
+import { searchClubMembers, getUpcomingTournaments, registerForTournament } from '@/app/actions'
 import { getUpcomingSeminars, registerForSeminar } from '@/app/seminars/actions'
 import { getUpcomingPromotions, registerForPromotion } from '@/app/promotions/actions'
 import { calculateAge } from '@/lib/placement'
@@ -38,12 +38,6 @@ interface Tournament {
         name: string
         type: string
     }[]
-}
-
-interface Category {
-    id: string
-    name: string
-    type: string
 }
 
 interface Seminar {
@@ -84,10 +78,6 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
     // Promotion Specific State
     const [targetBelt, setTargetBelt] = useState<string>('')
 
-    // Auto-Detection State
-    const [tentativeCategory, setTentativeCategory] = useState<Category | null>(null)
-    const [isDetecting, setIsDetecting] = useState(false)
-    const [isManualMode, setIsManualMode] = useState(false)
     const [manualCategoryId, setManualCategoryId] = useState<string>('')
 
     // Form State (Details)
@@ -114,9 +104,9 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
             if (activeTab === 'TOURNAMENT' && tournaments.length === 0) {
                 getUpcomingTournaments().then(setTournaments).catch(() => toast.error('Failed to load tournaments'))
             } else if (activeTab === 'SEMINAR' && seminars.length === 0) {
-                getUpcomingSeminars(clubId).then(setSeminars).catch(() => toast.error('Failed to load seminars'))
+                getUpcomingSeminars().then(setSeminars).catch(() => toast.error('Failed to load seminars'))
             } else if (activeTab === 'PROMOTION' && promotions.length === 0) {
-                getUpcomingPromotions(clubId).then(setPromotions).catch(() => toast.error('Failed to load promotions'))
+                getUpcomingPromotions().then(setPromotions).catch(() => toast.error('Failed to load promotions'))
             }
         }
     }, [isOpen, activeTab, clubId, tournaments.length, seminars.length, promotions.length])
@@ -136,42 +126,12 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
         ? selectedTournamentObj.categories.filter(c => c.type === eventType)
         : []
 
-    // The effective category: manual override takes priority
-    const effectiveCategory = isManualMode
-        ? filteredCategories.find(c => c.id === manualCategoryId) || null
-        : tentativeCategory
+    const effectiveCategory = filteredCategories.find(c => c.id === manualCategoryId) || null
 
-    // Auto-Detect Category Logic
+    // Reset category selection whenever the tournament or event type changes
     useEffect(() => {
-        const detectCategory = async () => {
-            if (!selectedTournament || !selectedMember) {
-                setTentativeCategory(null)
-                return
-            }
-
-            setIsDetecting(true)
-            try {
-                const category = await findPlayerCategory(selectedTournament, {
-                    birthDate: selectedMember.birthDate || new Date(),
-                    gender: selectedMember.gender || 'Male',
-                    weight: parseFloat(weight) || 0,
-                    height: parseFloat(height) || 0,
-                    belt: belt,
-                    poomsaeType: eventType === 'POOMSAE' ? poomsaeType : undefined,
-                    type: eventType
-                })
-                setTentativeCategory(category)
-            } catch (e) {
-                console.error(e)
-                setTentativeCategory(null)
-            } finally {
-                setIsDetecting(false)
-            }
-        }
-
-        const timer = setTimeout(detectCategory, 500)
-        return () => clearTimeout(timer)
-    }, [selectedTournament, selectedMember, weight, height, belt, poomsaeType, eventType])
+        setManualCategoryId('')
+    }, [selectedTournament, eventType])
 
     // Member Search Debounce
     useEffect(() => {
@@ -526,62 +486,22 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                                             </div>
                                         )}
 
-                                        {/* Category Detector Card */}
+                                        {/* Category Selection */}
                                         <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
-                                            <div className="flex items-center justify-between mb-3">
-                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Detected Category</p>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => { setIsManualMode(!isManualMode); setManualCategoryId('') }}
-                                                    className="text-[11px] font-bold text-red-600 hover:text-red-800 transition-colors"
-                                                >
-                                                    {isManualMode ? '← Auto-Detect' : 'Choose Manually →'}
-                                                </button>
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Category</p>
+                                            <div className="space-y-2">
+                                                <GlobalDropdown
+                                                    value={manualCategoryId}
+                                                    onChange={setManualCategoryId}
+                                                    options={filteredCategories.map(c => ({ value: c.id, label: c.name }))}
+                                                    label="Select category..."
+                                                    fullWidth
+                                                    searchable
+                                                />
+                                                {!selectedTournament && (
+                                                    <p className="text-[11px] text-gray-400 font-medium mt-1">Select a tournament first.</p>
+                                                )}
                                             </div>
-
-                                            {isManualMode ? (
-                                                <div className="space-y-2">
-                                                    <GlobalDropdown
-                                                        value={manualCategoryId}
-                                                        onChange={setManualCategoryId}
-                                                        options={filteredCategories.map(c => ({ value: c.id, label: c.name }))}
-                                                        label="Select category..."
-                                                        fullWidth
-                                                        searchable
-                                                    />
-                                                    {manualCategoryId && (
-                                                        <div className="flex items-center gap-1.5 text-[11px] text-green-600 font-bold mt-1">
-                                                            <CheckCircle2 className="w-3.5 h-3.5" />
-                                                            Manually selected
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ) : isDetecting ? (
-                                                <div className="flex items-center gap-2 text-sm text-gray-500">
-                                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                                    <span className="font-medium">Detecting category...</span>
-                                                </div>
-                                            ) : tentativeCategory ? (
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
-                                                        <CheckCircle2 className="w-4 h-4 text-green-600" />
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-black text-gray-900 text-sm">{tentativeCategory.name}</p>
-                                                        <p className="text-[11px] text-green-600 font-medium mt-0.5">Auto-detected based on profile</p>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
-                                                        <AlertCircle className="w-4 h-4 text-amber-600" />
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-black text-gray-700 text-sm">No Category Found</p>
-                                                        <p className="text-[11px] text-gray-400 font-medium mt-0.5">Enter weight, belt &amp; select a tournament to detect.</p>
-                                                    </div>
-                                                </div>
-                                            )}
                                         </div>
                                     </div>
                                 )}

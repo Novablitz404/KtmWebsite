@@ -7,25 +7,37 @@ import { uploadAvatar, uploadLogo } from '@/lib/supabase-storage'
 /**
  * Converts a string to Title Case while preserving:
  * - Roman numerals (I, II, III, IV, V, VI, VII, VIII, IX, X, XI, XII)
- * - Common abbreviations/suffixes after hyphens (R-XI, NCR, etc.)
- * - Short connector words stay lowercase (of, the, and, in, at, for, de, del)
+ * - Acronyms the user already typed in full caps (TKD, ITF, R-XI, NCR, etc.)
+ * - Short connector words stay lowercase (of, the, and, in, at, for)
+ *
+ * Note: "de"/"del" are NOT lowercased — Philippine surnames (De Los Reyes,
+ * De Castro, Del Fierro) conventionally capitalize them, unlike French usage.
  *
  * Examples:
  *   "HWARANG TAEKWONDO CLUB R-XI" → "Hwarang Taekwondo Club R-XI"
  *   "manila taekwondo center"     → "Manila Taekwondo Center"
  */
 const ROMAN_NUMERALS = new Set(['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV'])
-const LOWERCASE_WORDS = new Set(['of', 'the', 'and', 'in', 'at', 'for', 'de', 'del'])
+const LOWERCASE_WORDS = new Set(['of', 'the', 'and', 'in', 'at', 'for'])
+
+function isLikelyAcronym(word: string): boolean {
+    const letters = word.replace(/[^A-Za-z]/g, '')
+    return letters.length >= 2 && word === word.toUpperCase()
+}
 
 function toTitleCase(str: string): string {
     return str
+        .trim()
+        .replace(/\s+/g, ' ')
         .split(' ')
         .map((word, index) => {
+            if (isLikelyAcronym(word)) return word
             // Handle hyphenated words like R-XI
             if (word.includes('-')) {
                 return word.split('-').map(part => {
                     const upper = part.toUpperCase()
                     if (ROMAN_NUMERALS.has(upper)) return upper
+                    if (isLikelyAcronym(part)) return part
                     if (part.length <= 1) return upper
                     return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
                 }).join('-')

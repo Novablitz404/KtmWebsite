@@ -41,6 +41,7 @@ interface PublicTournamentViewProps {
     players: Player[]
     guidelinesContent?: string | null
     currentUserId?: string
+    currentUserRole?: string
     tournamentStats?: TournamentStats | null
     totalPlayersCount?: number
 }
@@ -146,6 +147,14 @@ export default function GlobalPublicTournamentView(props: PublicTournamentViewPr
                                 <button disabled className="px-6 py-2 bg-[#0085C7]/10 text-[#0085C7] font-bold uppercase tracking-widest rounded border border-[#0085C7]/20 cursor-default text-sm">
                                     ⏳ Opens {regStart.toLocaleDateString()}
                                 </button>
+                            )
+                        }
+
+                        if (props.currentUserRole === 'ATHLETE') {
+                            return (
+                                <span className="px-6 py-2 bg-[#111] text-gray-500 font-bold uppercase tracking-widest rounded border border-white/10 text-sm">
+                                    Ask your club master
+                                </span>
                             )
                         }
 

@@ -1,5 +1,4 @@
 import { prisma } from '@/lib/prisma'
-import { findCategoryForPlayer } from '@/lib/placement'
 import { deriveSkillLevel } from '@/lib/skill-logic'
 
 /**
@@ -12,13 +11,12 @@ import { deriveSkillLevel } from '@/lib/skill-logic'
  * What it does:
  * 1. Cascades NAME to active Player, SeminarRegistration, PromotionTestRegistration
  * 2. Cascades BELT to active SeminarRegistration, PromotionTestRegistration
- * 3. Re-runs PLACEMENT for active tournament Players (UPCOMING/OPEN)
- *    unless the Player has manualOverride = true
+ * 3. Syncs profile snapshot fields (weight/height/belt/skillLevel) onto active
+ *    tournament Players. Does NOT reassign their category — once a player is
+ *    registered into a category, it stays put unless a human changes it.
  *
  * Only touches records tied to UPCOMING/OPEN events — completed/cancelled
  * events keep their historical snapshots intact.
- *
- * manualOverride skips category reassignment but still syncs snapshot fields.
  */
 export async function cascadeUserProfile(userId: string) {
     // Fetch the latest user profile (source of truth)
@@ -92,8 +90,12 @@ export async function cascadeUserProfile(userId: string) {
         ])
     }
 
-    // ── 3. Re-run PLACEMENT for active tournament registrations ──────────────
-    const activePlayers = await prisma.player.findMany({
+    // ── 3. Sync profile snapshot fields onto active tournament registrations ──
+    // Category is never reassigned here — it stays whatever it was set to at
+    // registration time until a human (organizer/club master) changes it.
+    const newSkillLevel = user.belt ? deriveSkillLevel(user.belt) : null
+
+    await prisma.player.updateMany({
         where: {
             userId,
             category: {
@@ -102,64 +104,12 @@ export async function cascadeUserProfile(userId: string) {
                 }
             }
         },
-        include: { category: true }
-    })
-
-    if (activePlayers.length === 0) return
-
-    const newSkillLevel = user.belt ? deriveSkillLevel(user.belt) : null
-
-    for (const player of activePlayers) {
-        if (!player.category) continue
-
-        // Always sync snapshot fields (even for manual overrides)
-        const snapshotData: Record<string, any> = {
-            gender: user.gender || player.gender,
+        data: {
+            gender: user.gender ?? undefined,
             weight: user.weight,
             height: user.height,
             belt: user.belt,
             skillLevel: newSkillLevel,
         }
-
-        // Skip category reassignment if manually overridden
-        if (player.manualOverride) {
-            await prisma.player.update({
-                where: { id: player.id },
-                data: snapshotData
-            })
-            continue
-        }
-
-        // Skip placement if birthDate is missing — prevents incorrect age-0 assignments
-        if (!user.birthDate) {
-            await prisma.player.update({
-                where: { id: player.id },
-                data: snapshotData
-            })
-            continue
-        }
-
-        // Build profile from User data for placement engine
-        const tournamentId = player.category.tournamentId
-        const type = player.category.type || 'KYORUGI'
-
-        const newCategory = await findCategoryForPlayer(tournamentId, {
-            birthDate: user.birthDate,
-            gender: user.gender || player.gender || 'Male',
-            weight: user.weight ?? 0,
-            height: user.height ?? undefined,
-            belt: user.belt ?? undefined,
-            poomsaeType: player.poomsaeType ?? undefined,
-            type,
-            skillLevel: newSkillLevel ?? undefined
-        })
-
-        await prisma.player.update({
-            where: { id: player.id },
-            data: {
-                ...snapshotData,
-                ...(newCategory && { categoryId: newCategory.id })
-            }
-        })
-    }
+    })
 }

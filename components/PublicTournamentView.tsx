@@ -45,6 +45,7 @@ interface PublicTournamentViewProps {
     players: Player[]
     guidelinesContent?: string | null
     currentUserId?: string
+    currentUserRole?: string
     tournamentStats?: TournamentStats | null
     totalPlayersCount?: number
 }
@@ -168,6 +169,14 @@ export default function PublicTournamentView(props: PublicTournamentViewProps) {
                                 <button disabled className="px-6 py-2 bg-blue-50 text-blue-600 font-semibold rounded-lg border border-blue-100 cursor-default">
                                     ⏳ Opens {regStart.toLocaleDateString()}
                                 </button>
+                            )
+                        }
+
+                        if (props.currentUserRole === 'ATHLETE') {
+                            return (
+                                <span className="px-6 py-2 bg-gray-100 text-gray-500 font-semibold rounded-lg border border-gray-200 text-sm">
+                                    Ask your club master to register you
+                                </span>
                             )
                         }
 

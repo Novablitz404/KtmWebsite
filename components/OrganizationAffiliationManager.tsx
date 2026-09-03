@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import {
     Settings, Upload, Loader2, XCircle,
     Eye,
-    Banknote, QrCode, CreditCard, Plus, Trash2, Edit2, X
+    Banknote, QrCode, Plus, Trash2, Edit2, X
 } from 'lucide-react'
 import { getClubAffiliations, updateAffiliationSettings } from '@/app/organization/actions'
 import { uploadQrCode } from '@/lib/supabase-storage'
@@ -302,19 +302,8 @@ export default function OrganizationAffiliationManager({ organizationId }: Organ
                                 </div>
                                 <div>
                                     <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Payment Type</label>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => setPaymentType('manual')}
-                                            className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition-all flex items-center justify-center gap-1.5 ${paymentType === 'manual' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
-                                        >
-                                            <Banknote className="w-3.5 h-3.5" /> Manual
-                                        </button>
-                                        <button
-                                            onClick={() => setPaymentType('xendit')}
-                                            className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition-all flex items-center justify-center gap-1.5 ${paymentType === 'xendit' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
-                                        >
-                                            <CreditCard className="w-3.5 h-3.5" /> Xendit
-                                        </button>
+                                    <div className="flex-1 px-3 py-2 rounded-lg text-sm font-medium border bg-indigo-50 border-indigo-200 text-indigo-700 flex items-center justify-center gap-1.5">
+                                        <Banknote className="w-3.5 h-3.5" /> Manual
                                     </div>
                                 </div>
                             </div>

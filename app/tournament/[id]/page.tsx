@@ -232,6 +232,7 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
                                                 : null)
                                         }
                                         currentUserId={currentUserId}
+                                        currentUserRole={dbUserRole}
                                     />
                                 </div>
                             </div>
@@ -258,6 +259,7 @@ export default async function TournamentDetail({ params }: { params: Promise<{ i
                                                 : null)
                                         }
                                         currentUserId={currentUserId}
+                                        currentUserRole={dbUserRole}
                                     />
                                 </div>
                             </div>

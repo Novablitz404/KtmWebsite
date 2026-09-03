@@ -3,9 +3,9 @@
 import { compressImage } from '@/lib/compress-image'
 
 import { useState, useEffect, use } from 'react'
-import { Upload, X, Home, Settings, ClipboardList, Users, Bell, Trophy, Medal, Clock, Search, Calendar, Zap, ChevronLeft, ChevronRight, Loader2, Camera, Download } from 'lucide-react'
+import { Upload, X, Home, Settings, ClipboardList, Users, Bell, Trophy, Medal, Clock, Search, Calendar, ChevronLeft, ChevronRight, Loader2, Camera, Download } from 'lucide-react'
 import Link from 'next/link'
-import { approveRegistrations, unapproveRegistration, deleteRegistration, updatePlayerDetails, bulkUnapproveRegistrations, bulkDeleteRegistrations, fetchClubDashboardData, removeMemberFromClub, updateClubMember, getClubSmartProposals, getClubAffiliationData, generatePlayerQRCode } from '@/app/actions'
+import { approveRegistrations, unapproveRegistration, deleteRegistration, updatePlayerDetails, bulkUnapproveRegistrations, bulkDeleteRegistrations, fetchClubDashboardData, removeMemberFromClub, updateClubMember, getClubAffiliationData, generatePlayerQRCode } from '@/app/actions'
 import { uploadMemberAvatar } from '@/app/club/actions'
 import { updateRegistrationStatus, deletePromotionRegistration } from '@/app/promotions/actions'
 import { approveSeminarRegistration, unapproveSeminarRegistration, deleteSeminarRegistration, updateSeminarRegistrationStatus, updateSeminarParticipantDetails, generateSeminarQRCode } from '@/app/seminars/actions'
@@ -27,11 +27,9 @@ import ClubGrowthCard from '@/components/club/ClubGrowthCard'
 import ClubTopBar from '@/components/club/ClubTopBar'
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import ClubEventBrowser from './ClubEventBrowser'
 import AddAthleteModal from '@/components/club/AddAthleteModal'
 import CreateMemberModal from '@/components/club/CreateMemberModal'
 import UserAvatar from '@/components/UserAvatar'
-import ClubActionCenterModal from './ClubActionCenter'
 import ClubAffiliationCard from '@/components/ClubAffiliationCard'
 
 interface Player {
@@ -175,7 +173,10 @@ export default function ClubDashboard({
     const filteredApprovedPlayers = (rawApproved || []).filter(isUpcoming)
 
     const clubTournaments = (streamedData ? streamedData.clubTournaments : propClubTournaments) as TournamentStats[]
-    const upcomingEvents = (streamedData ? (streamedData as any).upcomingEvents : []) as Array<{ id: string, name: string, startDate: string, type: 'TOURNAMENT' | 'SEMINAR' | 'PROMOTION', athleteCount: number }>
+    type ClubEvent = { id: string, name: string, startDate: string, type: 'TOURNAMENT' | 'SEMINAR' | 'PROMOTION', athleteCount: number, gold?: number, silver?: number, bronze?: number }
+    const upcomingEvents = (streamedData ? (streamedData as any).upcomingEvents : []) as ClubEvent[]
+    const pastEvents = (streamedData ? (streamedData as any).pastEvents : []) as ClubEvent[]
+    const joinedEvents = (streamedData ? (streamedData as any).joinedEvents : []) as ClubEvent[]
     const totalMembers = streamedData ? streamedData.totalMembers : (membersData?.paginatedMembers?.length || 0)
     const topPerformers = streamedData ? (streamedData as any).topPerformers : []
 
@@ -267,15 +268,7 @@ export default function ClubDashboard({
     const [editAvatarFile, setEditAvatarFile] = useState<File | null>(null)
     const [editAvatarPreview, setEditAvatarPreview] = useState<string | null>(null)
     const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false)
-    // Action Center Data
-    const { data: proposals, refetch: refetchProposals } = useQuery({
-        queryKey: ['club-smart-proposals', clubId],
-        queryFn: () => getClubSmartProposals(clubId),
-        staleTime: 1000 * 30 // 30 seconds
-    })
-
-    const [isActionModalOpen, setIsActionModalOpen] = useState(false)
-    const alertCount = proposals?.filter((p: any) => !p.myVote).length || 0
+    const [eventsTab, setEventsTab] = useState<'upcoming' | 'joined' | 'past'>('upcoming')
 
     // Affiliation data
     const { data: affiliationData } = useQuery({
@@ -840,8 +833,6 @@ export default function ClubDashboard({
                                 undefined
                     }
                     title={undefined}
-                    onActionClick={() => setIsActionModalOpen(true)}
-                    actionCount={alertCount}
                 />
 
                 <div className="flex-1 overflow-y-auto pb-20 md:pb-0">
@@ -878,7 +869,7 @@ export default function ClubDashboard({
                                     membersByMonth={(streamedData as any)?.membersByMonth || []}
                                     beltStats={(streamedData as any)?.beltStats || []}
                                     pendingCount={pendingPlayers.length}
-                                    eventsJoined={upcomingEvents.length + clubTournaments.length}
+                                    eventsJoined={joinedEvents.length}
                                     isLoading={isLoading}
                                 />
 
@@ -944,22 +935,43 @@ export default function ClubDashboard({
                                     </div>
                                 )}
 
-                                {/* Browse Events Widget */}
-                                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                                    <ClubEventBrowser clubId={clubId} />
-                                </div>
-
-                                {/* Upcoming Events | Action Center */}
-                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-                                    {/* Upcoming Events */}
+                                {/* Events */}
+                                <div className="grid grid-cols-1 gap-5">
                                     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                                        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-                                                <Calendar size={14} className="text-white" />
+                                        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                                                    <Calendar size={14} className="text-white" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-sm font-bold text-gray-900">Events</h3>
+                                                    <p className="text-[11px] text-gray-400 mt-0.5">
+                                                        {eventsTab === 'upcoming' && `${upcomingEvents.length} event${upcomingEvents.length !== 1 ? 's' : ''} scheduled`}
+                                                        {eventsTab === 'joined' && `${joinedEvents.length} event${joinedEvents.length !== 1 ? 's' : ''} joined`}
+                                                        {eventsTab === 'past' && `${pastEvents.length} past event${pastEvents.length !== 1 ? 's' : ''}`}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <h3 className="text-sm font-bold text-gray-900">Upcoming Events</h3>
-                                                <p className="text-[11px] text-gray-400 mt-0.5">{upcomingEvents.length} event{upcomingEvents.length !== 1 ? 's' : ''} scheduled</p>
+
+                                            {/* Tabs */}
+                                            <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-xl">
+                                                {([
+                                                    { key: 'upcoming', label: 'Upcoming' },
+                                                    { key: 'joined', label: 'Joined' },
+                                                    { key: 'past', label: 'Past' },
+                                                ] as const).map(t => (
+                                                    <button
+                                                        key={t.key}
+                                                        onClick={() => setEventsTab(t.key)}
+                                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                                            eventsTab === t.key
+                                                                ? 'bg-white text-gray-900 shadow-sm'
+                                                                : 'text-gray-500 hover:text-gray-700'
+                                                        }`}
+                                                    >
+                                                        {t.label}
+                                                    </button>
+                                                ))}
                                             </div>
                                         </div>
                                         <div className="p-5">
@@ -968,49 +980,131 @@ export default function ClubDashboard({
                                                     <Skeleton className="h-28 w-full rounded-2xl" />
                                                     <Skeleton className="h-14 w-full rounded-lg" />
                                                 </div>
-                                            ) : nextEvent ? (
-                                                <div className="space-y-3">
-                                                    {/* Next Event Card */}
-                                                    <Link
-                                                        href={nextEvent.type === 'TOURNAMENT' ? `/tournament/${nextEvent.id}` : '#'}
-                                                        className="bg-gradient-to-br from-red-600 to-red-700 rounded-2xl p-5 text-white shadow-lg cursor-pointer hover:shadow-xl transition-all block"
-                                                    >
-                                                        <div className="flex items-start justify-between">
-                                                            <div>
-                                                                <div className="mb-2 flex items-center gap-2">
-                                                                    <span className="text-xs font-medium text-red-100 uppercase tracking-wider bg-red-800/30 px-2 py-0.5 rounded-full border border-red-400/20">
-                                                                        {nextEvent.type}
-                                                                    </span>
-                                                                    <span className="text-xs font-medium text-red-200 uppercase tracking-wider">Next Event</span>
+                                            ) : eventsTab === 'upcoming' ? (
+                                                nextEvent ? (
+                                                    <div className="space-y-3">
+                                                        {/* Next Event Card */}
+                                                        <Link
+                                                            href={nextEvent.type === 'TOURNAMENT' ? `/tournament/${nextEvent.id}` : '#'}
+                                                            className="bg-gradient-to-br from-red-600 to-red-700 rounded-2xl p-5 text-white shadow-lg cursor-pointer hover:shadow-xl transition-all block"
+                                                        >
+                                                            <div className="flex items-start justify-between">
+                                                                <div>
+                                                                    <div className="mb-2 flex items-center gap-2">
+                                                                        <span className="text-xs font-medium text-red-100 uppercase tracking-wider bg-red-800/30 px-2 py-0.5 rounded-full border border-red-400/20">
+                                                                            {nextEvent.type}
+                                                                        </span>
+                                                                        <span className="text-xs font-medium text-red-200 uppercase tracking-wider">Next Event</span>
+                                                                    </div>
+                                                                    <h3 className="text-lg font-bold mb-1 line-clamp-1">{nextEvent.name}</h3>
+                                                                    <p className="text-red-200 text-xs mt-2 flex items-center gap-1">
+                                                                        <Clock size={12} />
+                                                                        {new Date(nextEvent.startDate).toLocaleDateString('en-US', {
+                                                                            month: 'short',
+                                                                            day: 'numeric',
+                                                                            year: 'numeric'
+                                                                        })}
+                                                                    </p>
                                                                 </div>
-                                                                <h3 className="text-lg font-bold mb-1 line-clamp-1">{nextEvent.name}</h3>
-                                                                <p className="text-red-200 text-xs mt-2 flex items-center gap-1">
-                                                                    <Clock size={12} />
-                                                                    {new Date(nextEvent.startDate).toLocaleDateString('en-US', {
-                                                                        month: 'short',
-                                                                        day: 'numeric',
-                                                                        year: 'numeric'
-                                                                    })}
-                                                                </p>
+                                                                <div className="text-right flex-shrink-0">
+                                                                    <div className="text-3xl font-black">{daysUntil}</div>
+                                                                    <div className="text-xs text-red-200">days</div>
+                                                                </div>
                                                             </div>
-                                                            <div className="text-right flex-shrink-0">
-                                                                <div className="text-3xl font-black">{daysUntil}</div>
-                                                                <div className="text-xs text-red-200">days</div>
-                                                            </div>
-                                                        </div>
-                                                    </Link>
+                                                        </Link>
 
-                                                    {/* Other upcoming events */}
-                                                    {upcomingEvents.length > 1 && (
-                                                        <div className="space-y-2">
-                                                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-2 mb-1">Later</p>
-                                                            {upcomingEvents.slice(1, 4).map(event => (
+                                                        {/* Other upcoming events */}
+                                                        {upcomingEvents.length > 1 && (
+                                                            <div className="space-y-2">
+                                                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-2 mb-1">Later</p>
+                                                                {upcomingEvents.slice(1, 4).map(event => (
+                                                                    <Link
+                                                                        key={event.id}
+                                                                        href={event.type === 'TOURNAMENT' ? `/tournament/${event.id}` : '#'}
+                                                                        className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-red-100 hover:bg-red-50 cursor-pointer transition-all group"
+                                                                    >
+                                                                        <div className="w-10 h-10 rounded-lg bg-gray-50 flex flex-col items-center justify-center text-[10px] leading-tight border border-gray-200 group-hover:border-red-200 group-hover:bg-white text-center">
+                                                                            <span className="text-gray-500 font-bold uppercase">{new Date(event.startDate).toLocaleDateString('en-US', { month: 'short' })}</span>
+                                                                            <span className="text-gray-900 font-bold">{new Date(event.startDate).getDate()}</span>
+                                                                        </div>
+                                                                        <div className="flex-1 min-w-0">
+                                                                            <div className="flex items-center gap-1.5 mb-0.5">
+                                                                                <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${event.type === 'TOURNAMENT' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
+                                                                                    event.type === 'SEMINAR' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                                                                        'bg-emerald-50 text-emerald-600 border-emerald-100'
+                                                                                    }`}>
+                                                                                    {event.type}
+                                                                                </span>
+                                                                            </div>
+                                                                            <h4 className="text-sm font-semibold text-gray-900 truncate group-hover:text-red-700">{event.name}</h4>
+                                                                            <p className="text-xs text-gray-500 truncate">{event.athleteCount || 0} athletes registered</p>
+                                                                        </div>
+                                                                        <ChevronRight size={16} className="text-gray-300 group-hover:text-red-400" />
+                                                                    </Link>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col items-center justify-center text-center py-8 border-2 border-dashed border-gray-100 rounded-2xl bg-gray-50/50">
+                                                        <span className="text-4xl mb-3">🏆</span>
+                                                        <h3 className="font-bold text-gray-900 mb-1">No Upcoming Events</h3>
+                                                        <p className="text-sm text-gray-500">Register for an event to get started!</p>
+                                                    </div>
+                                                )
+                                            ) : eventsTab === 'joined' ? (
+                                                joinedEvents.length > 0 ? (
+                                                    <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                                                        {joinedEvents.map(event => (
+                                                            <Link
+                                                                key={`${event.type}-${event.id}`}
+                                                                href={event.type === 'TOURNAMENT' ? `/tournament/${event.id}` : '#'}
+                                                                className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-indigo-100 hover:bg-indigo-50 cursor-pointer transition-all group"
+                                                            >
+                                                                <div className="w-10 h-10 rounded-lg bg-gray-50 flex flex-col items-center justify-center text-[10px] leading-tight border border-gray-200 group-hover:border-indigo-200 group-hover:bg-white text-center flex-shrink-0">
+                                                                    <span className="text-gray-500 font-bold uppercase">{new Date(event.startDate).toLocaleDateString('en-US', { month: 'short' })}</span>
+                                                                    <span className="text-gray-900 font-bold">{new Date(event.startDate).getDate()}</span>
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex items-center gap-1.5 mb-0.5">
+                                                                        <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${event.type === 'TOURNAMENT' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
+                                                                            event.type === 'SEMINAR' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                                                                'bg-emerald-50 text-emerald-600 border-emerald-100'
+                                                                            }`}>
+                                                                            {event.type}
+                                                                        </span>
+                                                                        {new Date(event.startDate) < new Date() && (
+                                                                            <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full border bg-gray-50 text-gray-500 border-gray-200">
+                                                                                COMPLETED
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <h4 className="text-sm font-semibold text-gray-900 truncate group-hover:text-indigo-700">{event.name}</h4>
+                                                                    <p className="text-xs text-gray-500 truncate">{event.athleteCount || 0} athletes registered</p>
+                                                                </div>
+                                                                <ChevronRight size={16} className="text-gray-300 group-hover:text-indigo-400 flex-shrink-0" />
+                                                            </Link>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col items-center justify-center text-center py-8 border-2 border-dashed border-gray-100 rounded-2xl bg-gray-50/50">
+                                                        <span className="text-4xl mb-3">📋</span>
+                                                        <h3 className="font-bold text-gray-900 mb-1">No Joined Events</h3>
+                                                        <p className="text-sm text-gray-500">Register an athlete for an event to join it here.</p>
+                                                    </div>
+                                                )
+                                            ) : (
+                                                pastEvents.length > 0 ? (
+                                                    <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                                                        {pastEvents.map(event => {
+                                                            const medals = (event.gold || 0) + (event.silver || 0) + (event.bronze || 0)
+                                                            return (
                                                                 <Link
-                                                                    key={event.id}
+                                                                    key={`${event.type}-${event.id}`}
                                                                     href={event.type === 'TOURNAMENT' ? `/tournament/${event.id}` : '#'}
-                                                                    className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-red-100 hover:bg-red-50 cursor-pointer transition-all group"
+                                                                    className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-gray-200 hover:bg-gray-50 cursor-pointer transition-all group"
                                                                 >
-                                                                    <div className="w-10 h-10 rounded-lg bg-gray-50 flex flex-col items-center justify-center text-[10px] leading-tight border border-gray-200 group-hover:border-red-200 group-hover:bg-white text-center">
+                                                                    <div className="w-10 h-10 rounded-lg bg-gray-50 flex flex-col items-center justify-center text-[10px] leading-tight border border-gray-200 text-center flex-shrink-0">
                                                                         <span className="text-gray-500 font-bold uppercase">{new Date(event.startDate).toLocaleDateString('en-US', { month: 'short' })}</span>
                                                                         <span className="text-gray-900 font-bold">{new Date(event.startDate).getDate()}</span>
                                                                     </div>
@@ -1023,104 +1117,27 @@ export default function ClubDashboard({
                                                                                 {event.type}
                                                                             </span>
                                                                         </div>
-                                                                        <h4 className="text-sm font-semibold text-gray-900 truncate group-hover:text-red-700">{event.name}</h4>
-                                                                        <p className="text-xs text-gray-500 truncate">{event.athleteCount || 0} athletes registered</p>
+                                                                        <h4 className="text-sm font-semibold text-gray-900 truncate group-hover:text-gray-900">{event.name}</h4>
+                                                                        <p className="text-xs text-gray-500 truncate">{event.athleteCount || 0} athletes competed</p>
                                                                     </div>
-                                                                    <ChevronRight size={16} className="text-gray-300 group-hover:text-red-400" />
+                                                                    {medals > 0 && (
+                                                                        <div className="flex items-center gap-1 text-xs font-bold text-amber-600 flex-shrink-0">
+                                                                            <Medal size={14} />
+                                                                            {medals}
+                                                                        </div>
+                                                                    )}
+                                                                    <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500 flex-shrink-0" />
                                                                 </Link>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ) : (
-                                                <div className="flex flex-col items-center justify-center text-center py-8 border-2 border-dashed border-gray-100 rounded-2xl bg-gray-50/50">
-                                                    <span className="text-4xl mb-3">🏆</span>
-                                                    <h3 className="font-bold text-gray-900 mb-1">No Upcoming Events</h3>
-                                                    <p className="text-sm text-gray-500 mb-4">Register for an event to get started!</p>
-                                                    <button
-                                                        onClick={() => setActiveView('tournaments')}
-                                                        className="text-sm text-red-600 hover:text-red-700 font-medium flex items-center gap-1"
-                                                    >
-                                                        Browse Events <ChevronRight size={14} />
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Action Center Widget */}
-                                    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                                        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-                                                    <Zap size={14} className="text-white" />
-                                                </div>
-                                                <div>
-                                                    <h3 className="text-sm font-bold text-gray-900">Action Center</h3>
-                                                    <p className="text-[11px] text-gray-400 mt-0.5">Tasks requiring your attention</p>
-                                                </div>
-                                            </div>
-                                            {alertCount > 0 && (
-                                                <span className="text-xs font-semibold text-white bg-red-500 px-2 py-0.5 rounded-full">
-                                                    {alertCount}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="p-5">
-                                            <div className="space-y-2">
-                                                {isLoading ? (
-                                                    [1, 2, 3].map((i) => (
-                                                        <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50">
-                                                            <Skeleton className="w-8 h-8 rounded-full" />
-                                                            <div className="flex-1">
-                                                                <Skeleton className="h-4 w-32 mb-1" />
-                                                                <Skeleton className="h-3 w-20" />
-                                                            </div>
-                                                        </div>
-                                                    ))
-                                                ) : proposals && proposals.length > 0 ? (
-                                                    <>
-                                                        {proposals.slice(0, 4).map((proposal: any) => (
-                                                            <div
-                                                                key={proposal.id}
-                                                                className={`flex items-center gap-3 p-3 rounded-xl ${!proposal.myVote
-                                                                    ? 'bg-red-50 border border-red-100'
-                                                                    : 'bg-gray-50 border border-gray-100'
-                                                                    }`}
-                                                            >
-                                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 ${!proposal.myVote
-                                                                    ? 'bg-red-100 text-red-600'
-                                                                    : 'bg-green-100 text-green-600'
-                                                                    }`}>
-                                                                    {!proposal.myVote ? '⚠️' : '✓'}
-                                                                </div>
-                                                                <div className="flex-1 min-w-0">
-                                                                    <p className="text-sm font-medium text-gray-900 truncate">{proposal.title || proposal.type}</p>
-                                                                    <p className="text-xs text-gray-500 truncate">{proposal.description || 'Needs your review'}</p>
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                        {proposals.length > 4 && (
-                                                            <p className="text-xs text-gray-400 text-center pt-1">
-                                                                +{proposals.length - 4} more action{proposals.length - 4 > 1 ? 's' : ''}
-                                                            </p>
-                                                        )}
-                                                    </>
-                                                ) : (
-                                                    <div className="flex flex-col items-center justify-center text-center py-8">
-                                                        <span className="text-3xl mb-2">✅</span>
-                                                        <p className="text-sm font-medium text-gray-900">All caught up!</p>
-                                                        <p className="text-xs text-gray-500 mt-1">No pending actions</p>
+                                                            )
+                                                        })}
                                                     </div>
-                                                )}
-                                            </div>
-                                            {proposals && proposals.length > 0 && (
-                                                <button
-                                                    onClick={() => setIsActionModalOpen(true)}
-                                                    className="w-full mt-4 py-2.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
-                                                >
-                                                    View all actions
-                                                </button>
+                                                ) : (
+                                                    <div className="flex flex-col items-center justify-center text-center py-8 border-2 border-dashed border-gray-100 rounded-2xl bg-gray-50/50">
+                                                        <span className="text-4xl mb-3">🗓️</span>
+                                                        <h3 className="font-bold text-gray-900 mb-1">No Past Events</h3>
+                                                        <p className="text-sm text-gray-500">Completed events your club has joined will show up here.</p>
+                                                    </div>
+                                                )
                                             )}
                                         </div>
                                     </div>
@@ -2218,14 +2235,6 @@ export default function ClubDashboard({
             <CreateMemberModal
                 isOpen={isCreateMemberOpen}
                 onClose={() => setIsCreateMemberOpen(false)}
-            />
-
-            <ClubActionCenterModal
-                isOpen={isActionModalOpen}
-                onClose={() => setIsActionModalOpen(false)}
-                clubId={clubId}
-                proposals={proposals || []}
-                onRefresh={refetchProposals}
             />
         </div>
     )

@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
-import { registerForTournament, findPlayerCategory } from '@/app/actions'
+import { registerForTournament } from '@/app/actions'
 import WaiverDocument from '@/components/WaiverDocument'
 import SignatureCanvas from 'react-signature-canvas'
-import { Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { CheckCircle2 } from 'lucide-react'
 import { calculateAge } from '@/lib/placement'
+import GlobalDropdown from '@/components/GlobalDropdown'
 
 // Dynamically import PDFDownloadLink to avoid SSR issues
 const PDFDownloadLink = dynamic(
@@ -36,7 +37,6 @@ interface RegisterConfirmProps {
         id: string
         name: string
         headerImageUrl: string | null
-        xenditEnabled: boolean
         regularPrice: number | null
     }
     user: {
@@ -50,7 +50,7 @@ interface RegisterConfirmProps {
         height?: number | null
         role: string
     }
-    suggestedCategory: Category | null
+    categories: Category[]
     existingRegistrations?: ExistingRegistration[]
     availableTypes: string[]
     paymentConfirmed?: boolean
@@ -59,7 +59,7 @@ interface RegisterConfirmProps {
 export default function RegisterConfirm({
     tournament,
     user,
-    suggestedCategory,
+    categories,
     existingRegistrations = [],
     availableTypes,
     paymentConfirmed = false
@@ -74,61 +74,14 @@ export default function RegisterConfirm({
     const sigCanvas = useRef<SignatureCanvas>(null)
 
     // Selection State
-    // Default to the first available type if suggested type is not available?
-    // Or prefer suggested if matches.
-    const initialType = suggestedCategory?.type && availableTypes.includes(suggestedCategory.type)
-        ? suggestedCategory.type
-        : (availableTypes.includes('KYORUGI') ? 'KYORUGI' : availableTypes[0] || 'KYORUGI')
+    const initialType = availableTypes.includes('KYORUGI') ? 'KYORUGI' : availableTypes[0] || 'KYORUGI'
 
     const [eventType, setEventType] = useState<string>(initialType)
     const [poomsaeSubtype, setPoomsaeSubtype] = useState<string>('INDIVIDUAL')
-    const [activeCategory, setActiveCategory] = useState<Category | null>(suggestedCategory)
-    const [isDetecting, setIsDetecting] = useState(false)
+    const [selectedCategoryId, setSelectedCategoryId] = useState<string>('')
 
-    // Auto-Detect when options change (Client-Side Refinement)
-    useEffect(() => {
-        // If the current category matches the criteria, don't re-fetch unnecessarily
-        // But if user switches types, we MUST fetch.
-        if (activeCategory?.type === eventType) {
-            if (eventType === 'POOMSAE' && poomsaeSubtype !== 'INDIVIDUAL') {
-                // Might need check subtype if category has it?
-                // Current Category model has 'subtype'.
-                // We don't have subtype in the Category interface above locally?
-                // Assuming backend returns it.
-                // Let's just re-fetch to be safe.
-            } else {
-                // Match found?
-            }
-        }
-
-        const detect = async () => {
-            setIsDetecting(true)
-            try {
-                const category = await findPlayerCategory(tournament.id, {
-                    birthDate: user.birthDate || new Date(),
-                    gender: user.gender || 'Male',
-                    weight: user.weight || 0,
-                    height: user.height || 0,
-                    belt: user.belt || undefined,
-                    type: eventType,
-                    poomsaeType: eventType === 'POOMSAE' ? poomsaeSubtype : undefined
-                })
-                setActiveCategory(category)
-            } catch (e) {
-                console.error(e)
-                setActiveCategory(null)
-            } finally {
-                setIsDetecting(false)
-            }
-        }
-
-        // Debounce or just run?
-        // Since it relies on dropdowns only, run immediately is OK.
-        // But only if it differs from initial prop OR if we want to be sure.
-        // Let's run it on effect.
-        detect()
-    }, [eventType, poomsaeSubtype, tournament.id, user])
-
+    const filteredCategories = categories.filter(c => c.type === eventType)
+    const activeCategory = filteredCategories.find(c => c.id === selectedCategoryId) || null
 
     const age = user.birthDate
         ? calculateAge(user.birthDate)
@@ -165,33 +118,6 @@ export default function RegisterConfirm({
 
             if (result.error) {
                 setError(result.error)
-            } else if (tournament.xenditEnabled && result.playerId) {
-                // Redirect to Xendit checkout — will come back with ?payment=success
-                try {
-                    const currentUrl = window.location.origin + window.location.pathname
-                    const checkoutRes = await fetch('/api/checkout/xendit', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            eventType: 'tournament',
-                            eventId: tournament.id,
-                            registrationId: result.playerId,
-                            payerEmail: user.id,
-                            payerName: user.name,
-                            amount: tournament.regularPrice || 0,
-                            redirectUrl: currentUrl,
-                        })
-                    })
-                    const checkoutData = await checkoutRes.json()
-                    if (checkoutData.invoiceUrl) {
-                        window.location.href = checkoutData.invoiceUrl
-                        return
-                    } else {
-                        setError(checkoutData.error || 'Failed to create payment link')
-                    }
-                } catch {
-                    setError('Failed to redirect to payment. Please contact your club master.')
-                }
             } else {
                 setSuccess(true)
             }
@@ -358,7 +284,7 @@ export default function RegisterConfirm({
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
                         {availableTypes.includes('KYORUGI') && (
                             <button
-                                onClick={() => setEventType('KYORUGI')}
+                                onClick={() => { setEventType('KYORUGI'); setSelectedCategoryId('') }}
                                 className={`p-4 rounded-xl border-2 text-left transition-all ${eventType === 'KYORUGI' ? 'border-indigo-600 bg-indigo-50 text-indigo-900' : 'border-gray-200 hover:border-gray-300'}`}
                             >
                                 <span className="block font-bold">Kyorugi</span>
@@ -367,7 +293,7 @@ export default function RegisterConfirm({
                         )}
                         {availableTypes.includes('POOMSAE') && (
                             <button
-                                onClick={() => setEventType('POOMSAE')}
+                                onClick={() => { setEventType('POOMSAE'); setSelectedCategoryId('') }}
                                 className={`p-4 rounded-xl border-2 text-left transition-all ${eventType === 'POOMSAE' ? 'border-purple-600 bg-purple-50 text-purple-900' : 'border-gray-200 hover:border-gray-300'}`}
                             >
                                 <span className="block font-bold">Poomsae</span>
@@ -376,7 +302,7 @@ export default function RegisterConfirm({
                         )}
                         {availableTypes.includes('KYUKPA') && (
                             <button
-                                onClick={() => setEventType('KYUKPA')}
+                                onClick={() => { setEventType('KYUKPA'); setSelectedCategoryId('') }}
                                 className={`p-4 rounded-xl border-2 text-left transition-all ${eventType === 'KYUKPA' ? 'border-orange-600 bg-orange-50 text-orange-900' : 'border-gray-200 hover:border-gray-300'}`}
                             >
                                 <span className="block font-bold">Kyukpa</span>
@@ -402,29 +328,21 @@ export default function RegisterConfirm({
                         </div>
                     )}
 
-                    {/* Category Result */}
+                    {/* Category Selection */}
                     <div className="bg-white border border-gray-200 rounded-xl p-6 mb-8">
-                        <div className="flex items-center justify-between mb-4">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Detected Category</label>
-                            {isDetecting && <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />}
-                        </div>
-
-                        {activeCategory ? (
-                            <div>
-                                <div className="text-xl font-bold text-gray-900">{activeCategory.name}</div>
-                                <div className="text-sm text-green-600 flex items-center gap-1 mt-1">
-                                    <CheckCircle2 className="w-4 h-4" />
-                                    <span>Based on your profile</span>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="text-center py-4">
-                                <div className="text-amber-600 font-medium mb-1">No Category Found</div>
-                                <p className="text-sm text-gray-500">
-                                    We couldn't find a matching category for your profile in {eventType}.
-                                    <br />Please check tournament guidelines.
-                                </p>
-                            </div>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 block">Category</label>
+                        <GlobalDropdown
+                            value={selectedCategoryId}
+                            onChange={setSelectedCategoryId}
+                            options={filteredCategories.map(c => ({ value: c.id, label: c.name }))}
+                            label="Select category..."
+                            fullWidth
+                            searchable
+                        />
+                        {filteredCategories.length === 0 && (
+                            <p className="text-sm text-amber-600 mt-3">
+                                No categories available for {eventType}. Please check tournament guidelines.
+                            </p>
                         )}
                     </div>
 
@@ -436,7 +354,7 @@ export default function RegisterConfirm({
 
                     <button
                         onClick={handleRegister}
-                        disabled={submitting || !activeCategory || isDetecting}
+                        disabled={submitting || !activeCategory}
                         className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-lg hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transition-all"
                     >
                         {submitting ? 'Processing...' : 'Confirm Registration'}

@@ -32,7 +32,7 @@ interface PaymentMethodItem {
 }
 
 interface PaymentConfig {
-    paymentMethod: string // 'manual' | 'xendit'
+    paymentMethod: string // 'manual'
     paymentMethods: PaymentMethodItem[]
     instructions: string | null
 }
@@ -124,49 +124,6 @@ export default function ClubAffiliationCard({ clubId, affiliationStatus, payment
             }
         } catch {
             toast.error('Something went wrong')
-        } finally {
-            setIsSubmitting(false)
-        }
-    }
-
-    const handleXenditPay = async () => {
-        setIsSubmitting(true)
-        try {
-            const initRes = await fetch('/api/affiliation/pay', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ clubId })
-            })
-            const initData = await initRes.json()
-
-            if (!initData.success) {
-                toast.error(initData.error || 'Failed to initiate payment')
-                setIsSubmitting(false)
-                return
-            }
-
-            const checkoutRes = await fetch('/api/checkout/xendit', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    eventType: 'affiliation',
-                    eventId: affiliationStatus.organizationId,
-                    registrationId: initData.affiliationId,
-                    payerEmail: '',
-                    payerName: '',
-                    amount: initData.amount,
-                    redirectUrl: window.location.href,
-                })
-            })
-            const checkoutData = await checkoutRes.json()
-
-            if (checkoutData.checkoutUrl) {
-                window.location.href = checkoutData.checkoutUrl
-            } else {
-                toast.error(checkoutData.error || 'Failed to create payment')
-            }
-        } catch {
-            toast.error('Payment failed')
         } finally {
             setIsSubmitting(false)
         }
@@ -339,31 +296,6 @@ export default function ClubAffiliationCard({ clubId, affiliationStatus, payment
                         </div>
 
                         <div className="p-6">
-                            {/* Xendit Payment — no steps needed */}
-                            {paymentConfig?.paymentMethod === 'xendit' && (
-                                <div className="space-y-4">
-                                    <div className="text-center py-4">
-                                        <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                                            <CreditCard className="w-8 h-8 text-indigo-600" />
-                                        </div>
-                                        <p className="text-sm text-gray-600 max-w-sm mx-auto">
-                                            You will be redirected to our secure payment gateway to complete the payment.
-                                        </p>
-                                    </div>
-                                    <button
-                                        onClick={handleXenditPay}
-                                        disabled={isSubmitting}
-                                        className="w-full px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                                    >
-                                        {isSubmitting ? (
-                                            <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</>
-                                        ) : (
-                                            <><CreditCard className="w-4 h-4" /> Pay ₱{affiliationStatus.affiliationFee.toLocaleString()} via Xendit</>
-                                        )}
-                                    </button>
-                                </div>
-                            )}
-
                             {/* Manual Payment — Multi-Step */}
                             {paymentConfig?.paymentMethod === 'manual' && manualMethods.length > 0 && (
                                 <>

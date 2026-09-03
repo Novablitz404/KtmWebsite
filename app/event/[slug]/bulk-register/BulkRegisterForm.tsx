@@ -1,12 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { getEventConfig } from '@/lib/event-config'
 import { Loader2, AlertCircle, CheckCircle2, Plus, Trash2, ArrowLeft, Users } from 'lucide-react'
 import Link from 'next/link'
+import GlobalDropdown from '@/components/GlobalDropdown'
 
 const BELT_OPTIONS = ['White', 'Yellow', 'Orange', 'Green', 'Purple', 'Blue', 'Red', 'Maroon', 'Brown', 'Black']
+
+interface Category {
+    id: string
+    name: string
+    type: string
+}
 
 interface Athlete {
     id: string
@@ -19,11 +26,12 @@ interface Athlete {
     gender: string
     country: string
     eventType: string
+    categoryId: string
 }
 
 const emptyAthlete = (id: string): Athlete => ({
     id, email: '', fullName: '', birthday: '', beltRank: 'White',
-    weightKg: '', heightCm: '', gender: 'Male', country: '', eventType: 'KYORUGI'
+    weightKg: '', heightCm: '', gender: 'Male', country: '', eventType: 'KYORUGI', categoryId: ''
 })
 
 export default function BulkRegisterForm() {
@@ -35,9 +43,19 @@ export default function BulkRegisterForm() {
     const [managerEmail, setManagerEmail] = useState('')
     const [promoCode, setPromoCode] = useState('')
     const [athletes, setAthletes] = useState<Athlete[]>([emptyAthlete('1')])
+    const [categories, setCategories] = useState<Category[]>([])
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [error, setError] = useState('')
     const [result, setResult] = useState<any>(null)
+
+    useEffect(() => {
+        const config = getEventConfig(slug)
+        if (!config) return
+        fetch(`/api/tournament/${config.tournamentId}/categories`)
+            .then(res => res.json())
+            .then(data => setCategories(data.categories || []))
+            .catch(() => setCategories([]))
+    }, [slug])
 
     const addAthlete = () => {
         setAthletes(prev => [...prev, emptyAthlete(Date.now().toString())])
@@ -49,7 +67,7 @@ export default function BulkRegisterForm() {
     }
 
     const updateAthlete = (id: string, field: keyof Athlete, value: string) => {
-        setAthletes(prev => prev.map(a => a.id === id ? { ...a, [field]: value } : a))
+        setAthletes(prev => prev.map(a => a.id === id ? { ...a, [field]: value, ...(field === 'eventType' ? { categoryId: '' } : {}) } : a))
     }
 
     const handleSubmit = async () => {
@@ -61,6 +79,10 @@ export default function BulkRegisterForm() {
         for (const a of athletes) {
             if (!a.email || !a.fullName || !a.birthday || !a.weightKg || !a.heightCm || !a.country) {
                 setError(`Please complete all fields for athlete: ${a.fullName || '(unnamed)'}`)
+                return
+            }
+            if (!a.categoryId) {
+                setError(`Please select a category for athlete: ${a.fullName || '(unnamed)'}`)
                 return
             }
         }
@@ -91,6 +113,7 @@ export default function BulkRegisterForm() {
                         gender: a.gender,
                         country: a.country,
                         eventType: a.eventType,
+                        categoryId: a.categoryId,
                     })),
                 }),
             })
@@ -99,27 +122,6 @@ export default function BulkRegisterForm() {
             if (!res.ok) {
                 setError(data.error || 'Bulk registration failed')
                 return
-            }
-
-            // If payment is needed, redirect to Xendit
-            if (data.totalAmount > 0) {
-                const checkoutRes = await fetch('/api/checkout/xendit', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        eventType: 'bulk-registration',
-                        eventId: config.tournamentId,
-                        registrationId: data.bulkRegistrationId,
-                        payerEmail: managerEmail,
-                        payerName: managerName,
-                        redirectUrl: `${window.location.origin}/event/${slug}/bulk-register`,
-                    }),
-                })
-                const checkoutData = await checkoutRes.json()
-                if (checkoutData.invoiceUrl) {
-                    window.location.href = checkoutData.invoiceUrl
-                    return
-                }
             }
 
             setResult(data)
@@ -257,6 +259,16 @@ export default function BulkRegisterForm() {
                                             placeholder="Height (cm) *" step="0.1" className="h-10 px-3 rounded-lg bg-white border border-gray-200 text-sm" />
                                         <input value={athlete.country} onChange={e => updateAthlete(athlete.id, 'country', e.target.value)}
                                             placeholder="Country *" className="h-10 px-3 rounded-lg bg-white border border-gray-200 text-sm col-span-2" />
+                                        <div className="col-span-2 sm:col-span-4">
+                                            <GlobalDropdown
+                                                value={athlete.categoryId}
+                                                onChange={(val: string) => updateAthlete(athlete.id, 'categoryId', val)}
+                                                options={categories.filter(c => c.type === athlete.eventType).map(c => ({ value: c.id, label: c.name }))}
+                                                label="Select category..."
+                                                fullWidth
+                                                searchable
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             ))}

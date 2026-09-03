@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { getAuthUser } from '@/lib/supabase/server'
+import { toTitleCase } from '@/lib/utils'
 
 import { createClient } from '@supabase/supabase-js'
 
@@ -77,8 +78,8 @@ export async function updateOrganizationProfile(organizationId: string, formData
         where: { id: organizationId },
         data: {
             name,
-            chairman,
-            viceChairman,
+            chairman: chairman ? toTitleCase(chairman) : chairman,
+            viceChairman: viceChairman ? toTitleCase(viceChairman) : viceChairman,
             address,
             website,
             contactEmail,

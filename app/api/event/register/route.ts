@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { findCategoryForPlayer } from '@/lib/placement'
 import { deriveSkillLevel } from '@/lib/skill-logic'
+import { toTitleCase } from '@/lib/utils'
 
 /**
  * POST /api/event/register
@@ -28,18 +28,21 @@ export async function POST(req: NextRequest) {
             isIndependent, // boolean
             eventType,     // "KYORUGI" | "POOMSAE" | "KYUKPA"
             poomsaeSubtype, // "INDIVIDUAL" | "PAIR" | "TEAM" (only for POOMSAE)
+            categoryId,    // manually selected category
             waiverAccepted,
             promoCode,     // optional promo code string
         } = body
 
         // Validate required fields
-        if (!tournamentId || !email || !fullName || !birthday || !beltRank || !weightKg || !heightCm || !gender || !country) {
+        if (!tournamentId || !email || !fullName || !birthday || !beltRank || !weightKg || !heightCm || !gender || !country || !categoryId) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
         }
 
         if (!waiverAccepted) {
             return NextResponse.json({ error: 'Waiver must be accepted' }, { status: 400 })
         }
+
+        const normalizedFullName = toTitleCase(fullName)
 
         // 1. Verify tournament exists
         const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } })
@@ -91,21 +94,15 @@ export async function POST(req: NextRequest) {
             ])
         }
 
-        // 3. Auto-detect category
+        // 3. Validate the manually selected category belongs to this tournament
         const birthDate = new Date(birthday)
-        const category = await findCategoryForPlayer(tournamentId, {
-            birthDate,
-            gender,
-            weight: parseFloat(weightKg),
-            height: parseFloat(heightCm),
-            belt: beltRank,
-            type: eventType || 'KYORUGI',
-            poomsaeType: poomsaeSubtype,
+        const category = await prisma.category.findFirst({
+            where: { id: categoryId, tournamentId }
         })
 
         if (!category) {
             return NextResponse.json({
-                error: 'No matching category found for your profile. Please contact the event organizer.'
+                error: 'Selected category is invalid for this tournament.'
             }, { status: 400 })
         }
 
@@ -219,7 +216,7 @@ export async function POST(req: NextRequest) {
             const player = await tx.player.create({
                 data: {
                     id: playerId,
-                    name: fullName,
+                    name: normalizedFullName,
                     gender,
                     belt: beltRank,
                     weight: parseFloat(weightKg),
@@ -240,7 +237,7 @@ export async function POST(req: NextRequest) {
                     tournamentId,
                     playerId: player.id,
                     email: email.toLowerCase().trim(),
-                    fullName,
+                    fullName: normalizedFullName,
                     birthday: birthDate,
                     beltRank,
                     weightKg: parseFloat(weightKg),

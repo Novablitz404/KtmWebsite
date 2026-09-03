@@ -35,14 +35,12 @@ export default function ClubLocatorPage({ clubs, tenantName }: ClubLocatorPagePr
         club.masterName.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
-    // Generate Google Maps Embed URL — use exact coordinates when available, fallback to address search
-    const getGoogleMapsUrl = (club: ClubProps) => {
-        const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+    // Directions link — plain URL, no API key required
+    const getDirectionsUrl = (club: ClubProps) => {
         if (club.latitude && club.longitude) {
-            return `https://maps.google.com/maps?q=${club.latitude},${club.longitude}&z=17&ie=UTF8&iwloc=&output=embed`
+            return `https://www.google.com/maps/dir/?api=1&destination=${club.latitude},${club.longitude}`
         }
-        const encoded = encodeURIComponent(club.address !== 'Address not provided' ? club.address : `${club.name} Taekwondo Philippines`)
-        return `https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${encoded}&zoom=15`
+        return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(club.address)}`
     }
 
     return (
@@ -199,28 +197,17 @@ export default function ClubLocatorPage({ clubs, tenantName }: ClubLocatorPagePr
                                                 </div>
                                             </div>
                                         </div>
-                                        {/* Map Iframe */}
-                                        <div className="flex-1 w-full bg-gray-50 relative">
-                                            <iframe
-                                                width="100%"
-                                                height="100%"
-                                                frameBorder="0"
-                                                style={{ border: 0 }}
-                                                referrerPolicy="no-referrer-when-downgrade"
-                                                src={getGoogleMapsUrl(selectedClub)}
-                                                allowFullScreen
-                                            ></iframe>
-                                            {/* Get Directions Button */}
+                                        {/* Address / Directions panel */}
+                                        <div className="flex-1 w-full bg-gray-50 relative flex flex-col items-center justify-center p-8 text-center">
+                                            <MapPin className="w-10 h-10 text-african-turquoise mb-4" />
+                                            <p className="text-gray-700 font-medium max-w-sm">{selectedClub.address}</p>
                                             <a
-                                                href={selectedClub.latitude && selectedClub.longitude
-                                                    ? `https://www.google.com/maps/dir/?api=1&destination=${selectedClub.latitude},${selectedClub.longitude}`
-                                                    : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(selectedClub.address)}`
-                                                }
+                                                href={getDirectionsUrl(selectedClub)}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="absolute bottom-4 left-4 right-4 flex items-center justify-center gap-2 px-4 py-3 bg-african-turquoise text-white font-semibold rounded-xl shadow-lg hover:brightness-110 transition-all text-sm"
+                                                className="mt-6 flex items-center justify-center gap-2 px-4 py-3 bg-african-turquoise text-white font-semibold rounded-xl shadow-lg hover:brightness-110 transition-all text-sm"
                                             >
-                                                <ExternalLink size={16} /> Get Directions in Google Maps
+                                                <ExternalLink size={16} /> Get Directions
                                             </a>
                                         </div>
                                     </>

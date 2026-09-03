@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import SignatureCanvas from 'react-signature-canvas'
 import { Loader2, AlertCircle, CheckCircle2, ArrowRight, ArrowLeft, Search, X, Tag } from 'lucide-react'
 import { COUNTRIES } from '@/lib/countries'
+import GlobalDropdown from '@/components/GlobalDropdown'
 
 const PDFDownloadLink = dynamic(
     () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
@@ -39,7 +40,6 @@ interface GuestRegistrationFormProps {
     tournament: {
         id: string
         name: string
-        xenditEnabled: boolean
         currentPrice: number
         isEarlyBird: boolean
         regularPrice: number | null
@@ -48,6 +48,7 @@ interface GuestRegistrationFormProps {
         currency?: string
     }
     clubs: { id: string; name: string }[]
+    categories: { id: string; name: string; type: string }[]
     eventSlug: string
     paymentConfirmed?: boolean
     registrationId?: string
@@ -56,6 +57,7 @@ interface GuestRegistrationFormProps {
 export default function GuestRegistrationForm({
     tournament,
     clubs,
+    categories,
     eventSlug,
     paymentConfirmed = false,
     registrationId,
@@ -85,10 +87,12 @@ export default function GuestRegistrationForm({
     const [showCountryDropdown, setShowCountryDropdown] = useState(false)
 
     // Step 2: Category
-    const [detectedCategory, setDetectedCategory] = useState<string | null>(null)
-    const [isDetecting, setIsDetecting] = useState(false)
     const [eventType, setEventType] = useState('KYORUGI')
     const [poomsaeSubtype, setPoomsaeSubtype] = useState('INDIVIDUAL')
+    const [selectedCategoryId, setSelectedCategoryId] = useState('')
+
+    const filteredCategories = categories.filter(c => c.type === eventType)
+    const selectedCategory = filteredCategories.find(c => c.id === selectedCategoryId) || null
 
     // Step 3: Waiver
     const sigCanvas = useRef<SignatureCanvas>(null)
@@ -141,55 +145,6 @@ export default function GuestRegistrationForm({
     const filteredCountries = COUNTRIES.filter(c =>
         c.toLowerCase().includes(countrySearch.toLowerCase())
     )
-
-    // Auto-detect category when moving to step 2
-    const detectCategory = async () => {
-        setIsDetecting(true)
-        setError('')
-        try {
-            const res = await fetch('/api/event/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    tournamentId: tournament.id,
-                    email, fullName, birthday, beltRank: belt,
-                    weightKg: weight, heightCm: height, gender, country,
-                    clubId: selectedClubId || null,
-                    clubNameOther: clubSelection === 'other' ? clubNameOther : null,
-                    isIndependent: clubSelection === 'independent',
-                    eventType,
-                    poomsaeSubtype: eventType === 'POOMSAE' ? poomsaeSubtype : undefined,
-                    waiverAccepted: true,
-                    promoCode: promoDiscount ? promoCode : undefined,
-                    _dryRun: true, // We'll handle this differently — just detect category
-                }),
-            })
-            // For category detection, we use the placement API directly
-            const catRes = await fetch(`/api/tournament/${tournament.id}/detect-category`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    birthDate: birthday,
-                    gender,
-                    weight: parseFloat(weight),
-                    height: parseFloat(height),
-                    belt,
-                    type: eventType,
-                    poomsaeType: eventType === 'POOMSAE' ? poomsaeSubtype : undefined,
-                }),
-            })
-            if (catRes.ok) {
-                const data = await catRes.json()
-                setDetectedCategory(data?.name || null)
-            } else {
-                setDetectedCategory(null)
-            }
-        } catch {
-            setDetectedCategory(null)
-        } finally {
-            setIsDetecting(false)
-        }
-    }
 
     // Validate Step 1
     const validateStep1 = (): boolean => {
@@ -259,6 +214,7 @@ export default function GuestRegistrationForm({
                     isIndependent: clubSelection === 'independent',
                     eventType,
                     poomsaeSubtype: eventType === 'POOMSAE' ? poomsaeSubtype : undefined,
+                    categoryId: selectedCategoryId,
                     waiverAccepted: true,
                     promoCode: promoDiscount ? promoCode.toUpperCase().trim() : undefined,
                 }),
@@ -276,33 +232,7 @@ export default function GuestRegistrationForm({
             setCategoryName(data.categoryName)
             setFinalPrice(data.finalPrice)
 
-            // If Xendit is enabled, redirect to payment
-            if (tournament.xenditEnabled && data.finalPrice > 0) {
-                const checkoutRes = await fetch('/api/checkout/xendit', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        eventType: 'guest-tournament',
-                        eventId: tournament.id,
-                        registrationId: data.playerId,
-                        payerEmail: email,
-                        payerName: fullName,
-                        amount: data.finalPrice,
-                        currency: currencyCode,
-                        redirectUrl: `${window.location.origin}/event/${eventSlug}/register`,
-                    }),
-                })
-                const checkoutData = await checkoutRes.json()
-                if (checkoutData.invoiceUrl) {
-                    window.location.href = checkoutData.invoiceUrl
-                    return
-                } else {
-                    setError(checkoutData.error || 'Failed to create payment link')
-                }
-            } else {
-                // No payment needed — go to confirmation
-                setStep('confirmation')
-            }
+            setStep('confirmation')
         } catch {
             setError('Something went wrong. Please try again.')
         } finally {
@@ -446,14 +376,14 @@ export default function GuestRegistrationForm({
 
             {error && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm flex items-center gap-2"><AlertCircle className="w-4 h-4 flex-shrink-0" />{error}</div>}
 
-            <button onClick={() => { if (validateStep1()) { setStep('category'); detectCategory() } }}
+            <button onClick={() => { if (validateStep1()) setStep('category') }}
                 className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-bold text-lg rounded-xl transition-all shadow-lg flex items-center justify-center gap-2">
                 Next: Select Category <ArrowRight className="w-5 h-5" />
             </button>
         </div>
     )
 
-    // Step 2: Category Detection
+    // Step 2: Category Selection
     const renderCategoryStep = () => (
         <div className="space-y-6">
             <button onClick={() => setStep('info')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900">
@@ -462,12 +392,12 @@ export default function GuestRegistrationForm({
 
             <div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-1">Event Selection</h2>
-                <p className="text-gray-500 text-sm">Choose your event type and confirm your category</p>
+                <p className="text-gray-500 text-sm">Choose your event type and category</p>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {['KYORUGI', 'POOMSAE'].map(type => (
-                    <button key={type} onClick={() => { setEventType(type); setFinalPrice(resolveCategoryPrice(type, poomsaeSubtype)); detectCategory() }}
+                    <button key={type} onClick={() => { setEventType(type); setSelectedCategoryId(''); setFinalPrice(resolveCategoryPrice(type, poomsaeSubtype)) }}
                         className={`p-4 rounded-xl border-2 text-left transition-all ${eventType === type
                             ? (type === 'KYORUGI' ? 'border-red-600 bg-red-50' : 'border-purple-600 bg-purple-50')
                             : 'border-gray-200 hover:border-gray-300'
@@ -481,7 +411,7 @@ export default function GuestRegistrationForm({
             {eventType === 'POOMSAE' && (
                 <div className="flex gap-2">
                     {['INDIVIDUAL', 'PAIR', 'TEAM'].map(sub => (
-                        <button key={sub} onClick={() => { setPoomsaeSubtype(sub); setFinalPrice(resolveCategoryPrice('POOMSAE', sub)); detectCategory() }}
+                        <button key={sub} onClick={() => { setPoomsaeSubtype(sub); setFinalPrice(resolveCategoryPrice('POOMSAE', sub)) }}
                             className={`px-4 py-2 rounded-lg text-sm font-medium border ${poomsaeSubtype === sub
                                 ? 'bg-purple-600 text-white border-purple-600'
                                 : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -493,29 +423,24 @@ export default function GuestRegistrationForm({
             )}
 
             <div className="bg-white border border-gray-200 rounded-xl p-6">
-                <div className="flex items-center justify-between mb-4">
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Detected Category</label>
-                    {isDetecting && <Loader2 className="w-4 h-4 text-red-500 animate-spin" />}
-                </div>
-                {detectedCategory ? (
-                    <div>
-                        <div className="text-xl font-bold text-gray-900">{detectedCategory}</div>
-                        <div className="text-sm text-green-600 flex items-center gap-1 mt-1">
-                            <CheckCircle2 className="w-4 h-4" /> Based on your profile
-                        </div>
-                    </div>
-                ) : (
-                    <div className="text-center py-4">
-                        <div className="text-amber-600 font-medium mb-1">{isDetecting ? 'Detecting...' : 'No Category Found'}</div>
-                        {!isDetecting && <p className="text-sm text-gray-500">No matching category for your profile. Please contact the organizer.</p>}
-                    </div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 block">Category</label>
+                <GlobalDropdown
+                    value={selectedCategoryId}
+                    onChange={setSelectedCategoryId}
+                    options={filteredCategories.map(c => ({ value: c.id, label: c.name }))}
+                    label="Select category..."
+                    fullWidth
+                    searchable
+                />
+                {filteredCategories.length === 0 && (
+                    <p className="text-sm text-amber-600 mt-3">No categories available for {eventType}. Please contact the organizer.</p>
                 )}
             </div>
 
             {error && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{error}</div>}
 
-            <button onClick={() => { if (detectedCategory) setStep('waiver'); else setError('No category detected') }}
-                disabled={!detectedCategory || isDetecting}
+            <button onClick={() => { if (selectedCategory) setStep('waiver'); else setError('Please select a category') }}
+                disabled={!selectedCategory}
                 className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-bold text-lg rounded-xl transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                 Next: Sign Waiver <ArrowRight className="w-5 h-5" />
             </button>
@@ -589,7 +514,7 @@ export default function GuestRegistrationForm({
                 <div className="space-y-3 text-sm">
                     <div className="flex justify-between"><span className="text-slate-400">Name</span><span className="font-semibold">{fullName}</span></div>
                     <div className="flex justify-between"><span className="text-slate-400">Email</span><span className="font-semibold">{email}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-400">Category</span><span className="font-semibold">{detectedCategory}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-400">Category</span><span className="font-semibold">{selectedCategory?.name}</span></div>
                     <div className="flex justify-between"><span className="text-slate-400">Event Type</span><span className="font-semibold">{eventType}</span></div>
                     <div className="flex justify-between"><span className="text-slate-400">Country</span><span className="font-semibold">{country}</span></div>
                     <div className="flex justify-between"><span className="text-slate-400">Club</span>
@@ -636,8 +561,7 @@ export default function GuestRegistrationForm({
 
             <button onClick={handleSubmit} disabled={isSubmitting}
                 className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-bold text-lg rounded-xl transition-all shadow-lg disabled:opacity-50 flex items-center justify-center gap-2">
-                {isSubmitting ? <><Loader2 className="w-5 h-5 animate-spin" /> Processing...</> :
-                    tournament.xenditEnabled && finalPrice > 0 ? 'Proceed to Payment' : 'Complete Registration'}
+                {isSubmitting ? <><Loader2 className="w-5 h-5 animate-spin" /> Processing...</> : 'Complete Registration'}
             </button>
         </div>
     )

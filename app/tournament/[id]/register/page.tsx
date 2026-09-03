@@ -19,6 +19,21 @@ export default async function RegisterPage({ params, searchParams }: Props) {
         redirect('/sign-in')
     }
 
+    if (dbUser.role === 'ATHLETE') {
+        return (
+            <main className="min-h-[calc(100vh-4rem)] bg-gray-50 pb-2 flex flex-col items-center justify-center">
+                <div className="max-w-md mx-auto px-4 text-center">
+                    <div className="bg-white border border-gray-200 rounded-xl p-8 shadow-sm">
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Ask Your Club Master</h2>
+                        <p className="text-gray-600">
+                            Athletes can no longer self-register for tournaments. Please ask your club master to register you.
+                        </p>
+                    </div>
+                </div>
+            </main>
+        )
+    }
+
     // Check if profile is complete (now including birthDate)
     const profileComplete = dbUser.name && dbUser.clubName && dbUser.gender && dbUser.belt && dbUser.weight && dbUser.birthDate
     if (!profileComplete) {
@@ -100,44 +115,14 @@ export default async function RegisterPage({ params, searchParams }: Props) {
         }
     })
 
-    // If registered, we usually show status. But for now, let's allow multiple if they want? 
-    // The previous logic blocked it. Let's keep blocking for now unless requested, 
-    // BUT we need to handle "Poomsae" users who might have 0 matches in "autoPlace".
+    // Fetch all categories for this tournament so the athlete/club master can pick manually
+    const categories = await prisma.category.findMany({
+        where: { tournamentId: tournament.id },
+        select: { id: true, name: true, type: true, court: true },
+        orderBy: { name: 'asc' }
+    })
 
-    // Auto-place the player (Kyorugi default)
-    // We try to find a Kyorugi match first. If none, we might try Poomsae or just return null.
-    // The previous logic assumed Kyorugi.
-
-    // Import findCategoryForPlayer from library
-    const { findCategoryForPlayer } = await import('@/lib/placement')
-
-    let predictedCategory = await findCategoryForPlayer(
-        tournament.id,
-        {
-            birthDate: dbUser.birthDate!,
-            gender: dbUser.gender!,
-            weight: dbUser.weight!,
-            height: dbUser.height || 0,
-            belt: dbUser.belt || undefined,
-            type: 'KYORUGI' // Default checking
-        }
-    )
-
-    // Check available category types for this tournament
-    const availableTypes = await prisma.category.findMany({
-        where: {
-            tournamentId: tournament.id
-        },
-        select: {
-            type: true
-        },
-        distinct: ['type']
-    }).then(types => types.map(t => t.type))
-
-    // If no categories found (e.g. not generated yet), assume strictly what's in the template if we parsed it,
-    // or fallback to all or none. For now, if empty, we might defaulting to Kyorugi? 
-    // Or better, let's assume if categories exist, we use them. 
-    // If NO categories exist, the user can't register anyway (findCategoryForPlayer would fail).
+    const availableTypes = Array.from(new Set(categories.map(c => c.type)))
 
     return (
         <main className="min-h-screen bg-gray-50 pb-2 flex flex-col items-center justify-center">
@@ -145,7 +130,7 @@ export default async function RegisterPage({ params, searchParams }: Props) {
                 <RegisterConfirm
                     tournament={tournament}
                     user={dbUser}
-                    suggestedCategory={predictedCategory}
+                    categories={categories}
                     existingRegistrations={existingRegistrations as any}
                     availableTypes={availableTypes.length > 0 ? availableTypes : ['KYORUGI', 'POOMSAE', 'KYUKPA']}
                     paymentConfirmed={paymentConfirmed}

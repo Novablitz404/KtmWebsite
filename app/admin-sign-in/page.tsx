@@ -18,6 +18,32 @@ export default function AdminSignInPage() {
     const [showPassword, setShowPassword] = React.useState(false);
     const router = useRouter();
 
+    const quickLogin = async (devEmail: string, devPassword: string) => {
+        setIsLoading(true);
+        setError("");
+
+        try {
+            const { data, error: signInError } = await supabase.auth.signInWithPassword({
+                email: devEmail,
+                password: devPassword,
+            });
+
+            if (signInError) {
+                setError("Invalid credentials.");
+                setIsLoading(false);
+                return;
+            }
+
+            if (data.session) {
+                setIsRedirecting(true);
+                router.push('/admin');
+            }
+        } catch {
+            setError("Something went wrong. Please try again.");
+            setIsLoading(false);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
@@ -100,6 +126,20 @@ export default function AdminSignInPage() {
                             Authorized personnel only
                         </p>
                     </div>
+
+                    {process.env.NODE_ENV === "development" && (
+                        <div className="mb-5 border border-dashed border-amber-500/30 rounded-lg p-3">
+                            <p className="text-amber-500 text-[10px] font-bold uppercase tracking-widest mb-2">Dev Quick Login</p>
+                            <button
+                                type="button"
+                                onClick={() => quickLogin("ericjann21@gmail.com", "admin123")}
+                                disabled={isLoading || isRedirecting}
+                                className="w-full px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                            >
+                                Admin
+                            </button>
+                        </div>
+                    )}
 
                     {/* Form */}
                     <form className="space-y-5" onSubmit={handleSubmit}>

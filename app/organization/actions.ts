@@ -8,7 +8,6 @@ import { createClient } from '@supabase/supabase-js'
 import { getNextBelt } from '@/lib/belt'
 import { countryToCode } from '@/lib/countries'
 import crypto from 'crypto'
-import { encrypt } from '@/lib/encryption'
 
 export async function getOrganizationDashboardData() {
     const user = await getAuthUser()
@@ -120,9 +119,9 @@ export async function getOrganizationDashboardData() {
         .slice(0, 5)
 
 
-    // Calculate Stats — count all members of this org (all roles)
+    // Calculate Stats — count all members of this org, excluding admin/organizer accounts
     const totalDirectMembers = await prisma.user.count({
-        where: { organizationMemberId: orgId }
+        where: { organizationMemberId: orgId, role: { notIn: ['ADMIN', 'ORGANIZER'] } }
     })
     const totalAffiliatedMembers = affiliatedOrgsMemberCounts.reduce((acc, item) => acc + item.count, 0)
 
@@ -279,11 +278,6 @@ export async function createPromotionTest(formData: FormData) {
     const venue = formData.get('venue') as string
     const visibility = (formData.get('visibility') as string) || 'PRIVATE'
 
-    // Xendit Payment Integration
-    const xenditEnabled = formData.get('xenditEnabled') === 'true'
-    const xenditSecretKeyRaw = formData.get('xenditSecretKey') as string | null
-    const xenditSecretKey = xenditEnabled && xenditSecretKeyRaw ? encrypt(xenditSecretKeyRaw) : null
-
     if (!name || !testDate) return { error: 'Name and test date are required' }
 
     const promotionTest = await prisma.promotionTest.create({
@@ -296,8 +290,6 @@ export async function createPromotionTest(formData: FormData) {
             venue: venue || null,
             status: 'UPCOMING',
             visibility,
-            xenditEnabled,
-            xenditSecretKey,
         }
     })
 
@@ -447,11 +439,6 @@ export async function createSeminar(formData: FormData) {
     const visibility = (formData.get('visibility') as string) || 'PRIVATE'
     const paymentInstructions = formData.get('paymentInstructions') as string
 
-    // Xendit Payment Integration
-    const xenditEnabled = formData.get('xenditEnabled') === 'true'
-    const xenditSecretKeyRaw = formData.get('xenditSecretKey') as string | null
-    const xenditSecretKey = xenditEnabled && xenditSecretKeyRaw ? encrypt(xenditSecretKeyRaw) : null
-
     const bannerFile = formData.get('banner') as File | null
 
     if (!name || !startDate) return { error: 'Name and start date are required' }
@@ -507,8 +494,6 @@ export async function createSeminar(formData: FormData) {
             visibility,
             paymentInstructions: paymentInstructions || null,
             bannerUrl,
-            xenditEnabled,
-            xenditSecretKey,
         }
     })
 
@@ -832,10 +817,7 @@ export async function updateSeminarRegistrationStatus(registrationId: string, st
         // Auto-generate QR token on approval, clear on other statuses
         if (status === 'APPROVED') {
             data.qrCodeToken = crypto.randomUUID()
-            // Auto-set payment to PAID for manual (non-Xendit) events
-            if (!registration.seminar.xenditEnabled) {
-                data.paymentStatus = 'PAID'
-            }
+            data.paymentStatus = 'PAID'
         } else {
             data.qrCodeToken = null
         }
@@ -1664,6 +1646,10 @@ export async function registerForPromotionTest(promotionTestId: string) {
     })
 
     if (!dbUser) return { error: 'User profile not found' }
+
+    if (dbUser.role === 'ATHLETE') {
+        return { error: 'Athletes can no longer self-register. Please ask your club master to register you.' }
+    }
 
     // Check if already registered
     const existing = await prisma.promotionTestRegistration.findFirst({
@@ -2577,8 +2563,6 @@ export async function updateAffiliationSettings(data: {
     affiliationFee?: number
     affiliationPaymentMethod?: string
     affiliationInstructions?: string | null
-    affiliationXenditEnabled?: boolean
-    affiliationXenditSecretKey?: string | null
     affiliationPaymentMethods?: any[] | null
 }) {
     const user = await getAuthUser()
@@ -2596,13 +2580,7 @@ export async function updateAffiliationSettings(data: {
     if (data.affiliationFee !== undefined) updateData.affiliationFee = data.affiliationFee
     if (data.affiliationPaymentMethod !== undefined) updateData.affiliationPaymentMethod = data.affiliationPaymentMethod
     if (data.affiliationInstructions !== undefined) updateData.affiliationInstructions = data.affiliationInstructions
-    if (data.affiliationXenditEnabled !== undefined) updateData.affiliationXenditEnabled = data.affiliationXenditEnabled
     if (data.affiliationPaymentMethods !== undefined) updateData.affiliationPaymentMethods = data.affiliationPaymentMethods
-    if (data.affiliationXenditSecretKey !== undefined) {
-        updateData.affiliationXenditSecretKey = data.affiliationXenditSecretKey
-            ? encrypt(data.affiliationXenditSecretKey)
-            : null
-    }
 
     await prisma.organization.update({
         where: { id: dbUser.organization.id },

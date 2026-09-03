@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Trophy, Medal, Calendar, ChevronRight, Zap, Clock, Mail, QrCode, X, ClipboardList, ShieldCheck, Copy, Check, Eye } from 'lucide-react'
+import { Trophy, Medal, Calendar, Zap, Clock, Mail, QrCode, X, ClipboardList, ShieldCheck, Copy, Check, Eye } from 'lucide-react'
 import Link from 'next/link'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { fetchAthleteDashboardData, unregisterFromTournament, submitAthleteCardPaymentProof } from '@/app/actions'
@@ -662,7 +662,7 @@ export default function AthleteDashboardView({
                                             <div className="p-10 text-center">
                                                 <div className="text-4xl mb-3">🏆</div>
                                                 <h3 className="text-sm font-bold text-gray-900 mb-1">No tournament registrations</h3>
-                                                <p className="text-gray-500 text-sm">Browse events to register for a tournament.</p>
+                                                <p className="text-gray-500 text-sm">Ask your club master to register you for a tournament.</p>
                                             </div>
                                         ) : (
                                             <div className="flex-1 overflow-auto">
@@ -816,7 +816,7 @@ export default function AthleteDashboardView({
                                             <div className="p-10 text-center">
                                                 <div className="text-4xl mb-3">📚</div>
                                                 <h3 className="text-sm font-bold text-gray-900 mb-1">No seminar registrations</h3>
-                                                <p className="text-gray-500 text-sm">Browse events to register for a seminar.</p>
+                                                <p className="text-gray-500 text-sm">Ask your club master to register you for a seminar.</p>
                                             </div>
                                         ) : (
                                             <div className="flex-1 overflow-auto">
@@ -928,7 +928,7 @@ export default function AthleteDashboardView({
                                             <div className="p-10 text-center">
                                                 <div className="text-4xl mb-3">🥋</div>
                                                 <h3 className="text-sm font-bold text-gray-900 mb-1">No promotion registrations</h3>
-                                                <p className="text-gray-500 text-sm">Browse events to register for a belt promotion test.</p>
+                                                <p className="text-gray-500 text-sm">Ask your club master to register you for a belt promotion test.</p>
                                             </div>
                                         ) : (
                                             <div className="flex-1 overflow-auto">
@@ -1092,15 +1092,20 @@ export default function AthleteDashboardView({
                                 </Link>
                             </div>
                         ) : (
-                            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center bg-white rounded-2xl shadow-sm border border-gray-200 p-12">
-                                <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-50 rounded-full flex items-center justify-center mb-6 shadow-sm">
-                                    <Trophy className="w-10 h-10 text-gray-400" />
+                            <div className="flex flex-col items-center justify-center min-h-[60vh] bg-white rounded-2xl shadow-sm border border-gray-200 p-12">
+                                <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-6 w-full max-w-2xl">
+                                    <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-50 rounded-full flex items-center justify-center shadow-sm flex-shrink-0">
+                                        <Trophy className="w-10 h-10 text-gray-400" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-2xl font-black text-gray-900 mb-2">Unranked</h2>
+                                        <p className="text-gray-500 leading-relaxed">
+                                            You have not achieved any verified global ranking points yet. Compete in GSS-ranked events to earn your spot on the leaderboard!
+                                        </p>
+                                    </div>
                                 </div>
-                                <h2 className="text-2xl font-black text-gray-900 mb-3">Unranked</h2>
-                                <p className="text-gray-500 max-w-md mb-8 leading-relaxed">
-                                    You have not achieved any verified global ranking points yet. Compete in GSS-ranked events to earn your spot on the leaderboard!
-                                </p>
-                                <div className="flex gap-4">
+
+                                <div className="flex gap-4 mt-8">
                                     <div className="px-5 py-3 bg-gray-50 rounded-xl border border-gray-100 flex flex-col items-center min-w-[140px] opacity-70">
                                         <span className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Global Rank</span>
                                         <span className="text-2xl font-bold text-gray-300">---</span>
@@ -1141,7 +1146,7 @@ export default function AthleteDashboardView({
                         <div className="flex items-center justify-between mb-6">
                             <div>
                                 <h2 className="text-2xl font-black text-gray-900">Available Events</h2>
-                                <p className="text-sm text-gray-500 mt-1">Browse and register for upcoming tournaments, seminars & promotion tests</p>
+                                <p className="text-sm text-gray-500 mt-1">Browse upcoming tournaments, seminars & promotion tests — ask your club master to register you</p>
                             </div>
                         </div>
 
@@ -1202,7 +1207,6 @@ export default function AthleteDashboardView({
                                         const isSeminar = event.eventType === 'SEMINAR'
                                         const isPromotion = event.eventType === 'PROMOTION_TEST'
                                         const isRegistered = isSeminar ? event.isRegistered : isPromotion ? event.isRegistered : event.isFullyRegistered
-                                        const registerLink = isPromotion ? `/promotions/${event.id}` : isSeminar ? `/seminars/${event.id}/register` : `/tournament/${event.id}/register`
                                         const eventDate = new Date(event.startDate)
                                         const daysUntil = Math.ceil((eventDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
 
@@ -1286,13 +1290,9 @@ export default function AthleteDashboardView({
                                                             Registered
                                                         </div>
                                                     ) : (
-                                                        <Link
-                                                            href={registerLink}
-                                                            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold transition-all active:scale-95 shadow-sm"
-                                                        >
-                                                            Register Now
-                                                            <ChevronRight size={14} />
-                                                        </Link>
+                                                        <div className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-50 text-gray-500 rounded-xl text-sm font-semibold border border-gray-200 text-center">
+                                                            Ask your club master to register you
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>

@@ -13,7 +13,6 @@ import { BracketMatchSpec, generateSingleEliminationBracket, shuffleArray } from
 import type { PreviewMatch } from '@/lib/bracket-preview-helpers'
 import { deriveSkillLevel, extractBeltFromCategoryName } from '@/lib/skill-logic'
 import { toTitleCase } from '@/lib/utils'
-import { encrypt } from '@/lib/encryption'
 import { sendEmail } from '@/lib/email-service'
 import RegistrationApprovedEmail from '@/emails/RegistrationApprovedEmail'
 import QRCode from 'qrcode'
@@ -58,10 +57,6 @@ export async function createTournament(formData: FormData) {
         try { categoryPricing = JSON.parse(categoryPricingStr) } catch { /* ignore invalid JSON */ }
     }
 
-    // Xendit Payment Integration
-    const xenditEnabled = formData.get('xenditEnabled') === 'true'
-    const xenditSecretKeyRaw = formData.get('xenditSecretKey') as string | null
-    const xenditSecretKey = xenditEnabled && xenditSecretKeyRaw ? encrypt(xenditSecretKeyRaw) : null
     const currency = (formData.get('currency') as string | null) || 'PHP'
 
     // Date TBA
@@ -133,8 +128,6 @@ export async function createTournament(formData: FormData) {
             organizerId: dbUser.id,
             showPricing,
             categoryPricing,
-            xenditEnabled,
-            xenditSecretKey,
             currency,
             dateTBA,
         },
@@ -1953,7 +1946,7 @@ export async function updateProfile(formData: FormData) {
     // Athletes cannot self-update belt, weight, or height —
     // only club masters can change those via the approve/member edit flows
     const updateData: any = {
-        name,
+        name: toTitleCase(name),
         clubName,
         gender,
         birthDate,
@@ -2006,6 +1999,12 @@ interface RegisterForTournamentInput {
 export async function registerForTournament(input: RegisterForTournamentInput) {
     const { categoryId, userId, name, gender, belt, weight, clubName, poomsaeType, teamId } = input
 
+    const { verifyCanRegisterAthlete } = await import('@/lib/club-auth')
+    const authCheck = await verifyCanRegisterAthlete(userId)
+    if (authCheck.error) {
+        return { error: authCheck.error }
+    }
+
     // Generate unique 9-digit player ID
     const generatePlayerId = async (): Promise<string> => {
         let attempts = 0
@@ -2049,7 +2048,7 @@ export async function registerForTournament(input: RegisterForTournamentInput) {
         await prisma.player.create({
             data: {
                 id: playerId,
-                name,
+                name: toTitleCase(name),
                 gender,
                 belt,
                 weight,
@@ -2074,21 +2073,12 @@ export async function registerForTournament(input: RegisterForTournamentInput) {
 export async function approveRegistrations(players: { id: string, skillLevel: string }[]) {
     try {
         for (const player of players) {
-            // Check if the tournament has Xendit enabled
-            const playerRecord = await prisma.player.findUnique({
-                where: { id: player.id },
-                include: { category: { include: { tournament: { select: { xenditEnabled: true } } } } }
-            })
-
-            const xenditEnabled = playerRecord?.category?.tournament?.xenditEnabled || false
-
             await prisma.player.update({
                 where: { id: player.id },
                 data: {
                     skillLevel: player.skillLevel,
                     registrationStatus: 'APPROVED',
-                    // Auto-set payment to PAID for manual (non-Xendit) events
-                    ...(!xenditEnabled && { paymentStatus: 'PAID' }),
+                    paymentStatus: 'PAID',
                 }
             })
         }
@@ -2104,120 +2094,6 @@ export async function approveRegistrations(players: { id: string, skillLevel: st
     } catch (error) {
         console.error('Approval error:', error)
         return { error: 'Failed to approve registrations.' }
-    }
-}
-
-interface RegisterAutoInput {
-    tournamentId: string
-    userId: string
-    name: string
-    gender: string
-    belt: string
-    weight: number
-    clubName: string
-    division: string
-    categoryName: string
-}
-
-export async function registerForTournamentAuto(input: RegisterAutoInput) {
-    const { tournamentId, userId, name, gender, belt, weight, clubName, division, categoryName } = input
-
-    // Generate unique 9-digit player ID
-    const generatePlayerId = async (): Promise<string> => {
-        let attempts = 0
-        while (attempts < 100) {
-            const randomNum = Math.floor(Math.random() * 1000000000)
-            const id = randomNum.toString().padStart(9, '0')
-            const exists = await prisma.player.findUnique({ where: { id } })
-            if (!exists) return id
-            attempts++
-        }
-        throw new Error('Could not generate unique player ID')
-    }
-
-    // Backend Date Enforcement
-    const tournament = await prisma.tournament.findUnique({
-        where: { id: tournamentId },
-        select: { registrationStart: true, registrationEnd: true }
-    })
-
-    if (!tournament) return { error: 'Tournament not found' }
-
-    const now = new Date()
-    if (tournament.registrationStart && now < tournament.registrationStart) {
-        return { error: 'Registration has not started yet' }
-    }
-    if (tournament.registrationEnd && now > tournament.registrationEnd) {
-        return { error: 'Registration is closed' }
-    }
-
-    // Find or create the category for this tournament
-    let category = await prisma.category.findFirst({
-        where: {
-            tournamentId,
-            name: categoryName
-        }
-    })
-
-    if (!category) {
-        // Determine type
-        const type = categoryName.toLowerCase().includes('poomsae') ? 'POOMSAE' : 'KYORUGI'
-
-        category = await prisma.category.create({
-            data: {
-                name: categoryName,
-                tournamentId,
-                type: type
-            }
-        })
-    }
-
-    // Find the user's club
-    let club = null
-    if (clubName) {
-        const normalizedClubName = clubName.trim()
-        club = await prisma.club.findFirst({
-            where: { name: normalizedClubName }
-        })
-        if (!club) {
-            console.log(`Club not found for name: "${normalizedClubName}"`)
-        }
-
-        // Check club affiliation
-        if (club) {
-            const { checkClubAffiliation } = await import('@/lib/affiliation')
-            const affiliationCheck = await checkClubAffiliation(club.id)
-            if (!affiliationCheck.isActive) {
-                return { error: affiliationCheck.message }
-            }
-        }
-    }
-
-    try {
-        const playerId = await generatePlayerId()
-
-        await prisma.player.create({
-            data: {
-                id: playerId,
-                name: toTitleCase(name),
-                gender,
-                belt,
-                weight,
-                division,
-                categoryId: category.id,
-                userId,
-                clubId: club?.id || null,
-                registrationStatus: 'PENDING',
-                skillLevel: deriveSkillLevel(belt)
-            }
-        })
-
-        revalidatePath('/club')
-        revalidatePath('/tournaments')
-        return { success: true, playerId }
-    } catch (error) {
-        console.error('Registration error:', error)
-        return { error: 'Failed to register. Please try again.' }
     }
 }
 
@@ -2541,371 +2417,6 @@ export async function createCategory(
         console.error('Create Category Error:', error)
         return { error: 'Failed to create category' }
     }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MASTERLIST AUDIT
-// ─────────────────────────────────────────────────────────────────────────────
-
-export type AuditIssue = {
-    playerId: string
-    playerName: string
-    categoryName: string
-    categoryType: string
-    severity: 'error' | 'warning'
-    code: string
-    message: string
-    // Auto-fix fields
-    fixable?: boolean
-    suggestedCategoryId?: string
-    suggestedCategoryName?: string
-}
-
-// Codes the placement engine can fix by reassigning to a correct category
-const FIXABLE_CODES = new Set([
-    'AGE_TOO_OLD', 'AGE_TOO_YOUNG',
-    'WEIGHT_TOO_HIGH', 'WEIGHT_TOO_LOW',
-    'HEIGHT_TOO_HIGH', 'HEIGHT_TOO_LOW',
-    'WRONG_CATEGORY',
-    'BELT_MISMATCH', // Poomsae only — resolved by placing on correct belt-based category
-])
-
-export async function auditTournamentMasterlist(tournamentId: string): Promise<AuditIssue[]> {
-    const { calculateAge, findCategoryForPlayer } = await import('@/lib/placement')
-    const { deriveSkillLevel } = await import('@/lib/skill-logic')
-
-    // Fetch all players with their User profile (source of truth) and assigned category
-    const players = await prisma.player.findMany({
-        where: { category: { tournamentId } },
-        include: {
-            category: true,
-            user: {
-                select: {
-                    id: true, name: true, birthDate: true, gender: true,
-                    weight: true, height: true, belt: true
-                }
-            }
-        }
-    })
-
-    const issues: AuditIssue[] = []
-
-    for (const player of players) {
-        const cat = player.category
-        if (!cat) continue
-
-        const ctx = {
-            playerId: player.id,
-            playerName: player.name,
-            categoryName: cat.name,
-            categoryType: cat.type,
-        }
-
-        // ══════════════════════════════════════════════════════════════════════
-        // DATA RESOLUTION: User profile (source of truth) → Player record (fallback)
-        // Some players have userId = null (guest registrations, orphaned records)
-        // In that case, we use whatever data is on the Player record itself.
-        // ══════════════════════════════════════════════════════════════════════
-        const user = player.user
-        const birthDate = user?.birthDate ?? null
-        const gender = user?.gender ?? player.gender ?? null
-        const weight = user?.weight ?? player.weight ?? 0
-        const height = user?.height ?? player.height ?? 0
-        const belt = user?.belt ?? player.belt ?? null
-        const skillLevel = belt ? deriveSkillLevel(belt) : null
-
-        // Determine which metric matters from the category's own fields
-        // Height-based categories: minHeight/maxHeight > 0 (Supertoddler/Toddler/Grade School)
-        // Weight-based categories: minWeight/maxWeight > 0 (Cadet/Junior/Senior)
-        const usesHeight = (cat.minHeight != null && cat.minHeight > 0) || (cat.maxHeight != null && cat.maxHeight > 0)
-        const usesWeight = (cat.minWeight != null && cat.minWeight > 0) || (cat.maxWeight != null && cat.maxWeight > 0)
-
-        // ────────────────────────────────────────────────────────────────────
-        // PROFILE DATA COMPLETENESS CHECKS
-        // ────────────────────────────────────────────────────────────────────
-
-        // 1. No birthday
-        if (!birthDate) {
-            issues.push({ ...ctx, severity: 'error', code: 'NO_BIRTHDAY',
-                message: 'No birthday on file — age division cannot be verified.' })
-        }
-
-        // 2. Invalid birthday (future date / impossibly old)
-        const age = birthDate ? calculateAge(birthDate) : null
-        const validAge = age !== null && age > 0 && age <= 100
-
-        if (age !== null && !validAge) {
-            issues.push({ ...ctx, severity: 'error', code: 'INVALID_BIRTHDAY',
-                message: `Birthday ${birthDate!.toISOString().slice(0, 10)} is invalid (calculated age: ${age}). Likely a future date or typo.` })
-        }
-
-        // 3. No gender
-        if (!gender) {
-            issues.push({ ...ctx, severity: 'error', code: 'NO_GENDER',
-                message: 'No gender on file — cannot verify category eligibility.' })
-        }
-
-        // 4. No weight — ONLY for weight-based categories (Cadet/Junior/Senior, age 12+)
-        if (cat.type === 'KYORUGI' && usesWeight && weight <= 0) {
-            issues.push({ ...ctx, severity: 'error', code: 'NO_WEIGHT',
-                message: 'No weight on file — required for this weight-based division.' })
-        }
-
-        // 5. No height — ONLY for height-based categories (Supertoddler/Toddler/Grade School, age ≤11)
-        if (cat.type === 'KYORUGI' && usesHeight && height <= 0) {
-            issues.push({ ...ctx, severity: 'error', code: 'NO_HEIGHT',
-                message: 'No height on file — required for this height-based division.' })
-        }
-
-        // ────────────────────────────────────────────────────────────────────
-        // CATEGORY RULE CHECKS (mirrors placement.ts logic exactly)
-        // ────────────────────────────────────────────────────────────────────
-
-        // 6. Age out of range
-        if (validAge) {
-            if (cat.minAge && age! < cat.minAge) {
-                issues.push({ ...ctx, severity: 'error', code: 'AGE_TOO_YOUNG',
-                    message: `Age ${age} is below the category minimum of ${cat.minAge}.` })
-            }
-            if (cat.maxAge && age! > cat.maxAge) {
-                issues.push({ ...ctx, severity: 'error', code: 'AGE_TOO_OLD',
-                    message: `Age ${age} exceeds the category maximum of ${cat.maxAge}.` })
-            }
-        }
-
-        // 7. Gender mismatch
-        if (gender && cat.gender && cat.gender !== 'Both' && cat.gender !== 'Mixed' && cat.gender !== gender) {
-            issues.push({ ...ctx, severity: 'error', code: 'GENDER_MISMATCH',
-                message: `Player gender (${gender}) does not match the category gender (${cat.gender}).` })
-        }
-
-        // 8. Weight out of range — ONLY for weight-based categories
-        if (cat.type === 'KYORUGI' && usesWeight && weight > 0) {
-            if (cat.minWeight && weight < cat.minWeight) {
-                issues.push({ ...ctx, severity: 'error', code: 'WEIGHT_TOO_LOW',
-                    message: `Weight ${weight}kg is below the category minimum of ${cat.minWeight}kg.` })
-            }
-            if (cat.maxWeight && weight >= cat.maxWeight) {
-                issues.push({ ...ctx, severity: 'error', code: 'WEIGHT_TOO_HIGH',
-                    message: `Weight ${weight}kg meets or exceeds the category limit of ${cat.maxWeight}kg.` })
-            }
-        }
-
-        // 9. Height out of range — ONLY for height-based categories
-        if (cat.type === 'KYORUGI' && usesHeight && height > 0) {
-            if (cat.minHeight && height < cat.minHeight) {
-                issues.push({ ...ctx, severity: 'error', code: 'HEIGHT_TOO_LOW',
-                    message: `Height ${height}cm is below the category minimum of ${cat.minHeight}cm.` })
-            }
-            if (cat.maxHeight && height > cat.maxHeight) {
-                issues.push({ ...ctx, severity: 'error', code: 'HEIGHT_TOO_HIGH',
-                    message: `Height ${height}cm exceeds the category maximum of ${cat.maxHeight}cm.` })
-            }
-        }
-
-        // 10. Belt mismatch (POOMSAE / KYUKPA categories with strict belt rule)
-        if (cat.belt && belt && cat.belt !== belt) {
-            issues.push({ ...ctx, severity: 'warning', code: 'BELT_MISMATCH',
-                message: `Player belt (${belt}) does not match the category's required belt (${cat.belt}).` })
-        }
-
-
-
-        // ────────────────────────────────────────────────────────────────────
-        // 12. WRONG CATEGORY — re-run placement to see where they SHOULD be
-        // Skip if the player already has a specific metric error (weight/height/age)
-        // that will be enriched with the same fix suggestion — no need to duplicate.
-        // ────────────────────────────────────────────────────────────────────
-        const METRIC_CODES = new Set([
-            'WEIGHT_TOO_HIGH', 'WEIGHT_TOO_LOW',
-            'HEIGHT_TOO_HIGH', 'HEIGHT_TOO_LOW',
-            'AGE_TOO_OLD', 'AGE_TOO_YOUNG',
-        ])
-        const alreadyHasMetricError = issues.some(
-            i => i.playerId === player.id && METRIC_CODES.has(i.code)
-        )
-
-        if (!alreadyHasMetricError && validAge && birthDate && gender && cat.type === 'KYORUGI') {
-            try {
-                const correctCategory = await findCategoryForPlayer(tournamentId, {
-                    birthDate,
-                    gender,
-                    weight,
-                    height: height > 0 ? height : undefined,
-                    belt: belt ?? undefined,
-                    type: cat.type,
-                    skillLevel: skillLevel ?? undefined
-                })
-
-                if (correctCategory && correctCategory.id !== cat.id) {
-                    issues.push({ ...ctx, severity: 'error', code: 'WRONG_CATEGORY',
-                        message: `Should be in "${correctCategory.name}" based on current profile data.`,
-                        fixable: !player.manualOverride,
-                        suggestedCategoryId: correctCategory.id,
-                        suggestedCategoryName: correctCategory.name,
-                    })
-                }
-            } catch {
-                // Placement engine failed — skip this check
-            }
-        }
-    }
-
-    // ── Enrich fixable errors with placement suggestions ──────────────────────
-    // For issues not covered by WRONG_CATEGORY (age/weight/height range violations),
-    // run the placement engine and attach a suggestion if a valid target is found.
-    const NEEDS_PLACEMENT_LOOKUP = new Set([
-        'AGE_TOO_OLD', 'AGE_TOO_YOUNG',
-        'WEIGHT_TOO_HIGH', 'WEIGHT_TOO_LOW',
-        'HEIGHT_TOO_HIGH', 'HEIGHT_TOO_LOW',
-    ])
-
-    // Build a per-player map so we only call placement once per player
-    const playerMap = new Map(players.map(p => [p.id, p]))
-    const processedPlayers = new Set<string>()
-
-    for (const issue of issues) {
-        if (!NEEDS_PLACEMENT_LOOKUP.has(issue.code)) continue
-        if (processedPlayers.has(issue.playerId)) continue
-        processedPlayers.add(issue.playerId)
-
-        const player = playerMap.get(issue.playerId)
-        if (!player || player.manualOverride) continue
-
-        const user = player.user
-        const birthDate = user?.birthDate ?? null
-        const gender = user?.gender ?? player.gender ?? null
-        const weight = user?.weight ?? player.weight ?? 0
-        const height = user?.height ?? player.height ?? 0
-        const belt = user?.belt ?? player.belt ?? null
-        const skillLevel = belt ? deriveSkillLevel(belt) : undefined
-        const cat = player.category
-
-        // Skip if missing essential data or height looks like bad entry (< 50cm)
-        if (!birthDate || !gender || !cat) continue
-        if (cat.type === 'KYORUGI' && height > 0 && height < 50) continue
-
-        try {
-            const suggestion = await findCategoryForPlayer(tournamentId, {
-                birthDate,
-                gender,
-                weight,
-                height: height > 0 ? height : undefined,
-                belt: belt ?? undefined,
-                type: cat.type,
-                skillLevel: skillLevel ?? undefined,
-            })
-
-            if (suggestion && suggestion.id !== cat.id) {
-                // Attach the suggestion to ALL issues for this player with a fixable code
-                for (const iss of issues) {
-                    if (iss.playerId === issue.playerId && NEEDS_PLACEMENT_LOOKUP.has(iss.code)) {
-                        iss.fixable = true
-                        iss.suggestedCategoryId = suggestion.id
-                        iss.suggestedCategoryName = suggestion.name
-                    }
-                }
-            }
-        } catch {
-            // placement engine failed — leave as not fixable
-        }
-    }
-
-    // ── Enrich POOMSAE BELT_MISMATCH with placement suggestions ──────────────
-    // For Poomsae athletes whose belt doesn't match their category's required belt,
-    // run the placement engine with their actual belt to find the correct category.
-    // Kyukpa is intentionally excluded from this fix.
-    const processedPoomsaePlayers = new Set<string>()
-
-    for (const issue of issues) {
-        if (issue.code !== 'BELT_MISMATCH') continue
-
-        const player = playerMap.get(issue.playerId)
-        if (!player || player.manualOverride) continue
-        if (player.category?.type !== 'POOMSAE') continue
-        if (processedPoomsaePlayers.has(issue.playerId)) continue
-        processedPoomsaePlayers.add(issue.playerId)
-
-        const user = player.user
-        const birthDate = user?.birthDate ?? null
-        const gender = user?.gender ?? player.gender ?? null
-        const belt = user?.belt ?? player.belt ?? null
-        const cat = player.category
-
-        if (!birthDate || !gender || !belt || !cat) continue
-
-        try {
-            const suggestion = await findCategoryForPlayer(tournamentId, {
-                birthDate,
-                gender,
-                belt,
-                weight: 0, // weight is irrelevant for Poomsae placement
-                type: 'POOMSAE',
-                poomsaeType: cat.subtype ?? 'INDIVIDUAL',
-            })
-
-            if (suggestion && suggestion.id !== cat.id) {
-                for (const iss of issues) {
-                    if (iss.playerId === issue.playerId && iss.code === 'BELT_MISMATCH') {
-                        iss.fixable = true
-                        iss.suggestedCategoryId = suggestion.id
-                        iss.suggestedCategoryName = suggestion.name
-                    }
-                }
-            }
-        } catch {
-            // placement engine failed — leave as not fixable
-        }
-    }
-
-    return issues
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// FIX AUDIT ISSUES — bulk-reassign players to their correct categories
-// ─────────────────────────────────────────────────────────────────────────────
-export type FixResult = {
-    fixed: number
-    skipped: number
-    details: Array<{ playerName: string; from: string; to: string }>
-}
-
-export async function fixAuditIssues(
-    tournamentId: string,
-    fixes: Array<{ playerId: string; suggestedCategoryId: string; suggestedCategoryName: string; currentCategoryName: string; playerName: string }>
-): Promise<FixResult> {
-    const dbUser = await getAuthUser()
-    if (!dbUser) throw new Error('Not authenticated')
-
-    const result: FixResult = { fixed: 0, skipped: 0, details: [] }
-
-    for (const fix of fixes) {
-        // Verify the player exists and doesn't have manualOverride
-        const player = await prisma.player.findUnique({
-            where: { id: fix.playerId },
-            select: { id: true, manualOverride: true, categoryId: true }
-        })
-
-        if (!player) { result.skipped++; continue }
-        if (player.manualOverride) { result.skipped++; continue }
-        // Already in the right category (race condition guard)
-        if (player.categoryId === fix.suggestedCategoryId) { result.skipped++; continue }
-
-        await prisma.player.update({
-            where: { id: fix.playerId },
-            data: { categoryId: fix.suggestedCategoryId }
-        })
-
-        result.fixed++
-        result.details.push({
-            playerName: fix.playerName,
-            from: fix.currentCategoryName,
-            to: fix.suggestedCategoryName,
-        })
-    }
-
-    revalidatePath(`/tournament/${tournamentId}`)
-    return result
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3318,28 +2829,6 @@ export async function getUpcomingTournaments() {
     return tournaments
 }
 
-export async function findPlayerCategory(
-    tournamentId: string,
-    playerData: {
-        birthDate: Date | string,
-        gender: string,
-        weight: number,
-        height?: number,
-        belt?: string,
-        poomsaeType?: string
-        type?: string
-    }
-) {
-    // Ensure dates are Date objects
-    const profile = {
-        ...playerData,
-        birthDate: new Date(playerData.birthDate),
-        skillLevel: deriveSkillLevel(playerData.belt || null)
-    }
-
-    const category = await findCategoryForPlayer(tournamentId, profile)
-    return category
-}
 
 export async function searchClubMembers(clubName: string, query: string) {
     if (!query || query.length < 2) return []
@@ -3474,7 +2963,7 @@ export async function getClubAffiliationData(clubId: string) {
     return {
         affiliationStatus: status,
         paymentConfig: org ? {
-            paymentMethod: org.affiliationPaymentMethod || 'manual',
+            paymentMethod: org.affiliationPaymentMethod === 'xendit' ? 'manual' : (org.affiliationPaymentMethod || 'manual'),
             paymentMethods: paymentMethods.length > 0 ? paymentMethods : legacyMethod,
             instructions: org.affiliationInstructions,
         } : null
@@ -3696,11 +3185,8 @@ export async function fetchAthleteDashboardData(clerkId: string, organizationId?
         // If no organizationId provided (KTM admin), show all events
 
         const [tournaments, seminars, promotionTests] = await Promise.all([
-            // Tournaments don't have organizationId — they're already scoped
-            // by participatingClubs (only shows events the club was invited to)
             prisma.tournament.findMany({
                 where: {
-                    participatingClubs: { some: { clubId } },
                     startDate: { gte: today },
                     status: { not: 'CANCELLED' },
                 },
@@ -3723,7 +3209,6 @@ export async function fetchAthleteDashboardData(clerkId: string, organizationId?
             }),
             prisma.seminar.findMany({
                 where: {
-                    participatingClubs: { some: { clubId } },
                     startDate: { gte: today },
                     status: { not: 'CANCELLED' },
                     ...seminarOrgFilter,
@@ -3740,7 +3225,6 @@ export async function fetchAthleteDashboardData(clerkId: string, organizationId?
             }),
             prisma.promotionTest.findMany({
                 where: {
-                    participatingClubs: { some: { clubId } },
                     testDate: { gte: today },
                     status: { not: 'CANCELLED' },
                     ...seminarOrgFilter,
@@ -3902,178 +3386,6 @@ export async function fetchTournamentsData(userId: string, page: number = 1) {
 // CLUB EVENT INTENT ACTIONS
 // ============================================
 
-export async function fetchAvailableEvents(clubId: string) {
-    try {
-        // Get club's organization hierarchy
-        const club = await prisma.club.findUnique({
-            where: { id: clubId },
-            include: {
-                organization: {
-                    select: {
-                        id: true,
-                        parentOrganizationId: true
-                    }
-                }
-            }
-        })
-
-        const clubOrgId = club?.organizationId
-        const clubParentOrgId = club?.organization?.parentOrganizationId
-
-        // Build list of organization IDs in the same "family"
-        // This includes: the club's own org, the parent org, and all sibling orgs
-        let familyOrgIds: string[] = clubOrgId ? [clubOrgId] : []
-
-        if (clubParentOrgId) {
-            // Add parent org
-            familyOrgIds.push(clubParentOrgId)
-
-            // Add all sibling organizations (orgs with same parent)
-            const siblings = await prisma.organization.findMany({
-                where: { parentOrganizationId: clubParentOrgId },
-                select: { id: true }
-            })
-            familyOrgIds = [...new Set([...familyOrgIds, ...siblings.map(o => o.id)])]
-        }
-
-        // Also check: if the club's org IS a parent org, include all child orgs
-        if (clubOrgId) {
-            const childOrgs = await prisma.organization.findMany({
-                where: { parentOrganizationId: clubOrgId },
-                select: { id: true }
-            })
-            familyOrgIds = [...new Set([...familyOrgIds, ...childOrgs.map(o => o.id)])]
-        }
-
-        const [tournaments, promotionTests, seminars] = await Promise.all([
-            // Fetch upcoming tournaments (open to all - no visibility filter)
-            prisma.tournament.findMany({
-                where: {
-                    startDate: {
-                        gte: new Date(new Date().setHours(0, 0, 0, 0))
-                    }
-                },
-                include: {
-                    participatingClubs: {
-                        where: {
-                            clubId: clubId
-                        }
-                    }
-                },
-                orderBy: { startDate: 'asc' }
-            }),
-            // Fetch promotion tests - filter by visibility and org family
-            prisma.promotionTest.findMany({
-                where: {
-                    status: { in: ['UPCOMING', 'OPEN'] },
-                    OR: [
-                        { visibility: 'PUBLIC' },
-                        {
-                            visibility: 'PRIVATE',
-                            organizationId: { in: familyOrgIds }
-                        }
-                    ]
-                },
-                include: {
-                    participatingClubs: {
-                        where: {
-                            clubId: clubId
-                        }
-                    }
-                },
-                orderBy: { testDate: 'asc' }
-            }),
-            // Fetch seminars - filter by visibility and org family
-            prisma.seminar.findMany({
-                where: {
-                    status: { in: ['UPCOMING', 'OPEN'] },
-                    startDate: {
-                        gte: new Date(new Date().setHours(0, 0, 0, 0))
-                    },
-                    OR: [
-                        { visibility: 'PUBLIC' },
-                        {
-                            visibility: 'PRIVATE',
-                            organizationId: { in: familyOrgIds }
-                        }
-                    ]
-                },
-                include: {
-                    participatingClubs: {
-                        where: {
-                            clubId: clubId
-                        }
-                    }
-                },
-                orderBy: { startDate: 'asc' }
-            })
-        ])
-
-        return {
-            tournaments: tournaments.map((t: any) => ({
-                id: t.id,
-                name: t.name,
-                date: t.startDate,
-                venue: t.venue,
-                type: 'TOURNAMENT' as const,
-                isJoined: t.participatingClubs.length > 0
-            })),
-            promotionTests: promotionTests.map((t: any) => ({
-                id: t.id,
-                name: t.name,
-                date: t.testDate,
-                venue: t.venue,
-                type: 'PROMOTION_TEST' as const,
-                isJoined: t.participatingClubs.length > 0
-            })),
-            seminars: seminars.map((t: any) => ({
-                id: t.id,
-                name: t.name,
-                date: t.startDate,
-                venue: t.venue,
-                type: 'SEMINAR' as const,
-                isJoined: t.participatingClubs.length > 0
-            }))
-        }
-    } catch (error) {
-        console.error('Failed to fetch available events:', error)
-        throw new Error('Failed to fetch events')
-    }
-}
-
-export async function toggleEventParticipation(
-    type: 'TOURNAMENT' | 'PROMOTION_TEST' | 'SEMINAR',
-    id: string,
-    join: boolean,
-    clubId: string
-) {
-    try {
-        const dataKey = type === 'TOURNAMENT' ? 'tournamentId' : type === 'PROMOTION_TEST' ? 'promotionTestId' : 'seminarId'
-
-        if (join) {
-            await prisma.clubEventParticipation.create({
-                data: {
-                    clubId,
-                    [dataKey]: id
-                }
-            })
-        } else {
-            await prisma.clubEventParticipation.deleteMany({
-                where: {
-                    clubId,
-                    [dataKey]: id
-                }
-            })
-        }
-
-        revalidatePath('/club')
-        return { success: true }
-    } catch (error) {
-        console.error(`Failed to ${join ? 'join' : 'leave'} event:`, error)
-        return { error: 'Failed to update participation' }
-    }
-}
-
 export async function unregisterFromTournament(playerId: string) {
     const dbUser = await getAuthUser()
     if (!dbUser) {
@@ -4132,7 +3444,8 @@ export async function updateClubMember(memberId: string, data: { name?: string, 
         await prisma.user.update({
             where: { id: memberId },
             data: {
-                ...data
+                ...data,
+                ...(data.name !== undefined && { name: toTitleCase(data.name) }),
             }
         })
 
@@ -4248,107 +3561,6 @@ export async function initiateSmartProposal(
     return { success: true, proposalId: proposal.id }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// BULK SEND UNCONTESTED PROPOSALS
-// Sends a proposal for every UNCONTESTED alert that doesn't already have a
-// pending proposal. Optionally scoped to a single clubId.
-// ─────────────────────────────────────────────────────────────────────────────
-export async function bulkSendUncontestedProposals(
-    tournamentId: string,
-    clubId?: string   // if provided, only send for that club's athletes
-): Promise<{ sent: number; alreadyPending: number; skipped: number }> {
-    const { detectSmartAlerts } = await import('@/lib/smart-tournament-logic')
-
-    // Fetch live alerts + existing proposals in parallel
-    const [alerts, existingProposals] = await Promise.all([
-        detectSmartAlerts(tournamentId),
-        prisma.smartProposal.findMany({
-            where: { tournamentId, type: 'UNCONTESTED', status: 'PENDING' },
-            select: { data: true }
-        })
-    ])
-
-    // Build a set of playerIds that already have a pending proposal
-    const pendingPlayerIds = new Set<string>()
-    for (const p of existingProposals) {
-        try {
-            const d = JSON.parse(p.data)
-            if (d.playerId) pendingPlayerIds.add(d.playerId)
-        } catch { /* ignore */ }
-    }
-
-    const uncontestedAlerts = alerts.filter(a => a.type === 'UNCONTESTED')
-
-    let sent = 0, alreadyPending = 0, skipped = 0
-
-    for (const alert of uncontestedAlerts) {
-        const playerId  = alert.details?.playerId
-        const alertClub = alert.details?.clubId
-
-        // Scope to club if requested
-        if (clubId && alertClub !== clubId) { skipped++; continue }
-
-        // Already decided (e.g. WALKOVER, pending Generate) — don't re-propose
-        if (alert.details?.resolution) { alreadyPending++; continue }
-
-        // Skip if a proposal already exists for this player
-        if (pendingPlayerIds.has(playerId)) { alreadyPending++; continue }
-
-        await createSmartProposal(tournamentId, 'UNCONTESTED', {
-            playerId,
-            playerName:         alert.details?.playerName,
-            sourceCategoryId:   alert.categoryId,
-            sourceCategoryName: alert.details?.sourceCategoryName || alert.categoryName,
-            targetCategoryId:   alert.details?.targetCategoryId   || null,
-            targetCategoryName: alert.details?.targetCategoryName || null,
-        })
-        sent++
-    }
-
-    revalidatePath(`/organization`)
-    revalidatePath(`/tournament/${tournamentId}`)
-    return { sent, alreadyPending, skipped }
-}
-
-export async function submitClubDecision(
-    proposalId: string,
-    clubId: string,
-    vote: string
-) {
-    // 4. Record the vote
-    await prisma.smartProposalVote.upsert({
-        where: {
-            proposalId_clubId: { proposalId, clubId }
-        },
-        create: {
-            proposalId,
-            clubId,
-            vote
-        },
-        update: {
-            vote,
-            timestamp: new Date()
-        }
-    })
-
-    // Fetch proposal to check type and execute if needed
-    const proposal = await prisma.smartProposal.findUnique({
-        where: { id: proposalId }
-    })
-
-    // 5. UNCONTESTED and CROSS_DIVISION are unilateral — execute immediately on vote
-    if (proposal?.type === 'UNCONTESTED' || proposal?.type === 'CROSS_DIVISION') {
-        if (vote === 'WITHDRAW' || vote === 'WALKOVER' || vote === 'MOVE_UP') {
-            await forceExecuteSmartAction(proposalId, vote)
-        }
-    }
-
-
-    revalidatePath('/club') // Refresh club dashboard
-    revalidatePath('/organization')
-    return { success: true }
-}
-
 export async function updateTournamentGuidelines(tournamentId: string, guidelinesText: string) {
     const dbUser = await getAuthUser()
     if (!dbUser) return { success: false, error: "Unauthorized" }
@@ -4457,39 +3669,13 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
 
         const data = JSON.parse(proposal.data)
 
-        // ─── Option B: Consent Threshold ───────────────────────────────────────
-        // For MERGE and SPLIT, block force-execute if the majority of clubs disagree.
-        // UNCONTESTED is exempt — it's always a unilateral organiser decision.
-        if (proposal.type === 'MERGE' || proposal.type === 'SPLIT') {
-            const votes = await prisma.smartProposalVote.findMany({ where: { proposalId } })
-            if (votes.length > 0) {
-                const disagreeCount = votes.filter(v => v.vote === 'DISAGREE').length
-                if (disagreeCount > votes.length / 2) {
-                    return {
-                        error: `Blocked: ${disagreeCount} of ${votes.length} clubs disagreed. Majority consent is required to proceed.`,
-                        blocked: true,
-                        disagreeCount,
-                        totalVotes: votes.length
-                    }
-                }
-            }
-        }
-        // ───────────────────────────────────────────────────────────────────────
-
-        // Hoisted so the final "mark completed" step below can persist which
-        // decision was made back onto the proposal's own data — needed because an
-        // organiser force-executing a WALKOVER never creates a SmartProposalVote
-        // row (that only happens when a club votes), so without this the decision
-        // would be lost the moment status flips to COMPLETED.
+        // Resolution is now solely the organiser's call — persisted here so the
+        // final "mark completed" step below can record which decision was made
+        // back onto the proposal's own data.
         let decision: string | undefined
 
         if (proposal.type === 'UNCONTESTED' || proposal.type === 'CROSS_DIVISION') {
             decision = overrideVote
-
-            if (!decision) {
-                const vote = await prisma.smartProposalVote.findFirst({ where: { proposalId } })
-                decision = vote?.vote
-            }
 
             if (!decision) return { error: 'No decision made yet' }
 
@@ -4685,78 +3871,6 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
     }
 }
 
-export async function getClubSmartProposals(clubId: string) {
-    if (!clubId) return []
-
-    // 1. Find active tournaments for this club
-    const participation = await prisma.clubEventParticipation.findMany({
-        where: { clubId, tournamentId: { not: null } },
-        select: { tournamentId: true }
-    })
-
-    if (participation.length === 0) return []
-
-    const tournamentIds = participation.map(p => p.tournamentId!).filter(Boolean)
-
-    // 2. Fetch all pending proposals for these tournaments
-    const proposals = await prisma.smartProposal.findMany({
-        where: {
-            tournamentId: { in: tournamentIds },
-            status: 'PENDING'
-        },
-        include: {
-            tournament: { select: { name: true } },
-            votes: true
-        }
-    })
-
-    // 3. Filter proposals relevant to this club and inject fresh data
-    const relevantProposals = []
-
-    for (const p of proposals) {
-        const data = JSON.parse(p.data)
-        let isRelevant = false
-        let enrichedData = { ...data }
-
-        if (p.type === 'UNCONTESTED') {
-            const player = await prisma.player.findUnique({
-                where: { id: data.playerId },
-                select: { clubId: true, name: true }
-            })
-            if (player?.clubId === clubId) {
-                isRelevant = true
-                enrichedData.playerName = player.name // Inject fresh name
-            }
-        }
-        else if (p.type === 'MERGE') {
-            const players = await prisma.player.findMany({
-                where: { categoryId: data.sourceCategoryId, clubId },
-                select: { id: true }
-            })
-            if (players.length > 0) isRelevant = true
-        }
-        else if (p.type === 'SPLIT') {
-            const players = await prisma.player.findMany({
-                where: { categoryId: data.categoryId, clubId },
-                select: { id: true }
-            })
-            if (players.length > 0) isRelevant = true
-        }
-
-        if (isRelevant) {
-            // check if already voted
-            const myVote = p.votes.find(v => v.clubId === clubId)
-            relevantProposals.push({
-                ...p,
-                data: JSON.stringify(enrichedData), // Return updated data
-                myVote: myVote?.vote
-            })
-        }
-    }
-
-    return relevantProposals
-}
-
 export async function checkEmailAvailability(email: string) {
     if (!email) return { available: false }
 
@@ -4822,6 +3936,10 @@ export async function registerForSeminar(formData: FormData) {
     const dbUser = await getAuthUser()
     if (!dbUser) {
         return { error: 'You must be logged in to register' }
+    }
+
+    if (dbUser.role === 'ATHLETE') {
+        return { error: 'Athletes can no longer self-register. Please ask your club master to register you.' }
     }
 
     // 1b. Check club affiliation

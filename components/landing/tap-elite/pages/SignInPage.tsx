@@ -69,6 +69,28 @@ export default function TapEliteSignInPage() {
         }
     };
 
+    const quickLogin = async (devEmail: string, devPassword: string) => {
+        setEmail(devEmail);
+        setPassword(devPassword);
+        setLoading(true);
+        setError("");
+
+        const { data, error: authError } = await supabase.auth.signInWithPassword({
+            email: devEmail,
+            password: devPassword,
+        });
+
+        if (authError) {
+            setError(authError.message);
+            setLoading(false);
+            return;
+        }
+
+        if (data.session) {
+            window.location.replace(`/${qs}`);
+        }
+    };
+
     const handleSetPassword = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
@@ -231,6 +253,38 @@ export default function TapEliteSignInPage() {
                     <h1 className="text-2xl md:text-3xl font-black text-white uppercase tracking-wider">Sign In</h1>
                     <p className="text-gray-500 text-sm mt-2">Sign in to manage your tournaments</p>
                 </div>
+
+                {process.env.NODE_ENV === "development" && (
+                    <div className="bg-[#0A0A0A] border border-dashed border-amber-500/30 rounded-2xl p-4 mb-4">
+                        <p className="text-amber-500 text-[10px] font-bold uppercase tracking-widest mb-3">Dev Quick Login</p>
+                        <div className="grid grid-cols-3 gap-2">
+                            <button
+                                type="button"
+                                onClick={() => quickLogin("tapelite@gmail.com", "org123")}
+                                disabled={loading}
+                                className="px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                            >
+                                Organizer
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => quickLogin("clubmaster@test.local", "master123")}
+                                disabled={loading}
+                                className="px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                            >
+                                Club Master
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => quickLogin("athlete@test.local", "athlete123")}
+                                disabled={loading}
+                                className="px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                            >
+                                Athlete
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 <form onSubmit={handleSubmit} className="bg-[#0A0A0A] border border-white/5 rounded-2xl p-6 md:p-8 space-y-5">
                     {error && (

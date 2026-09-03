@@ -14,12 +14,12 @@ import {
 } from '@/lib/bracket-preview-helpers'
 import {
     generateAllBrackets, getTournamentAlerts, initiateSmartProposal, forceExecuteSmartAction,
-    bulkSendUncontestedProposals, bulkUpdateCourts, previewCategoryBracket, reshuffleCategoryPreview, movePlayerToCategory,
+    bulkUpdateCourts, previewCategoryBracket, reshuffleCategoryPreview, movePlayerToCategory,
     updateCategoryDaySettings, generateBracketsForCategory, simulateMatchSequence, previewDayMatchSchedule, getPlayerClubMap
 } from '@/app/actions'
 import {
     Trophy, Medal, Wand2, Loader2, AlertCircle, Search,
-    ShieldAlert, Split, Merge, Users, X, ChevronDown, Zap, ArrowRight, Clock, Send, ChevronRight, Eye, Calendar,
+    ShieldAlert, Split, Merge, Users, X, ChevronDown, Zap, ArrowRight, Clock, ChevronRight, Eye, Calendar,
     Download, MapPin, FileStack, Shuffle, ArrowRightLeft, Shield, CheckSquare, Layers, List
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -52,9 +52,6 @@ export default function BracketList({ categories, tournamentName, publicView = f
     const [isPending, startTransition] = useTransition()
     const [searchQuery, setSearchQuery] = useState('')
     const [alertFilter, setAlertFilter] = useState<'all' | 'uncontested' | 'merge' | 'split' | 'cross_division'>('all')
-    const [sendingAll, setSendingAll] = useState(false)
-    const [sendingClub, setSendingClub] = useState<string | null>(null)
-    const [clubDropdownOpen, setClubDropdownOpen] = useState(false)
     const [dayFilter, setDayFilter] = useState<0|1|2|3>(0)
     const [courtPanelOpen, setCourtPanelOpen] = useState(true)
     const [bracketPdfPanelOpen, setBracketPdfPanelOpen] = useState(false)
@@ -802,42 +799,6 @@ export default function BracketList({ categories, tournamentName, publicView = f
 
             {/* ── Alert Strip ─────────────────────────────────────── */}
             {totalAlerts > 0 && !publicView && dismissedAlertsCount !== totalAlerts && (() => {
-                // Build per-club map from uncontested alerts
-                const clubsWithUncontested = new Map<string, { id: string; name: string; logoUrl: string | null; count: number }>()
-                for (const a of alerts) {
-                    if (a.type !== 'UNCONTESTED') continue
-                    const cid  = a.details?.clubId  || 'unaffiliated'
-                    const name = a.details?.clubName || 'Unaffiliated'
-                    const logo = a.details?.clubLogoUrl || null
-                    const cur  = clubsWithUncontested.get(cid)
-                    if (cur) cur.count++
-                    else clubsWithUncontested.set(cid, { id: cid, name, logoUrl: logo, count: 1 })
-                }
-                const clubList = Array.from(clubsWithUncontested.values()).sort((a, b) => a.name.localeCompare(b.name))
-
-                const handleSendAll = async () => {
-                    setSendingAll(true)
-                    try {
-                        const r = await bulkSendUncontestedProposals(tournamentId)
-                        if (r.sent > 0) toast.success(`Sent ${r.sent} proposal${r.sent !== 1 ? 's' : ''} to clubs`)
-                        else toast.info(r.alreadyPending > 0 ? 'All uncontested proposals already sent' : 'No uncontested alerts to send')
-                        queryClient.invalidateQueries({ queryKey: ['tournament-smart-alerts', tournamentId] })
-                    } catch { toast.error('Failed to send proposals') }
-                    finally { setSendingAll(false) }
-                }
-
-                const handleSendClub = async (clubId: string, clubName: string) => {
-                    setSendingClub(clubId)
-                    setClubDropdownOpen(false)
-                    try {
-                        const r = await bulkSendUncontestedProposals(tournamentId, clubId)
-                        if (r.sent > 0) toast.success(`Sent ${r.sent} proposal${r.sent !== 1 ? 's' : ''} to ${clubName}`)
-                        else toast.info(`No new uncontested proposals for ${clubName}`)
-                        queryClient.invalidateQueries({ queryKey: ['tournament-smart-alerts', tournamentId] })
-                    } catch { toast.error('Failed to send proposals') }
-                    finally { setSendingClub(null) }
-                }
-
                 return (
                     <div className="relative rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-50 pl-5 pr-10 py-4 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
                         <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-amber-200/40 blur-2xl pointer-events-none" />
@@ -932,64 +893,6 @@ export default function BracketList({ categories, tournamentName, publicView = f
                                 )}
                             </div>
                         </div>
-
-                        {/* Row 2: bulk send actions (uncontested only) */}
-                        {uncontestedCount > 0 && (
-                            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-amber-200/60 flex-wrap">
-                                <p className="text-[10px] font-black text-amber-800 uppercase tracking-wider mr-1">Send Uncontested:</p>
-
-                                {/* Send All */}
-                                <button
-                                    onClick={handleSendAll}
-                                    disabled={sendingAll || !!sendingClub}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black bg-amber-600 hover:bg-amber-700 text-white transition-all shadow-sm shadow-amber-300 disabled:opacity-50 active:scale-95"
-                                >
-                                    {sendingAll ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
-                                    Send All ({uncontestedCount})
-                                </button>
-
-                                {/* Per Club dropdown */}
-                                {clubList.length > 1 && (
-                                    <div className="relative">
-                                        <button
-                                            onClick={() => setClubDropdownOpen(o => !o)}
-                                            disabled={sendingAll || !!sendingClub}
-                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black bg-white hover:bg-amber-50 border border-amber-300 text-amber-800 transition-all shadow-sm disabled:opacity-50 active:scale-95"
-                                        >
-                                            {sendingClub ? <Loader2 size={11} className="animate-spin" /> : <Users size={11} />}
-                                            Per Club
-                                            <ChevronDown size={11} className={`transition-transform ${clubDropdownOpen ? 'rotate-180' : ''}`} />
-                                        </button>
-
-                                        {clubDropdownOpen && (
-                                            <div className="absolute left-0 top-full mt-1.5 z-50 bg-white rounded-2xl border border-gray-200 shadow-xl shadow-amber-100/50 min-w-[220px] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-3 pt-3 pb-1.5">Clubs with Uncontested Athletes</p>
-                                                {clubList.map(club => (
-                                                    <button
-                                                        key={club.id}
-                                                        onClick={() => handleSendClub(club.id, club.name)}
-                                                        className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-amber-50 transition-colors text-left group"
-                                                    >
-                                                        {club.logoUrl ? (
-                                                            <img src={club.logoUrl} alt="" className="w-6 h-6 rounded-full object-cover ring-1 ring-gray-200 flex-shrink-0" />
-                                                        ) : (
-                                                            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center text-[9px] font-black text-white flex-shrink-0">
-                                                                {club.name[0]}
-                                                            </div>
-                                                        )}
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-xs font-bold text-gray-900 truncate">{club.name}</p>
-                                                            <p className="text-[10px] text-gray-400">{club.count} uncontested athlete{club.count !== 1 ? 's' : ''}</p>
-                                                        </div>
-                                                        <ChevronRight size={12} className="text-gray-300 group-hover:text-amber-500 flex-shrink-0" />
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        )}
                     </div>
                 )
             })()}
@@ -2252,6 +2155,9 @@ function InlineAlertPanel({ alert, proposals, tournamentId, onResolved }: {
     const [loading,       setLoading]       = useState(false)
     const [forceDecision, setForceDecision] = useState(false)
 
+    // Resolution is entirely the organiser's call now — clubs no longer vote on
+    // these, so this only needs to find an existing PENDING proposal (e.g. one
+    // left over from before this change) to reuse instead of creating a duplicate.
     const proposal = proposals.find((p: any) => {
         const data = JSON.parse(p.data)
         if (p.type === 'UNCONTESTED'    && alert.type === 'UNCONTESTED')    return data.playerId === alert.details?.playerId
@@ -2261,57 +2167,50 @@ function InlineAlertPanel({ alert, proposals, tournamentId, onResolved }: {
         return false
     })
 
-    const isPending  = proposal?.status === 'PENDING'
-    const votes: { clubId: string, vote: string }[] = proposal?.votes || []
-    const voteCount  = votes.length
+    async function ensureProposalId(): Promise<string> {
+        if (proposal?.status === 'PENDING') return proposal.id
 
-    const voteLabel: Record<string, { text: string, color: string }> = {
-        MOVE_UP:  { text: 'Move Up',  color: 'text-amber-700 bg-amber-100' },
-        WALKOVER: { text: 'Walkover', color: 'text-emerald-700 bg-emerald-100' },
-        WITHDRAW: { text: 'Withdraw', color: 'text-red-700 bg-red-100' },
-        AGREE:    { text: 'Agree',    color: 'text-emerald-700 bg-emerald-100' },
-        DISAGREE: { text: 'Disagree', color: 'text-gray-700 bg-gray-100' },
+        if (alert.type === 'UNCONTESTED') {
+            const r = await initiateSmartProposal(tournamentId, 'UNCONTESTED', {
+                playerId: alert.details.playerId,
+                playerName: alert.details.playerName,
+                sourceCategoryId: alert.categoryId,
+                sourceCategoryName: alert.details.sourceCategoryName || alert.categoryName,
+                targetCategoryId: alert.details.targetCategoryId || null,
+                targetCategoryName: alert.details.targetCategoryName || null,
+            })
+            return r.proposalId
+        } else if (alert.type === 'CROSS_DIVISION') {
+            const r = await initiateSmartProposal(tournamentId, 'CROSS_DIVISION', {
+                playerId: alert.details.playerId,
+                playerName: alert.details.playerName,
+                sourceCategoryId: alert.categoryId,
+                sourceCategoryName: alert.details.sourceCategoryName || alert.categoryName,
+                targetCategoryId: alert.details.targetCategoryId,
+                targetCategoryName: alert.details.targetCategoryName,
+                clubId: alert.details.clubId || null,
+                clubName: alert.details.clubName || null,
+            })
+            return r.proposalId
+        } else if (alert.type === 'MERGE_SUGGESTION') {
+            const r = await initiateSmartProposal(tournamentId, 'MERGE', {
+                sourceCategoryId: alert.categoryId,
+                targetCategoryId: alert.details.targetCategoryId
+            })
+            return r.proposalId
+        } else {
+            const r = await initiateSmartProposal(tournamentId, 'SPLIT', { categoryId: alert.categoryId })
+            return r.proposalId
+        }
     }
 
     async function handleAction(decision?: string) {
         setLoading(true)
         try {
-            if (isPending && proposal) {
-                const result = await forceExecuteSmartAction(proposal.id, decision)
-                if (result?.error) toast.error(result.error)
-                else { toast.success('Action executed'); onResolved() }
-            } else {
-                if (alert.type === 'UNCONTESTED') {
-                    await initiateSmartProposal(tournamentId, 'UNCONTESTED', {
-                        playerId: alert.details.playerId,
-                        playerName: alert.details.playerName,
-                        sourceCategoryId: alert.categoryId,
-                        sourceCategoryName: alert.details.sourceCategoryName || alert.categoryName,
-                        targetCategoryId: alert.details.targetCategoryId || null,
-                        targetCategoryName: alert.details.targetCategoryName || null,
-                    })
-                } else if (alert.type === 'CROSS_DIVISION') {
-                    await initiateSmartProposal(tournamentId, 'CROSS_DIVISION', {
-                        playerId: alert.details.playerId,
-                        playerName: alert.details.playerName,
-                        sourceCategoryId: alert.categoryId,
-                        sourceCategoryName: alert.details.sourceCategoryName || alert.categoryName,
-                        targetCategoryId: alert.details.targetCategoryId,
-                        targetCategoryName: alert.details.targetCategoryName,
-                        clubId: alert.details.clubId || null,
-                        clubName: alert.details.clubName || null,
-                    })
-                } else if (alert.type === 'MERGE_SUGGESTION') {
-                    await initiateSmartProposal(tournamentId, 'MERGE', {
-                        sourceCategoryId: alert.categoryId,
-                        targetCategoryId: alert.details.targetCategoryId
-                    })
-                } else if (alert.type === 'SPLIT_SUGGESTION') {
-                    await initiateSmartProposal(tournamentId, 'SPLIT', { categoryId: alert.categoryId })
-                }
-                toast.success('Proposal sent to clubs')
-                onResolved()
-            }
+            const proposalId = await ensureProposalId()
+            const result = await forceExecuteSmartAction(proposalId, decision)
+            if (result?.error) toast.error(result.error)
+            else { toast.success('Resolved'); onResolved() }
         } catch {
             toast.error('Action failed')
         } finally {
@@ -2327,14 +2226,14 @@ function InlineAlertPanel({ alert, proposals, tournamentId, onResolved }: {
     const isWalkoverDecided = alert.details?.resolution === 'WALKOVER'
 
     const alertColor = isWalkoverDecided
-        ? { bg: 'bg-emerald-100', text: 'text-emerald-700', btn: 'bg-emerald-500 hover:bg-emerald-600', btnPending: 'bg-gray-900 hover:bg-gray-800' }
+        ? { bg: 'bg-emerald-100', text: 'text-emerald-700', btn: 'bg-emerald-500 hover:bg-emerald-600' }
         : alert.type === 'UNCONTESTED'
-        ? { bg: 'bg-amber-100',  text: 'text-amber-700',  btn: 'bg-amber-500 hover:bg-amber-600',   btnPending: 'bg-gray-900 hover:bg-gray-800' }
+        ? { bg: 'bg-amber-100',  text: 'text-amber-700',  btn: 'bg-amber-500 hover:bg-amber-600' }
         : alert.type === 'CROSS_DIVISION'
-        ? { bg: 'bg-orange-100', text: 'text-orange-700', btn: 'bg-orange-500 hover:bg-orange-600', btnPending: 'bg-gray-900 hover:bg-gray-800' }
+        ? { bg: 'bg-orange-100', text: 'text-orange-700', btn: 'bg-orange-500 hover:bg-orange-600' }
         : alert.type === 'MERGE_SUGGESTION'
-        ? { bg: 'bg-purple-100', text: 'text-purple-700', btn: 'bg-purple-600 hover:bg-purple-700', btnPending: 'bg-gray-900 hover:bg-gray-800' }
-        : { bg: 'bg-blue-100',   text: 'text-blue-700',   btn: 'bg-blue-600 hover:bg-blue-700',     btnPending: 'bg-gray-900 hover:bg-gray-800' }
+        ? { bg: 'bg-purple-100', text: 'text-purple-700', btn: 'bg-purple-600 hover:bg-purple-700' }
+        : { bg: 'bg-blue-100',   text: 'text-blue-700',   btn: 'bg-blue-600 hover:bg-blue-700' }
 
     return (
         <div className="px-5 py-4 border-b border-amber-100/80 last:border-b-0">
@@ -2354,30 +2253,6 @@ function InlineAlertPanel({ alert, proposals, tournamentId, onResolved }: {
                                 : alert.type === 'MERGE_SUGGESTION' ? 'Merge Suggestion'
                                 : 'Split Suggestion'}
                         </span>
-
-                        {/* Vote state badges */}
-                        {isPending && voteCount === 0 && (
-                            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-full animate-pulse">
-                                Awaiting Club Response
-                            </span>
-                        )}
-                        {isPending && voteCount > 0 && (alert.type === 'UNCONTESTED' || alert.type === 'CROSS_DIVISION') && votes.map((v, i) => {
-                            const vl = voteLabel[v.vote] || { text: v.vote, color: 'text-gray-700 bg-gray-100' }
-                            return (
-                                <span key={i} className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${vl.color}`}>
-                                    Club voted: {vl.text}
-                                </span>
-                            )
-                        })}
-                        {isPending && voteCount > 0 && (alert.type === 'MERGE_SUGGESTION' || alert.type === 'SPLIT_SUGGESTION') && (() => {
-                            const agrees    = votes.filter(v => v.vote === 'AGREE').length
-                            const disagrees = votes.filter(v => v.vote === 'DISAGREE').length
-                            return (
-                                <span className="text-[10px] font-bold text-gray-600 bg-gray-100 px-2.5 py-1 rounded-full">
-                                    {agrees} Agree · {disagrees} Disagree
-                                </span>
-                            )
-                        })()}
                     </div>
 
                     <p className="text-sm text-gray-700 font-medium leading-relaxed">{alert.message}</p>
@@ -2420,7 +2295,7 @@ function InlineAlertPanel({ alert, proposals, tournamentId, onResolved }: {
                         <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black text-emerald-700 bg-emerald-50 border border-emerald-200">
                             ✓ Walkover — will be generated
                         </div>
-                    ) : isPending && voteCount === 0 && (alert.type === 'UNCONTESTED' || alert.type === 'CROSS_DIVISION') ? (
+                    ) : (alert.type === 'UNCONTESTED' || alert.type === 'CROSS_DIVISION') ? (
                         forceDecision ? (
                             <div className="flex flex-col gap-1.5">
                                 <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Choose outcome:</p>
@@ -2462,27 +2337,21 @@ function InlineAlertPanel({ alert, proposals, tournamentId, onResolved }: {
                             <button
                                 onClick={() => setForceDecision(true)}
                                 disabled={loading}
-                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0 ${alertColor.btnPending}`}
+                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0 ${alertColor.btn}`}
                             >
                                 {loading && <Loader2 size={12} className="animate-spin" />}
-                                Force Execute
+                                Decide
                             </button>
                         )
                     ) : (
-                        /* Default: MERGE/SPLIT force execute, or UNCONTESTED/CROSS_DIVISION with existing vote */
+                        /* MERGE/SPLIT — organiser executes directly, no club sign-off needed */
                         <button
                             onClick={() => handleAction()}
                             disabled={loading}
-                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0 ${
-                                isPending ? alertColor.btnPending : alertColor.btn
-                            }`}
+                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0 ${alertColor.btn}`}
                         >
                             {loading && <Loader2 size={12} className="animate-spin" />}
-                            {isPending ? 'Force Execute'
-                                : alert.type === 'UNCONTESTED'     ? 'Request Resolution'
-                                : alert.type === 'CROSS_DIVISION'  ? 'Send Cross Div Proposal'
-                                : alert.type === 'MERGE_SUGGESTION' ? 'Propose Merge'
-                                : 'Propose Split'}
+                            {alert.type === 'MERGE_SUGGESTION' ? 'Merge Now' : 'Split Now'}
                         </button>
                     )}
                 </div>

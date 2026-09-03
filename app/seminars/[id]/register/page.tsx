@@ -22,6 +22,21 @@ export default async function SeminarRegisterPage({ params, searchParams }: Prop
         redirect('/sign-in')
     }
 
+    if (dbUser.role === 'ATHLETE') {
+        return (
+            <main className="min-h-[calc(100vh-4rem)] bg-gray-50 pb-2 flex flex-col items-center justify-center">
+                <div className="max-w-md mx-auto px-4 text-center">
+                    <div className="bg-white border border-gray-200 rounded-xl p-8 shadow-sm">
+                        <h2 className="text-2xl font-bold text-gray-900 mb-2">Ask Your Club Master</h2>
+                        <p className="text-gray-600">
+                            Athletes can no longer self-register for seminars. Please ask your club master to register you.
+                        </p>
+                    </div>
+                </div>
+            </main>
+        )
+    }
+
     // Fetch seminar with registration count
     const seminar = await prisma.seminar.findUnique({
         where: { id: seminarId },
@@ -161,7 +176,7 @@ export default async function SeminarRegisterPage({ params, searchParams }: Prop
                             <DollarSign className="w-4 h-4" />
                             <span className="text-[11px] font-semibold uppercase tracking-wider">Payment</span>
                         </div>
-                        <p className="text-sm font-bold text-gray-900">{seminar.xenditEnabled ? 'Online Payment (Xendit)' : 'Pay to Clubmaster'}</p>
+                        <p className="text-sm font-bold text-gray-900">Pay to Clubmaster</p>
                     </div>
 
                     <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
@@ -214,7 +229,6 @@ export default async function SeminarRegisterPage({ params, searchParams }: Prop
                                 id: seminar.id,
                                 name: seminar.name,
                                 fee: seminar.fee,
-                                xenditEnabled: seminar.xenditEnabled,
                             }}
                             user={{
                                 name: dbUser.name,

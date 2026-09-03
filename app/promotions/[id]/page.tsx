@@ -223,16 +223,25 @@ export default async function ManagePromotionPage({ params }: PageProps) {
                 {/* Registration Card — deadline + how-to + waiver combined */}
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                     <div className="p-6">
-                        <WaiverRegistration
-                            eventId={promotionTest.id}
-                            isRegistered={!!userRegistration}
-                            status={userRegistration?.status}
-                            paymentStatus={userRegistration?.paymentStatus}
-                            disabled={!isOpen || !!deadlinePassed}
-                            isOpen={isOpen}
-                            registrationDeadline={promotionTest.registrationDeadline ? new Date(promotionTest.registrationDeadline).toISOString() : undefined}
-                            deadlinePassed={!!deadlinePassed}
-                        />
+                        {dbUser?.role === 'ATHLETE' && !userRegistration ? (
+                            <div className="text-center py-4">
+                                <h3 className="text-lg font-bold text-gray-900 mb-2">Ask Your Club Master</h3>
+                                <p className="text-gray-600 text-sm">
+                                    Athletes can no longer self-register for promotion tests. Please ask your club master to register you.
+                                </p>
+                            </div>
+                        ) : (
+                            <WaiverRegistration
+                                eventId={promotionTest.id}
+                                isRegistered={!!userRegistration}
+                                status={userRegistration?.status}
+                                paymentStatus={userRegistration?.paymentStatus}
+                                disabled={!isOpen || !!deadlinePassed}
+                                isOpen={isOpen}
+                                registrationDeadline={promotionTest.registrationDeadline ? new Date(promotionTest.registrationDeadline).toISOString() : undefined}
+                                deadlinePassed={!!deadlinePassed}
+                            />
+                        )}
                     </div>
                 </div>
 

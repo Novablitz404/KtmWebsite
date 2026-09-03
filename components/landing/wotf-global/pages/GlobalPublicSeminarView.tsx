@@ -70,6 +70,14 @@ export default function GlobalPublicSeminarView({ seminar, currentUserId, isRest
                             )
                         }
 
+                        if (userRole === 'ATHLETE') {
+                            return (
+                                <span className="px-6 py-2 bg-[#111] text-gray-500 font-bold uppercase tracking-widest rounded border border-white/10 text-sm">
+                                    Ask your club master
+                                </span>
+                            )
+                        }
+
                         if (seminar.status === 'UPCOMING' || seminar.status === 'OPEN') {
                             return (
                                 <Link

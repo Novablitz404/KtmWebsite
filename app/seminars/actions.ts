@@ -6,6 +6,7 @@ import crypto from 'crypto'
 import { sendEmail } from '@/lib/email-service'
 import RegistrationApprovedEmail from '@/emails/RegistrationApprovedEmail'
 import QRCode from 'qrcode'
+import { toTitleCase } from '@/lib/utils'
 
 export async function approveSeminarRegistration(ids: string[]) {
     try {
@@ -92,7 +93,7 @@ export async function updateSeminarParticipantDetails(id: string, data: { name: 
         await prisma.seminarRegistration.update({
             where: { id },
             data: {
-                playerName: data.name,
+                playerName: toTitleCase(data.name),
                 belt: data.belt
             }
         })
@@ -105,16 +106,13 @@ export async function updateSeminarParticipantDetails(id: string, data: { name: 
     }
 }
 
-export async function getUpcomingSeminars(clubId: string) {
+export async function getUpcomingSeminars() {
     try {
         const today = new Date()
         today.setHours(0, 0, 0, 0)
 
         const seminars = await prisma.seminar.findMany({
             where: {
-                participatingClubs: {
-                    some: { clubId }
-                },
                 startDate: { gte: today },
                 status: 'UPCOMING'
             },
@@ -138,12 +136,18 @@ export async function registerForSeminar(formData: FormData) {
         return { error: 'Missing required fields' }
     }
 
+    const { verifyCanRegisterAthlete } = await import('@/lib/club-auth')
+    const authCheck = await verifyCanRegisterAthlete(playerId)
+    if (authCheck.error) {
+        return { error: authCheck.error }
+    }
+
     try {
         const registration = await prisma.seminarRegistration.create({
             data: {
                 seminarId,
                 playerId,
-                playerName,
+                playerName: toTitleCase(playerName),
                 clubName,
                 belt,
                 status: 'PENDING'
