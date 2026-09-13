@@ -141,7 +141,14 @@ function MatchCard({ match, maxRound, side, feederMap, isPreview, simulatedMatch
     const isDeclarable = (name: string) => name && name !== 'BYE' && name !== 'TBD'
     const showWinButton = (slot: 'player1' | 'player2') => {
         if (!canManage || isPreview || !onDeclareWinner || match.winner) return false
-        if (!isDeclarable(match.player1) || !isDeclarable(match.player2)) return false
+        const ownName = slot === 'player1' ? match.player1 : match.player2
+        const otherName = slot === 'player1' ? match.player2 : match.player1
+        if (!isDeclarable(ownName)) return false
+        // The other slot must either be a real, declarable opponent (a normal
+        // completed pairing) or a genuine BYE (no opponent will ever arrive) —
+        // but never 'TBD', which means a real opponent is still pending from
+        // an earlier match and shouldn't be skipped ahead of.
+        if (!isDeclarable(otherName) && otherName !== 'BYE') return false
         return true
     }
 

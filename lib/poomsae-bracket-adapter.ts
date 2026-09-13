@@ -26,9 +26,20 @@ export function adaptPoomsaeMatchesToBracket(poomsaeMatches: PoomsaeMatchWithPla
         groups.get(m.matchId)!.push(m)
     })
 
-    const resolveName = (row?: PoomsaeMatchWithPlayer) => {
-        if (!row) return 'TBD'
-        return row.displayName || row.player?.name || 'TBD'
+    // A slot is genuinely a BYE (no opponent will ever arrive) only if no
+    // earlier pairing's winner is scheduled to feed into it — otherwise an
+    // empty slot just means "pending an earlier match," which is TBD.
+    const fedSlots = new Set<string>()
+    poomsaeMatches.forEach(m => {
+        if (m.nextMatchId != null && m.nextMatchSlot) {
+            fedSlots.add(`${m.nextMatchId}-${m.nextMatchSlot === '1' ? 1 : 2}`)
+        }
+    })
+
+    const resolveName = (row: PoomsaeMatchWithPlayer | undefined, matchId: number, performanceNumber: 1 | 2) => {
+        const name = row ? (row.displayName || row.player?.name) : null
+        if (name) return name
+        return fedSlots.has(`${matchId}-${performanceNumber}`) ? 'TBD' : 'BYE'
     }
 
     const matches = Array.from(groups.entries()).map(([matchId, rows]) => {
@@ -42,14 +53,14 @@ export function adaptPoomsaeMatchesToBracket(poomsaeMatches: PoomsaeMatchWithPla
         // older rows decided before winnerId existed.
         let winner: string | null = null
         if (sideA?.winnerId != null && sideA.winnerId === sideA.id) {
-            winner = resolveName(sideA)
+            winner = resolveName(sideA, matchId, 1)
         } else if (sideB?.winnerId != null && sideB.winnerId === sideB.id) {
-            winner = resolveName(sideB)
+            winner = resolveName(sideB, matchId, 2)
         } else if (sideA?.status === 'Completed' && sideB?.status === 'Completed') {
             if (sideA.totalScore !== sideB.totalScore) {
-                winner = sideA.totalScore > sideB.totalScore ? resolveName(sideA) : resolveName(sideB)
+                winner = sideA.totalScore > sideB.totalScore ? resolveName(sideA, matchId, 1) : resolveName(sideB, matchId, 2)
             } else if (sideA.accuracy !== sideB.accuracy) {
-                winner = sideA.accuracy > sideB.accuracy ? resolveName(sideA) : resolveName(sideB)
+                winner = sideA.accuracy > sideB.accuracy ? resolveName(sideA, matchId, 1) : resolveName(sideB, matchId, 2)
             }
         }
 
@@ -61,8 +72,8 @@ export function adaptPoomsaeMatchesToBracket(poomsaeMatches: PoomsaeMatchWithPla
             category: first.category,
             categoryRefId: first.categoryRefId,
             round: first.round,
-            player1: resolveName(sideA),
-            player2: resolveName(sideB),
+            player1: resolveName(sideA, matchId, 1),
+            player2: resolveName(sideB, matchId, 2),
             winner,
             nextMatchId: first.nextMatchId ?? null,
             nextMatchSlot: first.nextMatchSlot === '1' ? 'player1' : first.nextMatchSlot === '2' ? 'player2' : null,

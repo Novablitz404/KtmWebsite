@@ -859,8 +859,8 @@ export async function generateAllBrackets(
         // shared with simulateMatchSequence so the two can never drift apart.
         const { specs: orderedSpecs, seedOrderByCategory } = await buildOrderedPoomsaeSpecs(tournamentId, type, undefined)
 
-        const createPromises = orderedSpecs.flatMap(spec => {
-            const promises: any[] = [prisma.poomsaeMatch.create({
+        await Promise.all(orderedSpecs.map(async spec => {
+            const created = await prisma.poomsaeMatch.create({
                 data: {
                     categoryRefId: spec.categoryId,
                     category: spec.categoryDisplayName,
@@ -882,7 +882,7 @@ export async function generateAllBrackets(
                     court: spec.court,
                     scheduledDay: spec.specDay,
                 }
-            })]
+            })
 
             if (spec.status === 'Completed') {
                 // A walkover winner never actually performs for a scoring app to
@@ -890,15 +890,21 @@ export async function generateAllBrackets(
                 // TEAM/PAIR has no single playerId (uses memberIds instead), so
                 // every member individually gets credited.
                 const winnerIds = spec.playerId ? [spec.playerId] : (spec.memberIds || '').split(',').map(s => s.trim()).filter(Boolean)
+                const updates: any[] = []
                 if (winnerIds.length > 0) {
-                    promises.push(prisma.player.updateMany({ where: { id: { in: winnerIds } }, data: { medal: 'GOLD' } }))
+                    updates.push(prisma.player.updateMany({ where: { id: { in: winnerIds } }, data: { medal: 'GOLD' } }))
                 }
+                // Only the synthetic solo-performer spec is ever pre-marked
+                // 'Completed' — no sibling row will exist for its matchId, so
+                // the bracket adapter's "both sides Completed" winner comparison
+                // can never fire for it. Set winnerId to its own id directly,
+                // the same signal a manually-declared or score-based decision
+                // leaves — otherwise it shows as decided (medal awarded) but
+                // with no winner and no way to declare one.
+                updates.push(prisma.poomsaeMatch.update({ where: { id: created.id }, data: { winnerId: created.id } }))
+                await Promise.all(updates)
             }
-
-            return promises
-        })
-
-        await Promise.all(createPromises)
+        }))
 
         // Save seed order for each category
         await Promise.all(
@@ -1147,7 +1153,7 @@ export async function generateBracketsForCategory(
                 ? `${category.name} ${category.belt}`
                 : category.name;
 
-            await prisma.poomsaeMatch.create({
+            const createdPoomsaeMatch = await prisma.poomsaeMatch.create({
                 data: {
                     categoryRefId: categoryId,
                     category: displayName,
@@ -1181,6 +1187,18 @@ export async function generateBracketsForCategory(
                 if (winnerIds.length > 0) {
                     await prisma.player.updateMany({ where: { id: { in: winnerIds } }, data: { medal: 'GOLD' } })
                 }
+
+                // This is only ever the synthetic solo-performer spec (see comment
+                // above) — no sibling row will ever exist for this matchId, so the
+                // bracket adapter's normal "both sides Completed" winner comparison
+                // can never fire for it. Set winnerId to its own id directly, the
+                // same signal a manually-declared or score-based decision leaves —
+                // otherwise this pairing displays as decided (medal awarded) but
+                // shows no winner and no way to declare one in the bracket view.
+                await prisma.poomsaeMatch.update({
+                    where: { id: createdPoomsaeMatch.id },
+                    data: { winnerId: createdPoomsaeMatch.id }
+                })
             }
         }
 
@@ -5201,12 +5219,12 @@ export async function generateAllBracketsFromPreview(
             distinctGroupIndices.forEach(idx => { groupMapping.set(idx, currentGlobalMatchId++) })
             const displayName = category.belt && !category.name.toLowerCase().includes(category.belt.toLowerCase())
                 ? `${category.name} ${category.belt}` : category.name
-            const createPromises = poomsaeSpecs.map(spec => {
+            const createPromises = poomsaeSpecs.map(async spec => {
                 const sharedMatchId = groupMapping.get(spec.roundGroupIndex) || 0
                 const nextGroupSharedId = spec.nextRoundGroupIndex !== undefined
                     ? (spec.nextRoundGroupIndex !== null ? groupMapping.get(spec.nextRoundGroupIndex) || null : null)
                     : groupMapping.get(spec.roundGroupIndex + 1) || null
-                return prisma.poomsaeMatch.create({
+                const created = await prisma.poomsaeMatch.create({
                     data: {
                         categoryRefId: category.id, category: displayName,
                         round: spec.round, matchId: sharedMatchId, nextMatchId: nextGroupSharedId,
@@ -5216,7 +5234,10 @@ export async function generateAllBracketsFromPreview(
                         displayName: spec.displayName || undefined,
                         memberIds: spec.memberIds || undefined,
                         memberNames: spec.memberNames || undefined,
-                        assignedForms: spec.assignedForms, status: 'Pending',
+                        assignedForms: spec.assignedForms,
+                        // Normal specs are always 'Pending' — only the synthetic
+                        // uncontested-walkover spec comes pre-marked 'Completed'.
+                        status: spec.status,
                         court: category.court || "Unassigned",
                         scheduledDay: (() => {
                             const pTotalRounds = Math.max(...poomsaeSpecs.map(s => s.round))
@@ -5228,6 +5249,24 @@ export async function generateAllBracketsFromPreview(
                         })(),
                     }
                 })
+
+                if (spec.status === 'Completed') {
+                    // A walkover winner never actually performs for a scoring app to
+                    // report a medal back through the medals API — award it directly.
+                    const winnerIds = spec.playerId ? [spec.playerId] : (spec.memberIds || '').split(',').map(s => s.trim()).filter(Boolean)
+                    const updates: any[] = []
+                    if (winnerIds.length > 0) {
+                        updates.push(prisma.player.updateMany({ where: { id: { in: winnerIds } }, data: { medal: 'GOLD' } }))
+                    }
+                    // Only the synthetic solo-performer spec is ever pre-marked
+                    // 'Completed' — no sibling row will exist for its matchId, so
+                    // the bracket adapter's "both sides Completed" winner comparison
+                    // can never fire for it. Set winnerId to its own id directly.
+                    updates.push(prisma.poomsaeMatch.update({ where: { id: created.id }, data: { winnerId: created.id } }))
+                    await Promise.all(updates)
+                }
+
+                return created
             })
             await Promise.all(createPromises)
 
