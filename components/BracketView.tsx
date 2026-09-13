@@ -21,6 +21,13 @@ interface BracketViewProps {
     // From the toolbar's "Simulate Sequence", keyed by matchId — only meaningful
     // when isPreview is set. Not persisted, purely illustrative until generated.
     simulatedMatches?: Record<number, { globalId: number; day: number }> | null
+    // When true (organizer/manager/admin viewing a real, non-preview bracket),
+    // renders a "Declare Winner" control on each undecided slot.
+    canManage?: boolean
+    // Called with the match and which slot ('player1'/'player2') was declared
+    // the winner. The caller owns the actual server action + refresh — this
+    // component only knows about slots, not disciplines.
+    onDeclareWinner?: (match: Match, slot: 'player1' | 'player2') => void | Promise<void>
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -117,16 +124,36 @@ function getRoundLabel(round: number, maxRound: number): string {
 
 // ─── Match Card ──────────────────────────────────────────────────────────────
 
-function MatchCard({ match, maxRound, side, feederMap, isPreview, simulatedMatches }: {
+function MatchCard({ match, maxRound, side, feederMap, isPreview, simulatedMatches, canManage, onDeclareWinner }: {
     match: Match
     maxRound: number
     side: 'A' | 'B' | 'final' | null
     feederMap?: Map<string, number | string>
     isPreview?: boolean
     simulatedMatches?: Record<number, { globalId: number; day: number }> | null
+    canManage?: boolean
+    onDeclareWinner?: (match: Match, slot: 'player1' | 'player2') => void | Promise<void>
 }) {
+    const [declaring, setDeclaring] = useState<'player1' | 'player2' | null>(null)
     const isFiller = match.player1 === 'BYE' && match.player2 === 'BYE'
     const isFinal = match.round === maxRound
+
+    const isDeclarable = (name: string) => name && name !== 'BYE' && name !== 'TBD'
+    const showWinButton = (slot: 'player1' | 'player2') => {
+        if (!canManage || isPreview || !onDeclareWinner || match.winner) return false
+        if (!isDeclarable(match.player1) || !isDeclarable(match.player2)) return false
+        return true
+    }
+
+    const handleDeclare = async (slot: 'player1' | 'player2') => {
+        if (!onDeclareWinner || declaring) return
+        setDeclaring(slot)
+        try {
+            await onDeclareWinner(match, slot)
+        } finally {
+            setDeclaring(null)
+        }
+    }
 
     const displayName = (name: string, slot: 'player1' | 'player2') => {
         if (name === 'BYE') return <span className="text-gray-400 italic text-xs font-medium">BYE</span>
@@ -204,6 +231,15 @@ function MatchCard({ match, maxRound, side, feederMap, isPreview, simulatedMatch
                         </span>
                     </div>
                     {hasScores && <span className={`text-lg font-black font-mono tabular-nums ml-2 ${match.winner === match.player1 ? 'text-blue-600' : 'text-gray-300'}`}>{blueTotal}</span>}
+                    {showWinButton('player1') && (
+                        <button
+                            onClick={() => handleDeclare('player1')}
+                            disabled={declaring !== null}
+                            className="ml-2 flex-shrink-0 text-[9px] font-black uppercase tracking-wide px-2 py-1 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors disabled:opacity-50"
+                        >
+                            {declaring === 'player1' ? '...' : 'Declare Win'}
+                        </button>
+                    )}
                 </div>
 
                 {/* Player 2 (Red / Hong) */}
@@ -221,6 +257,15 @@ function MatchCard({ match, maxRound, side, feederMap, isPreview, simulatedMatch
                         </span>
                     </div>
                     {hasScores && <span className={`text-lg font-black font-mono tabular-nums ml-2 ${match.winner === match.player2 ? 'text-red-600' : 'text-gray-300'}`}>{redTotal}</span>}
+                    {showWinButton('player2') && (
+                        <button
+                            onClick={() => handleDeclare('player2')}
+                            disabled={declaring !== null}
+                            className="ml-2 flex-shrink-0 text-[9px] font-black uppercase tracking-wide px-2 py-1 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50"
+                        >
+                            {declaring === 'player2' ? '...' : 'Declare Win'}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
@@ -264,7 +309,7 @@ function SvgConnectors({ paths, containerRef }: { paths: BracketPath[]; containe
 
 // ─── Side Bracket (tree-positioned round columns) ────────────────────────────
 
-function SideBracket({ rounds, maxRound, side, setCardRef, positions, leafCount, feederMap, isPreview, simulatedMatches }: {
+function SideBracket({ rounds, maxRound, side, setCardRef, positions, leafCount, feederMap, isPreview, simulatedMatches, canManage, onDeclareWinner }: {
     rounds: Match[][]
     maxRound: number
     side: 'A' | 'B'
@@ -274,6 +319,8 @@ function SideBracket({ rounds, maxRound, side, setCardRef, positions, leafCount,
     leafCount: number
     isPreview?: boolean
     simulatedMatches?: Record<number, { globalId: number; day: number }> | null
+    canManage?: boolean
+    onDeclareWinner?: (match: Match, slot: 'player1' | 'player2') => void | Promise<void>
 }) {
     const totalHeight = leafCount * CARD_SLOT
 
@@ -294,7 +341,7 @@ function SideBracket({ rounds, maxRound, side, setCardRef, positions, leafCount,
                                     style={{ top: `${centerY}px`, transform: 'translateY(-50%)' }}
                                 >
                                     <div ref={setCardRef(m.id)}>
-                                        <MatchCard match={m} maxRound={maxRound} side={side} feederMap={feederMap} isPreview={isPreview} simulatedMatches={simulatedMatches} />
+                                        <MatchCard match={m} maxRound={maxRound} side={side} feederMap={feederMap} isPreview={isPreview} simulatedMatches={simulatedMatches} canManage={canManage} onDeclareWinner={onDeclareWinner} />
                                     </div>
                                 </div>
                             )
@@ -308,7 +355,7 @@ function SideBracket({ rounds, maxRound, side, setCardRef, positions, leafCount,
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-export default function BracketView({ matches, tournamentName = "Tournament", categoryName = "Category", categoryId, isPreview, simulatedMatches }: BracketViewProps) {
+export default function BracketView({ matches, tournamentName = "Tournament", categoryName = "Category", categoryId, isPreview, simulatedMatches, canManage, onDeclareWinner }: BracketViewProps) {
     const containerRef = useRef<HTMLDivElement>(null)
     const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map())
     const [connectorPaths, setConnectorPaths] = useState<BracketPath[]>([])
@@ -516,7 +563,7 @@ export default function BracketView({ matches, tournamentName = "Tournament", ca
                                                 style={{ top: `${centerY}px`, transform: 'translateY(-50%)' }}
                                             >
                                                 <div ref={setCardRef(m.id)}>
-                                                    <MatchCard match={m} maxRound={maxRound} side={null} feederMap={feederMap} isPreview={isPreview} simulatedMatches={simulatedMatches} />
+                                                    <MatchCard match={m} maxRound={maxRound} side={null} feederMap={feederMap} isPreview={isPreview} simulatedMatches={simulatedMatches} canManage={canManage} onDeclareWinner={onDeclareWinner} />
                                                 </div>
                                             </div>
                                         )
@@ -577,6 +624,8 @@ export default function BracketView({ matches, tournamentName = "Tournament", ca
                             feederMap={feederMap}
                             isPreview={isPreview}
                             simulatedMatches={simulatedMatches}
+                            canManage={canManage}
+                            onDeclareWinner={onDeclareWinner}
                         />
                     </div>
 
@@ -589,7 +638,7 @@ export default function BracketView({ matches, tournamentName = "Tournament", ca
                         </div>
                         <div className="flex justify-center" style={{ width: `${COL_WIDTH}px` }}>
                             <div ref={setCardRef(finalsMatch.id)}>
-                                <MatchCard match={finalsMatch} maxRound={maxRound} side="final" feederMap={feederMap} isPreview={isPreview} simulatedMatches={simulatedMatches} />
+                                <MatchCard match={finalsMatch} maxRound={maxRound} side="final" feederMap={feederMap} isPreview={isPreview} simulatedMatches={simulatedMatches} canManage={canManage} onDeclareWinner={onDeclareWinner} />
                             </div>
                         </div>
                     </div>
@@ -613,6 +662,8 @@ export default function BracketView({ matches, tournamentName = "Tournament", ca
                             feederMap={feederMap}
                             isPreview={isPreview}
                             simulatedMatches={simulatedMatches}
+                            canManage={canManage}
+                            onDeclareWinner={onDeclareWinner}
                         />
                     </div>
                 </div>

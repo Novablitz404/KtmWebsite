@@ -1,6 +1,7 @@
 'use client'
 
 import { Bell, Search } from 'lucide-react'
+import UserAvatar from '@/components/UserAvatar'
 
 interface ClubTopBarProps {
     userName?: string
@@ -63,17 +64,13 @@ export default function ClubTopBar({
                 {/* User Profile - Display only */}
                 <div className="flex items-center gap-3 px-3 py-1.5">
                     <span className="text-sm font-medium text-gray-700">{userName}</span>
-                    {userImageUrl ? (
-                        <img
-                            src={userImageUrl}
-                            alt={userName}
-                            className="w-9 h-9 rounded-full object-cover border-2 border-gray-100"
-                        />
-                    ) : (
-                        <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-sm font-bold">
-                            {userName.charAt(0)}
-                        </div>
-                    )}
+                    <UserAvatar
+                        src={userImageUrl}
+                        name={userName}
+                        size={36}
+                        className="!bg-indigo-100 border-2 border-gray-100"
+                        textClassName="!text-indigo-600"
+                    />
                 </div>
             </div>
         </div>

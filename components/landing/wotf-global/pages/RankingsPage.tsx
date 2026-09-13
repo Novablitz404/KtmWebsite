@@ -1,5 +1,6 @@
 import { fetchRankings } from "@/app/rankings/fetch";
-import { Shield, Trophy } from "lucide-react";
+import { BadgeCheck, Trophy } from "lucide-react";
+import UserAvatar from "@/components/UserAvatar";
 import RankingFilters from "./RankingFilters";
 import Link from "next/link";
 import GlobalNavbar from "../GlobalNavbar";
@@ -31,7 +32,9 @@ export default async function RankingsPage({ searchParams }: Props) {
   const search =
     typeof searchParams.search === "string" ? searchParams.search : undefined;
 
-  const tenantId = tenant.slug !== "ktm" ? tenant.id || undefined : undefined;
+  // This component only ever renders for the wotf-global tenant itself, so
+  // tenant.id is always its own real org id here.
+  const tenantId = tenant.id || undefined;
 
   const rankings = await fetchRankings({
     type: currentType,
@@ -207,21 +210,16 @@ export default async function RankingsPage({ searchParams }: Props) {
                           {/* Athlete */}
                           <td className="px-5 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-3">
-                              <div className="relative w-10 h-10 rounded-full bg-[#1A1A1A] border border-white/10 overflow-hidden flex-shrink-0">
-                                {athlete.profileImage ? (
-                                  <img
-                                    src={athlete.profileImage}
-                                    alt={athlete.name}
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center text-gray-500 font-black text-sm">
-                                    {athlete.name.charAt(0)}
-                                  </div>
-                                )}
+                              <div className="relative flex-shrink-0">
+                                <UserAvatar
+                                  src={athlete.profileImage}
+                                  name={athlete.name}
+                                  size={40}
+                                  className="bg-[#1A1A1A] border border-white/10"
+                                />
                                 {athlete.verified && (
                                   <div className="absolute -bottom-0.5 -right-0.5 bg-[#0A0A0A] rounded-full p-[2px]">
-                                    <Shield className="w-3 h-3 text-blue-400 fill-blue-400" />
+                                    <BadgeCheck className="w-3.5 h-3.5 text-blue-500 fill-blue-500" strokeWidth={2} stroke="#0A0A0A" />
                                   </div>
                                 )}
                               </div>

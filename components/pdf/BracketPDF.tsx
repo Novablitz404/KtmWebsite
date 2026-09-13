@@ -152,13 +152,13 @@ function computeLayout(leafCount: number, maxRound: number, showClub: boolean) {
     // dense/large brackets don't overlap the way the preview tree's fixed
     // card slots did before club names were added there too.
     const cardH = Math.min(Math.max(slotH - 4, showClub ? 38 : 26), 54);
-    const headerFs = Math.min(Math.max(cardH * 0.17, 4), 6.5);
+    const headerFs = Math.min(Math.max(cardH * 0.20, 5), 8);
     const headerH = Math.max(cardH * 0.28, 8);
     const playerH = (cardH - headerH) / 2;
     const playerFs = showClub
-        ? Math.min(Math.max(playerH * 0.34, 4.5), 7)
-        : Math.min(Math.max(cardH * 0.21, 4.5), 7.5);
-    const clubFs = showClub ? Math.min(Math.max(playerH * 0.24, 3.6), 5.5) : 0;
+        ? Math.min(Math.max(playerH * 0.40, 5.5), 8.5)
+        : Math.min(Math.max(cardH * 0.26, 5.5), 9);
+    const clubFs = showClub ? Math.min(Math.max(playerH * 0.28, 4.2), 6.5) : 0;
     return { slotH, colW, cardW, cardH, headerFs, playerFs, clubFs, headerH, playerH, showClub };
 }
 
@@ -274,7 +274,7 @@ export default function BracketPDF({ tournamentName, categoryName, matches, isPr
                                         borderRadius: 2,
                                     }}>
                                         <Text style={{
-                                            fontSize: Math.min(layout.headerFs + 0.5, 6.5),
+                                            fontSize: Math.min(layout.headerFs + 0.5, 8),
                                             fontFamily: 'Helvetica-Bold',
                                             color: isFinal ? COLORS.white : COLORS.medium,
                                             textTransform: 'uppercase',
@@ -446,7 +446,7 @@ export default function BracketPDF({ tournamentName, categoryName, matches, isPr
                                                 </View>
                                                 {m.winner === m.player1 && (
                                                     <Text style={{
-                                                        fontSize: Math.min(layout.headerFs, 5), fontFamily: 'Helvetica-Bold',
+                                                        fontSize: Math.min(layout.headerFs, 7), fontFamily: 'Helvetica-Bold',
                                                         color: COLORS.white, backgroundColor: COLORS.winBlueTxt,
                                                         paddingHorizontal: 2.5, paddingVertical: 0.5, marginRight: 3,
                                                     }}>
@@ -487,7 +487,7 @@ export default function BracketPDF({ tournamentName, categoryName, matches, isPr
                                                 </View>
                                                 {m.winner === m.player2 && (
                                                     <Text style={{
-                                                        fontSize: Math.min(layout.headerFs, 5), fontFamily: 'Helvetica-Bold',
+                                                        fontSize: Math.min(layout.headerFs, 7), fontFamily: 'Helvetica-Bold',
                                                         color: COLORS.white, backgroundColor: COLORS.winRedTxt,
                                                         paddingHorizontal: 2.5, paddingVertical: 0.5, marginRight: 3,
                                                     }}>

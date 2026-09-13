@@ -74,6 +74,15 @@ const STATUS_CONFIG: Record<string, { label: string; dot: string; text: string; 
     RESCHEDULED: { label: 'Rescheduled', dot: 'bg-amber-400',  text: 'text-amber-700', bg: 'bg-amber-50' },
 }
 
+// A tournament's results only count for GSS ranking once KTM approves it —
+// shown to the organizer so they know why their results may not be
+// appearing in rankings yet.
+const GSS_STATUS_CONFIG: Record<string, { label: string; text: string; bg: string }> = {
+    PENDING:  { label: 'GSS Pending',  text: 'text-amber-700',   bg: 'bg-amber-50' },
+    APPROVED: { label: 'GSS Approved', text: 'text-emerald-700', bg: 'bg-emerald-50' },
+    REJECTED: { label: 'GSS Rejected', text: 'text-red-700',     bg: 'bg-red-50' },
+}
+
 // Nav groups
 const NAV_SECTIONS = [
     {
@@ -166,6 +175,7 @@ export default function TournamentTabs({
     ]
 
     const statusCfg = STATUS_CONFIG[tournament.status] || STATUS_CONFIG.UPCOMING
+    const gssCfg = GSS_STATUS_CONFIG[tournament.gssApprovalStatus]
     const backHref = userRole === 'ADMIN'
         ? `/admin${searchParams.get('tenant') ? `?tenant=${searchParams.get('tenant')}` : ''}`
         : `/organization?tab=events${searchParams.get('tenant') ? `&tenant=${searchParams.get('tenant')}` : ''}`
@@ -208,11 +218,19 @@ export default function TournamentTabs({
                         >
                             {tournament.name}
                         </h2>
-                        <div className="flex items-center gap-1.5 mt-1.5">
+                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                             <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${statusCfg.bg} ${statusCfg.text}`}>
                                 <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot} ${tournament.status === 'ONGOING' ? 'animate-pulse' : ''}`} />
                                 {statusCfg.label}
                             </span>
+                            {!publicView && gssCfg && (
+                                <span
+                                    className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${gssCfg.bg} ${gssCfg.text}`}
+                                    title="A tournament's results only count toward GSS rankings once KTM approves it."
+                                >
+                                    {gssCfg.label}
+                                </span>
+                            )}
                         </div>
                     </div>
                 </div>

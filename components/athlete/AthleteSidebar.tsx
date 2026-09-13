@@ -9,13 +9,12 @@ import {
     Settings,
     LogOut,
     Medal,
-    Trophy,
     LifeBuoy,
 } from 'lucide-react'
 
 interface AthleteSidebarProps {
-    activeView: 'home' | 'events' | 'achievements' | 'settings' | 'ranking' | 'support'
-    onNavigate: (view: 'home' | 'events' | 'achievements' | 'settings' | 'ranking' | 'support') => void
+    activeView: 'home' | 'events' | 'achievements' | 'settings' | 'support'
+    onNavigate: (view: 'home' | 'events' | 'achievements' | 'settings' | 'support') => void
     userName?: string | null
     userImageUrl?: string | null
     isOpen: boolean
@@ -34,7 +33,6 @@ const NAV_SECTIONS = [
         items: [
             { id: 'events',       label: 'Events',       icon: Calendar },
             { id: 'achievements', label: 'Achievements', icon: Medal },
-            { id: 'ranking',      label: 'Ranking',      icon: Trophy },
         ],
     },
     {

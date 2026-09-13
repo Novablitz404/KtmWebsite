@@ -1,6 +1,7 @@
 'use client'
 
 import { Search } from 'lucide-react'
+import UserAvatar from '@/components/UserAvatar'
 
 interface OrganizationTopBarProps {
     userName?: string
@@ -49,17 +50,12 @@ export default function OrganizationTopBar({
                 onClick={onSettingsClick}
                 className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl hover:bg-gray-100 transition-colors"
             >
-                {userImageUrl ? (
-                    <img
-                        src={userImageUrl}
-                        alt={userName}
-                        className="w-7 h-7 rounded-full object-cover border border-gray-200 shadow-sm"
-                    />
-                ) : (
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center text-white text-xs font-black shadow-sm">
-                        {userName.charAt(0)}
-                    </div>
-                )}
+                <UserAvatar
+                    src={userImageUrl}
+                    name={userName}
+                    size={28}
+                    className="!bg-red-600 border border-gray-200 shadow-sm"
+                />
                 <span className="hidden md:block text-xs font-semibold text-gray-700">{userName}</span>
             </button>
         </div>

@@ -4,6 +4,7 @@ import { useScrollLock } from '@/hooks/useScrollLock'
 import { X, Search, Loader2, Upload, CreditCard } from 'lucide-react'
 import { toast } from 'sonner'
 import GlobalDropdown from '@/components/GlobalDropdown'
+import UserAvatar from '@/components/UserAvatar'
 import { searchClubMembers, getUpcomingTournaments, registerForTournament } from '@/app/actions'
 import { getUpcomingSeminars, registerForSeminar } from '@/app/seminars/actions'
 import { getUpcomingPromotions, registerForPromotion } from '@/app/promotions/actions'
@@ -309,9 +310,12 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                                     <>
                                         <div className="flex items-center justify-between px-4 py-3.5 bg-gray-900 rounded-2xl">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center text-white font-black text-sm flex-shrink-0">
-                                                    {selectedMember.name?.charAt(0)}
-                                                </div>
+                                                <UserAvatar
+                                                    name={selectedMember.name}
+                                                    size={36}
+                                                    rounded="xl"
+                                                    className="!bg-white/10"
+                                                />
                                                 <div>
                                                     <p className="font-black text-white text-sm leading-tight">{selectedMember.name}</p>
                                                     <p className="text-[11px] text-gray-400 mt-0.5">{selectedMember.email}</p>
@@ -363,9 +367,13 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                                                         onClick={() => handleSelectMember(member)}
                                                         className="w-full px-4 py-2.5 text-left hover:bg-gray-50 flex items-center gap-3 transition-colors"
                                                     >
-                                                        <div className="w-8 h-8 bg-gray-100 rounded-xl flex items-center justify-center text-xs font-black text-gray-600 flex-shrink-0">
-                                                            {member.name?.charAt(0)}
-                                                        </div>
+                                                        <UserAvatar
+                                                            name={member.name}
+                                                            size={32}
+                                                            rounded="xl"
+                                                            className="!bg-gray-100"
+                                                            textClassName="!text-gray-600"
+                                                        />
                                                         <div>
                                                             <p className="text-sm font-black text-gray-900">{member.name}</p>
                                                             <p className="text-[11px] text-gray-400 mt-0.5">{member.email}</p>

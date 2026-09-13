@@ -165,6 +165,7 @@ export function TapEliteNavbar({ qs, solid = false, light = false }: { qs: strin
             <nav className={styles.desktopNav} aria-label="Main navigation">
                 <a href={sectionHref("disciplines")}>Tenets</a>
                 <a href={sectionHref("events")}>Events</a>
+                <Link href={`/rankings${qs}`}>Rankings</Link>
                 <a href={sectionHref("method")}>The standard</a>
                 <a href={sectionHref("community")}>Community</a>
             </nav>
@@ -186,6 +187,7 @@ export function TapEliteNavbar({ qs, solid = false, light = false }: { qs: strin
                 <nav className={styles.mobileNav} aria-label="Mobile navigation">
                     <a href={sectionHref("disciplines")} onClick={close}>Tenets</a>
                     <a href={sectionHref("events")} onClick={close}>Events</a>
+                    <Link href={`/rankings${qs}`} onClick={close}>Rankings</Link>
                     <a href={sectionHref("method")} onClick={close}>The standard</a>
                     <a href={sectionHref("community")} onClick={close}>Community</a>
                     <div className={styles.mobileAccountActions}>

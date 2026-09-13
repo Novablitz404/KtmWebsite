@@ -1,6 +1,7 @@
 'use client'
 
 import { Search } from 'lucide-react'
+import UserAvatar from '@/components/UserAvatar'
 
 interface AthleteTopBarProps {
     userName?: string | null
@@ -54,17 +55,13 @@ export default function AthleteTopBar({
                     <p className="text-sm font-semibold text-gray-700 leading-tight">{userName || 'Athlete'}</p>
                     <p className="text-[10px] text-gray-400">Athlete</p>
                 </div>
-                {userImageUrl ? (
-                    <img
-                        src={userImageUrl}
-                        alt={userName || 'Athlete'}
-                        className="w-9 h-9 rounded-full object-cover border-2 border-gray-100 shadow-sm"
-                    />
-                ) : (
-                    <div className="w-9 h-9 rounded-full bg-red-50 text-red-600 flex items-center justify-center text-sm font-bold border-2 border-gray-100">
-                        {(userName || 'A').charAt(0)}
-                    </div>
-                )}
+                <UserAvatar
+                    src={userImageUrl}
+                    name={userName || 'Athlete'}
+                    size={36}
+                    className="!bg-red-50 border-2 border-gray-100 shadow-sm"
+                    textClassName="!text-red-600"
+                />
             </div>
         </div>
     )

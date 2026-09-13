@@ -1,14 +1,33 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Filter, X } from 'lucide-react'
-import { useState, useTransition } from 'react'
+import { Filter, X, Search } from 'lucide-react'
+import { useState, useEffect, useTransition } from 'react'
 import GlobalDropdown from '@/components/GlobalDropdown'
 
-export default function RankingFilters() {
+export default function RankingFilters({ weightClasses = [] }: { weightClasses?: string[] }) {
     const router = useRouter()
     const searchParams = useSearchParams()
     const [isPending, startTransition] = useTransition()
+    const [searchText, setSearchText] = useState(searchParams.get('search') || '')
+
+    // Debounce the name search so it doesn't push a new URL on every keystroke
+    useEffect(() => {
+        const current = searchParams.get('search') || ''
+        if (searchText === current) return
+
+        const timeout = setTimeout(() => {
+            const params = new URLSearchParams(searchParams.toString())
+            if (searchText) params.set('search', searchText)
+            else params.delete('search')
+            startTransition(() => {
+                router.push(`/rankings?${params.toString()}`)
+            })
+        }, 400)
+
+        return () => clearTimeout(timeout)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchText])
 
     // Filter Options
     const disciplines = ['KYORUGI', 'POOMSAE']
@@ -16,31 +35,6 @@ export default function RankingFilters() {
     const skills = ['Advance', 'Novice']
     const belts = ['White', 'Yellow', 'Orange', 'Green', 'Purple', 'Blue', 'Red', 'Maroon', 'Brown', 'Black']
     const genders = ['Male', 'Female']
-
-    // Category Mappings (Standard WT)
-    // Category Mappings (Matched with prisma/seed-tap-elite-combined.ts)
-    const categoryMap: Record<string, string[]> = {
-        'Grade School': [
-            'Under 112cm', 'Under 120cm', 'Under 128cm', 'Under 136cm',
-            'Under 144cm', 'Under 152cm', 'Under 160cm', 'Under 168cm', 'Over 168cm'
-        ],
-        'Cadet': [
-            'Fin', 'Fly', 'Bantam', 'Feather',
-            'Light', 'Welter', 'Lt Middle', 'Middle',
-            'Lt Heavy', 'Heavy'
-        ],
-        'Junior': [
-            'Fin', 'Fly', 'Bantam', 'Feather',
-            'Light', 'Welter', 'Lt Middle', 'Middle',
-            'Lt Heavy', 'Heavy'
-        ],
-        'Senior': [
-            'Under 54kg', 'Under 58kg', 'Under 63kg', 'Under 68kg',
-            'Under 74kg', 'Under 80kg', 'Under 87kg', 'Over 87kg', // Male
-            'Under 46kg', 'Under 49kg', 'Under 53kg', 'Under 57kg',
-            'Under 62kg', 'Under 67kg', 'Under 73kg', 'Over 73kg'  // Female
-        ],
-    }
 
     // Helpers to get current value
     const getVal = (key: string) => searchParams.get(key) || ''
@@ -58,17 +52,19 @@ export default function RankingFilters() {
         })
     }
 
-    // Exclude 'type' from filter count since it's a tab
-    const hasFilters = Array.from(searchParams.entries()).some(([key]) => key !== 'type')
+    // Exclude 'type' (it's a tab) and 'tenant' (a site-level override, not a
+    // filter) from the filter count.
+    const hasFilters = Array.from(searchParams.entries()).some(([key]) => key !== 'type' && key !== 'tenant')
 
     const clearFilters = () => {
+        const params = new URLSearchParams()
         const currentType = searchParams.get('type')
+        const tenant = searchParams.get('tenant')
+        if (currentType) params.set('type', currentType)
+        if (tenant) params.set('tenant', tenant)
+        setSearchText('')
         startTransition(() => {
-            if (currentType) {
-                router.push(`/rankings?type=${currentType}`)
-            } else {
-                router.push('/rankings')
-            }
+            router.push(`/rankings${params.toString() ? `?${params.toString()}` : ''}`)
         })
     }
 
@@ -88,6 +84,18 @@ export default function RankingFilters() {
                         Reset All
                     </button>
                 )}
+            </div>
+
+            {/* Name search */}
+            <div className="relative mb-3">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <input
+                    type="text"
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    placeholder="Search athlete by name..."
+                    className="w-full pl-10 pr-4 py-2.5 bg-[#0A0A0A] border border-white/10 rounded-lg text-sm text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-500/50 transition-all"
+                />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
@@ -112,23 +120,27 @@ export default function RankingFilters() {
                     fullWidth
                 />
 
-                {/* Categories (Dependent on Division) */}
-                {/* Categories (Dependent) */}
+                {/* Category (Weight Class) — options come from whatever weight
+                    classes actually exist in the data for the current
+                    division/gender, since different organizations define
+                    their own weight-class names/cutoffs via their own
+                    guideline templates (e.g. "Under 73kg" vs "Under 74kg") —
+                    a hardcoded list here would silently mismatch real data. */}
                 <GlobalDropdown
                     label="Category"
                     value={getVal('weightCategory')}
                     onChange={(val) => updateFilter('weightCategory', val)}
                     options={[
                         { label: 'All Categories', value: '' },
-                        ...(categoryMap[getVal('division')] || []).map(c => ({ label: c, value: c }))
+                        ...weightClasses.map(c => ({ label: c, value: c }))
                     ]}
                     className="w-full"
                     fullWidth
                     trigger={
                         <button
                             type="button"
-                            disabled={!getVal('division') || !categoryMap[getVal('division')]}
-                            className={`inline-flex justify-between items-center rounded-lg border border-gray-200 shadow-sm px-4 py-2 bg-white text-sm font-medium transition-all w-full ${!getVal('division') ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
+                            disabled={!getVal('division') || weightClasses.length === 0}
+                            className={`inline-flex justify-between items-center rounded-lg border border-gray-200 shadow-sm px-4 py-2 bg-white text-sm font-medium transition-all w-full ${!getVal('division') || weightClasses.length === 0 ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
                         >
                             <span className="truncate">{getVal('weightCategory') || 'All Categories'}</span>
                             <svg className="ml-2 h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">

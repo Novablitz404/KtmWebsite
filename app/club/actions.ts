@@ -198,6 +198,7 @@ export async function getAthleteDetails(memberId: string) {
             clubName: true,
             isVerified: true,
             imageUrl: true,
+            licensePaymentStatus: true,
         }
     })
 
@@ -377,4 +378,55 @@ export async function uploadMemberAvatar(formData: FormData) {
     revalidatePath('/members')
 
     return { url: urlWithCacheBust }
+}
+
+// ─────────────────────────────────────────────────────────────
+// ATHLETE LICENSE — club-master request path. The athlete pays the club
+// master directly (offline/cash), and the club master requests activation
+// on their behalf — no payment proof upload, since the club master is
+// vouching for the payment in person. KTM still makes the final call (see
+// approveAthleteLicense/rejectAthleteLicense in app/admin/actions.ts); this
+// only files the request.
+// ─────────────────────────────────────────────────────────────
+
+export async function requestAthleteLicenseActivation(athleteId: string) {
+    const authUser = await getAuthUser()
+    if (!authUser) return { error: 'Unauthorized' }
+
+    const clubMaster = await prisma.user.findUnique({
+        where: { id: authUser.id },
+        include: { club: { select: { name: true } } }
+    })
+
+    if (!clubMaster || clubMaster.role !== 'CLUB_MASTER' || !clubMaster.club) {
+        return { error: 'Only Club Masters can request license activation' }
+    }
+
+    const targetUser = await prisma.user.findUnique({
+        where: { id: athleteId },
+        select: { id: true, clubName: true, isVerified: true, licensePaymentStatus: true }
+    })
+
+    if (!targetUser) return { error: 'Athlete not found' }
+    if (targetUser.clubName !== clubMaster.club.name) {
+        return { error: 'This athlete does not belong to your club' }
+    }
+    if (targetUser.isVerified) {
+        return { error: 'This athlete already has an active license' }
+    }
+    if (targetUser.licensePaymentStatus === 'PENDING_ACTIVATION') {
+        return { error: 'A license request is already pending for this athlete' }
+    }
+
+    await prisma.user.update({
+        where: { id: athleteId },
+        data: {
+            licensePaymentStatus: 'PENDING_ACTIVATION',
+            licenseRequestedVia: 'CLUB_MASTER',
+            licensePaymentProofUrl: null,
+        }
+    })
+
+    revalidatePath('/club')
+    return { success: true }
 }

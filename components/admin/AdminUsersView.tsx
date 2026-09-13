@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { MoreHorizontal, Shield, Award, Trash2, X, AlertTriangle, Search, ChevronLeft, ChevronRight, Eye, KeyRound } from 'lucide-react'
+import { MoreHorizontal, BadgeCheck, Award, Trash2, X, AlertTriangle, Search, ChevronLeft, ChevronRight, Eye, KeyRound } from 'lucide-react'
 import { toast } from 'sonner'
+import UserAvatar from '@/components/UserAvatar'
 import { deleteUser } from '@/app/admin/actions'
 import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -10,6 +11,7 @@ import { fetchAdminUsers } from '@/app/admin/fetch'
 import AdminTableSkeleton from '@/components/admin/AdminTableSkeleton'
 
 import TableRowsSkeleton from '@/components/admin/TableRowsSkeleton'
+import LicenseApprovalsPanel from '@/components/admin/LicenseApprovalsPanel'
 import GlobalDropdown from '@/components/GlobalDropdown'
 import GlobalCalendar from '@/components/GlobalCalendar'
 import { COUNTRIES } from '@/lib/countries'
@@ -146,13 +148,13 @@ function UserActionButtons({
                                     <form id="edit-user-form" onSubmit={handleSaveDetails} className="space-y-6">
                                         <div className="flex justify-between items-start mb-6 pb-6 border-b border-gray-100">
                                             <div className="flex items-center gap-4">
-                                                {userDetails.imageUrl ? (
-                                                    <img src={userDetails.imageUrl} alt={userName} className="w-16 h-16 rounded-full object-cover border-2 border-gray-100 shadow-sm" />
-                                                ) : (
-                                                    <div className="w-16 h-16 rounded-full bg-red-50 text-red-600 flex items-center justify-center text-xl font-bold border-2 border-red-100 shadow-sm">
-                                                        {userName.charAt(0).toUpperCase()}
-                                                    </div>
-                                                )}
+                                                <UserAvatar
+                                                    src={userDetails.imageUrl}
+                                                    name={userName}
+                                                    size={64}
+                                                    className="!bg-red-50 border-2 border-red-100 shadow-sm"
+                                                    textClassName="!text-red-600"
+                                                />
                                                 <div>
                                                     <h3 className="text-lg font-bold text-gray-900">{userName}</h3>
                                                     {userDetails && (
@@ -360,9 +362,10 @@ interface AdminUsersViewProps {
     initialUsers?: User[]
 }
 
-const PAGE_SIZE = 10
+const PAGE_SIZE = 15
 
 export default function AdminUsersView({ initialUsers = [] }: AdminUsersViewProps) {
+    const [activeTab, setActiveTab] = useState<'users' | 'license-approvals'>('users')
     const [searchQuery, setSearchQuery] = useState('')
     const [roleFilter, setRoleFilter] = useState('ALL')
     const [currentPage, setCurrentPage] = useState(1)
@@ -392,6 +395,35 @@ export default function AdminUsersView({ initialUsers = [] }: AdminUsersViewProp
         <div className="h-full flex flex-col bg-gray-50">
             <div className="flex-1 flex flex-col min-h-0 sm:p-6 sm:max-w-[1920px] sm:mx-auto w-full">
 
+                {/* Tabs */}
+                <div className="flex items-center gap-2 mb-4 px-4 sm:px-0">
+                    <button
+                        onClick={() => setActiveTab('users')}
+                        className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 border ${activeTab === 'users'
+                            ? 'bg-red-50 text-red-700 border-red-100'
+                            : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50 border-transparent'
+                            }`}
+                    >
+                        All Users
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('license-approvals')}
+                        className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 border ${activeTab === 'license-approvals'
+                            ? 'bg-red-50 text-red-700 border-red-100'
+                            : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50 border-transparent'
+                            }`}
+                    >
+                        <BadgeCheck className="w-4 h-4" />
+                        License Approvals
+                    </button>
+                </div>
+
+                {activeTab === 'license-approvals' ? (
+                    <div className="flex-1 flex flex-col min-h-0 bg-white sm:rounded-2xl sm:shadow-sm sm:border sm:border-gray-200 overflow-hidden">
+                        <LicenseApprovalsPanel />
+                    </div>
+                ) : (
+                <>
                 {/* Filters Toolbar */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 px-4 sm:px-0">
                     <div className="relative w-full sm:w-80 border-black/5">
@@ -449,7 +481,7 @@ export default function AdminUsersView({ initialUsers = [] }: AdminUsersViewProp
                                                         {user.name || 'No Name'}
                                                         {user.isVerified && (
                                                             <div className="group relative">
-                                                                <Shield className="w-3.5 h-3.5 text-blue-600 fill-blue-600" />
+                                                                <BadgeCheck className="w-3.5 h-3.5 text-blue-600 fill-blue-600" strokeWidth={2} stroke="white" />
                                                                 <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block px-2 py-1 bg-gray-900 text-white text-[10px] rounded whitespace-nowrap">
                                                                     Verified Athlete
                                                                 </span>
@@ -513,6 +545,8 @@ export default function AdminUsersView({ initialUsers = [] }: AdminUsersViewProp
                         </div>
                     </div>
                 </div>
+                </>
+                )}
             </div>
         </div>
     )

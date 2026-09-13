@@ -3,12 +3,15 @@
 import { useState, useTransition, useMemo } from 'react'
 import { Calendar, Trophy, Medal, MapPin, Building2, Trash2, X, AlertTriangle, Settings, ChevronLeft, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
+import UserAvatar from '@/components/UserAvatar'
 import { deleteTournament } from '@/app/actions'
 import { deletePromotionTest } from '@/app/organization/actions'
 import { useRouter } from 'next/navigation'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { fetchAdminEvents } from '@/app/admin/fetch'
 import AdminTableSkeleton from '@/components/admin/AdminTableSkeleton'
+import GssApprovalsPanel from '@/components/admin/GssApprovalsPanel'
+import { ShieldCheck } from 'lucide-react'
 
 import TableRowsSkeleton from '@/components/admin/TableRowsSkeleton'
 
@@ -42,7 +45,7 @@ interface AdminEventsViewProps {
 const PAGE_SIZE = 10
 
 export default function AdminEventsView({ }: AdminEventsViewProps) {
-    const [activeTab, setActiveTab] = useState<'tournaments' | 'promotions'>('tournaments')
+    const [activeTab, setActiveTab] = useState<'tournaments' | 'promotions' | 'gss-approvals'>('tournaments')
     const [currentPage, setCurrentPage] = useState(1)
 
     const [isPending, startTransition] = useTransition()
@@ -57,14 +60,14 @@ export default function AdminEventsView({ }: AdminEventsViewProps) {
 
     const { data, isLoading, isFetching } = useQuery({
         queryKey: ['admin-events', activeTab, currentPage],
-        queryFn: () => fetchAdminEvents(currentPage, PAGE_SIZE, activeTab),
+        queryFn: () => fetchAdminEvents(currentPage, PAGE_SIZE, activeTab as 'tournaments' | 'promotions'),
+        enabled: activeTab !== 'gss-approvals',
         placeholderData: keepPreviousData,
         staleTime: 1000 * 60 * 5, // 5 minutes
     })
 
     const items = data?.items || []
     const totalPages = data?.totalPages || 1
-    const totalCountForActiveTab = data?.totalCount || 0
 
     const handleDeleteClick = (id: string, name: string, type: 'tournament' | 'promotion') => {
         setItemToDelete({ id, name, type })
@@ -116,9 +119,6 @@ export default function AdminEventsView({ }: AdminEventsViewProps) {
                         >
                             <Trophy className="w-4 h-4" />
                             Tournaments
-                            <span className="ml-1 px-1.5 py-0.5 bg-white rounded-md text-xs border border-gray-100 shadow-sm text-gray-600">
-                                {activeTab === 'tournaments' ? totalCountForActiveTab : '?'}
-                            </span>
                         </button>
                         <button
                             onClick={() => setActiveTab('promotions')}
@@ -129,15 +129,26 @@ export default function AdminEventsView({ }: AdminEventsViewProps) {
                         >
                             <Medal className="w-4 h-4" />
                             Promotions
-                            <span className="ml-1 px-1.5 py-0.5 bg-white rounded-md text-xs border border-gray-100 shadow-sm text-gray-600">
-                                {activeTab === 'promotions' ? totalCountForActiveTab : '?'}
-                            </span>
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('gss-approvals')}
+                            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${activeTab === 'gss-approvals'
+                                ? 'bg-red-50 text-red-700'
+                                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                                }`}
+                        >
+                            <ShieldCheck className="w-4 h-4" />
+                            GSS Approvals
                         </button>
                     </div>
                 </div>
 
                 {/* Content Area */}
                 <div className="flex-1 flex flex-col min-h-0 bg-white sm:rounded-2xl sm:shadow-sm sm:border sm:border-gray-200 overflow-hidden">
+                    {activeTab === 'gss-approvals' ? (
+                        <GssApprovalsPanel />
+                    ) : (
+                    <>
                     <div className="flex-1 overflow-auto">
                         <table className="min-w-full divide-y divide-gray-200 relative">
                             <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
@@ -188,9 +199,12 @@ export default function AdminEventsView({ }: AdminEventsViewProps) {
                                                 {activeTab === 'tournaments' ? (
                                                     item.organizer ? (
                                                         <div className="flex items-center gap-2">
-                                                            <div className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xs font-bold">
-                                                                {(item.organizer.name || '?').charAt(0)}
-                                                            </div>
+                                                            <UserAvatar
+                                                                name={item.organizer.name}
+                                                                size={24}
+                                                                className="!bg-blue-50"
+                                                                textClassName="!text-blue-600"
+                                                            />
                                                             <div className="flex flex-col">
                                                                 <span className="text-sm text-gray-900">{item.organizer.name || 'Unknown'}</span>
                                                                 <span className="text-xs text-gray-500">{item.organizer.email}</span>
@@ -267,6 +281,8 @@ export default function AdminEventsView({ }: AdminEventsViewProps) {
                             </button>
                         </div>
                     </div>
+                    </>
+                    )}
                 </div>
             </div>
 

@@ -124,7 +124,7 @@ export default function MembersGrid({
 
     const { data, isLoading } = useQuery({
         queryKey: ['club-members', clubName, page, searchQuery],
-        queryFn: () => fetchClubMembers(clubName, page, 10, searchQuery || undefined),
+        queryFn: () => fetchClubMembers(clubName, page, 15, searchQuery || undefined),
         initialData: initialMembers.length > 0 && page === initialPageState && !searchQuery
             ? { members: initialMembers, totalPages: initialTotalPages }
             : undefined,

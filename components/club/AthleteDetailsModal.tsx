@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react'
 import {
     X, Trophy, Award, BookOpen, Loader2, Calendar, MapPin,
-    Ruler, Weight, User2, ShieldCheck, Medal
+    Ruler, Weight, User2, BadgeCheck, Medal, ShieldCheck
 } from 'lucide-react'
-import { getAthleteDetails } from '@/app/club/actions'
+import { getAthleteDetails, requestAthleteLicenseActivation } from '@/app/club/actions'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { calculateAge } from '@/lib/placement'
 import UserAvatar from '@/components/UserAvatar'
+import { toast } from 'sonner'
 
 interface AthleteDetailsModalProps {
     isOpen: boolean
@@ -89,6 +90,25 @@ export default function AthleteDetailsModal({ isOpen, onClose, memberId, memberN
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [activeTab, setActiveTab] = useState<'tournaments' | 'promotions' | 'seminars'>('tournaments')
+    const [isRequestingLicense, setIsRequestingLicense] = useState(false)
+
+    const handleRequestLicense = async () => {
+        if (!confirm(`Request Athlete License activation for ${memberName}? Only submit this after you've collected payment from them — KTM will review and make the final call.`)) return
+        setIsRequestingLicense(true)
+        try {
+            const result = await requestAthleteLicenseActivation(memberId)
+            if (result?.error) {
+                toast.error(result.error)
+            } else {
+                toast.success('License activation requested — pending KTM review.')
+                setData(prev => prev ? { ...prev, member: { ...prev.member, licensePaymentStatus: 'PENDING_ACTIVATION' } } : prev)
+            }
+        } catch {
+            toast.error('Failed to request license activation')
+        } finally {
+            setIsRequestingLicense(false)
+        }
+    }
 
     useEffect(() => {
         if (!isOpen || !memberId) return
@@ -149,8 +169,8 @@ export default function AthleteDetailsModal({ isOpen, onClose, memberId, memberN
                                     <UserAvatar src={memberAvatar} name={memberName} size={68} className="rounded-full" />
                                 </div>
                                 {member?.isVerified && (
-                                    <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 rounded-full border-2 border-white flex items-center justify-center">
-                                        <ShieldCheck size={11} className="text-white" />
+                                    <div className="absolute -bottom-0.5 -right-0.5 bg-white rounded-full p-[1px]">
+                                        <BadgeCheck size={18} className="text-blue-500 fill-blue-500" strokeWidth={2} stroke="white" />
                                     </div>
                                 )}
                             </div>
@@ -174,6 +194,32 @@ export default function AthleteDetailsModal({ isOpen, onClose, memberId, memberN
                                 </div>
                             </div>
                         </div>
+
+                        {/* Athlete License status/action */}
+                        {!loading && member && (
+                            <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5">
+                                <div className="flex items-center gap-2">
+                                    <ShieldCheck className={`w-4 h-4 flex-shrink-0 ${member.isVerified ? 'text-emerald-500' : 'text-gray-300'}`} />
+                                    <span className="text-xs font-bold text-gray-700">
+                                        {member.isVerified
+                                            ? 'Athlete License Active'
+                                            : member.licensePaymentStatus === 'PENDING_ACTIVATION'
+                                                ? 'License Pending KTM Review'
+                                                : 'Athlete License Not Activated'}
+                                    </span>
+                                </div>
+                                {!member.isVerified && member.licensePaymentStatus !== 'PENDING_ACTIVATION' && (
+                                    <button
+                                        onClick={handleRequestLicense}
+                                        disabled={isRequestingLicense}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 flex-shrink-0"
+                                    >
+                                        {isRequestingLicense ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldCheck className="w-3 h-3" />}
+                                        Request Activation
+                                    </button>
+                                )}
+                            </div>
+                        )}
 
                         {/* Stat chips */}
                         {!loading && (

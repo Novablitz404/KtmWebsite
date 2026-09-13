@@ -88,6 +88,12 @@ model Tournament {
   tier              String    @default("GSS-3") // GSS-1 (Premier), GSS-2 (Major), GSS-3 (Standard), GSS-4 (Local)
   dateTBA           Boolean   @default(false) // True if date not yet decided
 
+  // Set once by KTM, before the event runs — gates whether this tournament's
+  // results are eligible to feed the GSS/Elo ranking pipeline at all. Bracket
+  // generation, scoring, and every other tournament feature works regardless
+  // of this status; only the GSS ranking write path checks it.
+  gssApprovalStatus String @default("PENDING") // PENDING, APPROVED, REJECTED
+
   // Pricing
   showPricing       Boolean   @default(false) // Toggle pricing visibility for public/athletes
   categoryPricing   Json?     // Pricing per type+subtype combo, e.g. { "KYORUGI_INDIVIDUAL": { "earlyBird": 115, "regular": 145 } }
@@ -154,6 +160,15 @@ model Category {
   belt      String? // Explicit belt requirement
   seedOrder String[] // Ordered player IDs from last confirmed generation/reshuffle. Empty = not yet generated.
 
+  // Structured division/weight-class — set once at generation time from the
+  // template's Division/WeightCategory names (e.g. "Junior", "Under 74kg").
+  // This is the source of truth for filtering/ranking by division or weight
+  // class — read it directly instead of parsing `name`, which is just a
+  // display string ("{division} {gender} {weightClass}") that can vary in
+  // formatting or be edited without staying in sync.
+  division    String?
+  weightClass String?
+
   @@index([tournamentId])
 }
 
@@ -188,9 +203,19 @@ model User {
   approvedBy        String?   // User ID of the clubmaster who approved
   approvedAt        DateTime?
 
-  // Manual Payment for Activation
+  // Manual Payment for the physical Athlete Card (org-owned, future feature —
+  // separate from the Athlete License below, do not repurpose)
   cardPaymentProofUrl String? // Image URL for uploaded manual payment proof
   cardPaymentStatus   String? // e.g. "PENDING_ACTIVATION", "APPROVED", "REJECTED"
+
+  // Athlete License — issued by KTM only, not by the athlete's org. Two
+  // request paths (see licenseRequestedVia): the athlete pays KTM directly
+  // and uploads proof, or a club master collects payment offline and
+  // requests activation on the athlete's behalf. Either way, only a KTM
+  // ADMIN can approve/reject (see approveAthleteLicense/rejectAthleteLicense).
+  licensePaymentProofUrl String? // Image URL for uploaded proof — SELF path only
+  licensePaymentStatus   String? // "PENDING_ACTIVATION", "APPROVED", "REJECTED"
+  licenseRequestedVia    String? // "SELF" | "CLUB_MASTER"
 
   // Relations
   players      Player[]
@@ -332,10 +357,17 @@ model Organization {
   contactPhone String?
   website      String?
 
-  // Athlete Card Activation Configuration
+  // Athlete Card Activation Configuration (org-owned, future physical card feature)
   athleteCardFee Float?
   athleteCardPaymentInstructions String?
   athleteCardPaymentMethods Json? // NEW: Array of { label, accountName, accountNumber, qrCodeUrl }
+
+  // Athlete License Fee Configuration — meaningful only on KTM's own
+  // Organization row. KTM is the sole issuer of the license, so this is a
+  // platform-level fee/payment config, not a per-org one.
+  licenseFee Float?
+  licensePaymentInstructions String?
+  licensePaymentMethods Json? // Array of { label, accountName, accountNumber, qrCodeUrl }
 
   // Co-Organizers (many-to-many - users who can help manage this organization)
   coOrganizers User[] @relation("OrganizationCoOrganizers")
@@ -685,6 +717,13 @@ model PoomsaeMatch {
   totalScore   Float @default(0)
   rank         Int?
 
+  // HEAD_TO_HEAD only: set on BOTH rows of a decided pairing to the winning
+  // row's own id, so `row.id === row.winnerId` answers "did this row win?"
+  // without needing to look up the sibling or compare scores. Written by
+  // resolvePoomsaeHeadToHeadResult (lib/poomsae-progression.ts) whether the
+  // decision came from real scores or a manual "Declare Winner" click.
+  winnerId Int?
+
   assignedForms String? // Forms to perform in this match (e.g. "Taegeuk 4")
 
   status String @default("Pending") // Pending, Completed
@@ -940,6 +979,8 @@ view GlobalAthleteRanking {
   organizationId       String?
   parentOrganizationId String?
   division             String?
+  weightCategory       String?
+  belt                 String?
   gender               String?
   type                 String
   scope                String

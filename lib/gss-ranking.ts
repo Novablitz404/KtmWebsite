@@ -18,117 +18,26 @@ import {
     monthsBetween,
 } from '@/lib/elo'
 
-// ─── Types ───────────────────────────────────────────────────
-
-interface OrgChain {
-    directOrgId: string | null
-    parentOrgId: string | null
-}
-
-interface EloScope {
-    scope: string       // 'GLOBAL' or organizationId
-    organizationId: string | null
-}
-
-// ─── Organization Resolution ─────────────────────────────────
+// ─── Tournament Host Resolution ───────────────────────────────
 
 /**
- * Resolves the full organization chain for an athlete.
- * Player → Club → Organization (direct) → parentOrganization (via active ClubAffiliation)
+ * Resolves the organization that HOSTED a tournament — i.e. the organizer's
+ * own org membership, via Tournament.organizerId → User.organizationMemberId.
+ * KTM has a real Organization row (slug 'ktm') like any tenant, so this
+ * resolves the same way for every tournament, KTM's own included.
  *
- * Returns { directOrgId, parentOrgId } — both can be null if the athlete has no club.
+ * GSS attribution is host-based, not athlete-home-org-based: a result counts
+ * toward whichever org actually ran the event, regardless of which club/org
+ * the competing athletes themselves belong to. Returns null if the organizer
+ * has no org membership (result can't be attributed — Elo is skipped).
  */
-export async function resolveAthleteOrgChain(playerId: string): Promise<OrgChain> {
-    const player = await prisma.player.findUnique({
-        where: { id: playerId },
-        select: {
-            club: {
-                select: {
-                    organizationId: true,
-                    affiliations: {
-                        where: { status: 'ACTIVE' },
-                        select: { organizationId: true },
-                        take: 1,
-                    },
-                },
-            },
-        },
+export async function resolveTournamentHostOrgId(tournamentId: string): Promise<string | null> {
+    const tournament = await prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        select: { organizer: { select: { organizationMemberId: true } } },
     })
 
-    if (!player?.club) {
-        return { directOrgId: null, parentOrgId: null }
-    }
-
-    const directOrgId = player.club.organizationId || null
-    const parentOrgId = player.club.affiliations?.[0]?.organizationId || null
-
-    // If the direct org IS the parent affiliation target, there's no separate parent
-    if (directOrgId && parentOrgId && directOrgId === parentOrgId) {
-        return { directOrgId, parentOrgId: null }
-    }
-
-    return { directOrgId, parentOrgId }
-}
-
-/**
- * Resolves org chain from a userId (instead of playerId).
- * Looks up the user's club via the Club.masterId or via any Player record.
- */
-export async function resolveUserOrgChain(userId: string): Promise<OrgChain> {
-    // Try via Club mastership first
-    const club = await prisma.club.findUnique({
-        where: { masterId: userId },
-        select: {
-            organizationId: true,
-            affiliations: {
-                where: { status: 'ACTIVE' },
-                select: { organizationId: true },
-                take: 1,
-            },
-        },
-    })
-
-    if (club) {
-        const directOrgId = club.organizationId || null
-        const parentOrgId = club.affiliations?.[0]?.organizationId || null
-        if (directOrgId && parentOrgId && directOrgId === parentOrgId) {
-            return { directOrgId, parentOrgId: null }
-        }
-        return { directOrgId, parentOrgId }
-    }
-
-    // Fallback: look up via the user's most recent Player record
-    const player = await prisma.player.findFirst({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        select: { id: true },
-    })
-
-    if (player) {
-        return resolveAthleteOrgChain(player.id)
-    }
-
-    return { directOrgId: null, parentOrgId: null }
-}
-
-/**
- * Builds the list of scopes to write Elo records for.
- * Always includes GLOBAL + direct org. Includes parent org only if affiliation is active.
- */
-function buildScopes(orgChain: OrgChain): EloScope[] {
-    const scopes: EloScope[] = [
-        { scope: 'GLOBAL', organizationId: null },
-    ]
-
-    if (orgChain.directOrgId) {
-        scopes.push({ scope: orgChain.directOrgId, organizationId: orgChain.directOrgId })
-    }
-
-    if (orgChain.parentOrgId) {
-        scopes.push({ scope: orgChain.parentOrgId, organizationId: orgChain.parentOrgId })
-    }
-
-    return scopes
+    return tournament?.organizer?.organizationMemberId || null
 }
 
 // ─── Elo Record Management ───────────────────────────────────
@@ -146,32 +55,132 @@ async function getOrCreateEloRecord(
 ) {
     const id = `${userId}-${type}-${scope}`
 
-    let record = await prisma.athleteEloRating.findUnique({ where: { id } })
-
-    if (!record) {
-        record = await prisma.athleteEloRating.create({
-            data: {
-                id,
-                userId,
-                type,
-                scope,
-                organizationId,
-                rating: getInitialElo(belt),
-                matchCount: 0,
-            },
-        })
-    }
+    // Upsert, not findUnique-then-create: Poomsae results are processed via a
+    // fire-and-forget call (see resolvePoomsaeHeadToHeadResult), so the same
+    // athlete's records for different matches can genuinely race here — a
+    // plain check-then-create loses that race with a unique constraint error.
+    const record = await prisma.athleteEloRating.upsert({
+        where: { id },
+        update: {},
+        create: {
+            id,
+            userId,
+            type,
+            scope,
+            organizationId,
+            rating: getInitialElo(belt),
+            matchCount: 0,
+        },
+    })
 
     return record
 }
 
 // ─── Match Result Processing ─────────────────────────────────
 
+interface EloUpdateParams {
+    discipline: 'KYORUGI' | 'POOMSAE'
+    matchId: number
+    tournamentId: string
+    categoryId: string
+    winnerPlayerId: string
+    loserPlayerId: string
+    scoreDifference: number
+}
+
+/**
+ * Core Elo update — shared by Kyorugi matches and head-to-head Poomsae pairings.
+ *
+ * Attribution is host-based: writes exactly one Elo record per athlete,
+ * scoped to whichever org hosted the tournament (resolveTournamentHostOrgId),
+ * not the athletes' own home club/org. Skips entirely if the tournament isn't
+ * GSS-approved or its host org can't be resolved.
+ */
+async function applyEloUpdate({
+    discipline, matchId, tournamentId, categoryId, winnerPlayerId, loserPlayerId, scoreDifference,
+}: EloUpdateParams) {
+    if (!winnerPlayerId || !loserPlayerId || winnerPlayerId === 'BYE' || loserPlayerId === 'BYE') {
+        return // Skip BYE matches
+    }
+
+    const tournament = await prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        select: { gssApprovalStatus: true },
+    })
+    if (tournament?.gssApprovalStatus !== 'APPROVED') {
+        return // Not GSS-approved — bracket/scoring still works, just no ranking impact
+    }
+
+    const hostOrgId = await resolveTournamentHostOrgId(tournamentId)
+    if (!hostOrgId) {
+        return // Organizer has no org membership — nowhere to attribute this to
+    }
+
+    // Look up the Player records to get userId and belt
+    const [winnerPlayer, loserPlayer] = await Promise.all([
+        prisma.player.findUnique({ where: { id: winnerPlayerId }, select: { userId: true, belt: true, id: true } }),
+        prisma.player.findUnique({ where: { id: loserPlayerId }, select: { userId: true, belt: true, id: true } }),
+    ])
+
+    if (!winnerPlayer?.userId || !loserPlayer?.userId) {
+        return // Guest players without userId can't have Elo
+    }
+
+    const winnerRecord = await getOrCreateEloRecord(winnerPlayer.userId, discipline, hostOrgId, hostOrgId, winnerPlayer.belt)
+    const loserRecord = await getOrCreateEloRecord(loserPlayer.userId, discipline, hostOrgId, hostOrgId, loserPlayer.belt)
+
+    const result = computeMatchEloUpdate(
+        winnerRecord.rating,
+        loserRecord.rating,
+        winnerRecord.matchCount,
+        loserRecord.matchCount,
+        Math.abs(scoreDifference)
+    )
+
+    // Update winner
+    await prisma.athleteEloRating.update({
+        where: { id: winnerRecord.id },
+        data: {
+            rating: result.winnerNewRating,
+            matchCount: { increment: 1 },
+            lastMatchAt: new Date(),
+            updatedAt: new Date(),
+        },
+    })
+
+    // Update loser
+    await prisma.athleteEloRating.update({
+        where: { id: loserRecord.id },
+        data: {
+            rating: result.loserNewRating,
+            matchCount: { increment: 1 },
+            lastMatchAt: new Date(),
+            updatedAt: new Date(),
+        },
+    })
+
+    await prisma.eloMatchLog.create({
+        data: {
+            matchId,
+            tournamentId,
+            categoryId,
+            winnerId: winnerPlayer.userId,
+            loserId: loserPlayer.userId,
+            winnerEloBefore: winnerRecord.rating,
+            winnerEloAfter: result.winnerNewRating,
+            loserEloBefore: loserRecord.rating,
+            loserEloAfter: result.loserNewRating,
+            scoreDifference: Math.abs(scoreDifference),
+            kFactor: result.kFactorWinner,
+            marginMultiplier: result.marginMultiplier,
+        },
+    })
+}
+
 /**
  * Process a completed Kyorugi match and update Elo ratings.
  *
  * Called when a match winner is set in the scoring/bracket API.
- * Writes up to 3 Elo records per athlete (global + direct org + parent org).
  *
  * @param matchId - The numeric Match.id
  */
@@ -188,127 +197,74 @@ export async function processMatchResult(matchId: number) {
         },
     })
 
-    if (!match || !match.winner || !match.categoryRef?.tournament) {
+    if (!match || !match.winner || !match.categoryRef?.tournament || !match.categoryRefId) {
         return // No winner or incomplete data
     }
 
-    // Match.player1, player2, winner are Player IDs (strings)
-    const winnerId = match.winner
-    const loserId = match.player1 === winnerId ? match.player2 : match.player1
+    // Match.player1, player2, winner are player NAME snapshots (see app/actions.ts
+    // bracket generation, which writes spec.player1?.name), not Player IDs — so the
+    // actual Player record has to be resolved by name within this match's category.
+    // Note: this is a best-effort lookup — two players sharing an exact name within
+    // the same category would be ambiguous (same limitation as other name-based
+    // matching already used elsewhere in this codebase, e.g. medal-count aggregation).
+    const winnerName = match.winner
+    const loserName = match.player1 === winnerName ? match.player2 : match.player1
 
-    if (!winnerId || !loserId || winnerId === 'BYE' || loserId === 'BYE') {
-        return // Skip BYE matches
+    if (!winnerName || !loserName || winnerName === 'BYE' || loserName === 'BYE' || winnerName === 'TBD' || loserName === 'TBD') {
+        return // Skip BYE/incomplete matches
     }
 
-    // Look up the Player records to get userId and belt
     const [winnerPlayer, loserPlayer] = await Promise.all([
-        prisma.player.findUnique({ where: { id: winnerId }, select: { userId: true, belt: true, id: true } }),
-        prisma.player.findUnique({ where: { id: loserId }, select: { userId: true, belt: true, id: true } }),
+        prisma.player.findFirst({ where: { categoryId: match.categoryRefId, name: winnerName }, select: { id: true } }),
+        prisma.player.findFirst({ where: { categoryId: match.categoryRefId, name: loserName }, select: { id: true } }),
     ])
 
-    if (!winnerPlayer?.userId || !loserPlayer?.userId) {
-        return // Guest players without userId can't have Elo
+    if (!winnerPlayer || !loserPlayer) {
+        return // Couldn't resolve a Player record for one or both names
     }
 
     // Calculate score difference for margin multiplier
-    const blueIsWinner = match.player1 === winnerId // player1 = blue corner
+    const blueIsWinner = match.player1 === winnerName // player1 = blue corner
     const scoreDifference = blueIsWinner
         ? match.total_blue_score - match.total_red_score
         : match.total_red_score - match.total_blue_score
 
-    // Resolve org chains for both players
-    const [winnerOrgChain, loserOrgChain] = await Promise.all([
-        resolveAthleteOrgChain(winnerId),
-        resolveAthleteOrgChain(loserId),
-    ])
+    await applyEloUpdate({
+        discipline: 'KYORUGI',
+        matchId: match.id,
+        tournamentId: match.categoryRef.tournament.id,
+        categoryId: match.categoryRefId,
+        winnerPlayerId: winnerPlayer.id,
+        loserPlayerId: loserPlayer.id,
+        scoreDifference: Math.abs(scoreDifference),
+    })
+}
 
-    const winnerScopes = buildScopes(winnerOrgChain)
-    const loserScopes = buildScopes(loserOrgChain)
-
-    // Collect all unique scopes from both players
-    const allScopeKeys = new Set<string>()
-    winnerScopes.forEach(s => allScopeKeys.add(s.scope))
-    loserScopes.forEach(s => allScopeKeys.add(s.scope))
-
-    // For each scope that BOTH players share, do a proper Elo update.
-    // For scopes only one player has, still update their record (match happened).
-    for (const scopeKey of allScopeKeys) {
-        const winnerScope = winnerScopes.find(s => s.scope === scopeKey)
-        const loserScope = loserScopes.find(s => s.scope === scopeKey)
-
-        // Get or create records
-        const winnerRecord = winnerScope
-            ? await getOrCreateEloRecord(winnerPlayer.userId, 'KYORUGI', scopeKey, winnerScope.organizationId, winnerPlayer.belt)
-            : null
-        const loserRecord = loserScope
-            ? await getOrCreateEloRecord(loserPlayer.userId, 'KYORUGI', scopeKey, loserScope.organizationId, loserPlayer.belt)
-            : null
-
-        // If both players exist in this scope, do paired Elo update
-        if (winnerRecord && loserRecord) {
-            const result = computeMatchEloUpdate(
-                winnerRecord.rating,
-                loserRecord.rating,
-                winnerRecord.matchCount,
-                loserRecord.matchCount,
-                Math.abs(scoreDifference)
-            )
-
-            // Update winner
-            await prisma.athleteEloRating.update({
-                where: { id: winnerRecord.id },
-                data: {
-                    rating: result.winnerNewRating,
-                    matchCount: { increment: 1 },
-                    lastMatchAt: new Date(),
-                    updatedAt: new Date(),
-                },
-            })
-
-            // Update loser
-            await prisma.athleteEloRating.update({
-                where: { id: loserRecord.id },
-                data: {
-                    rating: result.loserNewRating,
-                    matchCount: { increment: 1 },
-                    lastMatchAt: new Date(),
-                    updatedAt: new Date(),
-                },
-            })
-
-            // Log the match result (only for GLOBAL scope to avoid duplicate logs)
-            if (scopeKey === 'GLOBAL') {
-                await prisma.eloMatchLog.create({
-                    data: {
-                        matchId: match.id,
-                        tournamentId: match.categoryRef!.tournament!.id,
-                        categoryId: match.categoryRefId!,
-                        winnerId: winnerPlayer.userId,
-                        loserId: loserPlayer.userId,
-                        winnerEloBefore: winnerRecord.rating,
-                        winnerEloAfter: result.winnerNewRating,
-                        loserEloBefore: loserRecord.rating,
-                        loserEloAfter: result.loserNewRating,
-                        scoreDifference: Math.abs(scoreDifference),
-                        kFactor: result.kFactorWinner,
-                        marginMultiplier: result.marginMultiplier,
-                    },
-                })
-            }
-        } else if (winnerRecord) {
-            // Only winner exists in this scope — just increment match count
-            await prisma.athleteEloRating.update({
-                where: { id: winnerRecord.id },
-                data: { matchCount: { increment: 1 }, lastMatchAt: new Date(), updatedAt: new Date() },
-            })
-        } else if (loserRecord) {
-            // Only loser exists in this scope
-            await prisma.athleteEloRating.update({
-                where: { id: loserRecord.id },
-                data: { matchCount: { increment: 1 }, lastMatchAt: new Date(), updatedAt: new Date() },
-            })
-        }
-    }
+/**
+ * Process a completed head-to-head Poomsae pairing and update Elo ratings.
+ *
+ * Called from `advancePoomsaeWinner` once both sides of a pairing are
+ * Completed and a winner has been determined by score comparison.
+ *
+ * @param matchId - The shared PoomsaeMatch.matchId for this pairing
+ */
+export async function processPoomsaeMatchResult(params: {
+    matchId: number
+    tournamentId: string
+    categoryId: string
+    winnerPlayerId: string
+    loserPlayerId: string
+    scoreDifference: number
+}) {
+    await applyEloUpdate({
+        discipline: 'POOMSAE',
+        matchId: params.matchId,
+        tournamentId: params.tournamentId,
+        categoryId: params.categoryId,
+        winnerPlayerId: params.winnerPlayerId,
+        loserPlayerId: params.loserPlayerId,
+        scoreDifference: Math.abs(params.scoreDifference),
+    })
 }
 
 // ─── Tournament Completion ───────────────────────────────────
@@ -316,11 +272,14 @@ export async function processMatchResult(matchId: number) {
 /**
  * Processes field strength bonuses when a tournament is marked COMPLETED.
  *
- * For each Kyorugi category in the tournament:
+ * For each Kyorugi category, and each head-to-head Poomsae category, in the tournament:
  * 1. Calculates the average Elo of all participants (field strength)
  * 2. Determines placement (Gold, Silver, Bronze, etc.) from the bracket
  * 3. Awards field bonus points (decayed) to placed athletes
  * 4. Refreshes the materialized ranking view
+ *
+ * Traditional SCORED Poomsae categories are not included — they don't feed
+ * Elo ratings at all (see calculatePoomsaeGSS for the percentile-based approach).
  */
 export async function processTournamentCompletion(tournamentId: string) {
     const tournament = await prisma.tournament.findUnique({
@@ -329,10 +288,17 @@ export async function processTournamentCompletion(tournamentId: string) {
             id: true,
             tier: true,
             startDate: true,
+            gssApprovalStatus: true,
             categories: {
-                where: { type: 'KYORUGI' },
+                where: {
+                    OR: [
+                        { type: 'KYORUGI' },
+                        { type: 'POOMSAE', poomsaeFormat: 'HEAD_TO_HEAD' },
+                    ],
+                },
                 select: {
                     id: true,
+                    type: true,
                     players: {
                         where: { registrationStatus: 'APPROVED' },
                         select: { id: true, userId: true, medal: true, belt: true },
@@ -343,17 +309,22 @@ export async function processTournamentCompletion(tournamentId: string) {
     })
 
     if (!tournament) return
+    if (tournament.gssApprovalStatus !== 'APPROVED') return // Not GSS-approved
+
+    const hostOrgId = await resolveTournamentHostOrgId(tournamentId)
+    if (!hostOrgId) return // Organizer has no org membership — nowhere to attribute this to
 
     for (const category of tournament.categories) {
+        const discipline: 'KYORUGI' | 'POOMSAE' = category.type === 'KYORUGI' ? 'KYORUGI' : 'POOMSAE'
         const playersWithUserId = category.players.filter(p => p.userId)
         if (playersWithUserId.length < 2) continue
 
-        // Get all participant Elos for this category (global scope)
+        // Get all participant Elos for this category (this tournament's host scope)
         const eloRecords = await prisma.athleteEloRating.findMany({
             where: {
                 userId: { in: playersWithUserId.map(p => p.userId!) },
-                type: 'KYORUGI',
-                scope: 'GLOBAL',
+                type: discipline,
+                scope: hostOrgId,
             },
             select: { userId: true, rating: true },
         })
@@ -383,28 +354,22 @@ export async function processTournamentCompletion(tournamentId: string) {
 
             if (bonus <= 0) continue
 
-            // Resolve org chain and apply bonus across all scopes
-            const orgChain = await resolveAthleteOrgChain(player.id)
-            const scopes = buildScopes(orgChain)
+            const record = await getOrCreateEloRecord(
+                player.userId,
+                discipline,
+                hostOrgId,
+                hostOrgId,
+                player.belt
+            )
 
-            for (const { scope, organizationId } of scopes) {
-                const record = await getOrCreateEloRecord(
-                    player.userId,
-                    'KYORUGI',
-                    scope,
-                    organizationId,
-                    player.belt
-                )
-
-                // Add the bonus to the rating
-                await prisma.athleteEloRating.update({
-                    where: { id: record.id },
-                    data: {
-                        rating: { increment: bonus },
-                        updatedAt: new Date(),
-                    },
-                })
-            }
+            // Add the bonus to the rating
+            await prisma.athleteEloRating.update({
+                where: { id: record.id },
+                data: {
+                    rating: { increment: bonus },
+                    updatedAt: new Date(),
+                },
+            })
         }
     }
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { Menu } from 'lucide-react'
+import UserAvatar from '@/components/UserAvatar'
 
 interface AdminTopBarProps {
     userName?: string
@@ -42,17 +43,13 @@ export default function AdminTopBar({
                 >
                     <span className="text-sm font-medium text-gray-700">{userName}</span>
 
-                    {userImageUrl ? (
-                        <img
-                            src={userImageUrl}
-                            alt={userName}
-                            className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover border-2 border-white shadow-sm"
-                        />
-                    ) : (
-                        <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-sm font-bold border-2 border-white shadow-sm">
-                            {userName.charAt(0)}
-                        </div>
-                    )}
+                    <UserAvatar
+                        src={userImageUrl}
+                        name={userName}
+                        size={36}
+                        className="!bg-red-100 border-2 border-white shadow-sm"
+                        textClassName="!text-red-600"
+                    />
                 </div>
             </div>
         </div>

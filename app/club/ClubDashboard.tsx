@@ -1845,13 +1845,13 @@ export default function ClubDashboard({
                                         {/* ── Header ── */}
                                         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-9 h-9 rounded-xl overflow-hidden bg-red-100 flex items-center justify-center flex-shrink-0 ring-2 ring-gray-100">
-                                                    {(editAvatarPreview || editingMember.imageUrl) ? (
-                                                        <img src={editAvatarPreview || editingMember.imageUrl || ''} alt="avatar" className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <span className="text-red-600 font-black text-sm">{editingMember.name?.charAt(0)?.toUpperCase() || '?'}</span>
-                                                    )}
-                                                </div>
+                                                <UserAvatar
+                                                    src={editAvatarPreview || editingMember.imageUrl}
+                                                    name={editingMember.name}
+                                                    size={36}
+                                                    rounded="xl"
+                                                    className="ring-2 ring-gray-100"
+                                                />
                                                 <div>
                                                     <h3 className="text-sm font-black text-gray-900">Edit Member Details</h3>
                                                     <p className="text-[11px] text-gray-400 font-medium">{editingMember.name || editingMember.email}</p>
@@ -1900,13 +1900,14 @@ export default function ClubDashboard({
                                                             }}
                                                             className="w-28 h-28 rounded-2xl overflow-hidden bg-white shadow-md ring-2 ring-gray-200 group-hover:ring-red-400 transition-all relative"
                                                         >
-                                                            {(editAvatarPreview || editingMember.imageUrl) ? (
-                                                                <img src={editAvatarPreview || editingMember.imageUrl || ''} alt="Avatar" className="w-full h-full object-cover" />
-                                                            ) : (
-                                                                <div className="w-full h-full bg-red-100 flex items-center justify-center text-red-600 text-4xl font-black">
-                                                                    {editingMember.name?.charAt(0)?.toUpperCase() || '?'}
-                                                                </div>
-                                                            )}
+                                                            <UserAvatar
+                                                                src={editAvatarPreview || editingMember.imageUrl}
+                                                                name={editingMember.name}
+                                                                size={112}
+                                                                rounded="2xl"
+                                                                className="!bg-red-100"
+                                                                textClassName="text-red-600"
+                                                            />
                                                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                                 <Camera className="w-6 h-6 text-white" />
                                                             </div>

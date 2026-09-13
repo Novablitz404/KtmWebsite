@@ -6,6 +6,10 @@ import { createClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { countryToCode } from '@/lib/countries'
 import { toTitleCase } from '@/lib/utils'
+import { sendEmail } from '@/lib/email-service'
+import TournamentGssDecisionEmail from '@/emails/TournamentGssDecisionEmail'
+import AthleteLicenseDecisionEmail from '@/emails/AthleteLicenseDecisionEmail'
+import React from 'react'
 
 export async function promoteToOrganizer(formData: FormData) {
     const user = await getAuthUser()
@@ -110,6 +114,82 @@ export async function rejectOrganization(orgId: string) {
     revalidatePath('/admin')
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// GSS TOURNAMENT APPROVAL
+// A tournament's results only feed the GSS/Elo ranking pipeline once KTM has
+// approved it — set before the event runs. Bracket generation, scoring, and
+// every other tournament feature works regardless of this status.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function getPendingGssTournaments() {
+    const user = await getAuthUser()
+    if (!user) throw new Error('Not authenticated')
+
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+    if (dbUser?.role !== 'ADMIN') throw new Error('Unauthorized')
+
+    return prisma.tournament.findMany({
+        where: { gssApprovalStatus: 'PENDING', status: { not: 'CANCELLED' } },
+        select: {
+            id: true,
+            name: true,
+            startDate: true,
+            tier: true,
+            status: true,
+            organizer: { select: { name: true, email: true, organizationMemberId: true } },
+        },
+        orderBy: { startDate: 'asc' },
+    })
+}
+
+export async function updateTournamentGssApproval(tournamentId: string, approvalStatus: 'APPROVED' | 'REJECTED' | 'PENDING') {
+    const user = await getAuthUser()
+    if (!user) return { success: false, error: 'Not authenticated' }
+
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+    if (dbUser?.role !== 'ADMIN') return { success: false, error: 'Unauthorized' }
+
+    const tournament = await prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        select: {
+            name: true,
+            organizer: { select: { name: true, email: true, organizationMemberId: true } },
+        },
+    })
+    if (!tournament) return { success: false, error: 'Tournament not found' }
+    if (approvalStatus === 'APPROVED' && !tournament.organizer?.organizationMemberId) {
+        return { success: false, error: "This tournament's organizer has no organization membership, so its results can't be attributed to a GSS ranking." }
+    }
+
+    await prisma.tournament.update({
+        where: { id: tournamentId },
+        data: { gssApprovalStatus: approvalStatus },
+    })
+
+    // Notify the organizer by email — the decision + timestamp lands in
+    // their inbox, which doubles as the audit trail for this action.
+    if ((approvalStatus === 'APPROVED' || approvalStatus === 'REJECTED') && tournament.organizer?.email) {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://ktmsports.com'
+        sendEmail({
+            to: tournament.organizer.email,
+            subject: approvalStatus === 'APPROVED'
+                ? `GSS Sanctioning Approved: ${tournament.name}`
+                : `GSS Sanctioning Not Approved: ${tournament.name}`,
+            reactData: React.createElement(TournamentGssDecisionEmail, {
+                organizerName: tournament.organizer.name || 'Organizer',
+                tournamentName: tournament.name,
+                decision: approvalStatus,
+                tournamentLink: `${baseUrl}/tournament/${tournamentId}`,
+            }),
+        }).catch(err => {
+            console.error('[GSS] Failed to send approval decision email:', err)
+        })
+    }
+
+    revalidatePath('/admin')
+    return { success: true }
+}
+
 
 
 export async function promoteToClubMaster(formData: FormData) {
@@ -143,26 +223,18 @@ async function generateAthleteNumber(country: string | null | undefined): Promis
     const year = new Date().getFullYear()
     const prefix = `${code}-${year}-`
 
-    // Find the highest existing athlete number with this prefix
-    const existing = await prisma.user.findMany({
-        where: {
-            athleteNumber: { startsWith: prefix }
-        },
-        select: { athleteNumber: true },
-        orderBy: { athleteNumber: 'desc' },
-        take: 1,
-    })
-
-    let nextNumber = 1
-    if (existing.length > 0 && existing[0].athleteNumber) {
-        const parts = existing[0].athleteNumber.split('-')
-        const currentMax = parseInt(parts[2], 10)
-        if (!isNaN(currentMax)) {
-            nextNumber = currentMax + 1
-        }
+    // Random 7-digit suffix (not sequential) — retry on the rare collision.
+    for (let attempt = 0; attempt < 20; attempt++) {
+        const suffix = Math.floor(Math.random() * 10_000_000).toString().padStart(7, '0')
+        const candidate = `${prefix}${suffix}`
+        const existing = await prisma.user.findFirst({
+            where: { athleteNumber: candidate },
+            select: { id: true },
+        })
+        if (!existing) return candidate
     }
 
-    return `${prefix}${String(nextNumber).padStart(7, '0')}`
+    throw new Error('Failed to generate a unique athlete number after 20 attempts')
 }
 
 export async function toggleAthleteVerification(formData: FormData) {
@@ -216,6 +288,131 @@ export async function toggleAthleteVerification(formData: FormData) {
     }
 
     revalidatePath('/admin/users')
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ATHLETE LICENSE APPROVALS
+// The Athlete License is issued by KTM only — not by the athlete's org. A
+// request can come from either the athlete themselves (app/actions.ts,
+// submitAthleteLicensePaymentProof) or their club master on their behalf
+// (app/club/actions.ts, requestAthleteLicenseActivation). Either way, only a
+// KTM ADMIN can approve or reject it here.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function getPendingLicenseRequests() {
+    const user = await getAuthUser()
+    if (!user) throw new Error('Not authenticated')
+
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+    if (dbUser?.role !== 'ADMIN') throw new Error('Unauthorized')
+
+    return prisma.user.findMany({
+        where: { licensePaymentStatus: 'PENDING_ACTIVATION' },
+        select: {
+            id: true,
+            name: true,
+            email: true,
+            clubName: true,
+            belt: true,
+            country: true,
+            imageUrl: true,
+            licensePaymentProofUrl: true,
+            licenseRequestedVia: true,
+        },
+        orderBy: { name: 'asc' },
+    })
+}
+
+export async function approveAthleteLicense(targetUserId: string) {
+    const user = await getAuthUser()
+    if (!user) return { success: false, error: 'Not authenticated' }
+
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+    if (dbUser?.role !== 'ADMIN') return { success: false, error: 'Unauthorized' }
+
+    const targetUser = await prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { id: true, name: true, email: true, athleteNumber: true, country: true }
+    })
+    if (!targetUser) return { success: false, error: 'Athlete not found' }
+
+    // Generate or renew the athlete number — this is the step the old
+    // payment-approval flow (approveAthleteCardPayment) was missing.
+    let athleteNumber: string
+    if (targetUser.athleteNumber) {
+        const parts = targetUser.athleteNumber.split('-')
+        const code = parts[0]
+        const suffix = parts[2]
+        athleteNumber = `${code}-${new Date().getFullYear()}-${suffix}`
+    } else {
+        athleteNumber = await generateAthleteNumber(targetUser.country)
+    }
+
+    await prisma.user.update({
+        where: { id: targetUserId },
+        data: {
+            isVerified: true,
+            athleteNumber,
+            createdAt: new Date(),
+            licensePaymentStatus: 'APPROVED',
+        }
+    })
+
+    if (targetUser.email) {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://ktmsports.com'
+        sendEmail({
+            to: targetUser.email,
+            subject: 'Athlete License Activated',
+            reactData: React.createElement(AthleteLicenseDecisionEmail, {
+                athleteName: targetUser.name || 'Athlete',
+                decision: 'APPROVED',
+                athleteNumber,
+                dashboardLink: `${baseUrl}/athlete`,
+            }),
+        }).catch(err => {
+            console.error('[License] Failed to send approval email:', err)
+        })
+    }
+
+    revalidatePath('/admin')
+    return { success: true }
+}
+
+export async function rejectAthleteLicense(targetUserId: string) {
+    const user = await getAuthUser()
+    if (!user) return { success: false, error: 'Not authenticated' }
+
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+    if (dbUser?.role !== 'ADMIN') return { success: false, error: 'Unauthorized' }
+
+    const targetUser = await prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { id: true, name: true, email: true }
+    })
+    if (!targetUser) return { success: false, error: 'Athlete not found' }
+
+    await prisma.user.update({
+        where: { id: targetUserId },
+        data: { licensePaymentStatus: 'REJECTED' }
+    })
+
+    if (targetUser.email) {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://ktmsports.com'
+        sendEmail({
+            to: targetUser.email,
+            subject: 'Athlete License Request Update',
+            reactData: React.createElement(AthleteLicenseDecisionEmail, {
+                athleteName: targetUser.name || 'Athlete',
+                decision: 'REJECTED',
+                dashboardLink: `${baseUrl}/athlete`,
+            }),
+        }).catch(err => {
+            console.error('[License] Failed to send rejection email:', err)
+        })
+    }
+
+    revalidatePath('/admin')
+    return { success: true }
 }
 
 // ============= Delete User Action =============
@@ -309,6 +506,65 @@ export async function getPlatformConfig() {
         update: {},
     })
     return config
+}
+
+// Athlete License fee — lives on KTM's own Organization row (licenseFee /
+// licensePaymentInstructions), since KTM is the sole issuer of the license.
+export async function getLicenseFeeSettings() {
+    const { resolveKtmOrgId } = await import('@/lib/tenant')
+    const ktmOrgId = await resolveKtmOrgId()
+    if (!ktmOrgId) return { licenseFee: null, licensePaymentInstructions: null, licensePaymentMethods: [] }
+
+    const org = await prisma.organization.findUnique({
+        where: { id: ktmOrgId },
+        select: { licenseFee: true, licensePaymentInstructions: true, licensePaymentMethods: true },
+    })
+    return {
+        licenseFee: org?.licenseFee ?? null,
+        licensePaymentInstructions: org?.licensePaymentInstructions ?? null,
+        licensePaymentMethods: (org?.licensePaymentMethods as any[]) ?? [],
+    }
+}
+
+export async function updateLicensePaymentMethods(methods: any[]) {
+    const user = await getAuthUser()
+    if (!user) return { error: 'Not authenticated' }
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+    if (dbUser?.role !== 'ADMIN') return { error: 'Unauthorized' }
+
+    const { resolveKtmOrgId } = await import('@/lib/tenant')
+    const ktmOrgId = await resolveKtmOrgId()
+    if (!ktmOrgId) return { error: 'KTM organization not found' }
+
+    await prisma.organization.update({
+        where: { id: ktmOrgId },
+        data: { licensePaymentMethods: methods },
+    })
+
+    revalidatePath('/admin')
+    return { success: true }
+}
+
+export async function updateLicenseFeeSettings(data: { licenseFee: number; licensePaymentInstructions: string }) {
+    const user = await getAuthUser()
+    if (!user) throw new Error('Not authenticated')
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
+    if (dbUser?.role !== 'ADMIN') throw new Error('Unauthorized')
+
+    const { resolveKtmOrgId } = await import('@/lib/tenant')
+    const ktmOrgId = await resolveKtmOrgId()
+    if (!ktmOrgId) throw new Error('KTM organization not found')
+
+    await prisma.organization.update({
+        where: { id: ktmOrgId },
+        data: {
+            licenseFee: data.licenseFee,
+            licensePaymentInstructions: data.licensePaymentInstructions,
+        },
+    })
+
+    revalidatePath('/admin')
+    return { success: true }
 }
 
 export async function updatePlatformBankDetails(data: { bankName: string, accountName: string, accountNumber: string }) {

@@ -6,6 +6,7 @@ import { inviteTournamentManager, cancelTournamentManagerInvite } from '@/app/ac
 import { toast } from 'sonner'
 import { User, TournamentManagerInvite } from '@prisma/client'
 import { Trash2, Mail, CheckCircle, AlertCircle } from 'lucide-react'
+import UserAvatar from '@/components/UserAvatar'
 
 interface TournamentManagersProps {
     tournamentId: string
@@ -148,9 +149,12 @@ export default function TournamentManagers({ tournamentId, managers, pendingInvi
                             {managers.map(manager => (
                                 <li key={manager.id} className="p-4 flex items-center justify-between hover:bg-gray-50">
                                     <div className="flex items-center gap-4">
-                                        <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
-                                            {manager.name ? manager.name.charAt(0) : manager.email.charAt(0)}
-                                        </div>
+                                        <UserAvatar
+                                            name={manager.name || manager.email}
+                                            size={40}
+                                            className="!bg-indigo-100"
+                                            textClassName="!text-indigo-600"
+                                        />
                                         <div>
                                             <p className="font-medium text-gray-900">{manager.name || 'Unknown'}</p>
                                             <p className="text-sm text-gray-500">{manager.email}</p>

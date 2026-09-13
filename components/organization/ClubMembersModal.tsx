@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, Search, Edit2, Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import GlobalDropdown from '@/components/GlobalDropdown'
+import UserAvatar from '@/components/UserAvatar'
 import { getClubMembersForOrg, updateClubMemberAsOrg } from '@/app/organization/actions'
 import { calculateAge } from '@/lib/placement'
 
@@ -146,13 +147,13 @@ export default function ClubMembersModal({ clubId, clubName, isOpen, onClose }: 
                                         <tr key={member.id} className="hover:bg-gray-50 group transition-colors">
                                             <td className="p-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden border border-gray-200">
-                                                        {member.imageUrl ? (
-                                                            <img src={member.imageUrl} alt={member.name || 'User'} className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <span className="text-gray-500 font-bold">{(member.name || 'U').charAt(0)}</span>
-                                                        )}
-                                                    </div>
+                                                    <UserAvatar
+                                                        src={member.imageUrl}
+                                                        name={member.name}
+                                                        size={40}
+                                                        className="!bg-gray-100 border border-gray-200"
+                                                        textClassName="!text-gray-500"
+                                                    />
                                                     <div>
                                                         <div className="font-semibold text-gray-900">{member.name || 'Unknown'}</div>
                                                         <div className="text-xs text-gray-500">{member.email || 'No Email'}</div>

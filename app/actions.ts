@@ -166,6 +166,8 @@ export async function createTournament(formData: FormData) {
                     maxHeight: number | null;
                     gender: string | null;
                     belt: string | null;
+                    division: string | null;
+                    weightClass: string | null;
                 }[] = []
 
                 for (const division of template.divisions) {
@@ -201,7 +203,9 @@ export async function createTournament(formData: FormData) {
                                 // @ts-ignore
                                 belt: belt,
                                 // @ts-ignore
-                                skillLevel: null // No skill level for Poomsae
+                                skillLevel: null, // No skill level for Poomsae
+                                division: division.name,
+                                weightClass: weightCat.name,
                             })
                         } else {
                             // KYORUGI: Create Novice, Intermediate & Advance Variants
@@ -225,7 +229,9 @@ export async function createTournament(formData: FormData) {
                                 // @ts-ignore
                                 belt: weightCat.belt,
                                 // @ts-ignore
-                                skillLevel: 'Novice'
+                                skillLevel: 'Novice',
+                                division: division.name,
+                                weightClass: weightCat.name,
                             })
 
                             // 2. Intermediate
@@ -247,7 +253,9 @@ export async function createTournament(formData: FormData) {
                                 // @ts-ignore
                                 belt: weightCat.belt,
                                 // @ts-ignore
-                                skillLevel: 'Intermediate'
+                                skillLevel: 'Intermediate',
+                                division: division.name,
+                                weightClass: weightCat.name,
                             })
 
                             // 3. Advance
@@ -269,7 +277,9 @@ export async function createTournament(formData: FormData) {
                                 // @ts-ignore
                                 belt: weightCat.belt,
                                 // @ts-ignore
-                                skillLevel: 'Advance'
+                                skillLevel: 'Advance',
+                                division: division.name,
+                                weightClass: weightCat.name,
                             })
                         }
                     }
@@ -2166,7 +2176,11 @@ export async function selectGuidelineTemplate(tournamentId: string, templateId: 
                         poomsaeFormat: (weightCat as any).poomsaeFormat || 'SCORED',
                         // @ts-ignore — schema defaults skillLevel to "Novice" when omitted; must
                         // null it out explicitly for scored disciplines (Poomsae/Kyukpa).
-                        skillLevel: null
+                        skillLevel: null,
+                        // @ts-ignore
+                        division: division.name,
+                        // @ts-ignore
+                        weightClass: weightCat.name
                     })
                 } else {
                     // KYORUGI: Create Novice, Intermediate & Advance Variants
@@ -2181,7 +2195,11 @@ export async function selectGuidelineTemplate(tournamentId: string, templateId: 
                         poomsaeForms: weightCat.poomsaeForms,
                         court: null,
                         // @ts-ignore
-                        skillLevel: 'Novice'
+                        skillLevel: 'Novice',
+                        // @ts-ignore
+                        division: division.name,
+                        // @ts-ignore
+                        weightClass: weightCat.name
                     })
 
                     // 2. Intermediate
@@ -2194,7 +2212,11 @@ export async function selectGuidelineTemplate(tournamentId: string, templateId: 
                         poomsaeForms: weightCat.poomsaeForms,
                         court: null,
                         // @ts-ignore
-                        skillLevel: 'Intermediate'
+                        skillLevel: 'Intermediate',
+                        // @ts-ignore
+                        division: division.name,
+                        // @ts-ignore
+                        weightClass: weightCat.name
                     })
 
                     // 3. Advance
@@ -2207,7 +2229,11 @@ export async function selectGuidelineTemplate(tournamentId: string, templateId: 
                         poomsaeForms: weightCat.poomsaeForms,
                         court: null,
                         // @ts-ignore
-                        skillLevel: 'Advance'
+                        skillLevel: 'Advance',
+                        // @ts-ignore
+                        division: division.name,
+                        // @ts-ignore
+                        weightClass: weightCat.name
                     })
                 }
             }
@@ -3033,7 +3059,10 @@ export async function fetchAthleteDashboardData(clerkId: string, organizationId?
     if (organizationId === undefined) {
         const { getTenant } = await import('@/lib/tenant')
         const tenant = await getTenant()
-        organizationId = tenant.id
+        // KTM's tenant id now resolves to a real Organization row (needed for
+        // GSS tournament-host attribution), but "show all events" has always
+        // been KTM's behavior here (see below) — null preserves that.
+        organizationId = tenant.slug === 'ktm' ? null : tenant.id
     }
     const dbUser = await prisma.user.findUnique({
         where: { clerkId: clerkId },
@@ -3053,6 +3082,9 @@ export async function fetchAthleteDashboardData(clerkId: string, organizationId?
             isVerified: true,
             cardPaymentStatus: true,
             cardPaymentProofUrl: true,
+            licensePaymentStatus: true,
+            licensePaymentProofUrl: true,
+            licenseRequestedVia: true,
             country: true,
         }
     })
@@ -3083,6 +3115,23 @@ export async function fetchAthleteDashboardData(clerkId: string, organizationId?
             athleteCardPaymentInstructions = org?.athleteCardPaymentInstructions || null
             athleteCardPaymentMethods = org?.athleteCardPaymentMethods || null
         }
+    }
+
+    // Athlete License fee/payment info is KTM's own, not the athlete's club's
+    // org — KTM is the sole issuer of the license.
+    let licenseFee: number | null = null
+    let licensePaymentInstructions: string | null = null
+    let licensePaymentMethods: any = null
+    const { resolveKtmOrgId } = await import('@/lib/tenant')
+    const ktmOrgId = await resolveKtmOrgId()
+    if (ktmOrgId) {
+        const ktmOrg = await prisma.organization.findUnique({
+            where: { id: ktmOrgId },
+            select: { licenseFee: true, licensePaymentInstructions: true, licensePaymentMethods: true }
+        })
+        licenseFee = ktmOrg?.licenseFee || null
+        licensePaymentInstructions = ktmOrg?.licensePaymentInstructions || null
+        licensePaymentMethods = ktmOrg?.licensePaymentMethods || null
     }
 
     // Fetch athlete registrations
@@ -3282,7 +3331,10 @@ export async function fetchAthleteDashboardData(clerkId: string, organizationId?
         globalRanking,
         athleteCardFee,
         athleteCardPaymentInstructions,
-        athleteCardPaymentMethods
+        athleteCardPaymentMethods,
+        licenseFee,
+        licensePaymentInstructions,
+        licensePaymentMethods,
     }
 }
 
@@ -3869,6 +3921,112 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
         console.error("Smart Action Failed", e)
         return { error: 'Execution Failed' }
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MANUAL WINNER DECLARATION
+// Lets an organizer/manager/admin declare a bracket winner directly from the
+// UI when there's no external scoring system feeding results in. Feeds the
+// same GSS/Elo ranking pipeline the scoring API uses.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Declares the winner of a Kyorugi match by slot (avoids any ambiguity from
+ * player1/player2 being name snapshots rather than IDs — see lib/gss-ranking.ts).
+ */
+export async function declareKyorugiWinner(matchId: number, winnerSlot: 'player1' | 'player2') {
+    const dbUser = await getAuthUser()
+    if (!dbUser) return { success: false, error: 'Unauthorized' }
+
+    const match = await prisma.match.findUnique({
+        where: { id: matchId },
+        include: { categoryRef: { include: { tournament: { include: { managers: true } } } } }
+    })
+    if (!match || !match.categoryRef?.tournament) return { success: false, error: 'Match not found' }
+
+    const tournament = match.categoryRef.tournament
+    const isOrganizer = tournament.organizerId === dbUser.id
+    const isManager = tournament.managers.some(m => m.id === dbUser.id)
+    const isAdmin = dbUser.role === 'ADMIN'
+    if (!isOrganizer && !isManager && !isAdmin) {
+        return { success: false, error: 'Insufficient permissions' }
+    }
+
+    if (match.winner) return { success: false, error: 'This match already has a winner' }
+
+    const winnerName = winnerSlot === 'player1' ? match.player1 : match.player2
+    if (!winnerName || winnerName === 'BYE' || winnerName === 'TBD') {
+        return { success: false, error: 'Cannot declare a winner for this slot' }
+    }
+
+    const updatedMatch = await prisma.match.update({
+        where: { id: matchId },
+        data: { winner: winnerName }
+    })
+
+    if (match.nextMatchId && match.nextMatchSlot) {
+        await prisma.match.update({
+            where: { id: match.nextMatchId },
+            data: match.nextMatchSlot === 'player1' ? { player1: winnerName } : { player2: winnerName }
+        })
+    }
+
+    const { processMatchResult } = await import('@/lib/gss-ranking')
+    processMatchResult(updatedMatch.id).catch(err => {
+        console.error(`[GSS] Elo update failed for match ${updatedMatch.id}:`, err)
+    })
+
+    revalidatePath(`/tournament/${tournament.id}`)
+    return { success: true }
+}
+
+/**
+ * Declares the winner of a HEAD_TO_HEAD Poomsae pairing by performance number
+ * (1 or 2) rather than playerId, so it also works for TEAM/PAIR entries that
+ * have no playerId of their own.
+ */
+export async function declarePoomsaeWinner(categoryRefId: string, pairingMatchId: number, winningPerformanceNumber: 1 | 2) {
+    const dbUser = await getAuthUser()
+    if (!dbUser) return { success: false, error: 'Unauthorized' }
+
+    const category = await prisma.category.findUnique({
+        where: { id: categoryRefId },
+        include: { tournament: { include: { managers: true } } }
+    })
+    if (!category?.tournament) return { success: false, error: 'Category not found' }
+
+    const tournament = category.tournament
+    const isOrganizer = tournament.organizerId === dbUser.id
+    const isManager = tournament.managers.some(m => m.id === dbUser.id)
+    const isAdmin = dbUser.role === 'ADMIN'
+    if (!isOrganizer && !isManager && !isAdmin) {
+        return { success: false, error: 'Insufficient permissions' }
+    }
+
+    const rows = await prisma.poomsaeMatch.findMany({
+        where: { categoryRefId, matchId: pairingMatchId }
+    })
+    const winnerRow = rows.find(r => r.performanceNumber === winningPerformanceNumber)
+    const loserRow = rows.find(r => r.performanceNumber !== winningPerformanceNumber)
+    if (!winnerRow || !loserRow) return { success: false, error: 'Pairing not found' }
+
+    if (winnerRow.winnerId != null) {
+        return { success: false, error: 'This pairing has already been decided' }
+    }
+
+    await prisma.poomsaeMatch.updateMany({
+        where: { id: { in: [winnerRow.id, loserRow.id] } },
+        data: { status: 'Completed' }
+    })
+
+    const { resolvePoomsaeHeadToHeadResult } = await import('@/lib/poomsae-progression')
+    await resolvePoomsaeHeadToHeadResult(
+        { ...winnerRow, status: 'Completed' },
+        { ...loserRow, status: 'Completed' }
+    )
+
+    revalidatePath(`/tournament/${tournament.id}`)
+    return { success: true }
 }
 
 export async function checkEmailAvailability(email: string) {
@@ -4588,6 +4746,63 @@ export async function rejectAthleteCardPayment(userId: string) {
     } catch (error) {
         console.error('Reject athlete card error:', error)
         return { error: 'Failed to reject athlete card.' }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// ATHLETE LICENSE — self-registration path. Issued by KTM only; approval
+// lives in app/admin/actions.ts (approveAthleteLicense/rejectAthleteLicense).
+// The other request path (a club master requesting on an athlete's behalf)
+// lives in app/club/actions.ts.
+// ─────────────────────────────────────────────────────────────
+
+export async function submitAthleteLicensePaymentProof(formData: FormData) {
+    const userId = formData.get('userId') as string
+    const proofFile = formData.get('proofImage') as File | null
+
+    if (!userId || !proofFile || proofFile.size === 0) {
+        return { error: 'Invalid submission data.' }
+    }
+
+    const authUser = await getAuthUser()
+    if (!authUser || authUser.id !== userId) {
+        return { error: 'Unauthorized.' }
+    }
+
+    try {
+        const bytes = await proofFile.arrayBuffer()
+        const buffer = Buffer.from(bytes)
+        const timestamp = Date.now()
+        const safeName = proofFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+        const filename = `license-activations/${userId}-${timestamp}-${safeName}`
+
+        const { error: uploadError } = await supabase.storage
+            .from('proof-of-payment')
+            .upload(filename, buffer, {
+                contentType: proofFile.type,
+                upsert: false
+            })
+
+        if (uploadError) throw uploadError
+
+        const { data: { publicUrl } } = supabase.storage
+            .from('proof-of-payment')
+            .getPublicUrl(filename)
+
+        await prisma.user.update({
+            where: { id: userId },
+            data: {
+                licensePaymentProofUrl: publicUrl,
+                licensePaymentStatus: 'PENDING_ACTIVATION',
+                licenseRequestedVia: 'SELF',
+            }
+        })
+
+        revalidatePath('/athlete')
+        return { success: true }
+    } catch (error) {
+        console.error('Athlete license payment proof upload error:', error)
+        return { error: 'Failed to upload payment proof.' }
     }
 }
 

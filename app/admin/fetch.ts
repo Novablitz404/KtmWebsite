@@ -16,7 +16,7 @@ async function checkAdmin() {
     return true
 }
 
-export async function fetchAdminUsers(page = 1, pageSize = 10, search = '', roleFilter = 'ALL') {
+export async function fetchAdminUsers(page = 1, pageSize = 15, search = '', roleFilter = 'ALL') {
     await checkAdmin()
 
     const skip = (page - 1) * pageSize

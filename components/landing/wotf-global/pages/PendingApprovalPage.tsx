@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { Clock, LogOut } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { createBrowserClient } from '@/lib/supabase/client'
+import UserAvatar from '@/components/UserAvatar'
 import { useRouter } from 'next/navigation'
 
 interface PendingApprovalPageProps {
@@ -76,13 +77,13 @@ export default function PendingApprovalPage({ user }: PendingApprovalPageProps) 
                         {/* User info card */}
                         <div className="bg-black border border-white/5 rounded-xl p-4 space-y-3">
                             <div className="flex items-center gap-3">
-                                {user.imageUrl ? (
-                                    <Image src={user.imageUrl} alt="" width={40} height={40} className="rounded-full object-cover" />
-                                ) : (
-                                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-600 text-sm font-bold">
-                                        {user.name?.charAt(0) || '?'}
-                                    </div>
-                                )}
+                                <UserAvatar
+                                    src={user.imageUrl}
+                                    name={user.name}
+                                    size={40}
+                                    className="!bg-white/5"
+                                    textClassName="!text-gray-600"
+                                />
                                 <div className="text-left">
                                     <p className="text-white font-bold text-sm">{user.name || 'Athlete'}</p>
                                     <p className="text-gray-500 text-xs">{user.clubName || 'No club selected'}</p>

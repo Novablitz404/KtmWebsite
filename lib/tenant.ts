@@ -17,13 +17,34 @@ export type TenantConfig = typeof KTM_DEFAULT
 const orgIdCache = new Map<string, { id: string; timestamp: number }>()
 const CACHE_TTL = 60 * 1000 // 1 minute
 
+/**
+ * Resolves the real Organization row backing the 'ktm' tenant. KTM used to be
+ * a special id:null case with no backing org row — it now has a real
+ * Organization (slug: 'ktm') so that "which org hosted this tournament"
+ * resolves the same way for every tournament, KTM's own included, instead of
+ * needing a special case throughout the GSS/ranking pipeline.
+ */
+export async function resolveKtmOrgId(): Promise<string | null> {
+    const cached = orgIdCache.get('ktm')
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        return cached.id
+    }
+    const org = await prisma.organization.findFirst({ where: { slug: 'ktm' }, select: { id: true } })
+    if (org) {
+        orgIdCache.set('ktm', { id: org.id, timestamp: Date.now() })
+        return org.id
+    }
+    return null
+}
+
 export async function getTenant(): Promise<TenantConfig> {
     const headersList = await headers()
     const orgSlug = headersList.get('x-org-slug')
     const isMappedDomain = headersList.get('x-tenant-mapped-domain') === '1'
 
     if (!orgSlug || orgSlug === 'ktm') {
-        return KTM_DEFAULT
+        const ktmOrgId = await resolveKtmOrgId()
+        return { ...KTM_DEFAULT, id: ktmOrgId }
     }
 
     // Get branding from repo config

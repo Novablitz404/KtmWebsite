@@ -1,5 +1,6 @@
 import { fetchRankings } from '@/app/rankings/fetch'
 import { Shield } from 'lucide-react'
+import UserAvatar from '@/components/UserAvatar'
 import WOTFRankingFilters from '@/components/landing/wotf/pages/WOTFRankingFilters'
 import Link from 'next/link'
 import Navbar from "@/components/landing/wotf/Navbar"
@@ -114,15 +115,14 @@ export default async function WOTFRankingPage({ searchParams }: Props) {
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="flex items-center gap-4">
                                                         {/* Profile Avatar */}
-                                                        <div className="relative w-12 h-12 rounded bg-gray-100 border border-gray-200 overflow-hidden flex-shrink-0">
-                                                            {athlete.profileImage ? (
-                                                                <img src={athlete.profileImage} alt={athlete.name} className="w-full h-full object-cover" />
-                                                            ) : (
-                                                                <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400 font-black text-lg">
-                                                                    {athlete.name.charAt(0)}
-                                                                </div>
-                                                            )}
-                                                        </div>
+                                                        <UserAvatar
+                                                            src={athlete.profileImage}
+                                                            name={athlete.name}
+                                                            size={48}
+                                                            rounded="md"
+                                                            className="!bg-gray-100 border border-gray-200"
+                                                            textClassName="!text-gray-400"
+                                                        />
 
                                                         <div className="flex flex-col">
                                                             <Link href={`/athlete/${athlete.userId}`} className="font-bold text-congo-blue text-base hover:underline tracking-tight">

@@ -15,7 +15,8 @@ import {
 import {
     generateAllBrackets, getTournamentAlerts, initiateSmartProposal, forceExecuteSmartAction,
     bulkUpdateCourts, previewCategoryBracket, reshuffleCategoryPreview, movePlayerToCategory,
-    updateCategoryDaySettings, generateBracketsForCategory, simulateMatchSequence, previewDayMatchSchedule, getPlayerClubMap
+    updateCategoryDaySettings, generateBracketsForCategory, simulateMatchSequence, previewDayMatchSchedule, getPlayerClubMap,
+    declareKyorugiWinner, declarePoomsaeWinner
 } from '@/app/actions'
 import {
     Trophy, Medal, Wand2, Loader2, AlertCircle, Search,
@@ -1608,6 +1609,36 @@ function CollapsibleBracket({
         finally { setSavingCourt(false) }
     }
 
+    // ── Manual "declare winner" — for organizers not using the external scoring
+    // API. Kyorugi identifies by match id + slot; Poomsae head-to-head identifies
+    // by the pairing's shared matchId + performance number (1/2), since the
+    // adapted bracket's player1/player2 are display names, not IDs. ───────────
+    const router = useRouter()
+
+    async function handleDeclareKyorugiWinner(match: Match, slot: 'player1' | 'player2') {
+        const result = await declareKyorugiWinner(match.id, slot)
+        if (result.success) {
+            toast.success('Winner declared')
+            router.refresh()
+        } else {
+            toast.error(result.error || 'Failed to declare winner')
+        }
+    }
+
+    async function handleDeclarePoomsaeWinner(match: Match, slot: 'player1' | 'player2') {
+        if (!match.categoryRefId || match.matchId == null) {
+            toast.error('Failed to declare winner')
+            return
+        }
+        const result = await declarePoomsaeWinner(match.categoryRefId, match.matchId, slot === 'player1' ? 1 : 2)
+        if (result.success) {
+            toast.success('Winner declared')
+            router.refresh()
+        } else {
+            toast.error(result.error || 'Failed to declare winner')
+        }
+    }
+
     // ── Day / Defer scheduling — a plain Category field, editable regardless of
     // whether this category's bracket has been generated yet ──────────────────
     const [savingDay, startDayTransition] = useTransition()
@@ -2036,6 +2067,8 @@ function CollapsibleBracket({
                                     tournamentName={tournamentName}
                                     categoryName={category.name}
                                     categoryId={category.id}
+                                    canManage={!publicView}
+                                    onDeclareWinner={handleDeclarePoomsaeWinner}
                                 />
                             ) : isPoomsae ? (
                                 <PoomsaeBracketView
@@ -2049,6 +2082,8 @@ function CollapsibleBracket({
                                     tournamentName={tournamentName}
                                     categoryName={category.name}
                                     categoryId={category.id}
+                                    canManage={!publicView}
+                                    onDeclareWinner={handleDeclareKyorugiWinner}
                                 />
                             )}
                         </div>

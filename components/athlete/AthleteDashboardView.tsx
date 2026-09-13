@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trophy, Medal, Calendar, Zap, Clock, Mail, QrCode, X, ClipboardList, ShieldCheck, Copy, Check, Eye } from 'lucide-react'
+import UserAvatar from '@/components/UserAvatar'
 import Link from 'next/link'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { fetchAthleteDashboardData, unregisterFromTournament, submitAthleteCardPaymentProof } from '@/app/actions'
+import { fetchAthleteDashboardData, unregisterFromTournament, submitAthleteLicensePaymentProof } from '@/app/actions'
 import AthleteSidebar from '@/components/athlete/AthleteSidebar'
 import AthleteTopBar from '@/components/athlete/AthleteTopBar'
 
@@ -20,6 +21,9 @@ interface AthleteDashboardViewProps {
     clerkId: string
     imageUrl?: string | null
     initialData?: Awaited<ReturnType<typeof fetchAthleteDashboardData>>
+    tenantId?: string
+    tenantSlug?: string
+    tenantIsMappedDomain?: boolean
 }
 
 // Belt color mapping
@@ -36,12 +40,15 @@ const BELT_COLORS: Record<string, { bg: string; text: string; border: string }> 
 export default function AthleteDashboardView({
     clerkId,
     imageUrl,
-    initialData
+    initialData,
+    tenantId,
+    tenantSlug,
+    tenantIsMappedDomain
 }: AthleteDashboardViewProps) {
     // ALL HOOKS MUST BE AT THE TOP - before any early returns
     const searchParams = useSearchParams()
     const initialView = (searchParams.get('tab') as any) || 'home'
-    const [activeView, setActiveView] = useState<'home' | 'events' | 'achievements' | 'settings' | 'ranking' | 'support'>(initialView)
+    const [activeView, setActiveView] = useState<'home' | 'events' | 'achievements' | 'settings' | 'support'>(initialView)
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
     const [registrationTab, setRegistrationTab] = useState<'tournament' | 'seminar' | 'promotion'>('tournament')
     const [achievementsPage, setAchievementsPage] = useState(1)
@@ -54,6 +61,10 @@ export default function AthleteDashboardView({
     const [copiedNo, setCopiedNo] = useState<string | null>(null)
     const [viewingPaymentQr, setViewingPaymentQr] = useState<string | null>(null)
     const [viewingQr, setViewingQr] = useState<any>(null)
+
+    // Preserve the tenant override on links out to /rankings — without it,
+    // the org-branded rankings page falls back to KTM's own.
+    const rankingsHref = tenantSlug && !tenantIsMappedDomain ? `/rankings?tenant=${tenantSlug}` : '/rankings'
 
     // Scroll lock for all modals
     useEffect(() => {
@@ -145,7 +156,7 @@ export default function AthleteDashboardView({
             formData.append('userId', dbUser.id)
             formData.append('proofImage', activationProof)
 
-            const result = await submitAthleteCardPaymentProof(formData)
+            const result = await submitAthleteLicensePaymentProof(formData)
 
             if (result?.error) {
                 toast.error(result.error)
@@ -187,15 +198,13 @@ export default function AthleteDashboardView({
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="18" y2="18" /></svg>
                     </button>
 
-                    <div className="w-8 h-8 rounded-full bg-gray-100 overflow-hidden border border-gray-200">
-                        {imageUrl ? (
-                            <img src={imageUrl} alt="Profile" className="w-full h-full object-cover" />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-400">
-                                {dbUser?.name?.charAt(0) || 'A'}
-                            </div>
-                        )}
-                    </div>
+                    <UserAvatar
+                        src={imageUrl}
+                        name={dbUser?.name || 'Athlete'}
+                        size={32}
+                        className="!bg-gray-100 border border-gray-200"
+                        textClassName="!text-gray-400"
+                    />
                 </div>
 
                 {/* Calculate Achievements */}
@@ -507,7 +516,7 @@ export default function AthleteDashboardView({
                                 {/* Membership Status */}
                                 <div className="bg-white rounded-2xl border border-gray-100/80 shadow-sm overflow-hidden">
                                     <div className="px-5 py-3.5 border-b border-gray-50">
-                                        <h3 className="text-xs font-black text-gray-900 uppercase tracking-[1.5px]">Membership</h3>
+                                        <h3 className="text-xs font-black text-gray-900 uppercase tracking-[1.5px]">Athlete License</h3>
                                     </div>
                                     <div className="p-5">
                                         <div className="text-center mb-4">
@@ -516,6 +525,11 @@ export default function AthleteDashboardView({
                                                     <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                                                     Active
                                                 </div>
+                                            ) : dbUser?.licensePaymentStatus === 'PENDING_ACTIVATION' ? (
+                                                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold bg-blue-50 text-blue-600">
+                                                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                                                    Pending KTM Review
+                                                </div>
                                             ) : (
                                                 <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold bg-amber-50 text-amber-600">
                                                     <span className="w-2 h-2 rounded-full bg-amber-500" />
@@ -523,6 +537,15 @@ export default function AthleteDashboardView({
                                                 </div>
                                             )}
                                         </div>
+                                        {!dbUser?.isVerified && dbUser?.licensePaymentStatus !== 'PENDING_ACTIVATION' && (
+                                            <button
+                                                onClick={() => setShowActivationModal(true)}
+                                                className="w-full mb-4 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                                            >
+                                                <ShieldCheck className="w-4 h-4" />
+                                                Activate Athlete License
+                                            </button>
+                                        )}
                                         <div className="space-y-3">
                                             <div className="flex items-center justify-between text-xs">
                                                 <span className="text-gray-400 font-medium">Status</span>
@@ -541,7 +564,7 @@ export default function AthleteDashboardView({
                                             </div>
                                             <div className="h-px bg-gray-50" />
                                             <div className="flex items-center justify-between text-xs">
-                                                <span className="text-gray-400 font-medium">Athlete ID</span>
+                                                <span className="text-gray-400 font-medium">License Number</span>
                                                 <span className="font-bold text-gray-800">{dbUser?.athleteNumber || '—'}</span>
                                             </div>
                                             <div className="h-px bg-gray-50" />
@@ -553,62 +576,50 @@ export default function AthleteDashboardView({
                                     </div>
                                 </div>
 
-                                {/* Journey Timeline */}
-                                <div className="bg-white rounded-2xl border border-gray-100/80 shadow-sm overflow-hidden">
-                                    <div className="px-5 py-3.5 border-b border-gray-50">
-                                        <h3 className="text-xs font-black text-gray-900 uppercase tracking-[1.5px]">Journey</h3>
+                                {/* Ranking */}
+                                <div className="bg-white rounded-2xl border border-gray-100/80 shadow-sm overflow-hidden flex flex-col">
+                                    <div className="px-5 py-3.5 border-b border-gray-50 flex items-center justify-between">
+                                        <h3 className="text-xs font-black text-gray-900 uppercase tracking-[1.5px]">Ranking</h3>
+                                        <Trophy className="w-3.5 h-3.5 text-gray-300" />
                                     </div>
-                                    <div className="p-5">
-                                        <div className="relative pl-6 space-y-5">
-                                            {/* Timeline line */}
-                                            <div className="absolute left-[7px] top-1 bottom-1 w-[2px] bg-gradient-to-b from-red-500 via-amber-400 to-green-500 rounded-full opacity-40" />
-
-                                            {/* Registration */}
-                                            <div className="relative">
-                                                <div className="absolute -left-6 top-0.5 w-[16px] h-[16px] rounded-full bg-red-500 border-[3px] border-white shadow-sm" />
-                                                <div>
-                                                    <p className="text-xs font-bold text-gray-800">Registered</p>
-                                                    <p className="text-[10px] text-gray-400 font-medium mt-0.5">
-                                                        {dbUser?.birthDate ? 'Member' : 'Profile created'}
-                                                    </p>
+                                    <div className="p-5 flex-1 flex flex-col">
+                                        {data?.globalRanking ? (
+                                            <div className="flex items-center justify-around">
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-3xl font-black text-red-600 tracking-tight">#{data.globalRanking.bestRank}</span>
+                                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">Rank</span>
+                                                </div>
+                                                <div className="h-10 w-px bg-gray-100" />
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-3xl font-black text-gray-900 tracking-tight">{data.globalRanking.totalPoints.toFixed(0)}</span>
+                                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">Points</span>
                                                 </div>
                                             </div>
-
-                                            {/* Club */}
-                                            {dbUser?.clubName && (
-                                                <div className="relative">
-                                                    <div className="absolute -left-6 top-0.5 w-[16px] h-[16px] rounded-full bg-amber-400 border-[3px] border-white shadow-sm" />
-                                                    <div>
-                                                        <p className="text-xs font-bold text-gray-800">Joined {dbUser.clubName}</p>
-                                                        <p className="text-[10px] text-gray-400 font-medium mt-0.5">Club assignment</p>
-                                                    </div>
+                                        ) : (
+                                            <div className="flex items-center justify-around opacity-60">
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-3xl font-black text-gray-300 tracking-tight">---</span>
+                                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">Rank</span>
                                                 </div>
-                                            )}
-
-                                            {/* Rank */}
-                                            {dbUser?.belt && (
-                                                <div className="relative">
-                                                    <div className="absolute -left-6 top-0.5 w-[16px] h-[16px] rounded-full bg-green-500 border-[3px] border-white shadow-sm" />
-                                                    <div>
-                                                        <p className="text-xs font-bold text-gray-800">Rank: {dbUser.belt}</p>
-                                                        <p className="text-[10px] text-gray-400 font-medium mt-0.5">Belt progression</p>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {/* Events */}
-                                            <div className="relative">
-                                                <div className={`absolute -left-6 top-0.5 w-[16px] h-[16px] rounded-full ${completedEvents.length > 0 ? 'bg-green-500' : 'bg-gray-300'} border-[3px] border-white shadow-sm`} />
-                                                <div>
-                                                    <p className="text-xs font-bold text-gray-800">
-                                                        {completedEvents.length > 0 ? `${completedEvents.length} event${completedEvents.length > 1 ? 's' : ''} completed` : 'No events yet'}
-                                                    </p>
-                                                    <p className="text-[10px] text-gray-400 font-medium mt-0.5">
-                                                        {upcomingEvents.length > 0 ? `${upcomingEvents.length} upcoming` : 'Browse events to get started'}
-                                                    </p>
+                                                <div className="h-10 w-px bg-gray-100" />
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-3xl font-black text-gray-300 tracking-tight">---</span>
+                                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">Points</span>
                                                 </div>
                                             </div>
-                                        </div>
+                                        )}
+                                        {!data?.globalRanking && (
+                                            <p className="text-[10px] text-gray-400 font-medium text-center mt-auto mb-2">
+                                                Compete in GSS-ranked events to get ranked
+                                            </p>
+                                        )}
+                                        <Link
+                                            href={rankingsHref}
+                                            className={`${data?.globalRanking ? 'mt-auto' : ''} w-full py-2.5 rounded-xl bg-gray-900 text-white text-sm font-bold hover:bg-gray-800 transition-colors flex items-center justify-center gap-2`}
+                                        >
+                                            <Trophy className="w-4 h-4" />
+                                            See All Rankings
+                                        </Link>
                                     </div>
                                 </div>
                             </div>
@@ -659,7 +670,7 @@ export default function AthleteDashboardView({
                                 {registrationTab === 'tournament' && (
                                     <>
                                         {registrations.length === 0 ? (
-                                            <div className="p-10 text-center">
+                                            <div className="flex-1 flex flex-col items-center justify-center p-10 text-center">
                                                 <div className="text-4xl mb-3">🏆</div>
                                                 <h3 className="text-sm font-bold text-gray-900 mb-1">No tournament registrations</h3>
                                                 <p className="text-gray-500 text-sm">Ask your club master to register you for a tournament.</p>
@@ -813,7 +824,7 @@ export default function AthleteDashboardView({
                                 {registrationTab === 'seminar' && (
                                     <>
                                         {seminarRegs.length === 0 ? (
-                                            <div className="p-10 text-center">
+                                            <div className="flex-1 flex flex-col items-center justify-center p-10 text-center">
                                                 <div className="text-4xl mb-3">📚</div>
                                                 <h3 className="text-sm font-bold text-gray-900 mb-1">No seminar registrations</h3>
                                                 <p className="text-gray-500 text-sm">Ask your club master to register you for a seminar.</p>
@@ -925,7 +936,7 @@ export default function AthleteDashboardView({
                                 {registrationTab === 'promotion' && (
                                     <>
                                         {promotionRegs.length === 0 ? (
-                                            <div className="p-10 text-center">
+                                            <div className="flex-1 flex flex-col items-center justify-center p-10 text-center">
                                                 <div className="text-4xl mb-3">🥋</div>
                                                 <h3 className="text-sm font-bold text-gray-900 mb-1">No promotion registrations</h3>
                                                 <p className="text-gray-500 text-sm">Ask your club master to register you for a belt promotion test.</p>
@@ -1042,102 +1053,6 @@ export default function AthleteDashboardView({
                             </div>
 
                         </div>
-                    </div>
-                )}
-
-                {activeView === 'ranking' && (
-                    <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-12">
-                        {dashboardData?.globalRanking ? (
-                            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center bg-white rounded-2xl shadow-sm border border-gray-200 p-12">
-                                <div className="w-20 h-20 bg-gradient-to-br from-red-100 to-amber-100 rounded-full flex items-center justify-center mb-6 shadow-sm ring-4 ring-red-50">
-                                    <Trophy className="w-10 h-10 text-red-600" />
-                                </div>
-                                <h2 className="text-2xl font-black text-gray-900 mb-2">
-                                    <span className="text-red-600">Global</span> Rank Achieved
-                                </h2>
-                                <p className="text-gray-500 max-w-md mb-8 leading-relaxed">
-                                    Your verified ranking points based on the World Taekwondo Decay Protocol.
-                                </p>
-
-                                <div className="flex flex-wrap justify-center gap-4 mb-8">
-                                    <div className="px-6 py-4 bg-gradient-to-b from-gray-50 to-white rounded-xl border border-gray-200 shadow-sm flex flex-col items-center min-w-[160px]">
-                                        <span className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">Global Points</span>
-                                        <span className="text-4xl font-black text-gray-900 tracking-tight">{dashboardData.globalRanking.totalPoints.toFixed(2)}</span>
-                                    </div>
-                                    <div className="px-6 py-4 bg-gradient-to-b from-gray-50 to-white rounded-xl border border-gray-200 shadow-sm flex flex-col items-center min-w-[160px]">
-                                        <span className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">Global Rank</span>
-                                        <span className="text-4xl font-black text-red-600 tracking-tight">#{dashboardData.globalRanking.bestRank}</span>
-                                    </div>
-                                </div>
-
-                                {dashboardData.globalRanking.disciplines.length > 0 && (
-                                    <div className="w-full max-w-md">
-                                        <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 text-left">Disciplines</h4>
-                                        <div className="space-y-2">
-                                            {dashboardData.globalRanking.disciplines.map((disc: any) => (
-                                                <div key={disc.type} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                                    <span className="font-bold text-gray-700">{disc.type}</span>
-                                                    <div className="text-right flex items-center gap-4">
-                                                        <span className="text-sm font-bold text-gray-900">{disc.points.toFixed(2)} pts</span>
-                                                        <span className="text-xs font-bold text-gray-400 bg-gray-200/50 px-2 py-1 rounded-md">Rank #{disc.rank}</span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                <Link href="/rankings" className="mt-8 px-6 py-2.5 bg-gray-900 text-white font-semibold rounded-lg hover:bg-gray-800 transition-colors">
-                                    View Global Leaderboard
-                                </Link>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center min-h-[60vh] bg-white rounded-2xl shadow-sm border border-gray-200 p-12">
-                                <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-6 w-full max-w-2xl">
-                                    <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-50 rounded-full flex items-center justify-center shadow-sm flex-shrink-0">
-                                        <Trophy className="w-10 h-10 text-gray-400" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-2xl font-black text-gray-900 mb-2">Unranked</h2>
-                                        <p className="text-gray-500 leading-relaxed">
-                                            You have not achieved any verified global ranking points yet. Compete in GSS-ranked events to earn your spot on the leaderboard!
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="flex gap-4 mt-8">
-                                    <div className="px-5 py-3 bg-gray-50 rounded-xl border border-gray-100 flex flex-col items-center min-w-[140px] opacity-70">
-                                        <span className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Global Rank</span>
-                                        <span className="text-2xl font-bold text-gray-300">---</span>
-                                    </div>
-                                    <div className="px-5 py-3 bg-gray-50 rounded-xl border border-gray-100 flex flex-col items-center min-w-[140px] opacity-70">
-                                        <span className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Points</span>
-                                        <span className="text-2xl font-bold text-gray-300">---</span>
-                                    </div>
-                                </div>
-
-                                {/* Athlete Card Notice */}
-                                {!dbUser?.isVerified && (
-                                    <div className="mt-6 w-full max-w-md bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-                                        <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <path d="M12 9v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <p className="text-sm font-bold text-amber-800">Athlete Card Required</p>
-                                            <p className="text-xs text-amber-600 mt-0.5 leading-relaxed">
-                                                To earn a GSS rating and appear on the global leaderboard, you need an activated Athlete Card. Contact your organization to get verified.
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                <Link href="/rankings" className="mt-8 px-6 py-2.5 bg-gray-100 text-gray-600 font-semibold rounded-lg hover:bg-gray-200 transition-colors">
-                                    View Global Leaderboard
-                                </Link>
-                            </div>
-                        )}
                     </div>
                 )}
 
@@ -1377,7 +1292,7 @@ export default function AthleteDashboardView({
                         <div className="flex justify-between items-center p-4 border-b border-gray-100">
                             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                                 <ShieldCheck className="w-5 h-5 text-red-600" />
-                                Activate Athlete Card
+                                Activate Athlete License
                             </h3>
                             <button
                                 onClick={() => { setShowActivationModal(false); setActivationProof(null); }}
@@ -1392,21 +1307,21 @@ export default function AthleteDashboardView({
                                 <div className="flex justify-between items-center mb-2">
                                     <p className="font-semibold text-blue-900">Manual Payment Required</p>
                                     <span className="font-bold text-blue-900 bg-blue-100 px-2 py-0.5 rounded-full text-xs">
-                                        {data?.athleteCardFee ? `₱${data.athleteCardFee.toLocaleString()}` : 'Fee TBA'}
+                                        {data?.licenseFee ? `₱${data.licenseFee.toLocaleString()}` : 'Fee TBA'}
                                     </span>
                                 </div>
-                                {data?.athleteCardPaymentInstructions ? (
-                                    <p className="whitespace-pre-wrap leading-relaxed bg-white/60 p-2.5 rounded border border-blue-100 mt-2">{data.athleteCardPaymentInstructions}</p>
+                                {data?.licensePaymentInstructions ? (
+                                    <p className="whitespace-pre-wrap leading-relaxed bg-white/60 p-2.5 rounded border border-blue-100 mt-2">{data.licensePaymentInstructions}</p>
                                 ) : (
-                                    <p>To activate your athlete card, please pay the activation fee directly to your organization and upload the proof of payment below.</p>
+                                    <p>To activate your Athlete License, please pay the activation fee directly to KTM and upload the proof of payment below. Alternatively, you can pay your club master and have them request activation for you.</p>
                                 )}
                             </div>
 
-                            {data?.athleteCardPaymentMethods && data.athleteCardPaymentMethods.length > 0 && (
+                            {data?.licensePaymentMethods && data.licensePaymentMethods.length > 0 && (
                                 <div className="space-y-3">
                                     <h4 className="text-sm font-bold text-gray-900">Payment Methods</h4>
                                     <div className="grid gap-3">
-                                        {data.athleteCardPaymentMethods.map((pm: any) => (
+                                        {data.licensePaymentMethods.map((pm: any) => (
                                             <div key={pm.id} className="bg-gray-50 border border-gray-200 rounded-xl p-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
                                                 {pm.qrCodeUrl && (
                                                     <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 bg-white flex-shrink-0 group">

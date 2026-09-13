@@ -53,8 +53,12 @@ export default async function AthleteDashboardPage({
     // Check if profile is complete
     const isProfileComplete = dbUser.height && dbUser.weight
 
-    // Fetch initial dashboard data server-side (scoped by tenant org)
-    const initialDashboardData = await fetchAthleteDashboardData(dbUser.clerkId!, tenant.id)
+    // Fetch initial dashboard data server-side (scoped by tenant org).
+    // KTM's tenant id now resolves to a real Organization row (needed for GSS
+    // tournament-host attribution), but "My Events" on KTM has always meant
+    // "show events from every org," not "just KTM's own" — pass undefined
+    // for KTM so fetchAthleteDashboardData keeps its existing no-filter path.
+    const initialDashboardData = await fetchAthleteDashboardData(dbUser.clerkId!, tenant.slug === 'ktm' ? undefined : tenant.id)
 
     return (
         <main className="min-h-screen bg-gray-50">
@@ -63,6 +67,9 @@ export default async function AthleteDashboardPage({
                 clerkId={dbUser.clerkId!}
                 imageUrl={dbUser.imageUrl}
                 initialData={initialDashboardData}
+                tenantId={tenant.id || undefined}
+                tenantSlug={tenant.slug}
+                tenantIsMappedDomain={tenant.isMappedDomain}
             />
         </main>
     )

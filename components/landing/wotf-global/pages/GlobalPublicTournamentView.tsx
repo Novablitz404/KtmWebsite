@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Calendar, MapPin, ChevronRight, FileText } from 'lucide-react'
 import { Tournament, Player as PrismaPlayer } from '@prisma/client'
+import UserAvatar from '@/components/UserAvatar'
 
 // Extended Player type with enriched fields
 type Player = PrismaPlayer & {
@@ -305,15 +306,13 @@ export default function GlobalPublicTournamentView(props: PublicTournamentViewPr
                                             </div>
 
                                             <div className="relative z-10 mb-3 mt-1">
-                                                <div className="relative w-14 h-14 rounded-full bg-[#222] border border-white/10 overflow-hidden flex-shrink-0">
-                                                    {athlete.imageUrl ? (
-                                                        <img src={athlete.imageUrl} alt={athlete.name} className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center bg-[#222] text-gray-400 font-black text-xl uppercase">
-                                                            {athlete.name.charAt(0)}
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                <UserAvatar
+                                                    src={athlete.imageUrl}
+                                                    name={athlete.name}
+                                                    size={56}
+                                                    className="!bg-[#222] border border-white/10"
+                                                    textClassName="!text-gray-400"
+                                                />
                                                 {athlete.belt && (
                                                     <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
                                                         <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border shadow-sm ${athlete.belt === 'Black' ? 'bg-black text-white border-white/20' :

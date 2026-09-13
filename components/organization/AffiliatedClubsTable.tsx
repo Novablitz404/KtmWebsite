@@ -415,7 +415,7 @@ function ClubDetailModal({ club, onClose }: { club: ClubData, onClose: () => voi
     const [memberPage, setMemberPage] = useState(1)
     const [showAddForm, setShowAddForm] = useState(false)
     const [viewingProof, setViewingProof] = useState<string | null>(null)
-    const MEMBERS_PER_PAGE = 10
+    const MEMBERS_PER_PAGE = 15
 
     // Revocation state
     const [showRevokeClubModal, setShowRevokeClubModal] = useState(false)

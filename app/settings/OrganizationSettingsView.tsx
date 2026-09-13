@@ -4,6 +4,7 @@ import LogoutButton from '@/components/LogoutButton'
 import OrganizationTransferOwnership from '@/components/organization/OrganizationTransferOwnership'
 import SettingsSubTabs from './SettingsSubTabs'
 import SecurityForm from './SecurityForm'
+import UserAvatar from '@/components/UserAvatar'
 import NetworkSettingsContent from './NetworkSettingsContent'
 import OrganizationAffiliationManager from '@/components/OrganizationAffiliationManager'
 import PromotionFeesManager from '@/app/components/PromotionFeesManager'
@@ -56,17 +57,13 @@ export default async function OrganizationSettingsView({ dbUser, organization, c
                     <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
                         {/* Avatar */}
                         <div className="flex-shrink-0">
-                            {clerkImageUrl ? (
-                                <img
-                                    src={clerkImageUrl}
-                                    alt={dbUser.name || 'Admin'}
-                                    className="w-20 h-20 rounded-2xl border-2 border-gray-100 shadow-sm object-cover"
-                                />
-                            ) : (
-                                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-3xl font-black border-2 border-gray-100 shadow-sm text-gray-400">
-                                    {dbUser.name ? dbUser.name.charAt(0).toUpperCase() : 'A'}
-                                </div>
-                            )}
+                            <UserAvatar
+                                src={clerkImageUrl}
+                                name={dbUser.name || 'Admin'}
+                                size={80}
+                                rounded="2xl"
+                                className="border-2 border-gray-100 shadow-sm"
+                            />
                         </div>
                         {/* Info */}
                         <div className="flex-1 text-center sm:text-left">

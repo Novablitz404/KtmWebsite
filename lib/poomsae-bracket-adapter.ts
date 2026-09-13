@@ -36,10 +36,16 @@ export function adaptPoomsaeMatchesToBracket(poomsaeMatches: PoomsaeMatchWithPla
         const sideB = rows.find(r => r.performanceNumber === 2)
         const first = sideA || sideB || rows[0]
 
-        // Winner (tie-break by accuracy), mirroring advancePoomsaeWinner in
-        // app/api/tournament/[id]/poomsae/route.ts — full tie is left unresolved.
+        // Winner — primarily read from the persisted winnerId (set by
+        // resolvePoomsaeHeadToHeadResult for both score-based and manually
+        // declared decisions). Falls back to score/accuracy comparison for any
+        // older rows decided before winnerId existed.
         let winner: string | null = null
-        if (sideA?.status === 'Completed' && sideB?.status === 'Completed') {
+        if (sideA?.winnerId != null && sideA.winnerId === sideA.id) {
+            winner = resolveName(sideA)
+        } else if (sideB?.winnerId != null && sideB.winnerId === sideB.id) {
+            winner = resolveName(sideB)
+        } else if (sideA?.status === 'Completed' && sideB?.status === 'Completed') {
             if (sideA.totalScore !== sideB.totalScore) {
                 winner = sideA.totalScore > sideB.totalScore ? resolveName(sideA) : resolveName(sideB)
             } else if (sideA.accuracy !== sideB.accuracy) {

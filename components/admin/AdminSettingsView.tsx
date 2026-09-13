@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react'
 import { Shield, User, Lock, DollarSign, Loader2 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getPlatformConfig, updatePlatformFee, updatePlatformBankDetails, updatePlatformCompanyDetails } from '@/app/admin/actions'
+import { getPlatformConfig, updatePlatformFee, updatePlatformBankDetails, updatePlatformCompanyDetails, getLicenseFeeSettings, updateLicenseFeeSettings } from '@/app/admin/actions'
 import SecurityForm from '@/app/settings/SecurityForm'
+import LicensePaymentMethodsManager from '@/components/admin/LicensePaymentMethodsManager'
 import { toast } from 'sonner'
 
 interface AdminSettingsViewProps {
@@ -49,6 +50,40 @@ function PlatformSettingsContent() {
             setCompanyAddress(config.companyAddress || '')
         }
     }, [config])
+
+    const { data: licenseSettings } = useQuery({
+        queryKey: ['license-fee-settings'],
+        queryFn: () => getLicenseFeeSettings(),
+    })
+
+    const [licenseFee, setLicenseFee] = useState('')
+    const [licenseInstructions, setLicenseInstructions] = useState('')
+
+    useEffect(() => {
+        if (licenseSettings) {
+            setLicenseFee(String(licenseSettings.licenseFee || ''))
+            setLicenseInstructions(licenseSettings.licensePaymentInstructions || '')
+        }
+    }, [licenseSettings])
+
+    const licenseFeeMutation = useMutation({
+        mutationFn: (data: { licenseFee: number; licensePaymentInstructions: string }) => updateLicenseFeeSettings(data),
+        onSuccess: () => {
+            toast.success('Athlete License fee updated')
+            queryClient.invalidateQueries({ queryKey: ['license-fee-settings'] })
+        },
+        onError: () => toast.error('Failed to update Athlete License fee'),
+    })
+
+    const handleLicenseFeeSubmit = (e: React.FormEvent) => {
+        e.preventDefault()
+        const num = parseFloat(licenseFee)
+        if (isNaN(num) || num < 0) {
+            toast.error('Please enter a valid fee amount')
+            return
+        }
+        licenseFeeMutation.mutate({ licenseFee: num, licensePaymentInstructions: licenseInstructions })
+    }
 
     const mutation = useMutation({
         mutationFn: (newFee: number) => updatePlatformFee(newFee),
@@ -109,6 +144,59 @@ function PlatformSettingsContent() {
 
     return (
         <div className="space-y-6">
+            {/* Athlete License Fee Card */}
+            <div className="bg-white sm:rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100">
+                    <h2 className="text-lg font-semibold text-gray-900">Athlete License Fee</h2>
+                    <p className="text-sm text-gray-500 mt-1">
+                        The Athlete License is issued by KTM only. This fee and these instructions are what athletes
+                        see when self-activating, and what club masters share with athletes paying them directly.
+                    </p>
+                </div>
+                <div className="p-6 sm:p-8">
+                    <form onSubmit={handleLicenseFeeSubmit} className="space-y-5 max-w-md">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                                License Fee (₱)
+                            </label>
+                            <div className="relative">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">₱</span>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={licenseFee}
+                                    onChange={(e) => setLicenseFee(e.target.value)}
+                                    placeholder="0.00"
+                                    className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all bg-gray-50/50 focus:bg-white text-lg font-semibold"
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Payment Instructions</label>
+                            <textarea
+                                value={licenseInstructions}
+                                onChange={(e) => setLicenseInstructions(e.target.value)}
+                                placeholder="e.g. Pay via GCash to 0917-123-4567 (KTM Sports). Upload your receipt as proof of payment."
+                                rows={4}
+                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all bg-gray-50/50 focus:bg-white text-sm resize-none"
+                            />
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={licenseFeeMutation.isPending}
+                            className="flex items-center gap-2 px-6 py-2.5 bg-gray-900 text-white text-sm font-semibold rounded-xl hover:bg-gray-800 transition-all disabled:opacity-50"
+                        >
+                            {licenseFeeMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                            Save License Fee
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <LicensePaymentMethodsManager />
+
             <div className="bg-white sm:rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100">
                     <h2 className="text-lg font-semibold text-gray-900">Platform Fee</h2>

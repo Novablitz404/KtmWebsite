@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { ChevronDown, ChevronUp, UserPlus, Loader2, Search } from 'lucide-react'
 import GlobalDropdown from '@/components/GlobalDropdown'
+import UserAvatar from '@/components/UserAvatar'
 import { searchAllAthletes } from '@/app/actions'
 import { registerForPromotion } from '@/app/promotions/actions'
 import { calculateAge } from '@/lib/placement'
@@ -164,9 +165,12 @@ export default function PromotionRegisterForm({ promotionTestId, onRegistered }:
                             {selectedAthlete ? (
                                 <div className="flex items-center justify-between p-3 bg-amber-50 border border-amber-100 rounded-xl">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-700 font-bold text-sm">
-                                            {selectedAthlete.name?.charAt(0)}
-                                        </div>
+                                        <UserAvatar
+                                            name={selectedAthlete.name}
+                                            size={40}
+                                            className="!bg-amber-100"
+                                            textClassName="!text-amber-700"
+                                        />
                                         <div>
                                             <p className="font-bold text-gray-900 text-sm">{selectedAthlete.name}</p>
                                             <p className="text-xs text-amber-600">
@@ -207,9 +211,12 @@ export default function PromotionRegisterForm({ promotionTestId, onRegistered }:
                                                     onClick={() => handleSelectAthlete(athlete)}
                                                     className="w-full px-4 py-2.5 text-left hover:bg-gray-50 flex items-center gap-3 transition-colors"
                                                 >
-                                                    <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-600">
-                                                        {athlete.name?.charAt(0)}
-                                                    </div>
+                                                    <UserAvatar
+                                                        name={athlete.name}
+                                                        size={32}
+                                                        className="!bg-gray-100"
+                                                        textClassName="!text-gray-600"
+                                                    />
                                                     <div className="flex-1 min-w-0">
                                                         <p className="text-sm font-medium text-gray-900 truncate">{athlete.name}</p>
                                                         <p className="text-xs text-gray-500">{athlete.clubName || 'No club'} · {athlete.belt || '—'}</p>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/supabase/server'
+import { resolvePoomsaeHeadToHeadResult } from '@/lib/poomsae-progression'
 import type { PoomsaeMatch } from '@prisma/client'
 
 /**
@@ -23,34 +24,18 @@ async function advancePoomsaeWinner(match: PoomsaeMatch) {
     if (!sibling || sibling.status !== 'Completed') return
 
     let winner: PoomsaeMatch
+    let loser: PoomsaeMatch
     if (match.totalScore !== sibling.totalScore) {
         winner = match.totalScore > sibling.totalScore ? match : sibling
+        loser = winner === match ? sibling : match
     } else if (match.accuracy !== sibling.accuracy) {
         winner = match.accuracy > sibling.accuracy ? match : sibling
+        loser = winner === match ? sibling : match
     } else {
         return // Fully tied — leave unresolved for manual resolution
     }
 
-    if (!match.nextMatchId || !match.nextMatchSlot) return // Final round — nothing to advance to
-
-    const targetRow = await prisma.poomsaeMatch.findFirst({
-        where: {
-            categoryRefId: match.categoryRefId,
-            matchId: match.nextMatchId,
-            performanceNumber: parseInt(match.nextMatchSlot, 10),
-        }
-    })
-    if (!targetRow) return
-
-    await prisma.poomsaeMatch.update({
-        where: { id: targetRow.id },
-        data: {
-            playerId: winner.playerId,
-            displayName: winner.displayName,
-            memberIds: winner.memberIds,
-            memberNames: winner.memberNames,
-        }
-    })
+    await resolvePoomsaeHeadToHeadResult(winner, loser)
 }
 
 export async function POST(

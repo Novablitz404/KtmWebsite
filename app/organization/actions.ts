@@ -6,7 +6,6 @@ import { getAuthUser } from '@/lib/supabase/server'
 import { toTitleCase } from '@/lib/utils'
 import { createClient } from '@supabase/supabase-js'
 import { getNextBelt } from '@/lib/belt'
-import { countryToCode } from '@/lib/countries'
 import crypto from 'crypto'
 
 export async function getOrganizationDashboardData() {
@@ -1929,32 +1928,6 @@ export async function updateClubMemberAsOrg(userId: string, data: {
 // ATHLETE CARD MANAGEMENT ACTIONS
 // ============================================
 
-
-
-async function generateAthleteNumber(country: string | null | undefined): Promise<string> {
-    const code = countryToCode(country)
-    const year = new Date().getFullYear()
-    const prefix = `${code}-${year}-`
-
-    const existing = await prisma.user.findMany({
-        where: { athleteNumber: { startsWith: prefix } },
-        select: { athleteNumber: true },
-        orderBy: { athleteNumber: 'desc' },
-        take: 1,
-    })
-
-    let nextNumber = 1
-    if (existing.length > 0 && existing[0].athleteNumber) {
-        const parts = existing[0].athleteNumber.split('-')
-        const currentMax = parseInt(parts[2], 10)
-        if (!isNaN(currentMax)) {
-            nextNumber = currentMax + 1
-        }
-    }
-
-    return `${prefix}${String(nextNumber).padStart(7, '0')}`
-}
-
 export async function getOrganizationAthletes() {
     const user = await getAuthUser()
     if (!user) return []
@@ -1994,8 +1967,12 @@ export async function getOrganizationAthletes() {
             imageUrl: true,
             country: true,
             createdAt: true,
-            cardPaymentProofUrl: true,
-            cardPaymentStatus: true,
+            licensePaymentStatus: true,
+            licenseRequestedVia: true,
+            birthDate: true,
+            weight: true,
+            height: true,
+            gender: true,
         },
         orderBy: { name: 'asc' }
     })
@@ -2003,7 +1980,41 @@ export async function getOrganizationAthletes() {
     return athletes
 }
 
-export async function toggleAthleteCardStatus(athleteId: string) {
+// Athlete License activation/deactivation is KTM's call, not the org's — see
+// toggleAthleteVerification in app/admin/actions.ts. Orgs can still edit an
+// athlete's own profile details (below), just not their license status or
+// athlete number.
+
+export async function getOrganizationClubNames(): Promise<string[]> {
+    const user = await getAuthUser()
+    if (!user) return []
+
+    const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: { organization: true }
+    })
+
+    if (!dbUser?.organization) return []
+    if (!['ORGANIZER', 'MANAGER', 'ADMIN'].includes(dbUser.role)) return []
+
+    const clubs = await prisma.club.findMany({
+        where: { organizationId: dbUser.organization.id },
+        select: { name: true },
+        orderBy: { name: 'asc' }
+    })
+
+    return clubs.map(c => c.name)
+}
+
+export async function updateOrgAthleteDetails(athleteId: string, data: {
+    birthDate?: string
+    weight?: string | number
+    height?: string | number
+    belt?: string
+    gender?: string
+    clubName?: string
+    country?: string
+}) {
     const user = await getAuthUser()
     if (!user) return { error: 'Unauthorized' }
 
@@ -2026,7 +2037,7 @@ export async function toggleAthleteCardStatus(athleteId: string) {
 
     const targetUser = await prisma.user.findUnique({
         where: { id: athleteId },
-        select: { id: true, isVerified: true, athleteNumber: true, country: true, clubName: true }
+        select: { id: true, clubName: true }
     })
 
     if (!targetUser) return { error: 'Athlete not found' }
@@ -2034,36 +2045,25 @@ export async function toggleAthleteCardStatus(athleteId: string) {
         return { error: 'Athlete does not belong to your organization' }
     }
 
-    if (!targetUser.isVerified) {
-        // Activate: generate or renew athlete number
-        let athleteNumber: string
-        if (targetUser.athleteNumber) {
-            // Renewal: keep same suffix, update year
-            const parts = targetUser.athleteNumber.split('-')
-            const code = parts[0]
-            const suffix = parts[2]
-            athleteNumber = `${code}-${new Date().getFullYear()}-${suffix}`
-        } else {
-            athleteNumber = await generateAthleteNumber(targetUser.country)
-        }
-        await prisma.user.update({
-            where: { id: athleteId },
-            data: {
-                isVerified: true,
-                athleteNumber,
-                createdAt: new Date(),
-            }
-        })
-    } else {
-        // Deactivate: preserve athleteNumber for future renewal
-        await prisma.user.update({
-            where: { id: athleteId },
-            data: {
-                isVerified: false,
-                // athleteNumber is preserved for renewal
-            }
-        })
+    // Moving the athlete to a different club must still be one of this org's
+    // own clubs — an org can't reassign an athlete out to a club it doesn't own.
+    if (data.clubName !== undefined && data.clubName !== '' && !clubNames.includes(data.clubName)) {
+        return { error: 'Club must belong to your organization' }
     }
+
+    await prisma.user.update({
+        where: { id: athleteId },
+        data: {
+            birthDate: data.birthDate ? new Date(data.birthDate) : undefined,
+            weight: data.weight !== undefined && data.weight !== '' ? parseFloat(data.weight as string) : undefined,
+            height: data.height !== undefined && data.height !== '' ? parseFloat(data.height as string) : undefined,
+            belt: data.belt,
+            gender: data.gender,
+            clubName: data.clubName,
+            country: data.country,
+            // athleteNumber and isVerified are intentionally excluded — KTM-only.
+        }
+    })
 
     revalidatePath('/organization')
     return { success: true }

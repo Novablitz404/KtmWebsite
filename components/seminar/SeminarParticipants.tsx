@@ -5,6 +5,7 @@ import { SeminarRegistration } from '@prisma/client'
 import { Trash2, Search, Loader2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, QrCode, X } from 'lucide-react'
 import { updateSeminarRegistrationStatus, deleteSeminarRegistration, fetchSeminarRegistrations } from '@/app/organization/actions'
 import { toast } from 'sonner'
+import UserAvatar from '@/components/UserAvatar'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { QRCodeSVG } from 'qrcode.react'
@@ -141,13 +142,13 @@ export default function SeminarParticipants({ seminarId }: SeminarParticipantsPr
                                     <tr key={reg.id} className="hover:bg-gray-50/50 transition-colors">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold overflow-hidden border border-gray-100">
-                                                    {reg.user?.imageUrl ? (
-                                                        <img src={reg.user.imageUrl} alt={reg.playerName} className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <span>{reg.playerName.charAt(0)}</span>
-                                                    )}
-                                                </div>
+                                                <UserAvatar
+                                                    src={reg.user?.imageUrl}
+                                                    name={reg.playerName}
+                                                    size={40}
+                                                    className="!bg-indigo-50 border border-gray-100"
+                                                    textClassName="!text-indigo-600"
+                                                />
                                                 <div>
                                                     <p className="font-semibold text-gray-900">{reg.playerName}</p>
                                                     {reg.belt && <p className="text-xs text-gray-400">{reg.belt} Belt</p>}

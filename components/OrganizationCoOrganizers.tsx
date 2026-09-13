@@ -14,6 +14,7 @@ import {
     cancelCoOrganizerInvite,
     transferOrganizationOwnership
 } from '@/app/organization/actions'
+import UserAvatar from '@/components/UserAvatar'
 
 interface OrganizationCoOrganizersProps {
     organizationId: string
@@ -229,11 +230,12 @@ export default function OrganizationCoOrganizers({ organizationId, isOwner: prop
                                     <tr key={member.id || idx} className="hover:bg-gray-50/60 transition-colors">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-100 to-indigo-200 flex items-center justify-center flex-shrink-0 border border-indigo-100">
-                                                    <span className="text-xs font-black text-indigo-600">
-                                                        {(member.name || member.email || '?').charAt(0).toUpperCase()}
-                                                    </span>
-                                                </div>
+                                                <UserAvatar
+                                                    name={member.name || member.email}
+                                                    size={36}
+                                                    className="!bg-indigo-100 border border-indigo-100"
+                                                    textClassName="!text-indigo-600"
+                                                />
                                                 <div className="min-w-0">
                                                     <p className="text-sm font-bold text-gray-900 truncate">
                                                         {member.name || member.email?.split('@')[0] || 'Pending'}

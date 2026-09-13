@@ -8,6 +8,7 @@ import {
     AlertCircle, ChevronsUpDown, X, Users, Filter
 } from 'lucide-react'
 import GlobalDropdown from '@/components/GlobalDropdown'
+import UserAvatar from '@/components/UserAvatar'
 import { calculateAge } from '@/lib/placement'
 
 interface PlayerRegistrationProps {
@@ -268,9 +269,12 @@ export default function PlayerRegistration({
                             {selectedAthlete ? (
                                 <div className="flex items-center justify-between p-3.5 bg-red-50 border border-red-100 rounded-xl">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center text-white font-black text-sm shadow-sm">
-                                            {selectedAthlete.name?.charAt(0)}
-                                        </div>
+                                        <UserAvatar
+                                            name={selectedAthlete.name}
+                                            size={40}
+                                            rounded="xl"
+                                            className="!bg-red-600 shadow-sm"
+                                        />
                                         <div>
                                             <p className="font-bold text-gray-900 text-sm">{selectedAthlete.name}</p>
                                             <p className="text-xs text-red-600 font-medium mt-0.5">
@@ -311,9 +315,13 @@ export default function PlayerRegistration({
                                                     onClick={() => handleSelectAthlete(athlete)}
                                                     className="w-full px-4 py-2.5 text-left hover:bg-gray-50 flex items-center gap-3 transition-colors"
                                                 >
-                                                    <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center text-xs font-black text-gray-500 flex-shrink-0">
-                                                        {athlete.name?.charAt(0)}
-                                                    </div>
+                                                    <UserAvatar
+                                                        name={athlete.name}
+                                                        size={32}
+                                                        rounded="xl"
+                                                        className="!bg-gray-100"
+                                                        textClassName="!text-gray-500"
+                                                    />
                                                     <div className="flex-1 min-w-0">
                                                         <p className="text-sm font-semibold text-gray-900 truncate">{athlete.name}</p>
                                                         <p className="text-xs text-gray-400">{athlete.clubName || 'No club'} · {athlete.belt || '—'}</p>

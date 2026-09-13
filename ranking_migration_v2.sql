@@ -91,21 +91,22 @@ RankedAthletes AS (
         c.name AS "clubName",
         e."organizationId",
         org."parentOrganizationId",
-        -- Get the most recent division from player records
-        (
-            SELECT p2."division"
-            FROM "Player" p2
-            WHERE p2."userId" = e."userId"
-            ORDER BY p2."createdAt" DESC
-            LIMIT 1
-        ) AS "division",
+        -- Division/weight-class are read directly from the most recent
+        -- category's own structured columns (Category.division/weightClass,
+        -- set once at generation time from the template's Division/
+        -- WeightCategory names — see app/actions.ts categoriesToCreate).
+        -- Categories created before this field existed, or created manually
+        -- without a template, will simply have NULL here.
+        mrc."division" AS "division",
+        mrc."weightClass" AS "weightCategory",
+        u.belt AS "belt",
         u.gender AS "gender",
         e."type",
         e."scope",
         e."eloRating",
         e."matchCount",
         COALESCE(a."activityCount", 0)::integer AS "activityCount",
-        COALESCE(a."activityCount", 0) >= 3 AS "isActive",
+        COALESCE(a."activityCount", 0) >= 1 AS "isActive",
         -- Field bonus: sum of decayed medal bonuses from Kyorugi tournaments
         COALESCE(
             (
@@ -189,6 +190,14 @@ RankedAthletes AS (
     LEFT JOIN "Club" c ON u."clubName" = c.name
     LEFT JOIN "Organization" org ON c."organizationId" = org.id
     LEFT JOIN ActivityData a ON a."userId" = e."userId"
+    LEFT JOIN LATERAL (
+        SELECT cat."division", cat."weightClass"
+        FROM "Player" p2
+        JOIN "Category" cat ON cat.id = p2."categoryId"
+        WHERE p2."userId" = e."userId"
+        ORDER BY p2."createdAt" DESC
+        LIMIT 1
+    ) mrc ON true
     WHERE u."isVerified" = true AND u.role = 'ATHLETE'
 )
 SELECT
@@ -199,6 +208,8 @@ SELECT
     "organizationId",
     "parentOrganizationId",
     "division",
+    "weightCategory",
+    "belt",
     "gender",
     "type",
     "scope",
@@ -220,6 +231,16 @@ WHERE "totalPoints" > 0 OR "matchCount" > 0;
 CREATE UNIQUE INDEX idx_global_athlete_ranking_id ON "GlobalAthleteRanking"("id");
 CREATE INDEX idx_global_athlete_ranking_scope ON "GlobalAthleteRanking"("scope");
 CREATE INDEX idx_global_athlete_ranking_type ON "GlobalAthleteRanking"("type");
+
+-- Materialized views can't have Row Level Security — Postgres doesn't support
+-- it for this relation kind. This view is only ever queried server-side via
+-- Prisma (which connects as the postgres role and bypasses grants entirely),
+-- never through Supabase's client-facing REST API — but CREATE MATERIALIZED
+-- VIEW grants anon/authenticated SELECT by default, which would let anyone
+-- with the public anon key pull every organization's ranking data directly
+-- via /rest/v1/GlobalAthleteRanking, bypassing fetchRankings()'s tenant
+-- scoping entirely. Revoking closes that off without affecting the app.
+REVOKE ALL ON "GlobalAthleteRanking" FROM anon, authenticated;
 
 -- ─── 4. Rename Tournament Tiers ──────────────────────────────
 -- Update existing J-Score tiers to GSS Tiers
