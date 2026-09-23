@@ -8,6 +8,7 @@ import { sendEmail } from '@/lib/email-service'
 import PromotionPassedEmail from '@/emails/PromotionPassedEmail'
 import React from 'react'
 import { toTitleCase } from '@/lib/utils'
+import { getExaminerLinkExpiration } from '@/lib/promotion'
 
 export async function updateRegistrationStatus(registrationId: string, status: string) {
     const user = await getAuthUser()
@@ -251,6 +252,41 @@ export async function deletePromotionRegistration(registrationId: string) {
 
     revalidatePath(`/promotions/${registration.promotionTestId}`)
     return { success: true }
+}
+
+export async function extendExaminerLink(promotionTestId: string, additionalDays: number) {
+    const user = await getAuthUser()
+    if (!user || !user.clerkId) return { error: 'Unauthorized' }
+
+    if (!Number.isFinite(additionalDays) || additionalDays <= 0) {
+        return { error: 'additionalDays must be a positive number' }
+    }
+
+    const promotionTest = await prisma.promotionTest.findUnique({
+        where: { id: promotionTestId },
+        select: { id: true, organizationId: true, testDate: true, examinerLinkExpiresAt: true }
+    })
+    if (!promotionTest) return { error: 'Promotion test not found' }
+
+    const authorized = await canManagePromotion(user.clerkId, promotionTest.organizationId)
+    if (!authorized) return { error: 'Unauthorized' }
+
+    // Extend from the later of "now" and the current effective expiration, so
+    // re-extending an already-expired link starts counting from today rather
+    // than compounding onto a deadline that already passed.
+    const currentExpiration = getExaminerLinkExpiration(promotionTest)
+    const base = currentExpiration > new Date() ? currentExpiration : new Date()
+    const newExpiration = new Date(base)
+    newExpiration.setDate(newExpiration.getDate() + additionalDays)
+
+    await prisma.promotionTest.update({
+        where: { id: promotionTestId },
+        data: { examinerLinkExpiresAt: newExpiration }
+    })
+
+    revalidatePath(`/promotions/${promotionTestId}`)
+    revalidatePath(`/promotions/${promotionTestId}/examiner`)
+    return { success: true, newExpiration: newExpiration.toISOString() }
 }
 
 export async function getPromotionTests() {

@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
 import ExaminerView from './ExaminerView'
+import { getExaminerLinkExpiration } from '@/lib/promotion'
 
 interface PageProps {
     params: Promise<{ id: string }>
@@ -22,10 +23,8 @@ export default async function ExaminerPage({ params }: PageProps) {
 
     if (!promotionTest) return notFound()
 
-    // Examiner link expires 3 days after the test date
     const testDate = new Date(promotionTest.testDate)
-    const expirationDate = new Date(testDate)
-    expirationDate.setDate(expirationDate.getDate() + 3)
+    const expirationDate = getExaminerLinkExpiration(promotionTest)
 
     if (new Date() > expirationDate) {
         return (

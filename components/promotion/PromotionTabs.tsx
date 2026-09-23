@@ -2,12 +2,15 @@
 
 import { useState } from 'react'
 import { PromotionTest, PromotionTestRegistration } from '@prisma/client'
-import { LayoutDashboard, Users, Settings, ArrowLeft, Menu, Calendar, MapPin, DollarSign } from 'lucide-react'
+import { LayoutDashboard, Users, Settings, ArrowLeft, Menu, Calendar, MapPin, DollarSign, Clock } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
+import { toast } from 'sonner'
 import ParticipantsTable from '@/app/promotions/[id]/ParticipantsTable'
 import PromotionSettings from '@/components/promotion/PromotionSettings'
 import PromotionRegisterForm from '@/components/promotion/PromotionRegisterForm'
+import { extendExaminerLink } from '@/app/promotions/actions'
+import { getExaminerLinkExpiration } from '@/lib/promotion'
 
 type ExtendedPromotionTest = PromotionTest & {
     registrations: PromotionTestRegistration[]
@@ -44,6 +47,34 @@ export default function PromotionTabs({ promotionTest, userRole, defaultBeltFees
 
     const activeTab = (searchParams.get('tab') as 'overview' | 'participants' | 'settings') || 'overview'
     const [isSidebarOpen, setSidebarOpen] = useState(false)
+    const [isExtending, setIsExtending] = useState(false)
+    const [showExtendModal, setShowExtendModal] = useState(false)
+    const [extendDays, setExtendDays] = useState('3')
+
+    const examinerLinkExpiration = getExaminerLinkExpiration(promotionTest)
+    const examinerLinkExpired = new Date() > examinerLinkExpiration
+
+    const handleExtendExaminerLink = async () => {
+        const days = Number(extendDays)
+        if (!Number.isFinite(days) || days <= 0) {
+            toast.error('Please enter a positive number of days.')
+            return
+        }
+
+        setIsExtending(true)
+        try {
+            const result = await extendExaminerLink(promotionTest.id, days)
+            if (result.error) {
+                toast.error(result.error)
+            } else {
+                toast.success(`Examiner link extended to ${new Date(result.newExpiration!).toLocaleString()}.`)
+                setShowExtendModal(false)
+                router.refresh()
+            }
+        } finally {
+            setIsExtending(false)
+        }
+    }
 
     const tabs = [
         { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -307,17 +338,30 @@ export default function PromotionTabs({ promotionTest, userRole, defaultBeltFees
                                     <h1 className="text-3xl font-black text-gray-900 tracking-tight">Participants</h1>
                                     <p className="text-gray-500 font-medium pt-1">View registrations and participant status.</p>
                                 </div>
-                                <button
-                                    onClick={() => {
-                                        const url = `${window.location.origin}/promotions/${promotionTest.id}/examiner`
-                                        navigator.clipboard.writeText(url)
-                                        alert('Examiner link copied to clipboard!')
-                                    }}
-                                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
-                                    Copy Examiner Link
-                                </button>
+                                <div className="flex flex-col items-end gap-1.5">
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => {
+                                                const url = `${window.location.origin}/promotions/${promotionTest.id}/examiner`
+                                                navigator.clipboard.writeText(url)
+                                                alert('Examiner link copied to clipboard!')
+                                            }}
+                                            className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                                            Copy Examiner Link
+                                        </button>
+                                        <button
+                                            onClick={() => { setExtendDays('3'); setShowExtendModal(true) }}
+                                            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-gray-50 text-gray-700 text-sm font-semibold rounded-xl transition-colors shadow-sm border border-gray-200"
+                                        >
+                                            Extend Link
+                                        </button>
+                                    </div>
+                                    <p className={`text-xs font-medium ${examinerLinkExpired ? 'text-red-600' : 'text-gray-400'}`}>
+                                        {examinerLinkExpired ? 'Expired' : 'Expires'} {examinerLinkExpiration.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                                    </p>
+                                </div>
                             </div>
                             <PromotionRegisterForm
                                 promotionTestId={promotionTest.id}
@@ -334,6 +378,54 @@ export default function PromotionTabs({ promotionTest, userRole, defaultBeltFees
                     )}
                 </div>
             </div>
+
+            {/* Extend Examiner Link Modal */}
+            {showExtendModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="p-6">
+                            <div className="flex items-start gap-4">
+                                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center">
+                                    <Clock className="w-5 h-5 text-indigo-600" />
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="text-lg font-semibold text-gray-900">Extend Examiner Link</h3>
+                                    <p className="mt-2 text-sm text-gray-500">
+                                        {examinerLinkExpired
+                                            ? `Expired ${examinerLinkExpiration.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}. `
+                                            : `Currently expires ${examinerLinkExpiration.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}. `}
+                                        Extend by how many days?
+                                    </p>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        value={extendDays}
+                                        onChange={(e) => setExtendDays(e.target.value)}
+                                        autoFocus
+                                        className="mt-4 w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-gray-50 px-6 py-4 flex items-center justify-end gap-3">
+                            <button
+                                onClick={() => setShowExtendModal(false)}
+                                disabled={isExtending}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-800 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleExtendExaminerLink}
+                                disabled={isExtending}
+                                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                            >
+                                {isExtending ? 'Extending...' : 'Extend Link'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
