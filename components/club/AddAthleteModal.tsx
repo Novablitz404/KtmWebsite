@@ -155,6 +155,28 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
         return () => clearTimeout(timer)
     }, [searchQuery, clubId])
 
+    const resetForm = () => {
+        setSearchQuery('')
+        setSearchResults([])
+        setSelectedMember(null)
+        setSelectedTournament('')
+        setSelectedSeminarId('')
+        setSelectedPromotionId('')
+        setTargetBelt('')
+        setManualCategoryId('')
+        setWeight('')
+        setHeight('')
+        setBelt('')
+        setEventType('KYORUGI')
+        setPoomsaeType('INDIVIDUAL')
+        setTeamId('')
+    }
+
+    const handleClose = () => {
+        resetForm()
+        onClose()
+    }
+
     // Pre-fill form when member selected
     const handleSelectMember = (member: Member) => {
         setSelectedMember(member)
@@ -200,6 +222,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                 else {
                     toast.success('Athlete registered for tournament')
                     queryClient.invalidateQueries({ queryKey: ['club-home', clubId] })
+                    resetForm()
                     onClose()
                 }
             } else if (activeTab === 'SEMINAR') {
@@ -221,6 +244,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                 else {
                     toast.success('Athlete registered for seminar')
                     queryClient.invalidateQueries({ queryKey: ['club-home', clubId] })
+                    resetForm()
                     onClose()
                 }
             } else if (activeTab === 'PROMOTION') {
@@ -247,6 +271,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                 else {
                     toast.success('Athlete registered for promotion test')
                     queryClient.invalidateQueries({ queryKey: ['club-home', clubId] })
+                    resetForm()
                     onClose()
                 }
             }
@@ -272,7 +297,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                         <p className="text-xs text-gray-400 mt-0.5">Register a club member to an upcoming {tabLabel.toLowerCase()}</p>
                     </div>
                     <button
-                        onClick={onClose}
+                        onClick={handleClose}
                         className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
                     >
                         <X className="w-5 h-5" />
@@ -591,7 +616,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                     <div className="flex items-center gap-2 ml-auto">
                         <button
                             type="button"
-                            onClick={onClose}
+                            onClick={handleClose}
                             className="px-5 py-2.5 rounded-xl text-sm font-black text-gray-600 hover:bg-gray-100 border border-gray-200 transition-all"
                         >
                             Cancel

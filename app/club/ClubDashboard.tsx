@@ -12,6 +12,7 @@ import { approveSeminarRegistration, unapproveSeminarRegistration, deleteSeminar
 
 import GlobalDropdown from '@/components/GlobalDropdown'
 import GlobalCalendar from '@/components/GlobalCalendar'
+import GlobalModal from '@/components/GlobalModal'
 import { calculateAge } from '@/lib/placement'
 import { toast } from 'sonner'
 import ClubSettingsButton from '@/app/components/ClubSettingsButton'
@@ -261,6 +262,13 @@ export default function ClubDashboard({
 
     const [bulkSelectMode, setBulkSelectMode] = useState(false)
     const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null)
+    const [confirmAction, setConfirmAction] = useState<{
+        title: string
+        message: string
+        confirmLabel?: string
+        danger?: boolean
+        onConfirm: () => void
+    } | null>(null)
 
     // Edit Modal State
     const [editingPlayer, setEditingPlayer] = useState<Player | null>(null)
@@ -486,42 +494,55 @@ export default function ClubDashboard({
         }
     }
 
-    const handleBulkUnapprove = async () => {
+    const handleBulkUnapprove = () => {
         const ids = Array.from(selectedRegistrationIds)
         if (ids.length === 0) return
-        if (!confirm(`Unapprove ${ids.length} registrations?`)) return
-
-        setSubmitting(true)
-        try {
-            await bulkUnapproveRegistrations(ids)
-            toast.success(`Unapproved ${ids.length} registrations`)
-            setSelectedRegistrationIds(new Set())
-            queryClient.invalidateQueries({ queryKey: ['club-home', clubId] })
-            queryClient.invalidateQueries({ queryKey: ['club-members', clubName || ''] })
-        } catch {
-            toast.error('Failed to bulk unapprove')
-        } finally {
-            setSubmitting(false)
-        }
+        setConfirmAction({
+            title: 'Unapprove Registrations',
+            message: `Unapprove ${ids.length} registration${ids.length > 1 ? 's' : ''}?`,
+            confirmLabel: 'Unapprove',
+            onConfirm: async () => {
+                setConfirmAction(null)
+                setSubmitting(true)
+                try {
+                    await bulkUnapproveRegistrations(ids)
+                    toast.success(`Unapproved ${ids.length} registrations`)
+                    setSelectedRegistrationIds(new Set())
+                    queryClient.invalidateQueries({ queryKey: ['club-home', clubId] })
+                    queryClient.invalidateQueries({ queryKey: ['club-members', clubName || ''] })
+                } catch {
+                    toast.error('Failed to bulk unapprove')
+                } finally {
+                    setSubmitting(false)
+                }
+            }
+        })
     }
 
-    const handleBulkDelete = async () => {
+    const handleBulkDelete = () => {
         const ids = Array.from(selectedRegistrationIds)
         if (ids.length === 0) return
-        if (!confirm(`Delete ${ids.length} registrations?`)) return
-
-        setSubmitting(true)
-        try {
-            await bulkDeleteRegistrations(ids)
-            toast.success(`Deleted ${ids.length} registrations`)
-            setSelectedRegistrationIds(new Set())
-            queryClient.invalidateQueries({ queryKey: ['club-home', clubId] })
-            queryClient.invalidateQueries({ queryKey: ['club-members', clubName || ''] })
-        } catch {
-            toast.error('Failed to bulk delete')
-        } finally {
-            setSubmitting(false)
-        }
+        setConfirmAction({
+            title: 'Delete Registrations',
+            message: `Delete ${ids.length} registration${ids.length > 1 ? 's' : ''}? This action cannot be undone.`,
+            confirmLabel: 'Delete',
+            danger: true,
+            onConfirm: async () => {
+                setConfirmAction(null)
+                setSubmitting(true)
+                try {
+                    await bulkDeleteRegistrations(ids)
+                    toast.success(`Deleted ${ids.length} registrations`)
+                    setSelectedRegistrationIds(new Set())
+                    queryClient.invalidateQueries({ queryKey: ['club-home', clubId] })
+                    queryClient.invalidateQueries({ queryKey: ['club-members', clubName || ''] })
+                } catch {
+                    toast.error('Failed to bulk delete')
+                } finally {
+                    setSubmitting(false)
+                }
+            }
+        })
     }
 
     const handleMemberDelete = async (memberId: string) => {
@@ -609,6 +630,83 @@ export default function ClubDashboard({
             setSubmitting(false)
         }
     }
+
+    // --- Bulk Promotion Handlers ---
+
+    const handleBulkPromotionApprove = async () => {
+        const ids = Array.from(selectedRegistrationIds)
+        if (ids.length === 0) return
+        setSubmitting(true)
+        try {
+            const results = await Promise.all(ids.map(id => updateRegistrationStatus(id, 'APPROVED')))
+            const failed = results.filter(r => r?.error).length
+            if (failed > 0) toast.error(`Failed to approve ${failed} registration(s)`)
+            else toast.success(`Approved ${ids.length} registrations`)
+            setSelectedRegistrationIds(new Set())
+            queryClient.invalidateQueries({ queryKey: ['club-home', clubId] })
+        } catch {
+            toast.error('Failed to bulk approve')
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    const handleBulkPromotionUnapprove = () => {
+        const ids = Array.from(selectedRegistrationIds)
+        if (ids.length === 0) return
+        setConfirmAction({
+            title: 'Unapprove Registrations',
+            message: `Unapprove ${ids.length} registration${ids.length > 1 ? 's' : ''}?`,
+            confirmLabel: 'Unapprove',
+            onConfirm: async () => {
+                setConfirmAction(null)
+                setSubmitting(true)
+                try {
+                    const results = await Promise.all(ids.map(id => updateRegistrationStatus(id, 'PENDING')))
+                    const failed = results.filter(r => r?.error).length
+                    if (failed > 0) toast.error(`Failed to unapprove ${failed} registration(s)`)
+                    else toast.success(`Unapproved ${ids.length} registrations`)
+                    setSelectedRegistrationIds(new Set())
+                    queryClient.invalidateQueries({ queryKey: ['club-home', clubId] })
+                } catch {
+                    toast.error('Failed to bulk unapprove')
+                } finally {
+                    setSubmitting(false)
+                }
+            }
+        })
+    }
+
+    const handleBulkPromotionDelete = () => {
+        const ids = Array.from(selectedRegistrationIds)
+        if (ids.length === 0) return
+        setConfirmAction({
+            title: 'Delete Registrations',
+            message: `Delete ${ids.length} registration${ids.length > 1 ? 's' : ''}? This action cannot be undone.`,
+            confirmLabel: 'Delete',
+            danger: true,
+            onConfirm: async () => {
+                setConfirmAction(null)
+                setSubmitting(true)
+                try {
+                    const results = await Promise.all(ids.map(id => deletePromotionRegistration(id)))
+                    const failed = results.filter(r => r?.error).length
+                    if (failed > 0) toast.error(`Failed to delete ${failed} registration(s)`)
+                    else toast.success(`Deleted ${ids.length} registrations`)
+                    setSelectedRegistrationIds(new Set())
+                    queryClient.invalidateQueries({ queryKey: ['club-home', clubId] })
+                } catch {
+                    toast.error('Failed to bulk delete')
+                } finally {
+                    setSubmitting(false)
+                }
+            }
+        })
+    }
+
+    const handleBulkApproveSelected = () => registrationType === 'PROMOTION' ? handleBulkPromotionApprove() : handleBulkApprove()
+    const handleBulkUnapproveSelected = () => registrationType === 'PROMOTION' ? handleBulkPromotionUnapprove() : handleBulkUnapprove()
+    const handleBulkDeleteSelected = () => registrationType === 'PROMOTION' ? handleBulkPromotionDelete() : handleBulkDelete()
 
     // --- QR Code Download ---
     const handleDownloadQR = async (type: 'tournament' | 'seminar', id: string) => {
@@ -935,6 +1033,57 @@ export default function ClubDashboard({
                                     </div>
                                 )}
 
+                                {/* Quick Register */}
+                                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                                    <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center">
+                                            <Users size={14} className="text-white" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-sm font-bold text-gray-900">Quick Register</h3>
+                                            <p className="text-[11px] text-gray-400 mt-0.5">Register an athlete for an event</p>
+                                        </div>
+                                    </div>
+                                    <div className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <button
+                                            onClick={() => { setRegistrationType('TOURNAMENT'); setIsAddAthleteOpen(true) }}
+                                            className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 hover:border-red-300 hover:bg-red-50/50 transition-all text-left"
+                                        >
+                                            <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+                                                <Trophy className="w-5 h-5 text-red-600" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-gray-900">Tournament</p>
+                                                <p className="text-[11px] text-gray-400">Register for a tournament</p>
+                                            </div>
+                                        </button>
+                                        <button
+                                            onClick={() => { setRegistrationType('PROMOTION'); setIsAddAthleteOpen(true) }}
+                                            className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all text-left"
+                                        >
+                                            <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                                <Medal className="w-5 h-5 text-blue-600" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-gray-900">Promotion</p>
+                                                <p className="text-[11px] text-gray-400">Register for a belt test</p>
+                                            </div>
+                                        </button>
+                                        <button
+                                            onClick={() => { setRegistrationType('SEMINAR'); setIsAddAthleteOpen(true) }}
+                                            className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50/50 transition-all text-left"
+                                        >
+                                            <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
+                                                <Calendar className="w-5 h-5 text-purple-600" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-gray-900">Seminar</p>
+                                                <p className="text-[11px] text-gray-400">Register for a seminar</p>
+                                            </div>
+                                        </button>
+                                    </div>
+                                </div>
+
                                 {/* Events */}
                                 <div className="grid grid-cols-1 gap-5">
                                     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -1257,7 +1406,7 @@ export default function ClubDashboard({
                                                             ] as const).map(({ key, label }) => (
                                                                 <button
                                                                     key={key}
-                                                                    onClick={() => { setRegistrationType(key); setRegistrationsPage(1); setSelectedRegistrationIds(new Set()) }}
+                                                                    onClick={() => { setRegistrationType(key); setRegistrationsPage(1); setSelectedRegistrationIds(new Set()); setBulkSelectMode(false) }}
                                                                     className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${registrationType === key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                                                                 >
                                                                     {label}
@@ -1291,12 +1440,45 @@ export default function ClubDashboard({
                                                         </div>
 
                                                         {registrationType !== 'SEMINAR' && (
-                                                            <button
-                                                                onClick={() => setBulkSelectMode(!bulkSelectMode)}
-                                                                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all border ${bulkSelectMode ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
-                                                            >
-                                                                {bulkSelectMode ? '✓ Done' : 'Select'}
-                                                            </button>
+                                                            bulkSelectMode ? (
+                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                    <span className="text-xs font-black text-gray-500 px-1">{selectedRegistrationIds.size} selected</span>
+                                                                    <button
+                                                                        onClick={handleBulkApproveSelected}
+                                                                        disabled={submitting || selectedRegistrationIds.size === 0}
+                                                                        className="px-3 py-1.5 rounded-xl text-xs font-black bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 transition-all"
+                                                                    >
+                                                                        Approve
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={handleBulkUnapproveSelected}
+                                                                        disabled={submitting || selectedRegistrationIds.size === 0}
+                                                                        className="px-3 py-1.5 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50 transition-all"
+                                                                    >
+                                                                        Unapprove
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={handleBulkDeleteSelected}
+                                                                        disabled={submitting || selectedRegistrationIds.size === 0}
+                                                                        className="px-3 py-1.5 rounded-xl text-xs font-black bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 transition-all"
+                                                                    >
+                                                                        Delete
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => { setBulkSelectMode(false); setSelectedRegistrationIds(new Set()) }}
+                                                                        className="px-3 py-1.5 rounded-xl text-xs font-black bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all"
+                                                                    >
+                                                                        Cancel
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => setBulkSelectMode(true)}
+                                                                    className="px-3 py-1.5 rounded-xl text-xs font-black transition-all border bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                                                                >
+                                                                    Select
+                                                                </button>
+                                                            )
                                                         )}
                                                     </div>
 
@@ -1311,7 +1493,7 @@ export default function ClubDashboard({
                                                     </button>
                                                 </div>
 
-                                                <div className={`flex-1 overflow-y-auto ${bulkSelectMode ? 'pb-24' : ''}`}>
+                                                <div className="flex-1 overflow-y-auto">
                                                     {(registrationType === 'TOURNAMENT' ? currentRegistrations : registrationType === 'PROMOTION' ? currentPromotions : currentSeminars).length === 0 ? (
                                                         <div className="p-8 text-center min-h-[300px] flex flex-col items-center justify-center gap-3">
                                                             <div className="w-14 h-14 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center">
@@ -1416,10 +1598,23 @@ export default function ClubDashboard({
                                                                     // Promotion List
                                                                     currentPromotions.map((promo, index) => {
                                                                         const isPending = promo.status === 'PENDING'
+                                                                        const isSelected = selectedRegistrationIds.has(promo.id)
                                                                         const isLastItems = currentPromotions.length > 2 && index >= currentPromotions.length - 2
 
                                                                         return (
-                                                                            <div key={promo.id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50/80 transition-colors">
+                                                                            <div
+                                                                                key={promo.id}
+                                                                                className={`flex items-center gap-3 px-5 py-3.5 transition-colors ${isSelected ? 'bg-red-50 ring-1 ring-inset ring-red-200' : 'hover:bg-gray-50/80'}`}
+                                                                            >
+                                                                                {bulkSelectMode && (
+                                                                                    <button
+                                                                                        onClick={(e) => toggleSelect(promo.id, e)}
+                                                                                        className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${isSelected ? 'bg-red-600 border-red-600 text-white' : 'border-gray-300 hover:border-red-400'}`}
+                                                                                    >
+                                                                                        {isSelected && <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                                                                                    </button>
+                                                                                )}
+
                                                                                 <div className="flex-1 min-w-0">
                                                                                     <div className="flex items-center gap-2 flex-wrap">
                                                                                         <span className="text-sm font-black text-gray-900">{promo.name}</span>
@@ -1586,50 +1781,6 @@ export default function ClubDashboard({
                                                         </div>
                                                     )
                                                 })()}
-
-                                                {/* Floating Bulk Action Bar - appears when items selected */}
-                                                {bulkSelectMode && (
-                                                    <div className="fixed bottom-6 left-4 right-4 md:left-64 bg-gray-900 text-white rounded-2xl shadow-xl p-3 z-40 animate-in slide-in-from-bottom-4 duration-200">
-                                                        <div className="flex items-center justify-between">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-sm font-medium">{selectedRegistrationIds.size} selected</span>
-                                                                <button
-                                                                    onClick={() => {
-                                                                        setSelectedRegistrationIds(new Set())
-                                                                        setBulkSelectMode(false)
-                                                                    }}
-                                                                    className="text-xs text-gray-400 hover:text-white"
-                                                                >
-                                                                    Cancel
-                                                                </button>
-                                                            </div>
-                                                            <div className="flex items-center gap-2">
-                                                                <button
-                                                                    onClick={handleBulkApprove}
-                                                                    disabled={submitting || selectedRegistrationIds.size === 0}
-                                                                    className="px-3 py-1.5 text-xs font-medium bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50"
-                                                                >
-                                                                    Approve
-                                                                </button>
-                                                                <button
-                                                                    onClick={handleBulkUnapprove}
-                                                                    disabled={submitting || selectedRegistrationIds.size === 0}
-                                                                    className="px-3 py-1.5 text-xs font-medium bg-yellow-600 hover:bg-yellow-700 rounded-lg disabled:opacity-50"
-                                                                >
-                                                                    Unapprove
-                                                                </button>
-                                                                <button
-                                                                    onClick={handleBulkDelete}
-                                                                    disabled={submitting || selectedRegistrationIds.size === 0}
-                                                                    className="px-3 py-1.5 text-xs font-medium bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-50"
-                                                                >
-                                                                    Delete
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                )}
-
 
                                             </>
                                         )}
@@ -2236,6 +2387,17 @@ export default function ClubDashboard({
             <CreateMemberModal
                 isOpen={isCreateMemberOpen}
                 onClose={() => setIsCreateMemberOpen(false)}
+            />
+
+            <GlobalModal
+                isOpen={!!confirmAction}
+                onClose={() => setConfirmAction(null)}
+                onConfirm={() => confirmAction?.onConfirm()}
+                title={confirmAction?.title || ''}
+                message={confirmAction?.message || ''}
+                confirmLabel={confirmAction?.confirmLabel}
+                danger={confirmAction?.danger}
+                loading={submitting}
             />
         </div>
     )

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { examinerUpdateStatus, examinerToggleJump } from './actions'
 import { toast } from 'sonner'
+import GlobalDropdown from '@/components/GlobalDropdown'
 
 interface Registration {
     id: string
@@ -48,6 +49,7 @@ export default function ExaminerView({ promotionTest }: { promotionTest: Promoti
     const [loadingId, setLoadingId] = useState<string | null>(null)
     const [searchQuery, setSearchQuery] = useState('')
     const [groupByBelt, setGroupByBelt] = useState(true)
+    const [beltFilter, setBeltFilter] = useState('All')
 
     const registrations = promotionTest.registrations
     // defaultBeltFees structure: { whiteToPurple: 600, blueToMaroon: 700, brown: 800 }
@@ -72,9 +74,17 @@ export default function ExaminerView({ promotionTest }: { promotionTest: Promoti
         return 0 // Black belt or undefined
     }
 
-    // Filter by search
+    // Belts actually present among registrants, in canonical rank order
+    const beltsPresent = BELT_ORDER.filter(belt =>
+        registrations.some(r => r.currentBelt.toLowerCase() === belt.toLowerCase())
+    )
+    const hasUnknownBelt = registrations.some(r => !new Set(BELT_ORDER.map(b => b.toLowerCase())).has(r.currentBelt.toLowerCase()))
+
+    // Filter by search + belt
     const filtered = registrations.filter(reg =>
-        reg.playerName.toLowerCase().includes(searchQuery.toLowerCase())
+        reg.playerName.toLowerCase().includes(searchQuery.toLowerCase()) &&
+        (beltFilter === 'All' ||
+            (beltFilter === 'Other' ? !new Set(BELT_ORDER.map(b => b.toLowerCase())).has(reg.currentBelt.toLowerCase()) : reg.currentBelt.toLowerCase() === beltFilter.toLowerCase()))
     )
 
     // Group by belt
@@ -283,6 +293,16 @@ export default function ExaminerView({ promotionTest }: { promotionTest: Promoti
                                     className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none"
                                 />
                             </div>
+                            <GlobalDropdown
+                                value={beltFilter}
+                                onChange={setBeltFilter}
+                                width="w-44"
+                                options={[
+                                    { value: 'All', label: 'All Belts' },
+                                    ...beltsPresent.map(belt => ({ value: belt, label: `${belt} Belt` })),
+                                    ...(hasUnknownBelt ? [{ value: 'Other', label: 'Other' }] : []),
+                                ]}
+                            />
                             <button
                                 onClick={() => setGroupByBelt(!groupByBelt)}
                                 className={`px-4 py-2.5 text-sm font-semibold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap ${groupByBelt
@@ -296,7 +316,7 @@ export default function ExaminerView({ promotionTest }: { promotionTest: Promoti
 
                         {filtered.length === 0 ? (
                             <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
-                                <p className="text-gray-500">{searchQuery ? 'No students match your search.' : 'No approved participants yet.'}</p>
+                                <p className="text-gray-500">{searchQuery || beltFilter !== 'All' ? 'No students match your filters.' : 'No approved participants yet.'}</p>
                             </div>
                         ) : groupByBelt ? (
                             /* Grouped View */
