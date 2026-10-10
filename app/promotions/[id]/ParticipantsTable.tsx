@@ -1,9 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, Loader2 } from 'lucide-react'
-import { updateRegistrationStatus } from '../actions'
+import { useRouter } from 'next/navigation'
+import { Search, Loader2, Trash2, ChevronDown } from 'lucide-react'
+import { updateRegistrationStatus, deletePromotionRegistration } from '../actions'
 import { toast } from 'sonner'
+import GlobalDropdown from '@/components/GlobalDropdown'
+import GlobalModal from '@/components/GlobalModal'
 
 interface Registration {
     id: string
@@ -35,10 +38,15 @@ export default function ParticipantsTable({ registrations }: ParticipantsTablePr
     const [searchQuery, setSearchQuery] = useState('')
     const [updatingId, setUpdatingId] = useState<string | null>(null)
     const [localStatuses, setLocalStatuses] = useState<Record<string, string>>({})
+    const [deleteTarget, setDeleteTarget] = useState<Registration | null>(null)
+    const [isDeleting, setIsDeleting] = useState(false)
+    const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set())
+    const router = useRouter()
 
     const getStatus = (reg: Registration) => localStatuses[reg.id] || reg.status
 
     const filteredRegs = registrations.filter(reg => {
+        if (deletedIds.has(reg.id)) return false
         const status = getStatus(reg)
         const matchesStatus = filterStatus === 'ALL' || status === filterStatus
         const matchesSearch = reg.playerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -65,6 +73,21 @@ export default function ParticipantsTable({ registrations }: ParticipantsTablePr
             toast.success(jump ? 'Passed with jump — promoted two ranks' : 'Status updated')
         }
         setUpdatingId(null)
+    }
+
+    const handleDelete = async () => {
+        if (!deleteTarget) return
+        setIsDeleting(true)
+        const result = await deletePromotionRegistration(deleteTarget.id)
+        setIsDeleting(false)
+        if (result.error) {
+            toast.error(result.error)
+        } else {
+            toast.success('Participant removed')
+            setDeletedIds(prev => new Set(prev).add(deleteTarget.id))
+            router.refresh()
+        }
+        setDeleteTarget(null)
     }
 
     return (
@@ -100,20 +123,21 @@ export default function ParticipantsTable({ registrations }: ParticipantsTablePr
             {/* Table */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse min-w-[700px]">
+                    <table className="w-full text-left border-collapse min-w-[760px]">
                         <thead>
                             <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider">
-                                <th className="px-6 py-4">Student</th>
-                                <th className="px-6 py-4">Club</th>
-                                <th className="px-6 py-4">Belt / Target</th>
-                                <th className="px-6 py-4">Payment</th>
-                                <th className="px-6 py-4">Status</th>
+                                <th className="px-4 py-3 whitespace-nowrap">Student</th>
+                                <th className="px-4 py-3 whitespace-nowrap">Club</th>
+                                <th className="px-4 py-3 whitespace-nowrap">Belt / Target</th>
+                                <th className="px-4 py-3 whitespace-nowrap">Payment</th>
+                                <th className="px-4 py-3 whitespace-nowrap">Status</th>
+                                <th className="px-4 py-3 whitespace-nowrap text-right"><span className="sr-only">Delete</span></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {filteredRegs.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                                    <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
                                         No participants found matching your filters.
                                     </td>
                                 </tr>
@@ -126,13 +150,13 @@ export default function ParticipantsTable({ registrations }: ParticipantsTablePr
 
                                     return (
                                         <tr key={reg.id} className="hover:bg-gray-50/50 transition-colors">
-                                            <td className="px-6 py-4 font-medium text-gray-900">
+                                            <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
                                                 {reg.playerName}
                                             </td>
-                                            <td className="px-6 py-4 text-gray-600 text-sm">
+                                            <td className="px-4 py-3 text-gray-600 text-sm whitespace-nowrap">
                                                 {reg.clubName || '-'}
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2 text-sm">
                                                     <span className="px-2 py-0.5 bg-gray-100 rounded text-gray-700">{reg.currentBelt}</span>
                                                     <span className="text-gray-400">→</span>
@@ -144,7 +168,7 @@ export default function ParticipantsTable({ registrations }: ParticipantsTablePr
                                                     )}
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 py-3">
                                                 <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${reg.paymentStatus === 'PAID'
                                                     ? 'bg-green-50 text-green-700 border-green-200'
                                                     : 'bg-gray-50 text-gray-500 border-gray-200'
@@ -152,28 +176,46 @@ export default function ParticipantsTable({ registrations }: ParticipantsTablePr
                                                     {reg.paymentStatus}
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <div className="relative inline-flex items-center">
-                                                    <select
-                                                        value={currentStatus}
-                                                        onChange={e => handleStatusChange(reg.id, e.target.value)}
-                                                        disabled={isUpdating || isLocked}
-                                                        title={isLocked ? 'Result locked — change the athlete\'s belt in the Athletes tab to correct it' : undefined}
-                                                        className={`appearance-none cursor-pointer pl-3 pr-7 py-1.5 rounded-full text-xs font-bold border outline-none transition-all ${style.bg} ${style.text} ${style.border} ${style.ring} focus:ring-2 disabled:opacity-60 disabled:cursor-wait`}
+                                            <td className="px-4 py-3">
+                                                {isLocked ? (
+                                                    <span
+                                                        title="Result locked — change the athlete's belt in the Athletes tab to correct it"
+                                                        className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold border ${style.bg} ${style.text} ${style.border}`}
                                                     >
-                                                        {STATUS_OPTIONS.map(s => (
-                                                            <option key={s} value={s}>{s}</option>
-                                                        ))}
-                                                        {!isLocked && <option value="PASSED_JUMP">PASSED + JUMP</option>}
-                                                    </select>
-                                                    {isUpdating ? (
-                                                        <Loader2 size={10} className="absolute right-2 animate-spin pointer-events-none" />
-                                                    ) : (
-                                                        <svg className="absolute right-2 w-2.5 h-2.5 pointer-events-none opacity-50" viewBox="0 0 10 6" fill="none">
-                                                            <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                                        </svg>
-                                                    )}
-                                                </div>
+                                                        {currentStatus}
+                                                    </span>
+                                                ) : (
+                                                    <GlobalDropdown
+                                                        value={currentStatus}
+                                                        onChange={val => handleStatusChange(reg.id, val)}
+                                                        width="w-40"
+                                                        options={[
+                                                            ...STATUS_OPTIONS.map(s => ({ value: s, label: s })),
+                                                            { value: 'PASSED_JUMP', label: 'PASSED + JUMP' },
+                                                        ]}
+                                                        trigger={
+                                                            <button
+                                                                type="button"
+                                                                disabled={isUpdating}
+                                                                className={`inline-flex items-center justify-between gap-2 min-w-[130px] px-3 py-1.5 rounded-full text-xs font-bold border transition-all disabled:opacity-60 disabled:cursor-wait ${style.bg} ${style.text} ${style.border}`}
+                                                            >
+                                                                {currentStatus}
+                                                                {isUpdating ? <Loader2 size={12} className="animate-spin" /> : <ChevronDown size={12} className="opacity-60" />}
+                                                            </button>
+                                                        }
+                                                    />
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDeleteTarget(reg)}
+                                                    title="Delete participant"
+                                                    aria-label={`Delete ${reg.playerName}`}
+                                                    className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
                                             </td>
                                         </tr>
                                     )
@@ -183,6 +225,22 @@ export default function ParticipantsTable({ registrations }: ParticipantsTablePr
                     </table>
                 </div>
             </div>
+
+            <GlobalModal
+                isOpen={!!deleteTarget}
+                onClose={() => !isDeleting && setDeleteTarget(null)}
+                onConfirm={handleDelete}
+                title="Remove participant?"
+                message={
+                    <>
+                        {deleteTarget?.playerName} will be removed from this promotion test.
+                        {deleteTarget?.status === 'PASSED' && ' Their belt will NOT be reverted — change it in the Athletes tab if needed.'}
+                    </>
+                }
+                confirmLabel="Remove"
+                danger
+                loading={isDeleting}
+            />
         </div>
     )
 }
