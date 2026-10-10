@@ -153,7 +153,7 @@ export default function ParticipantsTable({ registrations }: ParticipantsTablePr
                                             <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
                                                 {reg.playerName}
                                             </td>
-                                            <td className="px-4 py-3 text-gray-600 text-sm whitespace-nowrap">
+                                            <td title={reg.clubName || undefined} className="px-4 py-3 text-gray-600 text-sm max-w-[180px] truncate">
                                                 {reg.clubName || '-'}
                                             </td>
                                             <td className="px-4 py-3">
