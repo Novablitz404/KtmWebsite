@@ -10,7 +10,12 @@ import React from 'react'
 import { toTitleCase } from '@/lib/utils'
 import { getExaminerLinkExpiration } from '@/lib/promotion'
 
-export async function updateRegistrationStatus(registrationId: string, status: string) {
+const GRADED_STATUSES = ['PASSED', 'FAILED']
+const LOCKED_MESSAGE = 'This result is already recorded and locked. To correct a mistake, change the athlete\'s belt in the Athletes tab.'
+
+// Grading is one-shot: once PASSED or FAILED the result is locked so a belt can't be
+// advanced twice. `jump` only applies to PASSED and promotes two ranks in the same action.
+export async function updateRegistrationStatus(registrationId: string, status: string, jump: boolean = false) {
     const user = await getAuthUser()
     if (!user || !user.clerkId) return { error: 'Unauthorized' }
 
@@ -35,17 +40,27 @@ export async function updateRegistrationStatus(registrationId: string, status: s
         return { success: true }
     }
 
-    await prisma.promotionTestRegistration.update({
-        where: { id: registrationId },
+    // Lock graded results
+    if (GRADED_STATUSES.includes(registration.status)) {
+        return { error: LOCKED_MESSAGE }
+    }
+
+    const isJump = status === 'PASSED' && jump
+
+    // Atomic claim — if two requests race, only one gets to change the status
+    const claimed = await prisma.promotionTestRegistration.updateMany({
+        where: { id: registrationId, status: { notIn: GRADED_STATUSES } },
         data: {
             status,
+            ...(status === 'PASSED' && { isJump }),
             ...(status === 'APPROVED' && { paymentStatus: 'PAID' })
         }
     })
+    if (claimed.count === 0) return { error: LOCKED_MESSAGE }
 
     // Auto-advance belt + send email when PASSED
     if (status === 'PASSED' && registration.playerId) {
-        const nextBelt = getNextBelt(registration.currentBelt, registration.isJump)
+        const nextBelt = getNextBelt(registration.currentBelt, isJump)
         if (nextBelt) {
             const user = await prisma.user.findUnique({
                 where: { id: registration.playerId },
@@ -141,15 +156,16 @@ export async function bulkUpdateRegistrations(registrationIds: string[], status:
         where: { id: { in: registrationIds } },
         select: { id: true, status: true }
     })
+    // Skip records already in the target status, and never touch locked (PASSED/FAILED) results
     const alreadyInStatus = new Set(
-        existingStatuses.filter(r => r.status === status).map(r => r.id)
+        existingStatuses.filter(r => r.status === status || GRADED_STATUSES.includes(r.status)).map(r => r.id)
     )
     // Only update records that aren't already in the target status
     const idsToUpdate = registrationIds.filter(id => !alreadyInStatus.has(id))
     if (idsToUpdate.length === 0) return { success: true }
 
     await prisma.promotionTestRegistration.updateMany({
-        where: { id: { in: idsToUpdate } },
+        where: { id: { in: idsToUpdate }, status: { notIn: GRADED_STATUSES } },
         data: { status }
     })
 

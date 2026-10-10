@@ -9,10 +9,14 @@ import React from 'react'
 
 // Examiner actions — no auth required, secured by UUID knowledge
 
-export async function examinerUpdateStatus(registrationId: string, status: string) {
-    if (!['PASSED', 'FAILED', 'APPROVED'].includes(status)) {
+// One-shot grading: an examiner can grade a registration exactly once. The
+// result can't be changed from the examiner link (organizers can correct it).
+// `jump` only applies to PASSED — it promotes the athlete two ranks in the same action.
+export async function examinerUpdateStatus(registrationId: string, status: string, jump: boolean = false) {
+    if (!['PASSED', 'FAILED'].includes(status)) {
         return { error: 'Invalid status' }
     }
+    const isJump = status === 'PASSED' && jump
 
     const registration = await prisma.promotionTestRegistration.findUnique({
         where: { id: registrationId }
@@ -20,14 +24,22 @@ export async function examinerUpdateStatus(registrationId: string, status: strin
 
     if (!registration) return { error: 'Registration not found' }
 
-    await prisma.promotionTestRegistration.update({
-        where: { id: registrationId },
-        data: { status }
+    if (['PASSED', 'FAILED'].includes(registration.status)) {
+        return { error: 'This result has already been recorded and can no longer be changed here.' }
+    }
+
+    // Atomic claim — if two requests race (double-click, two examiners), only one wins
+    const claimed = await prisma.promotionTestRegistration.updateMany({
+        where: { id: registrationId, status: { notIn: ['PASSED', 'FAILED'] } },
+        data: { status, isJump }
     })
+    if (claimed.count === 0) {
+        return { error: 'This result has already been recorded and can no longer be changed here.' }
+    }
 
     // Auto-advance belt & Send Email when PASSED
     if (status === 'PASSED' && registration.playerId) {
-        const nextBelt = getNextBelt(registration.currentBelt, registration.isJump)
+        const nextBelt = getNextBelt(registration.currentBelt, isJump)
 
         const user = await prisma.user.findUnique({
             where: { id: registration.playerId },
@@ -82,21 +94,4 @@ export async function examinerUpdateStatus(registrationId: string, status: strin
     revalidatePath(`/promotions/${registration.promotionTestId}/examiner`)
     revalidatePath(`/promotions/${registration.promotionTestId}`)
     return { success: true }
-}
-
-export async function examinerToggleJump(registrationId: string) {
-    const registration = await prisma.promotionTestRegistration.findUnique({
-        where: { id: registrationId }
-    })
-
-    if (!registration) return { error: 'Registration not found' }
-
-    const updated = await prisma.promotionTestRegistration.update({
-        where: { id: registrationId },
-        data: { isJump: !registration.isJump }
-    })
-
-    revalidatePath(`/promotions/${registration.promotionTestId}/examiner`)
-    revalidatePath(`/promotions/${registration.promotionTestId}`)
-    return { success: true, isJump: updated.isJump }
 }

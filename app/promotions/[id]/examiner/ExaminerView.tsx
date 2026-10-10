@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { examinerUpdateStatus, examinerToggleJump } from './actions'
+import { examinerUpdateStatus } from './actions'
 import { toast } from 'sonner'
 import GlobalDropdown from '@/components/GlobalDropdown'
 
@@ -110,28 +110,16 @@ export default function ExaminerView({ promotionTest }: { promotionTest: Promoti
     // Calculate total collection dynamically based on each student's belt
     const totalCollection = registrations.reduce((sum, reg) => sum + getFeeForBelt(reg.currentBelt), 0)
 
-    const handleStatusUpdate = async (id: string, status: string) => {
+    const handleStatusUpdate = async (id: string, status: 'PASSED' | 'FAILED', jump = false) => {
         setLoadingId(id)
-        const result = await examinerUpdateStatus(id, status)
+        const result = await examinerUpdateStatus(id, status, jump)
         setLoadingId(null)
         if (result.error) {
             toast.error(result.error)
         } else {
-            toast.success(`Marked as ${status}`)
-            router.refresh()
+            toast.success(jump ? 'Passed with jump — promoted two ranks' : `Marked as ${status}`)
         }
-    }
-
-    const handleToggleJump = async (id: string) => {
-        setLoadingId(id)
-        const result = await examinerToggleJump(id)
-        setLoadingId(null)
-        if (result.error) {
-            toast.error(result.error)
-        } else {
-            toast.success(result.isJump ? 'Jump enabled — will skip a rank' : 'Jump disabled')
-            router.refresh()
-        }
+        router.refresh()
     }
 
     const approvedCount = registrations.filter(r => r.status === 'APPROVED').length
@@ -178,16 +166,6 @@ export default function ExaminerView({ promotionTest }: { promotionTest: Promoti
 
                     {!isGraded ? (
                         <div className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-100">
-                            <button
-                                onClick={() => handleToggleJump(reg.id)}
-                                disabled={isLoading}
-                                className={`px-3 py-2 text-xs font-semibold rounded-lg transition-all ${reg.isJump
-                                    ? 'bg-purple-600 text-white hover:bg-purple-700'
-                                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200'
-                                    } disabled:opacity-50`}
-                            >
-                                {reg.isJump ? 'Jump On' : 'Jump'}
-                            </button>
                             <div className="flex-1" />
                             <button
                                 onClick={() => handleStatusUpdate(reg.id, 'FAILED')}
@@ -203,6 +181,14 @@ export default function ExaminerView({ promotionTest }: { promotionTest: Promoti
                             >
                                 Pass
                             </button>
+                            <button
+                                onClick={() => handleStatusUpdate(reg.id, 'PASSED', true)}
+                                disabled={isLoading}
+                                title="Pass and promote two ranks"
+                                className="px-4 py-2 text-xs font-semibold bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all shadow-sm disabled:opacity-50"
+                            >
+                                Jump
+                            </button>
                         </div>
                     ) : (
                         <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
@@ -212,13 +198,7 @@ export default function ExaminerView({ promotionTest }: { promotionTest: Promoti
                                 }`}>
                                 {reg.status}
                             </span>
-                            <button
-                                onClick={() => handleStatusUpdate(reg.id, 'APPROVED')}
-                                disabled={isLoading}
-                                className="text-xs text-indigo-600 hover:underline font-medium disabled:opacity-50"
-                            >
-                                Edit Result
-                            </button>
+                            <span className="text-[11px] text-gray-400">Result locked</span>
                         </div>
                     )}
                 </div>

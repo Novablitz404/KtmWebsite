@@ -46,11 +46,13 @@ export default function ParticipantsTable({ registrations }: ParticipantsTablePr
         return matchesStatus && matchesSearch
     })
 
-    const handleStatusChange = async (regId: string, newStatus: string) => {
+    const handleStatusChange = async (regId: string, selected: string) => {
+        const jump = selected === 'PASSED_JUMP'
+        const newStatus = jump ? 'PASSED' : selected
         setUpdatingId(regId)
         setLocalStatuses(prev => ({ ...prev, [regId]: newStatus }))
 
-        const result = await updateRegistrationStatus(regId, newStatus)
+        const result = await updateRegistrationStatus(regId, newStatus, jump)
         if (result.error) {
             toast.error(result.error)
             // Revert on error
@@ -60,7 +62,7 @@ export default function ParticipantsTable({ registrations }: ParticipantsTablePr
                 return next
             })
         } else {
-            toast.success('Status updated')
+            toast.success(jump ? 'Passed with jump — promoted two ranks' : 'Status updated')
         }
         setUpdatingId(null)
     }
@@ -120,6 +122,7 @@ export default function ParticipantsTable({ registrations }: ParticipantsTablePr
                                     const currentStatus = getStatus(reg)
                                     const style = statusStyles[currentStatus] || statusStyles.PENDING
                                     const isUpdating = updatingId === reg.id
+                                    const isLocked = currentStatus === 'PASSED' || currentStatus === 'FAILED'
 
                                     return (
                                         <tr key={reg.id} className="hover:bg-gray-50/50 transition-colors">
@@ -154,12 +157,14 @@ export default function ParticipantsTable({ registrations }: ParticipantsTablePr
                                                     <select
                                                         value={currentStatus}
                                                         onChange={e => handleStatusChange(reg.id, e.target.value)}
-                                                        disabled={isUpdating}
+                                                        disabled={isUpdating || isLocked}
+                                                        title={isLocked ? 'Result locked — change the athlete\'s belt in the Athletes tab to correct it' : undefined}
                                                         className={`appearance-none cursor-pointer pl-3 pr-7 py-1.5 rounded-full text-xs font-bold border outline-none transition-all ${style.bg} ${style.text} ${style.border} ${style.ring} focus:ring-2 disabled:opacity-60 disabled:cursor-wait`}
                                                     >
                                                         {STATUS_OPTIONS.map(s => (
                                                             <option key={s} value={s}>{s}</option>
                                                         ))}
+                                                        {!isLocked && <option value="PASSED_JUMP">PASSED + JUMP</option>}
                                                     </select>
                                                     {isUpdating ? (
                                                         <Loader2 size={10} className="absolute right-2 animate-spin pointer-events-none" />

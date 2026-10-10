@@ -411,7 +411,7 @@ export default function OrganizationAthletesView() {
                                                 <GlobalDropdown
                                                     value={editForm.belt}
                                                     options={[
-                                                        'White', 'Yellow', 'Blue', 'Red', 'Brown', 'Black'
+                                                        'White', 'Yellow', 'Orange', 'Green', 'Purple', 'Blue', 'Red', 'Maroon', 'Brown', 'Black'
                                                     ]}
                                                     onChange={(val) => setEditForm({ ...editForm, belt: val })}
                                                     fullWidth
