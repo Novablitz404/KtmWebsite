@@ -5,7 +5,7 @@ import { X, Search, Loader2, Upload, CreditCard } from 'lucide-react'
 import { toast } from 'sonner'
 import GlobalDropdown from '@/components/GlobalDropdown'
 import UserAvatar from '@/components/UserAvatar'
-import { searchClubMembers, getUpcomingTournaments, registerForTournament } from '@/app/actions'
+import { searchClubMembers, getUpcomingTournaments, registerForTournament, suggestCategoryForAthlete } from '@/app/actions'
 import { getUpcomingSeminars, registerForSeminar } from '@/app/seminars/actions'
 import { getUpcomingPromotions, registerForPromotion } from '@/app/promotions/actions'
 import { calculateAge } from '@/lib/placement'
@@ -80,6 +80,8 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
     const [targetBelt, setTargetBelt] = useState<string>('')
 
     const [manualCategoryId, setManualCategoryId] = useState<string>('')
+    const [autoCategoryId, setAutoCategoryId] = useState<string>('')
+    const [categoryOverridden, setCategoryOverridden] = useState(false)
 
     // Form State (Details)
     const [weight, setWeight] = useState<string>('')
@@ -128,11 +130,37 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
         : []
 
     const effectiveCategory = filteredCategories.find(c => c.id === manualCategoryId) || null
+    const isAutoMatched = !!effectiveCategory && !categoryOverridden && effectiveCategory.id === autoCategoryId
 
-    // Reset category selection whenever the tournament or event type changes
+    // Reset category selection whenever the tournament, event type or athlete changes
     useEffect(() => {
         setManualCategoryId('')
-    }, [selectedTournament, eventType])
+        setAutoCategoryId('')
+        setCategoryOverridden(false)
+    }, [selectedTournament, eventType, selectedMember?.id])
+
+    // Auto-match the category from the athlete's data (until the club master picks one manually)
+    useEffect(() => {
+        if (activeTab !== 'TOURNAMENT' || !selectedMember || !selectedTournament || categoryOverridden) return
+        const timer = setTimeout(async () => {
+            try {
+                const { categoryId } = await suggestCategoryForAthlete({
+                    tournamentId: selectedTournament,
+                    userId: selectedMember.id,
+                    type: eventType,
+                    weight: parseFloat(weight) || undefined,
+                    height: parseFloat(height) || undefined,
+                    belt: belt || undefined,
+                    poomsaeType: eventType === 'POOMSAE' ? poomsaeType : undefined,
+                })
+                setAutoCategoryId(categoryId || '')
+                setManualCategoryId(categoryId || '')
+            } catch {
+                setAutoCategoryId('')
+            }
+        }, 400)
+        return () => clearTimeout(timer)
+    }, [activeTab, selectedMember, selectedTournament, eventType, weight, height, belt, poomsaeType, categoryOverridden])
 
     // Member Search Debounce
     useEffect(() => {
@@ -164,6 +192,8 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
         setSelectedPromotionId('')
         setTargetBelt('')
         setManualCategoryId('')
+        setAutoCategoryId('')
+        setCategoryOverridden(false)
         setWeight('')
         setHeight('')
         setBelt('')
@@ -525,7 +555,7 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                                             <div className="space-y-2">
                                                 <GlobalDropdown
                                                     value={manualCategoryId}
-                                                    onChange={setManualCategoryId}
+                                                    onChange={(val: string) => { setManualCategoryId(val); setCategoryOverridden(true) }}
                                                     options={filteredCategories.map(c => ({ value: c.id, label: c.name }))}
                                                     label="Select category..."
                                                     fullWidth
@@ -533,6 +563,21 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                                                 />
                                                 {!selectedTournament && (
                                                     <p className="text-[11px] text-gray-400 font-medium mt-1">Select a tournament first.</p>
+                                                )}
+                                                {selectedMember && selectedTournament && isAutoMatched && (
+                                                    <p className="text-[11px] text-green-600 font-medium mt-1">Auto-matched from athlete data. Pick another category to override.</p>
+                                                )}
+                                                {selectedMember && selectedTournament && !effectiveCategory && (
+                                                    <p className="text-[11px] text-amber-600 font-medium mt-1">No category matched this athlete. Please pick one manually.</p>
+                                                )}
+                                                {categoryOverridden && autoCategoryId && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { setCategoryOverridden(false); setManualCategoryId(autoCategoryId) }}
+                                                        className="text-[11px] text-red-600 font-bold mt-1 hover:underline"
+                                                    >
+                                                        Reset to auto-match
+                                                    </button>
                                                 )}
                                             </div>
                                         </div>

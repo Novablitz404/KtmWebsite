@@ -2902,6 +2902,42 @@ export async function searchClubMembers(clubName: string, query: string) {
     return members
 }
 
+/**
+ * Club master quick-registration: suggest the best-fit category for an athlete
+ * from their age, gender, weight/height and belt. The caller can still override manually.
+ */
+export async function suggestCategoryForAthlete(input: {
+    tournamentId: string
+    userId: string
+    type: 'KYORUGI' | 'POOMSAE' | 'KYUKPA'
+    weight?: number
+    height?: number
+    belt?: string
+    poomsaeType?: string
+}) {
+    const { verifyCanRegisterAthlete } = await import('@/lib/club-auth')
+    const authCheck = await verifyCanRegisterAthlete(input.userId)
+    if (authCheck.error) return { categoryId: null }
+
+    const user = await prisma.user.findUnique({
+        where: { id: input.userId },
+        select: { birthDate: true, gender: true }
+    })
+    if (!user?.birthDate || !user.gender) return { categoryId: null }
+
+    const category = await findCategoryForPlayer(input.tournamentId, {
+        birthDate: user.birthDate,
+        gender: user.gender,
+        weight: input.weight || 0,
+        height: input.height || undefined,
+        belt: input.belt || undefined,
+        type: input.type,
+        skillLevel: input.type === 'KYORUGI' ? deriveSkillLevel(input.belt || null) : undefined,
+        poomsaeType: input.type === 'POOMSAE' ? input.poomsaeType : undefined,
+    })
+    return { categoryId: category?.id ?? null }
+}
+
 export async function searchAllAthletes(query: string) {
     if (!query || query.length < 2) return []
 
