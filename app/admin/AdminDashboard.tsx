@@ -8,6 +8,7 @@ import AdminHomeView from '@/components/admin/AdminHomeView'
 import AdminUsersView from '@/components/admin/AdminUsersView'
 import AdminEventsView from '@/components/admin/AdminEventsView'
 import AdminApiKeysView from '@/components/admin/AdminApiKeysView'
+import AdminLicensesView from '@/components/admin/AdminLicensesView'
 import AdminSettingsView from '@/components/admin/AdminSettingsView'
 import AdminGuidelinesView from '@/components/admin/AdminGuidelinesView'
 import AdminFinancialsView from '@/components/admin/AdminFinancialsView'
@@ -26,7 +27,7 @@ interface AdminDashboardProps {
     usersForKeys: any[]
 }
 
-type ViewType = 'home' | 'users' | 'events' | 'financials' | 'api-keys' | 'guidelines' | 'settings' | 'support'
+type ViewType = 'home' | 'users' | 'events' | 'financials' | 'api-keys' | 'licenses' | 'guidelines' | 'settings' | 'support'
 
 export default function AdminDashboard({
     user,
@@ -58,6 +59,7 @@ export default function AdminDashboard({
             case 'events': return 'Events'
             case 'financials': return 'Platform Financials'
             case 'api-keys': return 'API Keys'
+            case 'licenses': return 'Subscriptions'
             case 'guidelines': return 'Guideline Templates'
             case 'support': return 'Support'
             case 'settings': return 'Settings'
@@ -77,6 +79,8 @@ export default function AdminDashboard({
                 return <AdminFinancialsView />
             case 'api-keys':
                 return <AdminApiKeysView users={usersForKeys} />
+            case 'licenses':
+                return <AdminLicensesView />
             case 'guidelines':
                 return <AdminGuidelinesView />
             case 'support':
@@ -113,9 +117,9 @@ export default function AdminDashboard({
                     onMenuClick={() => setIsSidebarOpen(true)}
                 />
 
-                <main className={`flex-1 flex flex-col min-h-0 overflow-hidden ${['users', 'events', 'financials', 'api-keys', 'guidelines', 'support'].includes(activeView) ? 'bg-gray-50' : 'p-4 md:p-6 lg:p-8 overflow-y-auto'
+                <main className={`flex-1 flex flex-col min-h-0 overflow-hidden ${['users', 'events', 'financials', 'api-keys', 'licenses', 'guidelines', 'support'].includes(activeView) ? 'bg-gray-50' : 'p-4 md:p-6 lg:p-8 overflow-y-auto'
                     }`}>
-                    {['users', 'events', 'financials', 'api-keys', 'guidelines', 'support'].includes(activeView) ? (
+                    {['users', 'events', 'financials', 'api-keys', 'licenses', 'guidelines', 'support'].includes(activeView) ? (
                         <div className="h-full w-full">
                             {renderView()}
                         </div>

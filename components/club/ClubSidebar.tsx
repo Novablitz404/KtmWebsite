@@ -12,11 +12,16 @@ import {
     ChevronRight,
     Search,
     LifeBuoy,
+    CalendarCheck,
+    Wallet,
+    CalendarDays,
+    Lock,
 } from 'lucide-react'
+import { useSubscription } from '@/components/club/subscription'
 
 interface ClubSidebarProps {
-    activeView: 'home' | 'members' | 'tournaments' | 'notifications' | 'settings' | 'support'
-    onNavigate: (view: 'home' | 'members' | 'tournaments' | 'notifications' | 'settings' | 'support') => void
+    activeView: 'home' | 'members' | 'attendance' | 'finance' | 'schedule' | 'tournaments' | 'notifications' | 'settings' | 'support'
+    onNavigate: (view: 'home' | 'members' | 'attendance' | 'finance' | 'schedule' | 'tournaments' | 'notifications' | 'settings' | 'support') => void
     clubLogo?: string | null
     clubName?: string
     isOpen: boolean
@@ -31,9 +36,17 @@ const NAV_SECTIONS = [
         ],
     },
     {
-        label: 'Management',
+        label: 'Club management',
         items: [
             { id: 'members',     label: 'Members',       icon: Users  },
+            { id: 'attendance',  label: 'Attendance',    icon: CalendarCheck, paid: true },
+            { id: 'finance',     label: 'Finance',       icon: Wallet, paid: true },
+            { id: 'schedule',    label: 'Schedule',      icon: CalendarDays, paid: true },
+        ],
+    },
+    {
+        label: 'Tournament management',
+        items: [
             { id: 'tournaments', label: 'Registrations', icon: Trophy },
         ],
     },
@@ -58,6 +71,7 @@ export default function ClubSidebar({
     const { signOut } = useAuth()
     const router = useRouter()
     const tenant = useTenant()
+    const { locked } = useSubscription() // never subscribed: the paid items carry a lock
 
     const handleLogout = async () => {
         await signOut()
@@ -109,7 +123,9 @@ export default function ClubSidebar({
                                 {section.label}
                             </p>
                             <div className="space-y-0.5">
-                                {section.items.map(({ id, label, icon: Icon }) => {
+                                {section.items.map(item => {
+                                    const { id, label, icon: Icon } = item
+                                    const paid = 'paid' in item && item.paid
                                     const isActive = activeView === id
                                     return (
                                         <button
@@ -129,6 +145,7 @@ export default function ClubSidebar({
                                                 className={isActive ? 'text-white/90' : 'text-gray-400 group-hover:text-gray-600 transition-colors'}
                                             />
                                             <span className="flex-1 text-left">{label}</span>
+                                            {paid && locked && <Lock size={12} className={isActive ? 'text-white/80' : 'text-gray-300'} aria-label="Paid feature" />}
                                         </button>
                                     )
                                 })}

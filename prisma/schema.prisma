@@ -220,6 +220,11 @@ model User {
   // Relations
   players      Player[]
   club         Club?
+  clubMemberships ClubMembership[]
+  clubAttendance  ClubAttendance[]
+  clubPayments    ClubPayment[]
+  clubDueOverrides ClubDueOverride[]
+  clubClassMemberships ClubClassMember[]
   organization Organization? @relation("OrganizationOwner")
 
   // Tenant Membership (which org's website the user signed up through)
@@ -322,6 +327,16 @@ model Club {
   guestRegistrations  GuestRegistration[]
   bulkRegistrations   BulkRegistration[]
   affiliations        ClubAffiliation[]
+  memberships         ClubMembership[]
+  attendance          ClubAttendance[]
+  payments            ClubPayment[]
+  dueOverrides        ClubDueOverride[]
+  invoiceSettings     ClubInvoiceSettings?
+  classes             ClubClass[]
+  kioskDevices        KioskDevice[]
+  kioskPairingCodes   KioskPairingCode[]
+  kioskSettings       ClubKioskSettings?
+  appLicense          AppLicense?
 
   status String @default("PENDING") // PENDING, APPROVED, REJECTED
 
@@ -1141,4 +1156,235 @@ model NfcQueue {
 
   @@index([tournamentId, status])
   @@index([tournamentId, createdAt])
+}
+
+// ============================================
+// KTM CLUB MANAGER APP LICENSES
+// One row per club that uses the desktop app (not the athlete licences above). The app asks /api/license/check
+// whether its key is valid.
+// ============================================
+model AppLicense {
+  id         String    @id @default(cuid())
+  key        String    @unique              // KTM-XXXX-XXXX-XXXX-XXXX
+  clubId     String?   @unique              // the club this subscription belongs to (Club management features)
+  club       Club?     @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  clubName   String
+  contact    String?
+  status     String    @default("ACTIVE")   // ACTIVE, SUSPENDED
+  expiresAt  DateTime? @db.Date             // null = never expires
+  machineId  String?                        // the PC this key is activated on (cleared by "Reset PC")
+  notes      String?
+  appVersion String?
+  lastSeenAt DateTime?
+  createdAt  DateTime  @default(now())
+  payments   AppLicensePayment[]
+}
+
+model AppLicensePayment {
+  id        String     @id @default(cuid())
+  licenseId String
+  license   AppLicense @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  amount    Float
+  months    Int?
+  paidOn    DateTime   @default(now()) @db.Date
+  note      String?
+  createdAt DateTime   @default(now())
+
+  @@index([licenseId])
+}
+
+// ============================================
+// CLUB MANAGER: MEMBERSHIP
+// What a club charges a member and when they joined. The person is the existing User (clubName links them to the
+// club); a member with no row here simply has no dues.
+// ============================================
+model ClubMembership {
+  id         String   @id @default(cuid())
+  clubId     String
+  club       Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status     String   @default("ACTIVE") // ACTIVE, INACTIVE
+  joinedOn   DateTime @default(now()) @db.Date
+  monthlyFee Float    @default(0)
+  billingDay Int?     // day of the month dues are due (1-31); null = not set
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@unique([clubId, userId])
+  @@index([clubId])
+  @@index([userId])
+}
+
+// ============================================
+// CLUB MANAGER: ATTENDANCE
+// One row per visit: when a member checked in and out of their club. method = manual, face or fingerprint.
+// ============================================
+model ClubAttendance {
+  id        String    @id @default(cuid())
+  clubId    String
+  club      Club      @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  checkIn   DateTime
+  checkOut  DateTime?
+  method    String    @default("manual") // manual, face, fingerprint
+  eventId   String?   @unique          // set by a kiosk: the same scan sent twice is recorded once
+  outEventId String?  @unique          // same, for the check-out scan
+  deviceId  String?                    // the kiosk that recorded it
+  createdAt DateTime  @default(now())
+
+  @@index([clubId, checkIn])
+  @@index([userId, checkIn])
+}
+
+// ============================================
+// CLUB MANAGER: FINANCE
+// Dues are worked out from ClubMembership (fee, billing day, join date); only what was actually paid is stored.
+// ============================================
+model ClubPayment {
+  id        String   @id @default(cuid())
+  clubId    String
+  club      Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount    Float
+  category  String   @default("Monthly dues")
+  period    String?  // 'YYYY-MM' of the dues month this pays; null for other income
+  paidOn    DateTime @default(now()) @db.Date
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([clubId, paidOn])
+  @@index([clubId, userId, period])
+}
+
+// Changes to one member's dues for one month. PAST: a month the club did not track in the app, with the fee owed for it
+// (it shows before the member's joining month too). REMOVED: the month's dues were deleted and stop counting.
+model ClubDueOverride {
+  id        String   @id @default(cuid())
+  clubId    String
+  club      Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period    String   // 'YYYY-MM'
+  kind      String   // PAST, REMOVED
+  fee       Float?   // the fee owed, for PAST
+  createdAt DateTime @default(now())
+
+  @@unique([clubId, userId, period])
+  @@index([clubId])
+}
+
+// What goes on a club's invoices besides its name, address, phone and logo (which live on Club).
+model ClubInvoiceSettings {
+  clubId       String   @id
+  club         Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  contactEmail String?
+  taxId        String?
+  invoiceNote  String?
+  payQrImage   String?  // the club's bank or e-wallet QR code, as a small PNG/JPEG data URL
+  payQrLabel   String?  // e.g. "GCash · Juan Dela Cruz · 0917 123 4567"
+  updatedAt    DateTime @default(now()) @updatedAt
+}
+
+// ============================================
+// CLUB MANAGER: CLASS SCHEDULE
+// A club's weekly classes: when they run, how many each can take, which belts they are open to, and who is enrolled.
+// ============================================
+model ClubClass {
+  id         String   @id @default(cuid())
+  clubId     String
+  club       Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  name       String
+  days       Int[]    // ISO weekdays: 1 = Monday ... 7 = Sunday
+  startTime  String   // 'HH:mm', club time
+  endTime    String   // 'HH:mm'
+  capacity   Int
+  beltMin    String   @default("White") // lowest belt allowed (see lib/belt-order.ts)
+  beltMax    String   @default("Black") // highest belt allowed
+  instructor String?
+  location   String?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+  members    ClubClassMember[]
+
+  @@index([clubId])
+}
+
+model ClubClassMember {
+  classId   String
+  class     ClubClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@id([classId, userId])
+  @@index([userId])
+}
+
+// ============================================
+// CLUB MANAGER: CHECK-IN KIOSKS
+// A kiosk is the helper app on a PC at the club door. The club master pairs it with a one-time code; after that it
+// signs its calls with a private token (only a hash is stored here). Face data never reaches this database.
+// ============================================
+model KioskDevice {
+  id         String    @id @default(cuid())
+  clubId     String
+  club       Club      @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  name       String
+  tokenHash  String    @unique
+  appVersion String?
+  lastSeenAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  faces      KioskFaceEnrollment[]
+
+  @@index([clubId])
+}
+
+model KioskPairingCode {
+  id        String    @id @default(cuid())
+  clubId    String
+  club      Club      @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  codeHash  String    @unique
+  name      String    // what the kiosk will be called once paired
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([clubId])
+}
+
+model ClubKioskSettings {
+  clubId      String   @id
+  club        Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  faceEnabled Boolean  @default(true)
+  antispoofMin Float   @default(0.5)  // how real a face must look (0 to 1) to count as a live person
+  updatedAt   DateTime @default(now()) @updatedAt
+}
+
+// Which members have a face enrolled on which kiosk. Only the fact is stored (never the face data, which stays on the PC):
+// the kiosk reports it, the member profile shows it.
+model KioskFaceEnrollment {
+  id         String      @id @default(cuid())
+  clubId     String
+  userId     String
+  deviceId   String
+  device     KioskDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  enrolledAt DateTime    @default(now())
+
+  @@unique([deviceId, userId])
+  @@index([clubId, userId])
+}
+
+// "Clear this member's face", asked on the website. A kiosk deletes the face if it was enrolled before the request.
+model KioskFaceClear {
+  id        String   @id @default(cuid())
+  clubId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  @@index([clubId])
 }

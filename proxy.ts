@@ -34,6 +34,7 @@ const PUBLIC_PREFIXES = [
     '/api/event',
     '/api/checkout',   // Guest registration payment flow (no auth required)
     '/api/cron',
+    '/api/kiosk',      // check-in kiosk helper: pairing code or device token, checked in the route
     '/api/ai',
     '/tournaments',
     '/tournament/',
@@ -69,7 +70,7 @@ const cspDirectives = [
     "font-src 'self' https://fonts.gstatic.com https://*.gstatic.com data:",
     `connect-src 'self' https://*.ktmsports.com https://*.supabase.co wss://*.supabase.co https://*.googleapis.com${process.env.NODE_ENV === 'development' ? ' http://127.0.0.1:54321 http://localhost:54321 ws://127.0.0.1:54321 ws://localhost:54321' : ''}`,
     "frame-ancestors 'none'",
-    "frame-src 'self' https://challenges.cloudflare.com https://*.google.com",
+    "frame-src 'self' blob: https://challenges.cloudflare.com https://*.google.com", // blob: lets the invoice preview show a PDF the page just generated
     "form-action 'self'",
     "base-uri 'self'",
     "object-src 'none'",

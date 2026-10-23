@@ -11,9 +11,11 @@ type View = 'list' | 'new' | 'thread'
 interface SupportPanelProps {
     userName?: string | null
     userEmail?: string | null
+    prefill?: { subject: string; message: string; category: string } | null   // a ticket to start (for example from a paid-feature page)
+    onPrefillUsed?: () => void
 }
 
-export default function SupportPanel({ userName, userEmail }: SupportPanelProps) {
+export default function SupportPanel({ userName, userEmail, prefill, onPrefillUsed }: SupportPanelProps) {
     const [view, setView] = useState<View>('list')
     const [tickets, setTickets] = useState<Awaited<ReturnType<typeof getMyTickets>>>([])
     const [activeTicket, setActiveTicket] = useState<Awaited<ReturnType<typeof getTicketThread>> | null>(null)
@@ -23,7 +25,7 @@ export default function SupportPanel({ userName, userEmail }: SupportPanelProps)
         const data = await getMyTickets()
         setTickets(data)
         setLoading(false)
-        if (data.length === 0) setView('new')
+        if (data.length === 0 || prefill) setView('new')
         return data
     }, [])
 
@@ -76,7 +78,8 @@ export default function SupportPanel({ userName, userEmail }: SupportPanelProps)
                     mode="user"
                     defaultName={userName || ''}
                     defaultEmail={userEmail || ''}
-                    onSuccess={handleNewTicketSuccess}
+                    onSuccess={(id) => { onPrefillUsed?.(); handleNewTicketSuccess(id) }}
+                    initial={prefill || undefined}
                 />
             </div>
         )

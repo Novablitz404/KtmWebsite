@@ -1,29 +1,35 @@
 'use client'
 
 import { useState } from 'react'
-import { User, Building2, Link2, Shield } from 'lucide-react'
+import { User, Building2, Link2, Shield, Receipt, MonitorSmartphone } from 'lucide-react'
 
 interface ClubSettingsSubTabsProps {
     profileContent: React.ReactNode
     clubContent: React.ReactNode
     securityContent: React.ReactNode
     affiliationContent?: React.ReactNode
+    billingContent?: React.ReactNode
+    kiosksContent?: React.ReactNode
 }
 
 const BASE_TABS = [
     { id: 'profile',     label: 'Profile',     Icon: User     },
     { id: 'club',        label: 'Club',        Icon: Building2 },
+    { id: 'billing',     label: 'Billing & invoices', Icon: Receipt },
+    { id: 'kiosks',      label: 'Check-in kiosks', Icon: MonitorSmartphone },
     { id: 'affiliation', label: 'Affiliation', Icon: Link2    },
     { id: 'security',    label: 'Security',    Icon: Shield   },
 ] as const
 
 type TabId = typeof BASE_TABS[number]['id']
 
-export default function ClubSettingsSubTabs({ profileContent, clubContent, securityContent, affiliationContent }: ClubSettingsSubTabsProps) {
+export default function ClubSettingsSubTabs({ profileContent, clubContent, securityContent, affiliationContent, billingContent, kiosksContent }: ClubSettingsSubTabsProps) {
     const [activeTab, setActiveTab] = useState<TabId>('profile')
 
     const tabs = BASE_TABS.filter(t => {
         if (t.id === 'affiliation' && !affiliationContent) return false
+        if (t.id === 'billing' && !billingContent) return false
+        if (t.id === 'kiosks' && !kiosksContent) return false
         return true
     })
 
@@ -61,6 +67,8 @@ export default function ClubSettingsSubTabs({ profileContent, clubContent, secur
             <div>
                 {activeTab === 'profile'     && <div key="profile">{profileContent}</div>}
                 {activeTab === 'club'        && <div key="club">{clubContent}</div>}
+                {activeTab === 'billing'     && <div key="billing">{billingContent}</div>}
+                {activeTab === 'kiosks'      && <div key="kiosks">{kiosksContent}</div>}
                 {activeTab === 'affiliation' && <div key="affiliation">{affiliationContent}</div>}
                 {activeTab === 'security'    && <div key="security">{securityContent}</div>}
             </div>

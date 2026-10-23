@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/prisma'
 
-// Belt progression order (lowest to highest)
-export const BELT_ORDER = ['White', 'Yellow', 'Orange', 'Green', 'Purple', 'Blue', 'Red', 'Maroon', 'Brown', 'Black']
+// Belt progression order (lowest to highest): defined in lib/belt-order.ts so client components can import it without this file's server code
+import { BELT_ORDER } from '@/lib/belt-order'
+export { BELT_ORDER }
 
 export function getNextBelt(currentBelt: string, jump: boolean = false): string | null {
     const index = BELT_ORDER.findIndex(b => b.toLowerCase() === currentBelt.toLowerCase())

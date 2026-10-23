@@ -3,12 +3,17 @@
 import { useState, useEffect } from 'react'
 import {
     X, Trophy, Award, BookOpen, Loader2, Calendar, MapPin,
-    Ruler, Weight, User2, BadgeCheck, Medal, ShieldCheck
+    Ruler, Weight, User2, BadgeCheck, Medal, ShieldCheck, Wallet, CalendarCheck
 } from 'lucide-react'
 import { getAthleteDetails, requestAthleteLicenseActivation } from '@/app/club/actions'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { calculateAge } from '@/lib/placement'
 import UserAvatar from '@/components/UserAvatar'
+import MemberMembershipTab from '@/components/club/MemberMembershipTab'
+import MemberAttendanceTab from '@/components/club/MemberAttendanceTab'
+import { PaidGate, useSubscription } from '@/components/club/subscription'
+import { useQueryClient } from '@tanstack/react-query'
+import { membershipQuery, memberAttendanceQuery } from '@/lib/club-queries'
 import { toast } from 'sonner'
 
 interface AthleteDetailsModalProps {
@@ -83,13 +88,31 @@ function EmptyState({ icon: Icon, title, sub }: { icon: React.ElementType; title
     )
 }
 
+// Grey placeholders shown where a value will appear once the profile data has loaded; headings and labels never wait.
+const Bar = ({ className = '' }: { className?: string }) => <span className={`inline-block rounded-md bg-gray-100 animate-pulse align-middle ${className}`} />
+
+function EntrySkeleton() {
+    return (
+        <div className="rounded-2xl border border-gray-100 bg-white p-4 flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-gray-100 animate-pulse flex-shrink-0" />
+            <div className="flex-1 space-y-2">
+                <Bar className="w-1/2 h-4" />
+                <Bar className="w-1/3 h-3" />
+            </div>
+            <Bar className="w-14 h-6 rounded-lg" />
+        </div>
+    )
+}
+
 export default function AthleteDetailsModal({ isOpen, onClose, memberId, memberName, memberAvatar }: AthleteDetailsModalProps) {
     useScrollLock(isOpen)
+    const queryClient = useQueryClient()
+    const { sub } = useSubscription()
 
     const [data, setData] = useState<AthleteData | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
-    const [activeTab, setActiveTab] = useState<'tournaments' | 'promotions' | 'seminars'>('tournaments')
+    const [activeTab, setActiveTab] = useState<'tournaments' | 'promotions' | 'seminars' | 'membership' | 'attendance'>('tournaments')
     const [isRequestingLicense, setIsRequestingLicense] = useState(false)
 
     const handleRequestLicense = async () => {
@@ -109,6 +132,13 @@ export default function AthleteDetailsModal({ isOpen, onClose, memberId, memberN
             setIsRequestingLicense(false)
         }
     }
+
+    // Fetch the Membership and Attendance tabs' data in the background as soon as the profile opens, so those tabs open filled in.
+    useEffect(() => {
+        if (!isOpen || !memberId || !sub?.canView) return // locked clubs have nothing to fetch
+        queryClient.prefetchQuery(membershipQuery(memberId))
+        queryClient.prefetchQuery(memberAttendanceQuery(memberId))
+    }, [isOpen, memberId, queryClient, sub?.canView])
 
     useEffect(() => {
         if (!isOpen || !memberId) return
@@ -140,6 +170,8 @@ export default function AthleteDetailsModal({ isOpen, onClose, memberId, memberN
         { id: 'tournaments' as const, label: 'Tournaments', icon: Trophy,   count: data?.tournaments.length || 0 },
         { id: 'promotions'  as const, label: 'Promotions',  icon: Award,    count: data?.promotions.length  || 0 },
         { id: 'seminars'    as const, label: 'Seminars',    icon: BookOpen, count: data?.seminars.length    || 0 },
+        { id: 'membership'  as const, label: 'Membership',  icon: Wallet,   count: undefined as number | undefined },
+        { id: 'attendance'  as const, label: 'Attendance',  icon: CalendarCheck, count: undefined as number | undefined },
     ]
 
     return (
@@ -179,6 +211,7 @@ export default function AthleteDetailsModal({ isOpen, onClose, memberId, memberN
                             <div className="flex-1 min-w-0 pt-1">
                                 <h2 className="text-lg font-black text-gray-900 tracking-tight truncate">{memberName}</h2>
                                 <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                    {loading && !belt && (<><Bar className="w-24 h-6 rounded-lg" /><Bar className="w-32 h-3.5" /></>)}
                                     {belt && (
                                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold ring-1 ${beltStyle.bg} ${beltStyle.text} ${beltStyle.ring}`}>
                                             <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60" />
@@ -196,6 +229,13 @@ export default function AthleteDetailsModal({ isOpen, onClose, memberId, memberN
                         </div>
 
                         {/* Athlete License status/action */}
+                        {loading && (
+                            <div className="mt-4 flex items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5">
+                                <ShieldCheck className="w-4 h-4 flex-shrink-0 text-gray-300" />
+                                <span className="text-xs font-bold text-gray-700">Athlete License</span>
+                                <Bar className="w-28 h-4 ml-auto" />
+                            </div>
+                        )}
                         {!loading && member && (
                             <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5">
                                 <div className="flex items-center gap-2">
@@ -222,7 +262,7 @@ export default function AthleteDetailsModal({ isOpen, onClose, memberId, memberN
                         )}
 
                         {/* Stat chips */}
-                        {!loading && (
+                        {(
                             <div className="grid grid-cols-5 gap-2 mt-5">
                                 {[
                                     { label: 'Age',    value: age || '—' },
@@ -232,7 +272,7 @@ export default function AthleteDetailsModal({ isOpen, onClose, memberId, memberN
                                     { label: 'Medals', value: totalMedals, accent: totalMedals > 0, sub: totalMedals > 0 ? `${goldCount}G ${silverCount}S ${bronzeCount}B` : undefined },
                                 ].map(chip => (
                                     <div key={chip.label} className={`rounded-xl px-3 py-2.5 text-center border ${chip.accent ? 'bg-yellow-50 border-yellow-100' : 'bg-gray-50 border-gray-100'}`}>
-                                        <p className={`text-base font-black leading-none ${chip.accent ? 'text-yellow-600' : 'text-gray-900'}`}>{chip.value}</p>
+                                        <p className={`text-base font-black leading-none min-h-4 ${chip.accent ? 'text-yellow-600' : 'text-gray-900'}`}>{loading ? <Bar className="w-6 h-4" /> : chip.value}</p>
                                         <p className={`text-[9px] font-semibold uppercase tracking-wider mt-1 truncate ${chip.accent ? 'text-yellow-400' : 'text-gray-400'}`}>
                                             {chip.sub && chip.accent ? chip.sub : chip.label}
                                         </p>
@@ -243,14 +283,14 @@ export default function AthleteDetailsModal({ isOpen, onClose, memberId, memberN
                     </div>
 
                     {/* Tab bar */}
-                    <div className="flex border-t border-gray-100 px-4 gap-1">
+                    <div className="flex border-t border-gray-100 px-2 gap-0.5">
                         {tabs.map(tab => {
                             const isActive = activeTab === tab.id
                             return (
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 -mb-px transition-all ${
+                                    className={`flex flex-1 min-w-0 items-center justify-center gap-1.5 px-1.5 py-3 text-xs font-bold border-b-2 -mb-px transition-all whitespace-nowrap ${
                                         isActive
                                             ? 'border-red-600 text-red-600'
                                             : 'border-transparent text-gray-400 hover:text-gray-600'
@@ -258,11 +298,14 @@ export default function AthleteDetailsModal({ isOpen, onClose, memberId, memberN
                                 >
                                     <tab.icon size={13} />
                                     <span>{tab.label}</span>
-                                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center ${
-                                        isActive ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-400'
-                                    }`}>
-                                        {tab.count}
-                                    </span>
+                                    {tab.count !== undefined && loading && <Bar className="w-[18px] h-[18px] rounded-full" />}
+                                    {tab.count !== undefined && !loading && (
+                                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center ${
+                                            isActive ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-400'
+                                        }`}>
+                                            {tab.count}
+                                        </span>
+                                    )}
                                 </button>
                             )
                         })}
@@ -270,11 +313,17 @@ export default function AthleteDetailsModal({ isOpen, onClose, memberId, memberN
                 </div>
 
                 {/* ── Content area ───────────────────────────────────── */}
-                <div className="flex-1 overflow-y-auto bg-gray-50">
-                    {loading ? (
-                        <div className="flex flex-col items-center justify-center py-24 gap-3">
-                            <Loader2 className="w-8 h-8 animate-spin text-red-500" />
-                            <p className="text-xs text-gray-400 font-medium">Loading athlete profile…</p>
+                <div className="flex-1 overflow-y-auto bg-gray-50 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {/* Membership and Attendance load their own data, so they show straight away instead of waiting for the profile data below. */}
+                    {activeTab === 'membership' ? (
+                        <div className="p-5 space-y-3"><PaidGate feature="membership" compact><MemberMembershipTab key={memberId} memberId={memberId} /></PaidGate></div>
+                    ) : activeTab === 'attendance' ? (
+                        <div className="p-5 space-y-3"><PaidGate feature="member-attendance" compact><MemberAttendanceTab key={memberId} memberId={memberId} /></PaidGate></div>
+                    ) : loading ? (
+                        <div className="p-5 space-y-3" aria-busy="true">
+                            <EntrySkeleton />
+                            <EntrySkeleton />
+                            <EntrySkeleton />
                         </div>
                     ) : error ? (
                         <div className="text-center py-20">

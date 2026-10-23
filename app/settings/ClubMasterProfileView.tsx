@@ -4,6 +4,9 @@ import LogoutButton from '@/components/LogoutButton'
 import ClubSettingsSubTabs from './ClubSettingsSubTabs'
 import SecurityForm from './SecurityForm'
 import AffiliationCardLoader from '@/components/AffiliationCardLoader'
+import ClubBillingSettings from '@/components/club/ClubBillingSettings'
+import ClubKioskSettings from '@/components/club/ClubKioskSettings'
+import { PaidGate } from '@/components/club/subscription'
 import UserAvatar from '@/components/UserAvatar'
 
 interface ClubMasterProfileViewProps {
@@ -187,6 +190,8 @@ export default async function ClubMasterProfileView({ dbUser, club, clerkImageUr
             clubContent={clubContent}
             securityContent={<SecurityForm />}
             affiliationContent={club ? <AffiliationTabContent clubId={club.id} /> : undefined}
+            billingContent={club ? <PaidGate feature="finance" compact><ClubBillingSettings /></PaidGate> : undefined}
+            kiosksContent={club ? <PaidGate feature="kiosks" compact><ClubKioskSettings /></PaidGate> : undefined}
         />
     )
 }

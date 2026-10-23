@@ -23,7 +23,11 @@ import { Suspense } from 'react'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import ClubSidebar from '@/components/club/ClubSidebar'
+import ClubAttendanceView from '@/components/club/ClubAttendanceView'
+import ClubFinanceView from '@/components/club/ClubFinanceView'
+import ClubScheduleView from '@/components/club/ClubScheduleView'
 import SupportPanel from '@/components/support/SupportPanel'
+import { SubscriptionProvider, SubscriptionBanner, PaidGate, PAID_FEATURES, type PaidFeatureId } from '@/components/club/subscription'
 import ClubGrowthCard from '@/components/club/ClubGrowthCard'
 import ClubTopBar from '@/components/club/ClubTopBar'
 
@@ -196,7 +200,7 @@ export default function ClubDashboard({
     const searchParams = useSearchParams()
     const [submitting, setSubmitting] = useState(false)
     const initialView = (searchParams.get('tab') as any) || 'home'
-    const [activeView, setActiveView] = useState<'home' | 'settings' | 'members' | 'notifications' | 'tournaments' | 'support'>(initialView)
+    const [activeView, setActiveView] = useState<'home' | 'settings' | 'members' | 'attendance' | 'finance' | 'schedule' | 'notifications' | 'tournaments' | 'support'>(initialView)
 
     // Sync tab param (optional, for deeplinking)
     useEffect(() => {
@@ -868,7 +872,25 @@ export default function ClubDashboard({
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
+    // "Contact support" on a paid-feature page opens the Support tab with a ticket already started.
+    const topic = searchParams.get('topic')
+    const [supportPrefill, setSupportPrefill] = useState<{ subject: string; message: string; category: string } | null>(null)
+    const contactSupport = (feature?: PaidFeatureId) => {
+        const what = feature ? PAID_FEATURES[feature].title : 'Club management'
+        setSupportPrefill({
+            category: 'Payment',
+            subject: 'Subscribe to Club management',
+            message: `Hi KTM Sports, I would like to subscribe to Club management (Attendance, Finance, Schedule and check-in kiosks) for ${clubName || 'my club'}. I was looking at ${what}. Please send me the details.`,
+        })
+        setActiveView('support')
+    }
+    useEffect(() => {
+        if (topic && initialView === 'support') contactSupport(topic in PAID_FEATURES ? (topic as PaidFeatureId) : undefined)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
     return (
+        <SubscriptionProvider contactSupport={contactSupport}>
         <div className="flex min-h-screen md:h-screen bg-gray-50 md:overflow-hidden">
             {/* Sidebar - Responsive */}
             <ClubSidebar
@@ -932,6 +954,8 @@ export default function ClubDashboard({
                     }
                     title={undefined}
                 />
+
+                <SubscriptionBanner />
 
                 <div className="flex-1 overflow-y-auto pb-20 md:pb-0">
                     {activeView === 'home' && (
@@ -1339,6 +1363,10 @@ export default function ClubDashboard({
                         )
                     }
 
+                    {activeView === 'attendance' && <PaidGate feature="attendance"><ClubAttendanceView /></PaidGate>}
+                    {activeView === 'finance' && <PaidGate feature="finance"><ClubFinanceView /></PaidGate>}
+                    {activeView === 'schedule' && <PaidGate feature="schedule"><ClubScheduleView /></PaidGate>}
+
                     {
                         activeView === 'notifications' && (
                             <div className="bg-gray-50 min-h-full pb-24">
@@ -1375,7 +1403,7 @@ export default function ClubDashboard({
                             <div className="bg-gray-50 min-h-full">
                                 <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                                        <SupportPanel userName={userData?.name} userEmail={userData?.email} />
+                                        <SupportPanel userName={userData?.name} userEmail={userData?.email} prefill={supportPrefill} onPrefillUsed={() => setSupportPrefill(null)} />
                                     </div>
                                 </div>
                             </div>
@@ -2400,5 +2428,6 @@ export default function ClubDashboard({
                 loading={submitting}
             />
         </div>
+        </SubscriptionProvider>
     )
 }

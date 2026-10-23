@@ -12,14 +12,15 @@ interface NewTicketFormProps {
     defaultName?: string
     defaultEmail?: string
     onSuccess: (ticketId: string) => void
+    initial?: { subject: string; message: string; category: string }
 }
 
-export default function NewTicketForm({ mode, defaultName, defaultEmail, onSuccess }: NewTicketFormProps) {
+export default function NewTicketForm({ mode, defaultName, defaultEmail, onSuccess, initial }: NewTicketFormProps) {
     const [name, setName] = useState(defaultName || '')
     const [email, setEmail] = useState(defaultEmail || '')
-    const [category, setCategory] = useState(CATEGORIES[0])
-    const [subject, setSubject] = useState('')
-    const [message, setMessage] = useState('')
+    const [category, setCategory] = useState(initial && CATEGORIES.includes(initial.category) ? initial.category : CATEGORIES[0])
+    const [subject, setSubject] = useState(initial?.subject || '')
+    const [message, setMessage] = useState(initial?.message || '')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
 

@@ -5,11 +5,13 @@ import { format } from 'date-fns'
 import { X, UserPlus, Loader2, Check, Camera, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClubMember, uploadMemberAvatar } from '@/app/club/actions'
+import { saveMembership } from '@/app/club/manager'
 import { useQueryClient } from '@tanstack/react-query'
 import GlobalDropdown from '@/components/GlobalDropdown'
 import GlobalCalendar from '@/components/GlobalCalendar'
 import { useScrollLock } from '@/hooks/useScrollLock'
 import { COUNTRIES } from '@/lib/countries'
+import { useSubscription } from '@/components/club/subscription'
 
 interface CreateMemberModalProps {
     isOpen: boolean
@@ -29,6 +31,8 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
     const [submitting, setSubmitting] = useState(false)
     const [successData, setSuccessData] = useState<{ name: string; email?: string } | null>(null)
     const queryClient = useQueryClient()
+    const { sub } = useSubscription()
+    const canManage = !!sub?.canWrite // fees and billing are part of the paid Club management features
 
     // Form state
     const [email, setEmail] = useState('')
@@ -39,6 +43,9 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
     const [height, setHeight] = useState('')
     const [birthDate, setBirthDate] = useState('')
     const [country, setCountry] = useState('')
+    const [monthlyFee, setMonthlyFee] = useState('')
+    const [billingDay, setBillingDay] = useState('')
+    const [joinedOn, setJoinedOn] = useState(() => new Date().toLocaleDateString('en-CA'))
     const [avatarFile, setAvatarFile] = useState<File | null>(null)
     const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
     const avatarInputRef = useRef<HTMLInputElement>(null)
@@ -52,6 +59,9 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
         setHeight('')
         setBirthDate('')
         setCountry('')
+        setMonthlyFee('')
+        setBillingDay('')
+        setJoinedOn(new Date().toLocaleDateString('en-CA'))
         setAvatarFile(null)
         setAvatarPreview(null)
         setSuccessData(null)
@@ -87,6 +97,8 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
         if (!height) { toast.error('Height is required'); return }
         if (!birthDate) { toast.error('Birth date is required'); return }
         if (!country) { toast.error('Country is required'); return }
+        if (monthlyFee && !(Number(monthlyFee) >= 0)) { toast.error('Monthly fee must be 0 or more'); return }
+        if (billingDay && !(Number(billingDay) >= 1 && Number(billingDay) <= 31)) { toast.error('Billing day must be between 1 and 31'); return }
 
         setSubmitting(true)
         try {
@@ -117,6 +129,13 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
                         console.error('Avatar upload failed:', err)
                     }
                 }
+                // Club membership (fee, billing day, join date). The member is already created, so a failure here is only a warning.
+                const membership = canManage ? await saveMembership(result.member.id, {
+                    monthlyFee: monthlyFee ? Number(monthlyFee) : 0,
+                    billingDay: billingDay ? Number(billingDay) : null,
+                    joinedOn: joinedOn || null,
+                }) : { error: '' }
+                if (membership.error) toast.warning(`Member added, but membership details were not saved: ${membership.error}`)
                 setSuccessData({ name, email: email || undefined })
                 toast.success('Member added successfully!')
                 queryClient.invalidateQueries({ queryKey: ['club-members'] })
@@ -388,6 +407,30 @@ export default function CreateMemberModal({ isOpen, onClose }: CreateMemberModal
                                         </div>
                                     </div>
                                 </div>
+                                {/* Row 5: Club membership (what the club charges): part of the paid Club management features */}
+                                {canManage && <div className="pt-2">
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Club membership</p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Monthly fee</label>
+                                            <input type="number" min="0" step="0.01" value={monthlyFee} onChange={(e) => setMonthlyFee(e.target.value)} placeholder="0.00" className="w-full px-3.5 py-2.5 pr-3.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-400 outline-none transition-all text-sm font-medium text-gray-900" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Billing day</label>
+                                            <input type="number" min="1" max="31" step="1" value={billingDay} onChange={(e) => setBillingDay(e.target.value)} placeholder="1–31" className="w-full px-3.5 py-2.5 pr-3.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-400 outline-none transition-all text-sm font-medium text-gray-900" />
+                                        </div>
+                                        <div className="sm:col-span-2">
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Joined on</label>
+                                            <GlobalCalendar
+                                                value={joinedOn}
+                                                onChange={(date: Date) => setJoinedOn(format(date, 'yyyy-MM-dd'))}
+                                                placeholder="Select date..."
+                                                fullWidth
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-2">Leave the fee empty if this member is not billed. You can change it later from their profile.</p>
+                                </div>}
                             </div>
                         </div>
 
