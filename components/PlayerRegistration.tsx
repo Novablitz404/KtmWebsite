@@ -424,6 +424,7 @@ export default function PlayerRegistration({
                                             { value: 'INDIVIDUAL', label: 'Individual' },
                                             { value: 'PAIR',       label: 'Pair'       },
                                             { value: 'TEAM',       label: 'Team'       },
+                                            { value: 'FREESTYLE',  label: 'Freestyle'  },
                                         ]}
                                         fullWidth
                                     />

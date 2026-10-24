@@ -173,6 +173,7 @@ function subtypeLabel(subtype?: string | null): string {
     if (!subtype || subtype === 'INDIVIDUAL') return ''
     if (subtype === 'PAIR') return ' · Pair'
     if (subtype === 'TEAM') return ' · Team'
+    if (subtype === 'FREESTYLE') return ' · Freestyle'
     return ''
 }
 

@@ -1961,7 +1961,7 @@ export default function ClubDashboard({
                                                         <GlobalDropdown
                                                             value={editingPlayer.poomsaeType || 'INDIVIDUAL'}
                                                             onChange={(val) => setEditingPlayer({ ...editingPlayer, poomsaeType: val })}
-                                                            options={['INDIVIDUAL', 'PAIR', 'TEAM']}
+                                                            options={['INDIVIDUAL', 'PAIR', 'TEAM', 'FREESTYLE']}
                                                             fullWidth
                                                         />
                                                         <input type="hidden" name="poomsaeType" value={editingPlayer.poomsaeType || 'INDIVIDUAL'} />

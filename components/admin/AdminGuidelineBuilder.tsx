@@ -324,6 +324,7 @@ export default function AdminGuidelineBuilder({ templateId, onClose }: AdminGuid
                                                             <option value="INDIVIDUAL">Individual</option>
                                                             <option value="PAIR">Pair</option>
                                                             <option value="TEAM">Team</option>
+                                                            <option value="FREESTYLE">Freestyle</option>
                                                         </select>
                                                     </div>
                                                     <div>
@@ -401,6 +402,7 @@ export default function AdminGuidelineBuilder({ templateId, onClose }: AdminGuid
                                                             <option value="INDIVIDUAL">Individual</option>
                                                             <option value="PAIR">Pair</option>
                                                             <option value="TEAM">Team</option>
+                                                            <option value="FREESTYLE">Freestyle</option>
                                                         </select>
                                                     </div>
                                                     <div>

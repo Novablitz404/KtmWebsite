@@ -410,7 +410,7 @@ export default function GuestRegistrationForm({
 
             {eventType === 'POOMSAE' && (
                 <div className="flex gap-2">
-                    {['INDIVIDUAL', 'PAIR', 'TEAM'].map(sub => (
+                    {['INDIVIDUAL', 'PAIR', 'TEAM', 'FREESTYLE'].map(sub => (
                         <button key={sub} onClick={() => { setPoomsaeSubtype(sub); setFinalPrice(resolveCategoryPrice('POOMSAE', sub)) }}
                             className={`px-4 py-2 rounded-lg text-sm font-medium border ${poomsaeSubtype === sub
                                 ? 'bg-purple-600 text-white border-purple-600'

@@ -24,6 +24,7 @@ const SUBTYPE_OPTIONS = [
     { label: 'Individual',    value: 'INDIVIDUAL' },
     { label: 'Pair (Mixed)',  value: 'PAIR'       }, // exactly 1 Male + 1 Female, enforced at bracket generation
     { label: 'Team',          value: 'TEAM'       }, // exactly 3 players, all same gender
+    { label: 'Freestyle',     value: 'FREESTYLE'  }, // solo, bracketed like Individual
 ]
 
 interface CategoryManagerProps {

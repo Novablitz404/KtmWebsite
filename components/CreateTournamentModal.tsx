@@ -62,6 +62,7 @@ export default function CreateTournamentModal({ isOpen, onClose, templates }: Cr
         { key: 'POOMSAE_INDIVIDUAL', label: 'Poomsae Individual' },
         { key: 'POOMSAE_PAIR', label: 'Poomsae Pair' },
         { key: 'POOMSAE_TEAM', label: 'Poomsae Team' },
+        { key: 'POOMSAE_FREESTYLE', label: 'Poomsae Freestyle' },
         { key: 'KYUKPA_INDIVIDUAL', label: 'Kyukpa Individual' },
     ]
     const [categoryPricing, setCategoryPricing] = useState<Record<string, { earlyBird: string; regular: string }>>({})

@@ -315,7 +315,7 @@ export default function RegisterConfirm({
                         <div className="mb-6">
                             <label className="text-sm font-semibold text-gray-700 mb-2 block">Poomsae Type</label>
                             <div className="flex gap-2">
-                                {['INDIVIDUAL', 'PAIR', 'TEAM'].map(type => (
+                                {['INDIVIDUAL', 'PAIR', 'TEAM', 'FREESTYLE'].map(type => (
                                     <button
                                         key={type}
                                         onClick={() => setPoomsaeSubtype(type)}

@@ -529,7 +529,8 @@ export default function AddAthleteModal({ isOpen, onClose, clubId, clubName, def
                                                         options={[
                                                             { value: 'INDIVIDUAL', label: 'Individual' },
                                                             { value: 'PAIR', label: 'Pair' },
-                                                            { value: 'TEAM', label: 'Team' }
+                                                            { value: 'TEAM', label: 'Team' },
+                                                            { value: 'FREESTYLE', label: 'Freestyle' }
                                                         ]}
                                                         fullWidth
                                                     />
