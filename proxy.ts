@@ -36,6 +36,8 @@ const PUBLIC_PREFIXES = [
     '/api/cron',
     '/api/kiosk',      // check-in kiosk helper: pairing code or device token, checked in the route
     '/api/ai',
+    '/api/invite',     // accepting a co-organizer / manager invite: the invitee has no account yet, the invite token is checked in the route
+    '/invite/',        // the invite page itself (opened from the emailed link while signed out)
     '/tournaments',
     '/tournament/',
     '/rankings',
