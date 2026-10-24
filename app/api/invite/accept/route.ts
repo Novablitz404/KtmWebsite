@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 import { prisma } from '@/lib/prisma'
 import { createServerClient } from '@/lib/supabase/server'
 import { uploadAvatar } from '@/lib/supabase-storage'
@@ -38,21 +39,29 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
         }
 
-        // 2. Create the User in Supabase Auth
-        // Because they own the email address where the invite was sent, we auto-confirm them
-        const { data: authData, error: authError } = await supabase.auth.signUp({
+        // 2. Create the User in Supabase Auth, already confirmed.
+        // They own the email address the invite was sent to, so no verification email or code is needed. A normal
+        // sign-up would send a confirmation code and leave them unable to sign in until they entered it.
+        const admin = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!,
+            { auth: { autoRefreshToken: false, persistSession: false } }
+        )
+        const { data: authData, error: authError } = await admin.auth.admin.createUser({
             email: userEmail,
             password: password,
-            options: {
-                data: {
-                    full_name: name,
-                    role: role,
-                }
-            }
+            email_confirm: true,
+            user_metadata: {
+                full_name: name,
+                role: role,
+            },
         })
 
         if (authError || !authData.user) {
             console.error('Supabase Auth Error:', authError)
+            if (authError && /already (been )?registered|already exists/i.test(authError.message)) {
+                return NextResponse.json({ error: 'An account with this email already exists. Please sign in instead.' }, { status: 409 })
+            }
             return NextResponse.json({ error: authError?.message || 'Failed to create authentication context' }, { status: 500 })
         }
 
@@ -84,6 +93,7 @@ export async function POST(req: Request) {
         }
 
         // 5. Create the Prisma User and Assign Relations
+        try {
         await prisma.$transaction(async (tx) => {
             // Create user
             const dbUser = await tx.user.create({
@@ -112,13 +122,16 @@ export async function POST(req: Request) {
                 await tx.tournamentManagerInvite.delete({ where: { id: inviteId } })
             }
         })
+        } catch (dbError) {
+            // Remove the auth account we just created so the invitee can try again.
+            await admin.auth.admin.deleteUser(authUser.id).catch(() => { })
+            throw dbError
+        }
 
-        // Sign them in immediately using the created session if available, or just redirect to normal sign-in
-        if (authData.session) {
-            await supabase.auth.setSession({
-                access_token: authData.session.access_token,
-                refresh_token: authData.session.refresh_token,
-            })
+        // Sign them in immediately (this sets the session cookies). If it fails they simply sign in normally.
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email: userEmail, password })
+        if (signInError) {
+            console.error('Invite auto sign-in failed:', signInError.message)
         }
 
         const redirectTo = role === 'CO_ORGANIZER' ? '/organization' : `/tournament/${tournamentId}`
