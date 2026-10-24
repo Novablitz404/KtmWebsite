@@ -1,5 +1,4 @@
-import { apiError, apiResponse } from '@/lib/auth-api'
-import { createServerClient } from '@/lib/supabase/server'
+import { apiError, apiResponse, getApiAuthUser } from '@/lib/auth-api'
 import { prisma } from '@/lib/prisma'
 // clerkClient removed — metadata stored in DB only
 import { uploadAvatar, uploadLogo } from '@/lib/supabase-storage'
@@ -66,9 +65,8 @@ function toTitleCase(str: string): string {
  */
 export async function POST(request: Request) {
     try {
-        // Get the authenticated Supabase user
-        const supabase = await createServerClient()
-        const { data: { user: authUser } } = await supabase.auth.getUser()
+        // Get the authenticated Supabase user (cookie session on web, Bearer token on mobile)
+        const authUser = await getApiAuthUser()
         if (!authUser) return apiError('Unauthorized', 401)
 
         // Look up existing DB record, or create one for new sign-ups
@@ -76,6 +74,22 @@ export async function POST(request: Request) {
             where: { clerkId: authUser.id },
             select: { id: true, email: true, organizationMemberId: true, onboardingStatus: true }
         })
+
+        // An athlete pre-registered by a club master has a row with this email but no auth id yet: link it
+        // instead of creating a duplicate (the email column is unique).
+        if (!dbUser && authUser.email) {
+            const preRegistered = await prisma.user.findFirst({
+                where: { email: { equals: authUser.email, mode: 'insensitive' }, clerkId: null },
+                select: { id: true }
+            })
+            if (preRegistered) {
+                dbUser = await prisma.user.update({
+                    where: { id: preRegistered.id },
+                    data: { clerkId: authUser.id },
+                    select: { id: true, email: true, organizationMemberId: true, onboardingStatus: true }
+                })
+            }
+        }
 
         if (!dbUser) {
             // New sign-up: create DB record with unique 5-digit ID

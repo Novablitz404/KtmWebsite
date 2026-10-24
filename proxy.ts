@@ -119,9 +119,15 @@ export default async function middleware(request: NextRequest) {
     )
 
     // Refresh the session (this also handles token refresh)
-    const { data: { user } } = await supabase.auth.getUser()
-
+    // Mobile apps authenticate API calls with "Authorization: Bearer <supabase access token>"
+    // instead of cookies. Only honored on /api/ routes.
     const pathname = request.nextUrl.pathname
+    const bearerToken = pathname.startsWith('/api/')
+        ? request.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1]
+        : undefined
+    const { data: { user } } = bearerToken
+        ? await supabase.auth.getUser(bearerToken)
+        : await supabase.auth.getUser()
 
     // Protected route checks
     if (!isPublicRoute(pathname)) {

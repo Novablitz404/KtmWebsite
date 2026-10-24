@@ -1,10 +1,23 @@
 import { createServerClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
+import { headers } from 'next/headers'
+
+/**
+ * The Supabase Auth user for this request (no DB lookup). Mobile clients send
+ * "Authorization: Bearer <access token>"; the web uses cookies.
+ */
+export async function getApiAuthUser() {
+    const supabase = await createServerClient()
+    const bearer = (await headers()).get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1]
+    const { data: { user } } = bearer
+        ? await supabase.auth.getUser(bearer)
+        : await supabase.auth.getUser()
+    return user
+}
 
 export async function authenticateApi() {
-    const supabase = await createServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getApiAuthUser()
 
     if (!user) {
         return null
