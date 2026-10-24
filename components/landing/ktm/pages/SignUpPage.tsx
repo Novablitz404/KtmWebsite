@@ -5,9 +5,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase/client";
-import { Eye, EyeOff, Loader2, ArrowRight, ArrowLeft, User, Shield, Building2, Mail } from "lucide-react";
+import { Eye, EyeOff, Loader2, ArrowRight, ArrowLeft, User, Shield, Building2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { checkEmailAvailability, ensureUserRecord } from "@/app/actions";
+import EmailCodeForm from "@/components/auth/EmailCodeForm";
 
 type Step = "role-selection" | "account" | "check-email";
 type Role = "ATHLETE" | "CLUB_MASTER" | "ORGANIZER";
@@ -106,23 +107,17 @@ export default function KtmSignUpPage() {
                     <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#F59E0B]/5 rounded-full blur-[150px]" />
                 </div>
                 <div className="relative z-10 w-full max-w-md">
-                    <div className="bg-[#0A0A0A] border border-white/5 rounded-2xl p-8 text-center">
-                        <div className="w-16 h-16 rounded-full bg-[#F59E0B]/10 flex items-center justify-center mx-auto mb-4">
-                            <Mail className="h-8 w-8 text-[#F59E0B]" />
-                        </div>
-                        <h2 className="text-white font-bold text-lg mb-2">Check Your Email</h2>
-                        <p className="text-gray-500 text-sm mb-2">We sent a confirmation link to</p>
-                        <p className="text-white font-bold text-sm mb-6">{email}</p>
-                        <p className="text-gray-600 text-xs mb-6">
-                            Click the link to verify your account and start your profile setup.
-                        </p>
-                        <button
-                            onClick={() => setStep("account")}
-                            className="text-sm font-semibold text-[#DC2626] hover:text-white transition-colors inline-flex items-center gap-2"
-                        >
-                            <ArrowLeft size={14} />
-                            Change email address
-                        </button>
+                    <div className="bg-[#0A0A0A] border border-white/5 rounded-2xl p-8">
+                        <EmailCodeForm
+                            email={email}
+                            accent="#DC2626"
+                            emailRedirectTo={`${window.location.origin}/auth/callback?role=${role}`}
+                            onChangeEmail={() => setStep("account")}
+                            onVerified={async () => {
+                                await ensureUserRecord();
+                                router.push("/onboarding/complete-profile");
+                            }}
+                        />
                     </div>
                     <AccentDots />
                 </div>

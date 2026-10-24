@@ -7,9 +7,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, ArrowRight, ArrowLeft, Eye, EyeOff, User, Shield, Mail } from "lucide-react";
+import { Loader2, ArrowRight, ArrowLeft, Eye, EyeOff, User, Shield } from "lucide-react";
 import { motion } from "framer-motion";
 import { checkEmailAvailability, ensureUserRecord } from "@/app/actions";
+import EmailCodeForm from "@/components/auth/EmailCodeForm";
 
 export default function WOTFSignUpPage() {
     const supabase = createBrowserClient();
@@ -90,24 +91,18 @@ export default function WOTFSignUpPage() {
                     <div className="absolute inset-0 bg-[#DF0024]/80 mix-blend-multiply" />
                 </div>
                 <div className="relative flex w-full items-center justify-center bg-white px-8 py-12 lg:w-1/2">
-                    <div className="w-full max-w-md space-y-6 text-center">
-                        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-                            <Mail className="h-8 w-8 text-green-600" />
-                        </div>
-                        <h2 className="text-2xl font-bold text-gray-900">Check Your Email</h2>
-                        <p className="text-gray-500">
-                            We sent a confirmation link to<br />
-                            <span className="font-bold text-gray-900">{email}</span>
-                        </p>
-                        <p className="text-sm text-gray-400">
-                            Click the link to verify your account and start your profile setup.
-                        </p>
-                        <button
-                            onClick={() => setCheckEmail(false)}
-                            className="text-sm font-semibold text-[#DF0024] hover:text-[#b3001d]"
-                        >
-                            ← Change email address
-                        </button>
+                    <div className="w-full max-w-md">
+                        <EmailCodeForm
+                            email={email}
+                            theme="light"
+                            accent="#DF0024"
+                            emailRedirectTo={`${window.location.origin}/auth/callback?role=${role === 'clubmaster' ? 'CLUB_MASTER' : 'ATHLETE'}${qs ? '&' + qs.slice(1) : ''}`}
+                            onChangeEmail={() => setCheckEmail(false)}
+                            onVerified={async () => {
+                                await ensureUserRecord();
+                                router.push(`/onboarding/complete-profile${qs}`);
+                            }}
+                        />
                     </div>
                     <div className="absolute bottom-6 left-0 right-0 flex items-center justify-center gap-2">
                         <span className="text-[11px] text-gray-400 font-medium">Powered by</span>
