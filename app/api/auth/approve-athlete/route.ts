@@ -140,7 +140,7 @@ export async function POST(request: Request) {
             // Send approval email to athlete
             if (athlete.email) {
                 resend.emails.send({
-                    from: 'Tap Elite <noreply@tap-elite.com>',
+                    from: 'Tap Elite <noreply@ktmsports.com>',
                     to: [athlete.email],
                     subject: `🎉 You're approved, ${athlete.name}! — Tap Elite`,
                     react: WOTFAthleteApprovedEmail({

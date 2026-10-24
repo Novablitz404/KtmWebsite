@@ -28,7 +28,7 @@ export async function sendEmail({
 
     try {
         const data = await resend.emails.send({
-            from: from || 'Tap Elite <noreply@tap-elite.com>',
+            from: from || 'Tap Elite <noreply@ktmsports.com>',
             to: [to],
             subject: subject,
             react: reactData,

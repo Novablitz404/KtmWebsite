@@ -9,11 +9,16 @@ import SupportTicketReceivedEmail from '@/emails/SupportTicketReceivedEmail'
 import SupportTicketReplyEmail from '@/emails/SupportTicketReplyEmail'
 import SupportAdminAlertEmail from '@/emails/SupportAdminAlertEmail'
 
-const SUPPORT_FROM = 'Tap Elite Support <support@tap-elite.com>'
+const SUPPORT_FROM = 'Tap Elite Support <support@ktmsports.com>'
 const ADMIN_PANEL_URL = `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.tap-elite.com'}/admin?tab=support`
 
+// Replies are routed back to the matching ticket through an inbound address (support+<ticketId>@<domain>) that
+// Resend receives. Set SUPPORT_INBOUND_DOMAIN once a receiving domain is configured in Resend; until then no
+// reply-to is set and replies go to the sender address.
+const SUPPORT_INBOUND_DOMAIN = process.env.SUPPORT_INBOUND_DOMAIN
+
 function replyToFor(ticketId: string) {
-    return `support+${ticketId}@tap-elite.com`
+    return SUPPORT_INBOUND_DOMAIN ? `support+${ticketId}@${SUPPORT_INBOUND_DOMAIN}` : undefined
 }
 
 async function alertAdmins(payload: { heading: string; fromName: string; fromEmail: string; subject: string; body: string; emailSubject: string }) {

@@ -1193,7 +1193,7 @@ export async function sendInvoiceEmail(orgId: string, email: string, orgName: st
 
         // Resend API allows base64 content in attachments
         await resend.emails.send({
-                from: 'Tap Elite <noreply@tap-elite.com>',
+                from: 'Tap Elite <noreply@ktmsports.com>',
             to: [email],
             subject: `KTM Monthly Billing Invoice - ${monthStr}`,
             react: InvoiceEmail({ orgName, monthStr }),
@@ -1347,7 +1347,7 @@ export async function adminResetPassword(targetUserId: string) {
             const resend = new Resend(process.env.RESEND_API_KEY)
 
             await resend.emails.send({
-                from: 'Tap Elite <noreply@tap-elite.com>',
+                from: 'Tap Elite <noreply@ktmsports.com>',
                 to: [targetUser.email],
                 subject: 'Your password has been reset',
                 react: PasswordResetEmail({
