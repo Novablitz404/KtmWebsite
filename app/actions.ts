@@ -2033,6 +2033,44 @@ export async function registerForTournament(input: RegisterForTournamentInput) {
         return { error: authCheck.error }
     }
 
+    // ── Registration window / status — enforced server-side, same rules as createPlayer ──
+    // The Add Athlete modal only lists open events, but that can't be trusted to stop a direct call.
+    // Admins, and the event's organizer/managers, can still register after the deadline.
+    const targetCategory = await prisma.category.findUnique({
+        where: { id: categoryId },
+        select: {
+            tournament: {
+                select: {
+                    registrationStart: true,
+                    registrationEnd: true,
+                    status: true,
+                    organizerId: true,
+                    managers: { select: { id: true } },
+                },
+            },
+        },
+    })
+    if (!targetCategory) return { error: 'Category not found' }
+
+    const caller = await getAuthUser()
+    const tournament = targetCategory.tournament
+    const isPrivileged =
+        caller?.role === 'ADMIN' ||
+        tournament.organizerId === caller?.id ||
+        tournament.managers.some(m => m.id === caller?.id)
+
+    if (!isPrivileged) {
+        if (tournament.status === 'CANCELLED') return { error: 'This tournament has been cancelled.' }
+        if (tournament.status === 'COMPLETED') return { error: 'This tournament is already completed.' }
+        const now = new Date()
+        if (tournament.registrationStart && now < tournament.registrationStart) {
+            return { error: 'Registration has not started yet.' }
+        }
+        if (tournament.registrationEnd && now > tournament.registrationEnd) {
+            return { error: 'Registration is closed.' }
+        }
+    }
+
     // Generate unique 9-digit player ID
     const generatePlayerId = async (): Promise<string> => {
         let attempts = 0
@@ -2847,12 +2885,24 @@ export async function updateClubSettings(formData: FormData) {
 export async function getUpcomingTournaments() {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
+    const now = new Date()
+
+    // Only offer events that can still be registered for (admins see them all, matching registerForTournament)
+    const caller = await getAuthUser()
+    const openRegistrationOnly = caller?.role !== 'ADMIN'
 
     const tournaments = await prisma.tournament.findMany({
         where: {
             startDate: {
                 gte: today
-            }
+            },
+            ...(openRegistrationOnly && {
+                status: { notIn: ['CANCELLED', 'COMPLETED'] },
+                AND: [
+                    { OR: [{ registrationStart: null }, { registrationStart: { lte: now } }] },
+                    { OR: [{ registrationEnd: null }, { registrationEnd: { gte: now } }] },
+                ],
+            }),
         },
         select: {
             id: true,
