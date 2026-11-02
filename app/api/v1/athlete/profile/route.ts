@@ -30,7 +30,8 @@ export async function PUT(request: Request) {
         if (imageFile && imageFile.size > 0) {
             const url = await uploadAvatar(user.id, imageFile)
             if (url) {
-                imageUrl = `${url}?t=${Date.now()}`
+                // uploadAvatar already appends the cache-busting "?t=" tag
+                imageUrl = url
             }
         }
 

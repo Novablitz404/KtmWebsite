@@ -123,6 +123,17 @@ export async function POST(request: Request) {
         const role = formData.get('role') as string
         const name = toTitleCase((formData.get('name') as string) || '')
         const imageFile = formData.get('image') as File | null
+        // The mobile app sends the photo as base64 text: React Native's file parts in a form are unreliable.
+        // Cap it so an oversized value cannot be used to flood storage (a resized profile photo is ~100KB).
+        const imageBase64 = formData.get('imageBase64') as string | null
+        if (imageBase64 && imageBase64.length > 7_000_000) {
+            return apiError('Image file is too large. Please use an image under 4MB.', 413)
+        }
+        const photo: Blob | null = imageFile && imageFile.size > 0
+            ? imageFile
+            : imageBase64
+                ? new Blob([Buffer.from(imageBase64, 'base64')], { type: 'image/jpeg' })
+                : null
 
         if (!name) {
             return apiError('Name is required', 400)
@@ -130,11 +141,11 @@ export async function POST(request: Request) {
 
         // ─── UPLOAD PROFILE IMAGE TO SUPABASE ───
         let profileImageUrl: string | undefined = undefined
-        if (imageFile && imageFile.size > 0) {
-            const url = await uploadAvatar(dbUser.id, imageFile)
+        if (photo && photo.size > 0) {
+            const url = await uploadAvatar(dbUser.id, photo)
             if (url) {
-                // Add explicit cache bust query string to match club logic and force client refresh
-                profileImageUrl = `${url}?t=${Date.now()}`
+                // uploadAvatar already appends the cache-busting "?t=" tag
+                profileImageUrl = url
             }
         }
 
@@ -272,7 +283,7 @@ export async function POST(request: Request) {
             if (clubLogoFile && clubLogoFile.size > 0) {
                 const url = await uploadLogo(`club-${club.id}`, clubLogoFile)
                 if (url) {
-                    clubLogoUrl = `${url}?t=${Date.now()}`
+                    clubLogoUrl = url // uploadLogo already appends the cache-busting tag
                     await prisma.club.update({
                         where: { id: club.id },
                         data: { logoUrl: clubLogoUrl }
@@ -343,7 +354,7 @@ export async function POST(request: Request) {
             if (orgLogoFile && orgLogoFile.size > 0) {
                 const url = await uploadLogo(`org-${org.id}`, orgLogoFile)
                 if (url) {
-                    orgLogoUrl = `${url}?t=${Date.now()}`
+                    orgLogoUrl = url // uploadLogo already appends the cache-busting tag
                     await prisma.organization.update({
                         where: { id: org.id },
                         data: { logoUrl: orgLogoUrl }
