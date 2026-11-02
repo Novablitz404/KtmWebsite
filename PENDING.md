@@ -39,6 +39,7 @@ Last checked against the repo: 2026-10-26 (`main` = `origin/main` at aa98826; ev
 5. Tournament details API
 
 ## Done
+- [x] Uncontested divisions PDF per club (three-dot menu in the event overview) committed and pushed (2026-11-02). No DB changes or env vars needed. `scripts/seed-uncontested-report-scenario.ts` is local test data and was NOT committed.
 - [x] RLS enabled on production `"Advertisement"` by the user (2026-11-02)
 - [x] `prisma db push` to production: created `"Advertisement"` table + index only, no other changes (2026-11-02); `prisma generate` run locally
 - [x] `ranking_migration_v3.sql` applied to local Supabase (2026-10-25)

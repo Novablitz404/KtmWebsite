@@ -1,12 +1,16 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Category, Match, Player, Tournament } from '@prisma/client'
-import { Users, Trophy, ClipboardList, Calendar, TrendingUp, CheckCircle2, Clock, XCircle, FileDown, Loader2, Eye, EyeOff, ChevronDown, ShieldAlert, ArrowLeftRight, X, Check, Trash2 } from 'lucide-react'
-import { getClubRosterForTournament, ClubRosterPlayer, getTournamentAlerts, movePlayerToCategory, removePlayerFromTournament } from '@/app/actions'
+import { Users, Trophy, ClipboardList, Calendar, TrendingUp, CheckCircle2, Clock, XCircle, FileDown, Loader2, Eye, EyeOff, ChevronDown, ShieldAlert, ArrowLeftRight, X, Check, Trash2, MoreVertical } from 'lucide-react'
+import { getClubRosterForTournament, ClubRosterPlayer, getTournamentAlerts, movePlayerToCategory, removePlayerFromTournament, getClubUncontestedReport } from '@/app/actions'
 import { downloadClubRosterPdf } from '@/lib/club-roster-pdf'
+import { downloadUncontestedReportPdf } from '@/lib/uncontested-report-pdf'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
+
+// Menu/loading key for the "Unaffiliated" row (athletes with no club have no club id)
+const UNAFFILIATED_KEY = '__unaffiliated__'
 
 type TournamentWithData = Tournament & {
     categories: (Category & { matches: Match[], poomsaeMatches: any[], _count?: { players: number } })[]
@@ -47,6 +51,10 @@ export default function TournamentOverview({
     tournament, players, totalPlayersCount, stats
 }: TournamentOverviewProps) {
     const [downloadingClub, setDownloadingClub] = useState<string | null>(null)
+    const [downloadingUncontested, setDownloadingUncontested] = useState<string | null>(null)
+    // Row "more" menu: fixed-positioned from the button's rect so the table's horizontal scroll container can't clip it
+    // Opens upward (`bottom` set instead of `top`) when there isn't room below the button.
+    const [actionMenu, setActionMenu] = useState<{ clubId: string; right: number; top?: number; bottom?: number } | null>(null)
     const [viewingClub,    setViewingClub]    = useState<string | null>(null)
     const [loadingView,    setLoadingView]    = useState<string | null>(null)
     const [rosterCache,    setRosterCache]    = useState<Record<string, ClubRosterPlayer[]>>({})
@@ -64,6 +72,51 @@ export default function TournamentOverview({
         queryFn:  () => getTournamentAlerts(tournamentId),
         staleTime: 1000 * 30,
     })
+
+    useEffect(() => {
+        if (!actionMenu) return
+        const close = () => setActionMenu(null)
+        const onMouseDown = (e: MouseEvent) => {
+            if (!(e.target as HTMLElement).closest('[data-club-action-menu]')) close()
+        }
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
+        document.addEventListener('mousedown', onMouseDown)
+        document.addEventListener('keydown', onKey)
+        window.addEventListener('scroll', close, true)
+        window.addEventListener('resize', close)
+        return () => {
+            document.removeEventListener('mousedown', onMouseDown)
+            document.removeEventListener('keydown', onKey)
+            window.removeEventListener('scroll', close, true)
+            window.removeEventListener('resize', close)
+        }
+    }, [actionMenu])
+
+    async function handleDownloadRoster(clubId: string) {
+        setActionMenu(null)
+        setDownloadingClub(clubId)
+        try {
+            const data = await getClubRosterForTournament(tournament.id, clubId)
+            downloadClubRosterPdf(data)
+        } finally {
+            setDownloadingClub(null)
+        }
+    }
+
+    async function handleDownloadUncontested(clubId: string | null) {
+        setActionMenu(null)
+        setDownloadingUncontested(clubId ?? UNAFFILIATED_KEY)
+        try {
+            const report = await getClubUncontestedReport(tournament.id, clubId)
+            if ('error' in report) { toast.error(report.error); return }
+            if (report.entries.length === 0) { toast.info('No uncontested athletes for this club'); return }
+            downloadUncontestedReportPdf(report)
+        } catch {
+            toast.error('Failed to generate the uncontested PDF')
+        } finally {
+            setDownloadingUncontested(null)
+        }
+    }
 
     async function handleViewRoster(clubId: string) {
         if (viewingClub === clubId) { setViewingClub(null); return }
@@ -147,7 +200,7 @@ export default function TournamentOverview({
         return map
     }, [alertData])
 
-    const clubStats = useMemo(() => {
+    const allClubStats = useMemo(() => {
         if (stats?.clubs) return stats.clubs
         const map = new Map<string, { id: string | null; name: string; logoUrl: string | null; count: number; approved: number; pending: number }>()
         players.forEach(player => {
@@ -171,6 +224,9 @@ export default function TournamentOverview({
         })
         return Array.from(map.values()).sort((a, b) => b.count - a.count)
     }, [players, stats])
+
+    // Athletes with no club (the "Unaffiliated" bucket) aren't a club, so they're left out of the clubs table and count
+    const clubStats = useMemo(() => allClubStats.filter(c => c.id), [allClubStats])
 
     const statusCfg = STATUS_CONFIG[tournament.status] || STATUS_CONFIG.UPCOMING
 
@@ -400,12 +456,14 @@ export default function TournamentOverview({
                             ) : (
                                 clubStats.map((club, i) => {
                                     const sharePercent     = totalPlayersCount > 0 ? (club.count / totalPlayersCount) * 100 : 0
-                                    const isExpanded       = viewingClub === club.id
-                                    const isLoadingThis    = loadingView === club.id
+                                    // Unaffiliated has no club id: guard so `null === null` doesn't mark it expanded/loading
+                                    const isExpanded       = !!club.id && viewingClub === club.id
+                                    const isLoadingThis    = !!club.id && loadingView === club.id
                                     const rosterPlayers    = club.id ? (rosterCache[club.id] ?? null) : null
                                     const clubKey          = club.id || club.name
                                     const uncontestedData  = uncontestedByClub.get(clubKey)
                                     const uncontestedCount = uncontestedData?.total || 0
+                                    const menuKey          = club.id ?? UNAFFILIATED_KEY
                                     const sentCount        = uncontestedData?.sent  || 0
 
                                     // Group by category for the inline view
@@ -503,26 +561,62 @@ export default function TournamentOverview({
                                                                 : <Eye size={11} />}
                                                             View
                                                         </button>
-                                                        {/* PDF */}
+                                                        {/* More actions: roster PDF, uncontested PDF */}
                                                         <button
                                                             type="button"
-                                                            title={`Download ${club.name} roster PDF`}
-                                                            disabled={!club.id || downloadingClub === club.id}
-                                                            onClick={async () => {
-                                                                if (!club.id) return
-                                                                setDownloadingClub(club.id)
-                                                                try {
-                                                                    const data = await getClubRosterForTournament(tournament.id, club.id)
-                                                                    downloadClubRosterPdf(data)
-                                                                } finally {
-                                                                    setDownloadingClub(null)
-                                                                }
+                                                            title="More actions"
+                                                            disabled={!club.id && uncontestedCount === 0}
+                                                            data-club-action-menu
+                                                            onClick={(e) => {
+                                                                if (actionMenu?.clubId === menuKey) { setActionMenu(null); return }
+                                                                const r = e.currentTarget.getBoundingClientRect()
+                                                                const right = window.innerWidth - r.right
+                                                                // ~36px per item + 12px padding; flip up when it wouldn't fit below
+                                                                const menuHeight = ((club.id ? 1 : 0) + (uncontestedCount > 0 ? 1 : 0)) * 36 + 12
+                                                                const fitsBelow = r.bottom + 4 + menuHeight <= window.innerHeight - 8
+                                                                setActionMenu(
+                                                                    fitsBelow
+                                                                        ? { clubId: menuKey, right, top: r.bottom + 4 }
+                                                                        : { clubId: menuKey, right, bottom: window.innerHeight - r.top + 4 }
+                                                                )
                                                             }}
-                                                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black text-gray-500 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                                            className={`flex items-center justify-center w-7 h-7 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                                                                actionMenu?.clubId === menuKey ? 'bg-gray-200 text-gray-700' : 'text-gray-500 bg-gray-100 hover:bg-gray-200'
+                                                            }`}
                                                         >
-                                                            {downloadingClub === club.id ? <Loader2 size={11} className="animate-spin" /> : <FileDown size={11} />}
-                                                            PDF
+                                                            {downloadingClub === club.id || downloadingUncontested === menuKey
+                                                                ? <Loader2 size={13} className="animate-spin" />
+                                                                : <MoreVertical size={13} />}
                                                         </button>
+                                                        {actionMenu?.clubId === menuKey && (
+                                                            <div
+                                                                data-club-action-menu
+                                                                style={{ position: 'fixed', top: actionMenu.top, bottom: actionMenu.bottom, right: actionMenu.right }}
+                                                                className="z-50 w-52 bg-white rounded-xl border border-gray-100 shadow-xl py-1.5"
+                                                            >
+                                                                {club.id && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleDownloadRoster(club.id!)}
+                                                                        className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+                                                                    >
+                                                                        <FileDown size={13} className="text-gray-400" />
+                                                                        Roster PDF
+                                                                    </button>
+                                                                )}
+                                                                {uncontestedCount > 0 && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleDownloadUncontested(club.id ?? null)}
+                                                                        className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-bold text-amber-700 hover:bg-amber-50 transition-colors"
+                                                                    >
+                                                                        <ShieldAlert size={13} />
+                                                                        Uncontested PDF
+                                                                        <span className="ml-auto text-[10px] font-black bg-amber-100 text-amber-700 rounded-full px-1.5">{uncontestedCount}</span>
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>

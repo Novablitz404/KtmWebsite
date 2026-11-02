@@ -3643,6 +3643,32 @@ export async function getTournamentAlerts(tournamentId: string) {
     return { alerts, proposals }
 }
 
+export type {
+    UncontestedReportPlayer, UncontestedReportCategory, UncontestedReportEntry, ClubUncontestedReport,
+} from '@/lib/uncontested-report'
+
+/** Authorized wrapper for the uncontested divisions PDF data. `clubId` null = athletes with no club. */
+export async function getClubUncontestedReport(
+    tournamentId: string,
+    clubId: string | null
+): Promise<import('@/lib/uncontested-report').ClubUncontestedReport | { error: string }> {
+    const dbUser = await getAuthUser()
+    if (!dbUser) return { error: 'Unauthorized' }
+
+    const tournament = await prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        select: { organizerId: true, managers: { select: { id: true } } },
+    })
+    if (!tournament) return { error: 'Tournament not found' }
+
+    const isOrganizer = tournament.organizerId === dbUser.id
+    const isManager = tournament.managers.some(m => m.id === dbUser.id)
+    if (!isOrganizer && !isManager && dbUser.role !== 'ADMIN') return { error: 'Insufficient permissions' }
+
+    const { buildClubUncontestedReport } = await import('@/lib/uncontested-report')
+    return buildClubUncontestedReport(tournamentId, clubId)
+}
+
 export async function getResolutionHistory(tournamentId: string) {
     const resolved = await prisma.smartProposal.findMany({
         where: {
