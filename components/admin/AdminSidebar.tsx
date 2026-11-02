@@ -13,12 +13,13 @@ import {
     FileText,
     DollarSign,
     LifeBuoy,
-    BadgeCheck
+    BadgeCheck,
+    Megaphone
 } from 'lucide-react'
 
 interface AdminSidebarProps {
-    activeView: 'home' | 'users' | 'events' | 'financials' | 'api-keys' | 'licenses' | 'guidelines' | 'settings' | 'support'
-    onNavigate: (view: 'home' | 'users' | 'events' | 'financials' | 'api-keys' | 'licenses' | 'guidelines' | 'settings' | 'support') => void
+    activeView: 'home' | 'users' | 'events' | 'financials' | 'api-keys' | 'licenses' | 'advertising' | 'guidelines' | 'settings' | 'support'
+    onNavigate: (view: 'home' | 'users' | 'events' | 'financials' | 'api-keys' | 'licenses' | 'advertising' | 'guidelines' | 'settings' | 'support') => void
     userName?: string | null
 }
 
@@ -30,6 +31,7 @@ const navItems = [
     { id: 'guidelines', label: 'Guidelines', icon: FileText },
     { id: 'api-keys', label: 'API Keys', icon: Key },
     { id: 'licenses', label: 'Subscriptions', icon: BadgeCheck },
+    { id: 'advertising', label: 'Advertising', icon: Megaphone },
     { id: 'support', label: 'Support', icon: LifeBuoy },
 ] as const
 

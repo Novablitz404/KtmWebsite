@@ -13,6 +13,7 @@ import AdminSettingsView from '@/components/admin/AdminSettingsView'
 import AdminGuidelinesView from '@/components/admin/AdminGuidelinesView'
 import AdminFinancialsView from '@/components/admin/AdminFinancialsView'
 import AdminSupportView from '@/components/admin/AdminSupportView'
+import AdminAdvertisingView from '@/components/admin/AdminAdvertisingView'
 
 interface AdminDashboardProps {
     user: {
@@ -27,7 +28,7 @@ interface AdminDashboardProps {
     usersForKeys: any[]
 }
 
-type ViewType = 'home' | 'users' | 'events' | 'financials' | 'api-keys' | 'licenses' | 'guidelines' | 'settings' | 'support'
+type ViewType = 'home' | 'users' | 'events' | 'financials' | 'api-keys' | 'licenses' | 'advertising' | 'guidelines' | 'settings' | 'support'
 
 export default function AdminDashboard({
     user,
@@ -61,6 +62,7 @@ export default function AdminDashboard({
             case 'api-keys': return 'API Keys'
             case 'licenses': return 'Subscriptions'
             case 'guidelines': return 'Guideline Templates'
+            case 'advertising': return 'Advertising'
             case 'support': return 'Support'
             case 'settings': return 'Settings'
             default: return 'Dashboard'
@@ -83,6 +85,8 @@ export default function AdminDashboard({
                 return <AdminLicensesView />
             case 'guidelines':
                 return <AdminGuidelinesView />
+            case 'advertising':
+                return <AdminAdvertisingView />
             case 'support':
                 return <AdminSupportView />
             case 'settings':
@@ -117,9 +121,9 @@ export default function AdminDashboard({
                     onMenuClick={() => setIsSidebarOpen(true)}
                 />
 
-                <main className={`flex-1 flex flex-col min-h-0 overflow-hidden ${['users', 'events', 'financials', 'api-keys', 'licenses', 'guidelines', 'support'].includes(activeView) ? 'bg-gray-50' : 'p-4 md:p-6 lg:p-8 overflow-y-auto'
+                <main className={`flex-1 flex flex-col min-h-0 overflow-hidden ${['users', 'events', 'financials', 'api-keys', 'licenses', 'guidelines', 'advertising', 'support'].includes(activeView) ? 'bg-gray-50' : 'p-4 md:p-6 lg:p-8 overflow-y-auto'
                     }`}>
-                    {['users', 'events', 'financials', 'api-keys', 'licenses', 'guidelines', 'support'].includes(activeView) ? (
+                    {['users', 'events', 'financials', 'api-keys', 'licenses', 'guidelines', 'advertising', 'support'].includes(activeView) ? (
                         <div className="h-full w-full">
                             {renderView()}
                         </div>

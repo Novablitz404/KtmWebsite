@@ -512,6 +512,25 @@ model CoOrganizerInvite {
   @@index([email])
 }
 
+model Advertisement {
+  id          String    @id @default(cuid())
+  eyebrow     String // small red label above the title, e.g. "KTM RANKINGS"
+  title       String // headline; a line break is kept
+  description String?
+  ctaLabel    String? // button text; no button when empty
+  linkUrl     String? // app screen ("/events") or an https:// address; no button when empty
+  imageUrl    String? // background image; the app's default artwork when empty
+  imagePosition String  @default("center") // left | center | right
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
 model Announcement {
   id             String       @id @default(cuid())
   organizationId String
