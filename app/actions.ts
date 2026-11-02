@@ -3362,12 +3362,19 @@ export async function fetchAthleteDashboardData(clerkId: string, organizationId?
             where: { userId: dbUser.id }
         })
 
-        // Sum up total points across disciplines (Kyorugi/Poomsae) for the dashboard summary
-        if (rankingRecords.length > 0) {
+        // Kyorugi and Poomsae are separate leaderboards, so points/ranks are never
+        // combined. An athlete can have one row per (type, scope); keep the best
+        // ranked row for each discipline.
+        const bestByType = new Map<string, any>()
+        for (const r of rankingRecords as any[]) {
+            const current = bestByType.get(r.type)
+            if (!current || r.globalRank < current.globalRank) bestByType.set(r.type, r)
+        }
+        if (bestByType.size > 0) {
             globalRanking = {
-                totalPoints: rankingRecords.reduce((acc: number, r: any) => acc + r.totalPoints, 0),
-                bestRank: Math.min(...rankingRecords.map((r: any) => r.globalRank)),
-                disciplines: rankingRecords.map((r: any) => ({ type: r.type, rank: r.globalRank, points: r.totalPoints }))
+                disciplines: Array.from(bestByType.values())
+                    .sort((a, b) => a.type.localeCompare(b.type))
+                    .map((r) => ({ type: r.type as string, rank: r.globalRank as number, points: r.totalPoints as number }))
             }
         }
     } catch (e) {

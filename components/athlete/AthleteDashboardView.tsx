@@ -584,16 +584,25 @@ export default function AthleteDashboardView({
                                     </div>
                                     <div className="p-5 flex-1 flex flex-col">
                                         {data?.globalRanking ? (
-                                            <div className="flex items-center justify-around">
-                                                <div className="flex flex-col items-center">
-                                                    <span className="text-3xl font-black text-red-600 tracking-tight">#{data.globalRanking.bestRank}</span>
-                                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">Rank</span>
-                                                </div>
-                                                <div className="h-10 w-px bg-gray-100" />
-                                                <div className="flex flex-col items-center">
-                                                    <span className="text-3xl font-black text-gray-900 tracking-tight">{data.globalRanking.totalPoints.toFixed(0)}</span>
-                                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">Points</span>
-                                                </div>
+                                            <div className="flex flex-col gap-4">
+                                                {data.globalRanking.disciplines.map((d: { type: string; rank: number; points: number }) => (
+                                                    <div key={d.type} className="flex flex-col gap-2">
+                                                        <span className="text-[10px] font-black text-gray-500 uppercase tracking-[1.5px] text-center">
+                                                            {d.type === 'POOMSAE' ? 'Poomsae' : 'Kyorugi'}
+                                                        </span>
+                                                        <div className="flex items-center justify-around">
+                                                            <div className="flex flex-col items-center">
+                                                                <span className="text-3xl font-black text-red-600 tracking-tight">#{d.rank}</span>
+                                                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">Rank</span>
+                                                            </div>
+                                                            <div className="h-10 w-px bg-gray-100" />
+                                                            <div className="flex flex-col items-center">
+                                                                <span className="text-3xl font-black text-gray-900 tracking-tight">{d.points.toFixed(0)}</span>
+                                                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">Points</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
                                         ) : (
                                             <div className="flex items-center justify-around opacity-60">
