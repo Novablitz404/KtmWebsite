@@ -41,3 +41,9 @@ yarn-error.log*
 next-env.d.ts
 
 /app/generated/prisma
+
+# Supabase SQL editor scratch queries
+/supabase/snippets/
+
+# Generated email banner artwork (not referenced by code)
+/public/email-banners/
