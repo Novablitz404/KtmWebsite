@@ -1,5 +1,6 @@
 import { authenticateApi, apiError, apiResponse } from '@/lib/auth-api'
 import { prisma } from '@/lib/prisma'
+import { getAthleteClubAccess } from '@/lib/athlete-club-access'
 import { memberLedger, totalOwed, type DueOverride } from '@/lib/club-dues'
 import { clubToday } from '@/lib/club-time'
 
@@ -8,19 +9,22 @@ export async function GET() {
     try {
         const user = await authenticateApi()
         if (!user) return apiError('Unauthorized', 401)
+        const access = await getAthleteClubAccess(user.id)
+        if (!access.enabled) return apiError('Your club needs an active Club Management subscription.', 403)
+        const clubIds = access.clubs.map(c => c.id)
 
         const today = clubToday()
         const [memberships, payments, overrides] = await Promise.all([
             prisma.clubMembership.findMany({
-                where: { userId: user.id },
+                where: { userId: user.id, status: 'ACTIVE', clubId: { in: clubIds } },
                 select: { clubId: true, status: true, joinedOn: true, monthlyFee: true, billingDay: true, club: { select: { name: true } } },
             }),
             prisma.clubPayment.findMany({
-                where: { userId: user.id },
+                where: { userId: user.id, clubId: { in: clubIds } },
                 orderBy: { paidOn: 'desc' },
                 select: { id: true, clubId: true, amount: true, category: true, period: true, paidOn: true, note: true },
             }),
-            prisma.clubDueOverride.findMany({ where: { userId: user.id } }),
+            prisma.clubDueOverride.findMany({ where: { userId: user.id, clubId: { in: clubIds } } }),
         ])
 
         const clubs = memberships.map(m => {

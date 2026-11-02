@@ -9,20 +9,20 @@ Last checked against the repo: 2026-10-26 (`main` = `origin/main` at aa98826; ev
 ### Ranking v3 (per-discipline ranking)
 - [ ] Nothing left for ranking v3 itself.
 
-### Club-subscription gating (new)
-- [ ] Commit and push: `lib/athlete-club-access.ts`, `app/api/v1/athlete/{attendance,payments,schedule,dashboard}/route.ts`
+### Club-subscription gating (pushed 2026-11-02)
+- [x] Commit and push: `lib/athlete-club-access.ts`, `app/api/v1/athlete/{attendance,payments,schedule,dashboard}/route.ts`
 - [ ] Heads-up before pushing: this enforces on live. Athletes whose club has no active/grace Club Management subscription get an error from attendance, payments and schedule, and the dashboard returns `clubAccess`.
 
-### Athlete app profile / onboarding photo (new)
-- [ ] Commit and push: `app/api/v1/athlete/profile/route.ts`, `app/api/v1/onboarding/complete/route.ts` (accept a base64 photo, single cache-tag on the image URL)
+### Athlete app profile / onboarding photo (pushed 2026-11-02)
+- [x] Commit and push: `app/api/v1/athlete/profile/route.ts`, `app/api/v1/onboarding/complete/route.ts` (accept a base64 photo, single cache-tag on the image URL)
 
 ### Athlete app advertising (new)
 - [x] ~~Commit and push~~ (done 2026-11-02): `prisma/schema.prisma` (model `Advertisement`), `prisma/migrations/20261025000000_add_advertisements/`, `app/api/v1/advertisements/`, `app/admin/actions/advertisements.ts`, `components/admin/AdminAdvertisingView.tsx`, `components/admin/AdminSidebar.tsx`, `app/admin/AdminDashboard.tsx`
 - [ ] Restart the dev server (`npm run dev`); it was stopped for `prisma generate`
 - [ ] After deploy: add the ads in Admin → Advertising. With no live ads the app hides its carousel (it falls back to its built-in promos only when the API errors). The `advertisements` storage bucket is created automatically on the first image upload.
 
-### Athlete tournament details API (new)
-- [ ] Commit and push `app/api/v1/athlete/tournaments/` (guidelines, participants with profile photos, the signed-in athlete's own matches). Participant names, clubs and photos are visible to any signed-in athlete; confirm that is acceptable.
+### Athlete tournament details API (pushed 2026-11-02)
+- [x] Commit and push `app/api/v1/athlete/tournaments/` (guidelines, participants with profile photos, the signed-in athlete's own matches). Participant names, clubs and photos are visible to any signed-in athlete; confirm that is acceptable.
 
 ### Manual dashboard steps from the email / OTP work (code is already pushed; confirm each is done)
 - [ ] Supabase Auth: generic confirm-signup template and per-tenant reset template pasted; SMTP sender `noreply@ktmsports.com`; Confirm email ON; OTP length 6

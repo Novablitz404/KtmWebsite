@@ -1,13 +1,17 @@
 import { authenticateApi, apiError, apiResponse } from '@/lib/auth-api'
 import { prisma } from '@/lib/prisma'
+import { getAthleteClubAccess } from '@/lib/athlete-club-access'
 
 // GET /api/v1/athlete/schedule — classes at the athlete's active clubs, flagged with whether they are enrolled
 export async function GET() {
     try {
         const user = await authenticateApi()
         if (!user) return apiError('Unauthorized', 401)
+        const access = await getAthleteClubAccess(user.id)
+        if (!access.enabled) return apiError('Your club needs an active Club Management subscription.', 403)
+        const clubIds = access.clubs.map(c => c.id)
 
-        const memberships = await prisma.clubMembership.findMany({ where: { userId: user.id, status: 'ACTIVE' }, select: { clubId: true } })
+        const memberships = await prisma.clubMembership.findMany({ where: { userId: user.id, status: 'ACTIVE', clubId: { in: clubIds } }, select: { clubId: true } })
 
         const classes = await prisma.clubClass.findMany({
             where: { clubId: { in: memberships.map(m => m.clubId) } },
