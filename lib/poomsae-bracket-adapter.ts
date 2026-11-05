@@ -64,6 +64,17 @@ export function adaptPoomsaeMatchesToBracket(poomsaeMatches: PoomsaeMatchWithPla
             }
         }
 
+        // Uncontested walkover: a lone performer whose opposite slot is never
+        // fed by an earlier pairing has no one to beat — they win outright.
+        if (!winner && (!sideA || !sideB)) {
+            const lone = sideA || sideB
+            const loneSlot = sideA ? 1 : 2
+            const otherSlot = sideA ? 2 : 1
+            if (lone && lone.status === 'Completed' && !fedSlots.has(`${matchId}-${otherSlot}`)) {
+                winner = resolveName(lone, matchId, loneSlot as 1 | 2)
+            }
+        }
+
         const blueScore = sideA ? Math.round(sideA.totalScore) : 0
         const redScore = sideB ? Math.round(sideB.totalScore) : 0
 

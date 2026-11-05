@@ -21,12 +21,35 @@ import { COUNTRIES } from '@/lib/countries'
 function UserActionButtons({
     userId,
     userName,
+    canActivateLicense,
     onRefresh
 }: {
     userId: string,
     userName: string,
+    canActivateLicense: boolean,
     onRefresh: () => void
 }) {
+    const [isActivating, setIsActivating] = useState(false)
+
+    const handleActivateLicense = async () => {
+        if (!window.confirm(`Activate the Athlete License for ${userName}? This issues their athlete number and emails them.`)) return
+        setIsActivating(true)
+        try {
+            const { approveAthleteLicense } = await import('@/app/admin/actions')
+            const res = await approveAthleteLicense(userId)
+            if (res?.success) {
+                toast.success(`License activated for ${userName}`)
+                onRefresh()
+            } else {
+                toast.error(res?.error || 'Failed to activate license')
+            }
+        } catch {
+            toast.error('Failed to activate license')
+        } finally {
+            setIsActivating(false)
+        }
+    }
+
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
@@ -108,6 +131,17 @@ function UserActionButtons({
 
     return (
         <div className="flex items-center justify-end gap-2">
+            {canActivateLicense && (
+                <button
+                    onClick={handleActivateLicense}
+                    disabled={isActivating}
+                    className="px-3 py-2 bg-blue-50 text-blue-700 text-xs font-semibold rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                    title="Activate Athlete License"
+                >
+                    <BadgeCheck className="w-4 h-4" />
+                    {isActivating ? 'Activating...' : 'Activate License'}
+                </button>
+            )}
             <button
                 onClick={handleOpenDetails}
                 className="p-2 bg-gray-50 text-gray-500 rounded-lg hover:bg-gray-100 hover:text-blue-600 transition-colors"
@@ -501,6 +535,7 @@ export default function AdminUsersView({ initialUsers = [] }: AdminUsersViewProp
                                                 <UserActionButtons
                                                     userId={user.id}
                                                     userName={user.name || 'User'}
+                                                    canActivateLicense={user.role === 'ATHLETE' && !user.isVerified}
                                                     onRefresh={handleRefresh}
                                                 />
                                             </td>

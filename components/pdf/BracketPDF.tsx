@@ -31,7 +31,8 @@ const HEADER_H = 48;
 const FOOTER_H = 20;
 
 const DRAW_W = PAGE_W - PAD_X * 2;
-const DRAW_H = PAGE_H - PAD_Y * 2 - HEADER_H - FOOTER_H - 16; // 16pt for round labels
+const PODIUM_H = 30; // medal write-in row above the footer
+const DRAW_H = PAGE_H - PAD_Y * 2 - HEADER_H - FOOTER_H - 16 - PODIUM_H; // 16pt for round labels
 
 // ── Colors ──────────────────────────────────────────────────────────────────────
 const COLORS = {
@@ -146,19 +147,22 @@ function collectIds(node: MatchNode, target: Set<number>) {
 function computeLayout(leafCount: number, maxRound: number, showClub: boolean) {
     const slotH = DRAW_H / leafCount;
     const colW = DRAW_W / maxRound;
-    const cardW = Math.min(Math.max(colW - 16, 70), 165);
+    const cardW = Math.min(Math.max(colW - 12, 70), 200);
     // A club line needs a second row of text inside the same playerH budget —
     // raise the floor (not the ceiling, which already has enough room) so
     // dense/large brackets don't overlap the way the preview tree's fixed
     // card slots did before club names were added there too.
-    const cardH = Math.min(Math.max(slotH - 4, showClub ? 38 : 26), 54);
-    const headerFs = Math.min(Math.max(cardH * 0.20, 5), 8);
-    const headerH = Math.max(cardH * 0.28, 8);
+    const cardH = Math.min(Math.max(slotH - 4, showClub ? 40 : 28), 62);
+    const headerFs = Math.min(Math.max(cardH * 0.18, 5), 7.5);
+    const headerH = Math.max(cardH * 0.24, 8);
     const playerH = (cardH - headerH) / 2;
+    // Player/club names are the thing people actually read on a printed
+    // bracket, so they get the bulk of the card — sized up from the old
+    // 8.5/6.5pt caps.
     const playerFs = showClub
-        ? Math.min(Math.max(playerH * 0.40, 5.5), 8.5)
-        : Math.min(Math.max(cardH * 0.26, 5.5), 9);
-    const clubFs = showClub ? Math.min(Math.max(playerH * 0.28, 4.2), 6.5) : 0;
+        ? Math.min(Math.max(playerH * 0.46, 6.5), 11)
+        : Math.min(Math.max(cardH * 0.30, 6.5), 11.5);
+    const clubFs = showClub ? Math.min(Math.max(playerH * 0.32, 5.2), 8.5) : 0;
     return { slotH, colW, cardW, cardH, headerFs, playerFs, clubFs, headerH, playerH, showClub };
 }
 
@@ -430,7 +434,7 @@ export default function BracketPDF({ tournamentName, categoryName, matches, isPr
                                             }}>
                                                 <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 1.5, backgroundColor: COLORS.blue }} />
                                                 <View style={{ marginLeft: 4, flex: 1 }}>
-                                                    <Text style={{
+                                                    <Text style={{ maxLines: 1,
                                                         fontSize: layout.playerFs,
                                                         fontFamily: m.winner === m.player1 ? 'Helvetica-Bold' : 'Helvetica',
                                                         color: textColor(m.player1),
@@ -439,7 +443,7 @@ export default function BracketPDF({ tournamentName, categoryName, matches, isPr
                                                         {displayPlayer(m.player1, 'player1')}
                                                     </Text>
                                                     {showClub && clubOf(m.player1) && (
-                                                        <Text style={{ fontSize: layout.clubFs, color: COLORS.light }}>
+                                                        <Text style={{ maxLines: 1, fontSize: layout.clubFs, color: COLORS.medium }}>
                                                             {clubOf(m.player1)}
                                                         </Text>
                                                     )}
@@ -454,7 +458,7 @@ export default function BracketPDF({ tournamentName, categoryName, matches, isPr
                                                     </Text>
                                                 )}
                                                 {(blueTotal > 0 || m.winner) && (
-                                                    <Text style={{
+                                                    <Text style={{ maxLines: 1,
                                                         fontSize: layout.playerFs, fontFamily: 'Helvetica-Bold',
                                                         width: 12, textAlign: 'center',
                                                         color: m.winner === m.player1 ? COLORS.winBlueTxt : COLORS.loseTxt,
@@ -471,7 +475,7 @@ export default function BracketPDF({ tournamentName, categoryName, matches, isPr
                                             }}>
                                                 <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 1.5, backgroundColor: COLORS.red }} />
                                                 <View style={{ marginLeft: 4, flex: 1 }}>
-                                                    <Text style={{
+                                                    <Text style={{ maxLines: 1,
                                                         fontSize: layout.playerFs,
                                                         fontFamily: m.winner === m.player2 ? 'Helvetica-Bold' : 'Helvetica',
                                                         color: textColor(m.player2),
@@ -480,7 +484,7 @@ export default function BracketPDF({ tournamentName, categoryName, matches, isPr
                                                         {displayPlayer(m.player2, 'player2')}
                                                     </Text>
                                                     {showClub && clubOf(m.player2) && (
-                                                        <Text style={{ fontSize: layout.clubFs, color: COLORS.light }}>
+                                                        <Text style={{ maxLines: 1, fontSize: layout.clubFs, color: COLORS.medium }}>
                                                             {clubOf(m.player2)}
                                                         </Text>
                                                     )}
@@ -495,7 +499,7 @@ export default function BracketPDF({ tournamentName, categoryName, matches, isPr
                                                     </Text>
                                                 )}
                                                 {(redTotal > 0 || m.winner) && (
-                                                    <Text style={{
+                                                    <Text style={{ maxLines: 1,
                                                         fontSize: layout.playerFs, fontFamily: 'Helvetica-Bold',
                                                         width: 12, textAlign: 'center',
                                                         color: m.winner === m.player2 ? COLORS.winRedTxt : COLORS.loseTxt,
@@ -510,6 +514,24 @@ export default function BracketPDF({ tournamentName, categoryName, matches, isPr
                             </React.Fragment>
                         ))}
                     </View>
+                </View>
+
+                {/* ── Medal write-in row ── */}
+                <View style={{
+                    position: 'absolute', bottom: FOOTER_H + PAD_Y + 4, left: PAD_X, right: PAD_X,
+                    height: PODIUM_H - 6, flexDirection: 'row', alignItems: 'flex-end', gap: 14,
+                }}>
+                    {[
+                        { label: 'Gold', color: '#B45309' },
+                        { label: 'Silver', color: '#64748B' },
+                        { label: 'Bronze', color: '#9A3412' },
+                        { label: 'Bronze', color: '#9A3412' },
+                    ].map((medal, i) => (
+                        <View key={i} style={{ flex: 1, flexDirection: 'row', alignItems: 'flex-end' }}>
+                            <Text style={{ fontSize: 10, fontFamily: 'Helvetica-Bold', color: medal.color, marginRight: 4 }}>{medal.label}:</Text>
+                            <View style={{ flex: 1, borderBottom: `0.75pt solid ${COLORS.dark}`, height: 12 }} />
+                        </View>
+                    ))}
                 </View>
 
                 {/* ── Footer ── */}

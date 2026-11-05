@@ -504,8 +504,10 @@ export default function BracketList({ categories, tournamentName, publicView = f
             try {
                 let blob: Blob
                 if (isPoomsaeCat) {
+                    // A HEAD_TO_HEAD tree needs every round (its final lives on a
+                    // later day), so only SCORED lists are filtered to this day.
                     const dayMatches = (cat.poomsaeMatches || []).filter(
-                        m => (m as any).scheduledDay === day
+                        m => cat.poomsaeFormat === 'HEAD_TO_HEAD' || (m as any).scheduledDay === day
                     ) as unknown as ExtendedPoomsaeMatch[]
                     blob = await pdf(
                         <PoomsaeBracketPDF

@@ -177,6 +177,7 @@ export function poomsaePreviewToPdfMatches(
         id: idx,
         matchId: s.roundGroupIndex,
         nextMatchId: s.nextRoundGroupIndex ?? null,
+        nextMatchSlot: s.nextMatchSlot ?? null,
         round: s.round,
         performanceNumber: s.performanceNumber,
         playerId: s.playerId,
