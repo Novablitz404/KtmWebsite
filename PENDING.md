@@ -28,6 +28,11 @@ Last checked against the repo: 2026-10-26 (`main` = `origin/main` at aa98826; ev
 - [x] Supabase Auth: generic confirm-signup template and per-tenant reset template pasted; SMTP sender `noreply@ktmsports.com`; Confirm email ON; OTP length 6
 - [x] Vercel env vars: `RESEND_WEBHOOK_SECRET`, `SUPPORT_INBOUND_DOMAIN`; Resend Receiving set up
 
+### Athlete account deletion (new, 2026-11-05, untested)
+- [ ] Test locally with a throwaway athlete (start Docker + `npx supabase start` + `npm run dev`): `DELETE /api/v1/athlete/account` with `{"confirm":"DELETE"}` and a Bearer token. Check the login is gone, the User row is anonymized, Player rows read "Deleted athlete", attendance/payments are kept, and the athlete leaves the rankings
+- [ ] Commit and push `app/api/v1/athlete/account/route.ts` (no DB or env changes). Must be live before the app version with the Delete account button is released
+- [ ] Decide: Google Play also asks for a web page where people can request deletion; add one (or point to support)
+
 ### Housekeeping (decide, then clean up)
 - [x] `public/email-banners/` and `supabase/snippets/` added to `.gitignore` (2026-11-02)
 

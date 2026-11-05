@@ -47,3 +47,4 @@ next-env.d.ts
 
 # Generated email banner artwork (not referenced by code)
 /public/email-banners/
+scripts/seed-uncontested-report-scenario.ts
