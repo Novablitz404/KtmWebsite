@@ -94,6 +94,11 @@ model Tournament {
   // of this status; only the GSS ranking write path checks it.
   gssApprovalStatus String @default("PENDING") // PENDING, APPROVED, REJECTED
 
+  // Set (once) when the placement bonuses of this tournament have been given to its medalists. The bonus needs the
+  // medals, which Central uploads after the event, so it can only be given once they exist; this stops it being
+  // given twice (completion button, the daily job and Central's "finalize" can all ask for it).
+  gssBonusProcessedAt DateTime?
+
   // Pricing
   showPricing       Boolean   @default(false) // Toggle pricing visibility for public/athletes
   categoryPricing   Json?     // Pricing per type+subtype combo, e.g. { "KYORUGI_INDIVIDUAL": { "earlyBird": 115, "regular": 145 } }

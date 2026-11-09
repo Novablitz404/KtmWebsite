@@ -281,7 +281,9 @@ export async function processPoomsaeMatchResult(params: {
  * Traditional SCORED Poomsae categories are not included — they don't feed
  * Elo ratings at all (see calculatePoomsaeGSS for the percentile-based approach).
  */
-export async function processTournamentCompletion(tournamentId: string) {
+export type CompletionResult = { processed: boolean; reason?: string; athletesAwarded?: number }
+
+export async function processTournamentCompletion(tournamentId: string): Promise<CompletionResult> {
     const tournament = await prisma.tournament.findUnique({
         where: { id: tournamentId },
         select: {
@@ -289,6 +291,7 @@ export async function processTournamentCompletion(tournamentId: string) {
             tier: true,
             startDate: true,
             gssApprovalStatus: true,
+            gssBonusProcessedAt: true,
             categories: {
                 where: {
                     OR: [
@@ -308,11 +311,34 @@ export async function processTournamentCompletion(tournamentId: string) {
         },
     })
 
-    if (!tournament) return
-    if (tournament.gssApprovalStatus !== 'APPROVED') return // Not GSS-approved
+    if (!tournament) return { processed: false, reason: 'Tournament not found' }
+    if (tournament.gssBonusProcessedAt) return { processed: false, reason: 'The placement bonus of this tournament was already given' }
+    if (tournament.gssApprovalStatus !== 'APPROVED') return { processed: false, reason: 'Not GSS-approved' }
 
     const hostOrgId = await resolveTournamentHostOrgId(tournamentId)
-    if (!hostOrgId) return // Organizer has no org membership — nowhere to attribute this to
+    if (!hostOrgId) return { processed: false, reason: 'The organizer has no organization to attribute the points to' }
+
+    // The bonus is paid to medalists, so it can only be given once medals exist. If the tournament was marked Completed
+    // before the results arrived, nothing is recorded here and it is given later, when the results (and medals) are in.
+    // (Walkover golds are written when the bracket is generated, so medals alone do not prove the results are in: real
+    // match scores must exist too.)
+    const anyMedal = tournament.categories.some(c => c.players.some(p => p.medal && p.medal !== ''))
+    const [scoredMatches, scoredPoomsae] = await Promise.all([
+        prisma.match.count({ where: { categoryRef: { tournamentId }, OR: [{ total_blue_score: { gt: 0 } }, { total_red_score: { gt: 0 } }] } }),
+        prisma.poomsaeMatch.count({ where: { categoryRef: { tournamentId }, status: 'Completed', totalScore: { gt: 0 } } }),
+    ])
+    if (!anyMedal || (scoredMatches === 0 && scoredPoomsae === 0)) {
+        return { processed: false, reason: 'The results and medals have not been uploaded yet' }
+    }
+
+    // Claim it atomically: only one caller can win this, so the bonus can never be given twice
+    const claim = await prisma.tournament.updateMany({
+        where: { id: tournamentId, gssBonusProcessedAt: null },
+        data: { gssBonusProcessedAt: new Date() },
+    })
+    if (claim.count === 0) return { processed: false, reason: 'The placement bonus of this tournament was already given' }
+
+    let athletesAwarded = 0
 
     for (const category of tournament.categories) {
         const discipline: 'KYORUGI' | 'POOMSAE' = category.type === 'KYORUGI' ? 'KYORUGI' : 'POOMSAE'
@@ -370,11 +396,18 @@ export async function processTournamentCompletion(tournamentId: string) {
                     updatedAt: new Date(),
                 },
             })
+            athletesAwarded++
         }
     }
 
-    // Refresh the materialized view after processing
-    await refreshGlobalRanking()
+    // Refresh the materialized view after processing. The bonus is already given and recorded at this point, so a failed
+    // refresh must not make the whole step look failed (the table is refreshed again by the next upload or completion).
+    try {
+        await refreshGlobalRanking()
+    } catch (err) {
+        console.error('[GSS] The placement bonus was given, but refreshing the ranking table failed:', err)
+    }
+    return { processed: true, athletesAwarded }
 }
 
 // ─── Poomsae Percentile Calculation ──────────────────────────

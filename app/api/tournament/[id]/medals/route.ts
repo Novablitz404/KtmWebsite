@@ -92,7 +92,8 @@ export async function POST(
                 await prisma.player.update({
                     where: { id },
                     data: {
-                        medal: result.medal
+                        // One spelling everywhere (GOLD, SILVER, BRONZE, QF, R16): the ranking code compares against it
+                        medal: typeof result.medal === 'string' ? result.medal.trim().toUpperCase() || null : result.medal
                     }
                 })
                 hasChanges = true
