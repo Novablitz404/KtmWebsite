@@ -106,6 +106,14 @@ export async function POST(
 
         let updatedCount = 0
 
+        // Rows the court operator declared the winner of BY HAND (walkover, withdrawal, referee decision — scores can be
+        // 0 to 0). The score comparison below cannot decide those, so they are resolved afterwards as a declared winner.
+        const manualIds = body.filter((r: any) => r?.manualWinner && r?.id != null).map((r: any) => Number(r.id)).filter((n: number) => Number.isInteger(n))
+        const manualRowsBefore = manualIds.length > 0
+            ? await prisma.poomsaeMatch.findMany({ where: { id: { in: manualIds } }, select: { categoryRefId: true, matchId: true } })
+            : []
+        const manualPairings = new Set(manualRowsBefore.map(r => `${r.categoryRefId}|${r.matchId}`))
+
         // Process Poomsae Results
         for (const result of body) {
             const { id } = result
@@ -138,9 +146,27 @@ export async function POST(
                     where: { id: updatedMatch.categoryRefId },
                     select: { poomsaeFormat: true }
                 })
-                if (category?.poomsaeFormat === 'HEAD_TO_HEAD') {
+                // A pairing with a hand-declared winner is decided below, not by comparing scores (that would count it twice)
+                if (category?.poomsaeFormat === 'HEAD_TO_HEAD' && !manualPairings.has(`${updatedMatch.categoryRefId}|${updatedMatch.matchId}`)) {
                     await advancePoomsaeWinner(updatedMatch)
                 }
+            }
+        }
+
+        // Hand-declared winners, earliest round first so a winner is already in place in the next round before it is decided
+        if (manualIds.length > 0) {
+            const flagged = await prisma.poomsaeMatch.findMany({ where: { id: { in: manualIds } }, orderBy: [{ round: 'asc' }, { matchId: 'asc' }] })
+            for (const row of flagged) {
+                const fresh = await prisma.poomsaeMatch.findUnique({ where: { id: row.id } })
+                if (!fresh || fresh.winnerId != null || !fresh.categoryRefId) continue // already decided
+                const category = await prisma.category.findUnique({ where: { id: fresh.categoryRefId }, select: { poomsaeFormat: true } })
+                if (category?.poomsaeFormat !== 'HEAD_TO_HEAD') continue
+                const sibling = await prisma.poomsaeMatch.findFirst({
+                    where: { categoryRefId: fresh.categoryRefId, matchId: fresh.matchId, performanceNumber: fresh.performanceNumber === 1 ? 2 : 1 }
+                })
+                if (!sibling) continue
+                const { resolvePoomsaeHeadToHeadResult } = await import('@/lib/poomsae-progression')
+                await resolvePoomsaeHeadToHeadResult({ ...fresh, status: 'Completed' }, { ...sibling, status: 'Completed' })
             }
         }
 

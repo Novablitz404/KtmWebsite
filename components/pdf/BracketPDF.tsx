@@ -463,7 +463,7 @@ export default function BracketPDF({ tournamentName, categoryName, matches, isPr
                                                         width: 12, textAlign: 'center',
                                                         color: m.winner === m.player1 ? COLORS.winBlueTxt : COLORS.loseTxt,
                                                     }}>
-                                                        {blueTotal}
+                                                        {Math.round(blueTotal)}
                                                     </Text>
                                                 )}
                                             </View>
@@ -504,7 +504,7 @@ export default function BracketPDF({ tournamentName, categoryName, matches, isPr
                                                         width: 12, textAlign: 'center',
                                                         color: m.winner === m.player2 ? COLORS.winRedTxt : COLORS.loseTxt,
                                                     }}>
-                                                        {redTotal}
+                                                        {Math.round(redTotal)}
                                                     </Text>
                                                 )}
                                             </View>

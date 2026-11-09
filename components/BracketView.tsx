@@ -182,6 +182,9 @@ function MatchCard({ match, maxRound, side, feederMap, isPreview, simulatedMatch
     const blueTotal = match.r1_blue_score + match.r2_blue_score + match.r3_blue_score
     const redTotal = match.r1_red_score + match.r2_red_score + match.r3_red_score
     const hasScores = match.winner || blueTotal > 0 || redTotal > 0
+    // Poomsae matches carry decimal scores (see poomsae-bracket-adapter); Kyorugi scores stay whole numbers
+    const scoreDecimals = (match as any).scoreDecimals as number | undefined
+    const showScore = (v: number) => (scoreDecimals != null ? v.toFixed(scoreDecimals) : v)
 
     const accent = side === 'A' ? 'border-l-[3px] border-l-blue-400'
         : side === 'B' ? 'border-l-[3px] border-l-red-400'
@@ -237,7 +240,7 @@ function MatchCard({ match, maxRound, side, feederMap, isPreview, simulatedMatch
                             {displayName(match.player1, 'player1')}
                         </span>
                     </div>
-                    {hasScores && <span className={`text-lg font-black font-mono tabular-nums ml-2 ${match.winner === match.player1 ? 'text-blue-600' : 'text-gray-300'}`}>{blueTotal}</span>}
+                    {hasScores && <span className={`text-lg font-black font-mono tabular-nums ml-2 ${match.winner === match.player1 ? 'text-blue-600' : 'text-gray-300'}`}>{showScore(blueTotal)}</span>}
                     {showWinButton('player1') && (
                         <button
                             onClick={() => handleDeclare('player1')}
@@ -263,7 +266,7 @@ function MatchCard({ match, maxRound, side, feederMap, isPreview, simulatedMatch
                             {displayName(match.player2, 'player2')}
                         </span>
                     </div>
-                    {hasScores && <span className={`text-lg font-black font-mono tabular-nums ml-2 ${match.winner === match.player2 ? 'text-red-600' : 'text-gray-300'}`}>{redTotal}</span>}
+                    {hasScores && <span className={`text-lg font-black font-mono tabular-nums ml-2 ${match.winner === match.player2 ? 'text-red-600' : 'text-gray-300'}`}>{showScore(redTotal)}</span>}
                     {showWinButton('player2') && (
                         <button
                             onClick={() => handleDeclare('player2')}

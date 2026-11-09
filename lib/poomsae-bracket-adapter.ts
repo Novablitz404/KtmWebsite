@@ -75,8 +75,9 @@ export function adaptPoomsaeMatchesToBracket(poomsaeMatches: PoomsaeMatchWithPla
             }
         }
 
-        const blueScore = sideA ? Math.round(sideA.totalScore) : 0
-        const redScore = sideB ? Math.round(sideB.totalScore) : 0
+        // Poomsae scores have decimals (e.g. 8.94): keep two of them instead of rounding to a whole number
+        const blueScore = sideA ? Number(sideA.totalScore.toFixed(2)) : 0
+        const redScore = sideB ? Number(sideB.totalScore.toFixed(2)) : 0
 
         return {
             id: matchId,
@@ -99,6 +100,7 @@ export function adaptPoomsaeMatchesToBracket(poomsaeMatches: PoomsaeMatchWithPla
             r3_red_score: 0,
             total_blue_score: blueScore,
             total_red_score: redScore,
+            scoreDecimals: 2, // tells the bracket view to print the scores with two decimals (Kyorugi scores are whole numbers)
             blue_gam_jeom: 0,
             red_gam_jeom: 0,
             blue_rounds_won: 0,
