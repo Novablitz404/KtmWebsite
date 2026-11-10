@@ -125,9 +125,9 @@ export default function AdminDashboard({
                     onMenuClick={() => setIsSidebarOpen(true)}
                 />
 
-                <main className={`flex-1 flex flex-col min-h-0 overflow-hidden ${['users', 'rankings', 'events', 'financials', 'api-keys', 'licenses', 'guidelines', 'advertising', 'support'].includes(activeView) ? 'bg-gray-50' : 'p-4 md:p-6 lg:p-8 overflow-y-auto'
+                <main className={`flex-1 flex flex-col min-h-0 overflow-hidden ${['users', 'events', 'financials', 'api-keys', 'licenses', 'guidelines', 'advertising', 'support'].includes(activeView) ? 'bg-gray-50' : 'p-4 md:p-6 lg:p-8 overflow-y-auto'
                     }`}>
-                    {['users', 'rankings', 'events', 'financials', 'api-keys', 'licenses', 'guidelines', 'advertising', 'support'].includes(activeView) ? (
+                    {['users', 'events', 'financials', 'api-keys', 'licenses', 'guidelines', 'advertising', 'support'].includes(activeView) ? (
                         <div className="h-full w-full">
                             {renderView()}
                         </div>

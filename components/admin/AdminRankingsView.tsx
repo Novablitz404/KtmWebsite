@@ -13,6 +13,7 @@ export default function AdminRankingsView() {
     const [type, setType] = useState<'KYORUGI' | 'POOMSAE'>('KYORUGI')
     const [division, setDivision] = useState('')
     const [gender, setGender] = useState('')
+    const [weightCategory, setWeightCategory] = useState('')
     const [search, setSearch] = useState('')
     const [includeUnlicensed, setIncludeUnlicensed] = useState(true)
     const [page, setPage] = useState(1)
@@ -25,8 +26,8 @@ export default function AdminRankingsView() {
     const activeScope = scope || scopes[0]?.scope || ''
 
     const { data, isLoading, isFetching } = useQuery({
-        queryKey: ['admin-rankings', activeScope, type, includeUnlicensed, division, gender, search, page],
-        queryFn: () => fetchAdminRankings({ scope: activeScope, type, includeUnlicensed, division, gender, search, page, pageSize: PAGE_SIZE }),
+        queryKey: ['admin-rankings', activeScope, type, includeUnlicensed, division, gender, weightCategory, search, page],
+        queryFn: () => fetchAdminRankings({ scope: activeScope, type, includeUnlicensed, division, gender, weightCategory, search, page, pageSize: PAGE_SIZE }),
         enabled: !!activeScope,
         placeholderData: keepPreviousData,
     })
@@ -41,21 +42,25 @@ export default function AdminRankingsView() {
     const selectCls = 'px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500'
 
     return (
-        <div className="h-full flex flex-col p-4 md:p-6 lg:p-8 overflow-y-auto">
+        <div>
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="p-4 border-b border-gray-100 flex flex-wrap items-center gap-3">
-                    <select value={activeScope} onChange={e => onFilter(() => setScope(e.target.value))} className={selectCls}>
+                    <select value={activeScope} onChange={e => onFilter(() => { setScope(e.target.value); setWeightCategory('') })} className={selectCls}>
                         {scopes.map(s => <option key={s.scope} value={s.scope}>{s.name} ({s.count})</option>)}
                     </select>
-                    <select value={type} onChange={e => onFilter(() => setType(e.target.value as 'KYORUGI' | 'POOMSAE'))} className={selectCls}>
+                    <select value={type} onChange={e => onFilter(() => { setType(e.target.value as 'KYORUGI' | 'POOMSAE'); setWeightCategory('') })} className={selectCls}>
                         <option value="KYORUGI">Kyorugi</option>
                         <option value="POOMSAE">Poomsae</option>
                     </select>
-                    <select value={division} onChange={e => onFilter(() => setDivision(e.target.value))} className={selectCls}>
+                    <select value={division} onChange={e => onFilter(() => { setDivision(e.target.value); setWeightCategory('') })} className={selectCls}>
                         <option value="">All divisions</option>
                         {(data?.divisions ?? []).map(d => <option key={d} value={d}>{d}</option>)}
                     </select>
-                    <select value={gender} onChange={e => onFilter(() => setGender(e.target.value))} className={selectCls}>
+                    <select value={weightCategory} onChange={e => onFilter(() => setWeightCategory(e.target.value))} className={selectCls}>
+                        <option value="">All weight classes</option>
+                        {(data?.weightCategories ?? []).map(w => <option key={w} value={w}>{w}</option>)}
+                    </select>
+                    <select value={gender} onChange={e => onFilter(() => { setGender(e.target.value); setWeightCategory('') })} className={selectCls}>
                         <option value="">All genders</option>
                         <option value="Male">Male</option>
                         <option value="Female">Female</option>

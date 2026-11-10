@@ -255,6 +255,7 @@ export async function fetchAdminRankings(params: {
     includeUnlicensed: boolean
     division?: string
     gender?: string
+    weightCategory?: string
     search?: string
     page?: number
     pageSize?: number
@@ -266,10 +267,13 @@ export async function fetchAdminRankings(params: {
     const licenseFilter = params.includeUnlicensed ? Prisma.empty : Prisma.sql`AND u."isVerified" = true`
     const divisionFilter = params.division ? Prisma.sql`AND "division" = ${params.division}` : Prisma.empty
     const genderFilter = params.gender ? Prisma.sql`AND "gender" = ${params.gender}` : Prisma.empty
+    const weightFilter = params.weightCategory ? Prisma.sql`AND "weightCategory" = ${params.weightCategory}` : Prisma.empty
+    // Search only narrows the displayed rows; it is applied AFTER ranking so
+    // searching for someone doesn't turn them into #1.
     const searchFilter = params.search ? Prisma.sql`AND "playerName" ILIKE ${'%' + params.search + '%'}` : Prisma.empty
 
-    // Ranks are computed over the whole scope+type set first; the filters
-    // below only narrow what is displayed, so a rank never shifts with a filter.
+    // Ranks are sequential (1, 2, 3...) within the selected discipline,
+    // division, gender and weight class — i.e. within the filtered group.
     const base = Prisma.sql`
         WITH Ranked AS (
             SELECT
@@ -338,6 +342,9 @@ export async function fetchAdminRankings(params: {
         Filtered AS (
             SELECT * FROM Ranked WHERE ("totalPoints" > 0 OR "matchCount" > 0)
         ),
+        Scoped AS (
+            SELECT * FROM Filtered WHERE true ${divisionFilter} ${genderFilter} ${weightFilter}
+        ),
         Numbered AS (
             SELECT *,
                 ROW_NUMBER() OVER (ORDER BY "isActive" DESC, "totalPoints" DESC)::integer AS "rank",
@@ -345,28 +352,37 @@ export async function fetchAdminRankings(params: {
                 CASE WHEN "isVerified"
                     THEN ROW_NUMBER() OVER (PARTITION BY "isVerified" ORDER BY "isActive" DESC, "totalPoints" DESC)::integer
                 END AS "publicRank"
-            FROM Filtered
+            FROM Scoped
         )
     `
 
-    const where = Prisma.sql`WHERE true ${divisionFilter} ${genderFilter} ${searchFilter}`
+    const searchWhere = Prisma.sql`WHERE true ${searchFilter}`
 
-    const [rows, countRows, divisionRows] = await Promise.all([
+    const [rows, countRows, divisionRows, weightRows] = await Promise.all([
         prisma.$queryRaw<any[]>`
             ${base}
-            SELECT * FROM Numbered ${where}
+            SELECT * FROM Numbered ${searchWhere}
             ORDER BY "rank" ASC
             LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
         `,
-        prisma.$queryRaw<{ count: bigint }[]>`${base} SELECT COUNT(*) AS "count" FROM Numbered ${where}`,
+        prisma.$queryRaw<{ count: bigint }[]>`${base} SELECT COUNT(*) AS "count" FROM Numbered ${searchWhere}`,
         prisma.$queryRaw<{ division: string }[]>`
-            ${base} SELECT DISTINCT "division" FROM Numbered WHERE "division" IS NOT NULL ORDER BY "division"
+            ${base} SELECT DISTINCT "division" FROM Filtered WHERE "division" IS NOT NULL ORDER BY "division"
+        `,
+        // Weight classes that exist for the chosen division + gender.
+        prisma.$queryRaw<{ weightCategory: string }[]>`
+            ${base} SELECT DISTINCT "weightCategory" FROM Filtered
+            WHERE "weightCategory" IS NOT NULL ${divisionFilter} ${genderFilter}
+            ORDER BY "weightCategory"
         `,
     ])
 
     return {
         total: Number(countRows[0]?.count ?? 0),
         divisions: divisionRows.map(d => d.division),
+        weightCategories: weightRows
+            .map(w => w.weightCategory)
+            .sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
         rows: rows.map(r => ({
             userId: r.userId as string,
             rank: r.rank as number,
