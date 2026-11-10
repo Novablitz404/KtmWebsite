@@ -26,6 +26,8 @@ interface Athlete {
     weight: number | null
     height: number | null
     gender: string | null
+    gssKyorugi: number | null
+    gssPoomsae: number | null
 }
 
 const PAGE_SIZE = 15
@@ -221,6 +223,7 @@ export default function OrganizationAthletesView() {
                                     <th className="px-6 py-3 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Club</th>
                                     <th className="px-6 py-3 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Belt</th>
                                     <th className="px-6 py-3 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Athlete Number</th>
+                                    <th className="px-6 py-3 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">GSS Points</th>
                                     <th className="px-6 py-3 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
                                     <th className="px-6 py-3 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Actions</th>
                                 </tr>
@@ -253,6 +256,16 @@ export default function OrganizationAthletesView() {
                                             <span className="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-1 rounded-lg">
                                                 {athlete.athleteNumber || '—'}
                                             </span>
+                                        </td>
+                                        <td className="px-6 py-3.5">
+                                            {athlete.gssKyorugi == null && athlete.gssPoomsae == null ? (
+                                                <span className="text-gray-300">—</span>
+                                            ) : (
+                                                <div className="text-xs text-gray-700 leading-tight space-y-0.5">
+                                                    <p><span className="text-[10px] font-black text-gray-400 mr-1">K</span><span className="font-mono font-bold">{athlete.gssKyorugi ?? '—'}</span></p>
+                                                    <p><span className="text-[10px] font-black text-gray-400 mr-1">P</span><span className="font-mono font-bold">{athlete.gssPoomsae ?? '—'}</span></p>
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="px-6 py-3.5 text-center">
                                             {athlete.isVerified ? (

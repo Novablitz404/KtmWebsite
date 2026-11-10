@@ -43,7 +43,9 @@ export default function AuthLoadingWrapper({ children }: { children: React.React
         }
         return null
     }, [tenantParam])
-    const qs = detectedTenant ? `?tenant=${detectedTenant}` : ''
+    // Only carry ?tenant= when it's already in the URL. On mapped domains the
+    // hostname resolves the tenant, so the param would just be URL noise.
+    const qs = tenantParam ? `?tenant=${tenantParam}` : ''
 
     useEffect(() => {
         if (!isLoaded) return // Wait until auth state is resolved
@@ -112,7 +114,7 @@ export default function AuthLoadingWrapper({ children }: { children: React.React
 
             // Append tenant param (handle existing query string in redirectTo)
             if (qs) {
-                redirectTo += redirectTo.includes('?') ? `&tenant=${detectedTenant}` : qs
+                redirectTo += redirectTo.includes('?') ? `&tenant=${tenantParam}` : qs
             }
             router.replace(redirectTo)
         }

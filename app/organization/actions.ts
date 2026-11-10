@@ -1977,7 +1977,28 @@ export async function getOrganizationAthletes() {
         orderBy: { name: 'asc' }
     })
 
-    return athletes
+    // GSS ratings are scoped per host organization (scope = orgId) and per discipline.
+    const ratings = await prisma.athleteEloRating.findMany({
+        where: {
+            userId: { in: athletes.map(a => a.id) },
+            scope: orgId,
+            type: { in: ['KYORUGI', 'POOMSAE'] },
+        },
+        select: { userId: true, type: true, rating: true },
+    })
+    const ratingMap = new Map<string, { kyorugi: number | null; poomsae: number | null }>()
+    for (const r of ratings) {
+        const entry = ratingMap.get(r.userId) ?? { kyorugi: null, poomsae: null }
+        if (r.type === 'KYORUGI') entry.kyorugi = Math.round(r.rating)
+        else entry.poomsae = Math.round(r.rating)
+        ratingMap.set(r.userId, entry)
+    }
+
+    return athletes.map(a => ({
+        ...a,
+        gssKyorugi: ratingMap.get(a.id)?.kyorugi ?? null,
+        gssPoomsae: ratingMap.get(a.id)?.poomsae ?? null,
+    }))
 }
 
 // Athlete License activation/deactivation is KTM's call, not the org's — see

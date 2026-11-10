@@ -171,6 +171,19 @@ export default async function middleware(request: NextRequest) {
     const tenantFromDomain = TENANT_MAP[hostname]
     const isKtmDomain = KTM_DOMAINS.includes(hostname) || hostname.startsWith('localhost')
 
+    // The host already resolves this tenant, so ?tenant=<same> is redundant:
+    // strip it from page navigations (GET only, never API calls) to keep URLs clean.
+    if (
+        tenantParam &&
+        tenantFromDomain === tenantParam &&
+        (request.method === 'GET' || request.method === 'HEAD') &&
+        !pathname.startsWith('/api/')
+    ) {
+        const cleanUrl = request.nextUrl.clone()
+        cleanUrl.searchParams.delete('tenant')
+        return NextResponse.redirect(cleanUrl)
+    }
+
     let orgSlug = 'ktm'
     // Whether the hostname itself (not a ?tenant= override) resolves the
     // tenant, so pages know they don't need to carry ?tenant= on internal

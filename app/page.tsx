@@ -31,7 +31,7 @@ export default async function Home() {
       const tenantQs = tenant.isMappedDomain ? '' : `?tenant=${tenant.slug}`
       if (existingTenantUser?.role === 'ADMIN') redirect(`/admin${tenantQs}`)
       else if (existingTenantUser?.role === 'ORGANIZER') redirect(`/organization${tenantQs}`)
-      else if (existingTenantUser?.role === 'MANAGER') redirect(`/organization?tab=events&tenant=${tenant.slug}`)
+      else if (existingTenantUser?.role === 'MANAGER') redirect(`/organization?tab=events${tenant.isMappedDomain ? '' : `&tenant=${tenant.slug}`}`)
       else if (existingTenantUser?.role === 'ATHLETE') redirect(`/athlete${tenantQs}`)
       else if (existingTenantUser?.role === 'CLUB_MASTER' || existingTenantUser?.role === 'ASSISTANT_CLUB_MASTER') redirect(`/club${tenantQs}`)
     }
