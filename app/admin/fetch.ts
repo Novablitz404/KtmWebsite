@@ -1,6 +1,7 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { getAuthUser } from '@/lib/supabase/server'
 
 async function checkAdmin() {
@@ -223,31 +224,35 @@ export async function fetchAdminUserDetails(id: string) {
     return { user, clubs: clubs.map((c: any) => c.name) }
 }
 
-// ─── Athlete rankings (GSS) ─────────────────────────────────────────────
-// Rankings are scoped per host organization (see lib/gss-ranking.ts), so the
-// admin picks which org's leaderboard to look at.
+// ─── Athlete rankings (GSS) — admin view ────────────────────────────────
+// Read-only, live calculation that mirrors the public "GlobalAthleteRanking"
+// materialized view (ranking_migration_v3.sql) so points and rank order match,
+// EXCEPT it can include athletes whose license isn't activated
+// (User.isVerified = false), which the public view filters out.
+//
+// KEEP IN SYNC with ranking_migration_v3.sql: medal values, tier multipliers,
+// the EXP(-0.0578 * months) decay, the "active = >=1 approved event in 12
+// months" rule and the ORDER BY (isActive DESC, totalPoints DESC).
 
 export async function fetchAdminRankingScopes() {
     await checkAdmin()
 
-    const groups = await prisma.globalAthleteRanking.groupBy({
-        by: ['scope'],
-        _count: { _all: true },
-    })
-    const orgs = await prisma.organization.findMany({
-        where: { id: { in: groups.map(g => g.scope) } },
-        select: { id: true, name: true },
-    })
-    const nameMap = new Map(orgs.map(o => [o.id, o.name]))
-
-    return groups
-        .map(g => ({ scope: g.scope, name: nameMap.get(g.scope) ?? g.scope, count: g._count._all }))
-        .sort((a, b) => b.count - a.count)
+    const rows = await prisma.$queryRaw<{ scope: string; name: string | null; count: bigint }[]>`
+        SELECT e."scope", org."name", COUNT(*) AS "count"
+        FROM "AthleteEloRating" e
+        JOIN "User" u ON u.id = e."userId" AND u.role = 'ATHLETE'
+        LEFT JOIN "Organization" org ON org.id = e."scope"
+        WHERE e."type" IN ('KYORUGI', 'POOMSAE')
+        GROUP BY e."scope", org."name"
+        ORDER BY COUNT(*) DESC
+    `
+    return rows.map(r => ({ scope: r.scope, name: r.name ?? r.scope, count: Number(r.count) }))
 }
 
 export async function fetchAdminRankings(params: {
     scope: string
     type: 'KYORUGI' | 'POOMSAE'
+    includeUnlicensed: boolean
     division?: string
     gender?: string
     search?: string
@@ -256,56 +261,130 @@ export async function fetchAdminRankings(params: {
 }) {
     await checkAdmin()
 
-    const page = params.page ?? 1
+    const page = Math.max(1, params.page ?? 1)
     const pageSize = params.pageSize ?? 25
-    const where = {
-        scope: params.scope,
-        type: params.type,
-        ...(params.division ? { division: params.division } : {}),
-        ...(params.gender ? { gender: params.gender } : {}),
-        ...(params.search ? { playerName: { contains: params.search, mode: 'insensitive' as const } } : {}),
-    }
+    const licenseFilter = params.includeUnlicensed ? Prisma.empty : Prisma.sql`AND u."isVerified" = true`
+    const divisionFilter = params.division ? Prisma.sql`AND "division" = ${params.division}` : Prisma.empty
+    const genderFilter = params.gender ? Prisma.sql`AND "gender" = ${params.gender}` : Prisma.empty
+    const searchFilter = params.search ? Prisma.sql`AND "playerName" ILIKE ${'%' + params.search + '%'}` : Prisma.empty
 
-    const [rows, total, divisions] = await Promise.all([
-        prisma.globalAthleteRanking.findMany({
-            where,
-            orderBy: [{ globalRank: 'asc' }, { totalPoints: 'desc' }],
-            skip: (page - 1) * pageSize,
-            take: pageSize,
-        }),
-        prisma.globalAthleteRanking.count({ where }),
-        prisma.globalAthleteRanking.findMany({
-            where: { scope: params.scope, type: params.type, division: { not: null } },
-            select: { division: true },
-            distinct: ['division'],
-        }),
+    // Ranks are computed over the whole scope+type set first; the filters
+    // below only narrow what is displayed, so a rank never shifts with a filter.
+    const base = Prisma.sql`
+        WITH Ranked AS (
+            SELECT
+                e."userId",
+                u.name AS "playerName",
+                c.name AS "clubName",
+                mrc."division" AS "division",
+                mrc."weightClass" AS "weightCategory",
+                u.belt AS "belt",
+                u.gender AS "gender",
+                u."isVerified" AS "isVerified",
+                u."athleteNumber" AS "athleteNumber",
+                u."imageUrl" AS "imageUrl",
+                e."rating" AS "eloRating",
+                e."matchCount",
+                COALESCE(a."activityCount", 0) >= 1 AS "isActive",
+                COALESCE(fb."fieldBonus", 0)::double precision AS "fieldBonus",
+                (e."rating" + COALESCE(fb."fieldBonus", 0))::double precision AS "totalPoints"
+            FROM "AthleteEloRating" e
+            JOIN "User" u ON u.id = e."userId" AND u.role = 'ATHLETE'
+            LEFT JOIN "Club" c ON u."clubName" = c.name
+            LEFT JOIN LATERAL (
+                SELECT COUNT(DISTINCT cat."tournamentId") AS "activityCount"
+                FROM "Player" p
+                JOIN "Category" cat ON p."categoryId" = cat.id
+                JOIN "Tournament" t ON cat."tournamentId" = t.id
+                WHERE p."userId" = e."userId"
+                  AND t."startDate" >= NOW() - INTERVAL '12 months'
+                  AND p."registrationStatus" = 'APPROVED'
+            ) a ON true
+            LEFT JOIN LATERAL (
+                SELECT SUM(
+                    CASE p3.medal
+                        WHEN 'Gold' THEN 1.0 WHEN 'Silver' THEN 0.6 WHEN 'Bronze' THEN 0.36
+                        WHEN 'QF' THEN 0.22 WHEN 'R16' THEN 0.15 ELSE 0
+                    END
+                    * CASE t2.tier
+                        WHEN 'GSS-1' THEN 2.0 WHEN 'GSS-2' THEN 1.5 WHEN 'GSS-3' THEN 1.0 WHEN 'GSS-4' THEN 0.75
+                        WHEN 'J-4' THEN 2.0 WHEN 'J-3' THEN 1.5 WHEN 'J-2' THEN 1.0 WHEN 'J-1' THEN 0.75
+                        ELSE 1.0
+                    END
+                    * EXP(-0.0578 * GREATEST(
+                        (EXTRACT(YEAR FROM AGE(NOW(), t2."startDate")) * 12 +
+                         EXTRACT(MONTH FROM AGE(NOW(), t2."startDate"))),
+                        0
+                    ))
+                ) AS "fieldBonus"
+                FROM "Player" p3
+                JOIN "Category" cat3 ON p3."categoryId" = cat3.id
+                JOIN "Tournament" t2 ON cat3."tournamentId" = t2.id
+                WHERE p3."userId" = e."userId"
+                  AND p3.medal IS NOT NULL AND p3.medal != ''
+                  AND cat3.type = e."type"
+            ) fb ON true
+            LEFT JOIN LATERAL (
+                SELECT cat."division", cat."weightClass"
+                FROM "Player" p2
+                JOIN "Category" cat ON cat.id = p2."categoryId"
+                WHERE p2."userId" = e."userId"
+                ORDER BY p2."createdAt" DESC
+                LIMIT 1
+            ) mrc ON true
+            WHERE e."scope" = ${params.scope} AND e."type" = ${params.type}
+              ${licenseFilter}
+        ),
+        Filtered AS (
+            SELECT * FROM Ranked WHERE ("totalPoints" > 0 OR "matchCount" > 0)
+        ),
+        Numbered AS (
+            SELECT *,
+                ROW_NUMBER() OVER (ORDER BY "isActive" DESC, "totalPoints" DESC)::integer AS "rank",
+                -- Rank among licensed athletes only = the rank shown publicly.
+                CASE WHEN "isVerified"
+                    THEN ROW_NUMBER() OVER (PARTITION BY "isVerified" ORDER BY "isActive" DESC, "totalPoints" DESC)::integer
+                END AS "publicRank"
+            FROM Filtered
+        )
+    `
+
+    const where = Prisma.sql`WHERE true ${divisionFilter} ${genderFilter} ${searchFilter}`
+
+    const [rows, countRows, divisionRows] = await Promise.all([
+        prisma.$queryRaw<any[]>`
+            ${base}
+            SELECT * FROM Numbered ${where}
+            ORDER BY "rank" ASC
+            LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
+        `,
+        prisma.$queryRaw<{ count: bigint }[]>`${base} SELECT COUNT(*) AS "count" FROM Numbered ${where}`,
+        prisma.$queryRaw<{ division: string }[]>`
+            ${base} SELECT DISTINCT "division" FROM Numbered WHERE "division" IS NOT NULL ORDER BY "division"
+        `,
     ])
 
-    const users = await prisma.user.findMany({
-        where: { id: { in: rows.map(r => r.userId) } },
-        select: { id: true, imageUrl: true, athleteNumber: true },
-    })
-    const userMap = new Map(users.map(u => [u.id, u]))
-
     return {
-        total,
-        divisions: divisions.map(d => d.division as string).sort(),
+        total: Number(countRows[0]?.count ?? 0),
+        divisions: divisionRows.map(d => d.division),
         rows: rows.map(r => ({
-            userId: r.userId,
-            rank: r.globalRank,
-            name: r.playerName,
-            clubName: r.clubName,
-            division: r.division,
-            weightCategory: r.weightCategory,
-            gender: r.gender,
-            belt: r.belt,
+            userId: r.userId as string,
+            rank: r.rank as number,
+            publicRank: (r.publicRank ?? null) as number | null,
+            name: r.playerName as string,
+            clubName: (r.clubName ?? null) as string | null,
+            division: (r.division ?? null) as string | null,
+            weightCategory: (r.weightCategory ?? null) as string | null,
+            gender: (r.gender ?? null) as string | null,
+            belt: (r.belt ?? null) as string | null,
+            isVerified: !!r.isVerified,
             eloRating: Math.round(r.eloRating),
             fieldBonus: Math.round(r.fieldBonus * 10) / 10,
             totalPoints: Math.round(r.totalPoints * 10) / 10,
-            matchCount: r.matchCount,
-            isActive: r.isActive,
-            imageUrl: userMap.get(r.userId)?.imageUrl ?? null,
-            athleteNumber: userMap.get(r.userId)?.athleteNumber ?? null,
+            matchCount: Number(r.matchCount),
+            isActive: !!r.isActive,
+            imageUrl: (r.imageUrl ?? null) as string | null,
+            athleteNumber: (r.athleteNumber ?? null) as string | null,
         })),
     }
 }

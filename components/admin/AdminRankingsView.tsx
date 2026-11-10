@@ -14,6 +14,7 @@ export default function AdminRankingsView() {
     const [division, setDivision] = useState('')
     const [gender, setGender] = useState('')
     const [search, setSearch] = useState('')
+    const [includeUnlicensed, setIncludeUnlicensed] = useState(true)
     const [page, setPage] = useState(1)
 
     const { data: scopes = [] } = useQuery({
@@ -24,8 +25,8 @@ export default function AdminRankingsView() {
     const activeScope = scope || scopes[0]?.scope || ''
 
     const { data, isLoading, isFetching } = useQuery({
-        queryKey: ['admin-rankings', activeScope, type, division, gender, search, page],
-        queryFn: () => fetchAdminRankings({ scope: activeScope, type, division, gender, search, page, pageSize: PAGE_SIZE }),
+        queryKey: ['admin-rankings', activeScope, type, includeUnlicensed, division, gender, search, page],
+        queryFn: () => fetchAdminRankings({ scope: activeScope, type, includeUnlicensed, division, gender, search, page, pageSize: PAGE_SIZE }),
         enabled: !!activeScope,
         placeholderData: keepPreviousData,
     })
@@ -59,6 +60,15 @@ export default function AdminRankingsView() {
                         <option value="Male">Male</option>
                         <option value="Female">Female</option>
                     </select>
+                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+                        <input
+                            type="checkbox"
+                            checked={includeUnlicensed}
+                            onChange={e => onFilter(() => setIncludeUnlicensed(e.target.checked))}
+                            className="w-4 h-4 accent-red-600"
+                        />
+                        Include unlicensed athletes
+                    </label>
                     <div className="relative flex-1 min-w-[180px]">
                         <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                         <input
@@ -83,7 +93,7 @@ export default function AdminRankingsView() {
                         <table className="w-full">
                             <thead>
                                 <tr className="border-b border-gray-100 bg-gray-50">
-                                    {['Rank', 'Athlete', 'Club', 'Division', 'Weight', 'Elo', 'Field Bonus', 'Points', 'Matches', 'Status'].map(h => (
+                                    {['Rank', 'Public Rank', 'Athlete', 'Club', 'Division', 'Weight', 'Elo', 'Field Bonus', 'Points', 'Matches', 'Status'].map(h => (
                                         <th key={h} className="px-4 py-3 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                                     ))}
                                 </tr>
@@ -92,12 +102,16 @@ export default function AdminRankingsView() {
                                 {rows.map(r => (
                                     <tr key={`${r.userId}-${r.division}-${r.weightCategory}`} className="hover:bg-gray-50/60">
                                         <td className="px-4 py-3 text-sm font-black text-gray-900">#{r.rank}</td>
+                                        <td className="px-4 py-3 text-sm text-gray-500">{r.publicRank ? `#${r.publicRank}` : '—'}</td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-3">
                                                 <UserAvatar src={r.imageUrl} name={r.name} size={32} className="!bg-gray-100 border border-gray-200" textClassName="!text-gray-400" />
                                                 <div className="min-w-0">
                                                     <p className="text-sm font-bold text-gray-900 truncate">{r.name}</p>
-                                                    {r.athleteNumber && <p className="text-[10px] font-mono text-gray-400">{r.athleteNumber}</p>}
+                                                    <p className="text-[10px] text-gray-400 flex items-center gap-1.5">
+                                                        {r.athleteNumber && <span className="font-mono">{r.athleteNumber}</span>}
+                                                        {!r.isVerified && <span className="px-1.5 py-px rounded-full bg-amber-50 text-amber-700 border border-amber-100 font-black">Unlicensed</span>}
+                                                    </p>
                                                 </div>
                                             </div>
                                         </td>
