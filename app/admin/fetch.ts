@@ -222,3 +222,90 @@ export async function fetchAdminUserDetails(id: string) {
 
     return { user, clubs: clubs.map((c: any) => c.name) }
 }
+
+// ─── Athlete rankings (GSS) ─────────────────────────────────────────────
+// Rankings are scoped per host organization (see lib/gss-ranking.ts), so the
+// admin picks which org's leaderboard to look at.
+
+export async function fetchAdminRankingScopes() {
+    await checkAdmin()
+
+    const groups = await prisma.globalAthleteRanking.groupBy({
+        by: ['scope'],
+        _count: { _all: true },
+    })
+    const orgs = await prisma.organization.findMany({
+        where: { id: { in: groups.map(g => g.scope) } },
+        select: { id: true, name: true },
+    })
+    const nameMap = new Map(orgs.map(o => [o.id, o.name]))
+
+    return groups
+        .map(g => ({ scope: g.scope, name: nameMap.get(g.scope) ?? g.scope, count: g._count._all }))
+        .sort((a, b) => b.count - a.count)
+}
+
+export async function fetchAdminRankings(params: {
+    scope: string
+    type: 'KYORUGI' | 'POOMSAE'
+    division?: string
+    gender?: string
+    search?: string
+    page?: number
+    pageSize?: number
+}) {
+    await checkAdmin()
+
+    const page = params.page ?? 1
+    const pageSize = params.pageSize ?? 25
+    const where = {
+        scope: params.scope,
+        type: params.type,
+        ...(params.division ? { division: params.division } : {}),
+        ...(params.gender ? { gender: params.gender } : {}),
+        ...(params.search ? { playerName: { contains: params.search, mode: 'insensitive' as const } } : {}),
+    }
+
+    const [rows, total, divisions] = await Promise.all([
+        prisma.globalAthleteRanking.findMany({
+            where,
+            orderBy: [{ globalRank: 'asc' }, { totalPoints: 'desc' }],
+            skip: (page - 1) * pageSize,
+            take: pageSize,
+        }),
+        prisma.globalAthleteRanking.count({ where }),
+        prisma.globalAthleteRanking.findMany({
+            where: { scope: params.scope, type: params.type, division: { not: null } },
+            select: { division: true },
+            distinct: ['division'],
+        }),
+    ])
+
+    const users = await prisma.user.findMany({
+        where: { id: { in: rows.map(r => r.userId) } },
+        select: { id: true, imageUrl: true, athleteNumber: true },
+    })
+    const userMap = new Map(users.map(u => [u.id, u]))
+
+    return {
+        total,
+        divisions: divisions.map(d => d.division as string).sort(),
+        rows: rows.map(r => ({
+            userId: r.userId,
+            rank: r.globalRank,
+            name: r.playerName,
+            clubName: r.clubName,
+            division: r.division,
+            weightCategory: r.weightCategory,
+            gender: r.gender,
+            belt: r.belt,
+            eloRating: Math.round(r.eloRating),
+            fieldBonus: Math.round(r.fieldBonus * 10) / 10,
+            totalPoints: Math.round(r.totalPoints * 10) / 10,
+            matchCount: r.matchCount,
+            isActive: r.isActive,
+            imageUrl: userMap.get(r.userId)?.imageUrl ?? null,
+            athleteNumber: userMap.get(r.userId)?.athleteNumber ?? null,
+        })),
+    }
+}

@@ -14,18 +14,20 @@ import {
     DollarSign,
     LifeBuoy,
     BadgeCheck,
-    Megaphone
+    Megaphone,
+    Trophy
 } from 'lucide-react'
 
 interface AdminSidebarProps {
-    activeView: 'home' | 'users' | 'events' | 'financials' | 'api-keys' | 'licenses' | 'advertising' | 'guidelines' | 'settings' | 'support'
-    onNavigate: (view: 'home' | 'users' | 'events' | 'financials' | 'api-keys' | 'licenses' | 'advertising' | 'guidelines' | 'settings' | 'support') => void
+    activeView: 'home' | 'users' | 'rankings' | 'events' | 'financials' | 'api-keys' | 'licenses' | 'advertising' | 'guidelines' | 'settings' | 'support'
+    onNavigate: (view: 'home' | 'users' | 'rankings' | 'events' | 'financials' | 'api-keys' | 'licenses' | 'advertising' | 'guidelines' | 'settings' | 'support') => void
     userName?: string | null
 }
 
 const navItems = [
     { id: 'home', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'users', label: 'Users', icon: Users },
+    { id: 'rankings', label: 'Rankings', icon: Trophy },
     { id: 'events', label: 'Events', icon: Calendar },
     { id: 'financials', label: 'Financials', icon: DollarSign },
     { id: 'guidelines', label: 'Guidelines', icon: FileText },
