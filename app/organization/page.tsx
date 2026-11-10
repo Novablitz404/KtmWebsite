@@ -67,6 +67,7 @@ export default async function OrganizationPage() {
         <OrganizationDashboard
             initialData={dashboardData}
             tenantSlug={tenant.slug}
+            tenantIsMappedDomain={tenant.isMappedDomain}
             userRole={dbUser?.role}
             userData={{
                 name: dbUser.name,

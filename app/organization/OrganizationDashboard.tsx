@@ -26,6 +26,7 @@ import { LayoutDashboard, Building2, Calendar, Settings, Users, IdCard, DollarSi
 interface OrganizationDashboardProps {
     initialData: any | null
     tenantSlug: string
+    tenantIsMappedDomain?: boolean
     userRole: string | undefined
     userData: {
         name: string | null
@@ -40,6 +41,7 @@ type ViewType = 'home' | 'clubs' | 'events' | 'athletes' | 'financials' | 'team'
 export default function OrganizationDashboard({
     initialData,
     tenantSlug,
+    tenantIsMappedDomain = false,
     userRole,
     userData,
     clerkImageUrl,
@@ -56,9 +58,12 @@ export default function OrganizationDashboard({
         const url = new URL(window.location.href)
         if (activeView === 'home') url.searchParams.delete('tab')
         else url.searchParams.set('tab', activeView)
-        if (tenantSlug !== 'ktm') url.searchParams.set('tenant', tenantSlug)
+        // Mapped domains (e.g. tap-elite.com) resolve the tenant from the host,
+        // so the param is only needed on unmapped hosts (localhost, previews).
+        if (tenantSlug !== 'ktm' && !tenantIsMappedDomain) url.searchParams.set('tenant', tenantSlug)
+        else url.searchParams.delete('tenant')
         window.history.replaceState({}, '', url.toString())
-    }, [activeView, tenantSlug])
+    }, [activeView, tenantSlug, tenantIsMappedDomain])
 
     const { data: dashboardData, isLoading } = useQuery({
         queryKey: ['organization-dashboard'],

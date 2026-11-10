@@ -5,6 +5,7 @@ import { compressImage } from '@/lib/compress-image'
 import { useState, useEffect, use } from 'react'
 import { Upload, X, Home, Settings, ClipboardList, Users, Bell, Trophy, Medal, Clock, Search, Calendar, ChevronLeft, ChevronRight, Loader2, Camera, Download } from 'lucide-react'
 import Link from 'next/link'
+import { useTenant } from '@/app/providers/TenantProvider'
 import { approveRegistrations, unapproveRegistration, deleteRegistration, updatePlayerDetails, bulkUnapproveRegistrations, bulkDeleteRegistrations, fetchClubDashboardData, removeMemberFromClub, updateClubMember, getClubAffiliationData, generatePlayerQRCode } from '@/app/actions'
 import { uploadMemberAvatar } from '@/app/club/actions'
 import { updateRegistrationStatus, deletePromotionRegistration } from '@/app/promotions/actions'
@@ -198,6 +199,7 @@ export default function ClubDashboard({
 
     const router = useRouter()
     const searchParams = useSearchParams()
+    const { isMappedDomain: tenantIsMappedDomain } = useTenant()
     const [submitting, setSubmitting] = useState(false)
     const initialView = (searchParams.get('tab') as any) || 'home'
     const [activeView, setActiveView] = useState<'home' | 'settings' | 'members' | 'attendance' | 'finance' | 'schedule' | 'notifications' | 'tournaments' | 'support'>(initialView)
@@ -207,10 +209,10 @@ export default function ClubDashboard({
         const url = new URL(window.location.href)
         if (activeView === 'home') url.searchParams.delete('tab')
         else url.searchParams.set('tab', activeView)
-        // If members tab and using pagination, preserve page?
-        // Let's just push state
+        // Mapped domains resolve the tenant from the host, so ?tenant= is redundant there.
+        if (tenantIsMappedDomain) url.searchParams.delete('tenant')
         window.history.replaceState({}, '', url.toString())
-    }, [activeView])
+    }, [activeView, tenantIsMappedDomain])
 
     // Realtime Updates
     useEffect(() => {

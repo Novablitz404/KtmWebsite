@@ -92,8 +92,10 @@ export default function AthleteDashboardView({
         const url = new URL(window.location.href)
         if (activeView === 'home') url.searchParams.delete('tab')
         else url.searchParams.set('tab', activeView)
+        // Mapped domains resolve the tenant from the host, so ?tenant= is redundant there.
+        if (tenantIsMappedDomain) url.searchParams.delete('tenant')
         window.history.replaceState({}, '', url.toString())
-    }, [activeView])
+    }, [activeView, tenantIsMappedDomain])
 
     // Use server data as fallback (same pattern as ClubDashboard)
     const data = dashboardData || initialData
