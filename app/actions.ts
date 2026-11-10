@@ -13,6 +13,7 @@ import { BracketMatchSpec, generateSingleEliminationBracket, shuffleArray } from
 import type { PreviewMatch } from '@/lib/bracket-preview-helpers'
 import { deriveSkillLevel, extractBeltFromCategoryName } from '@/lib/skill-logic'
 import { toTitleCase } from '@/lib/utils'
+import { lockedMessage, lockedMessageForPlayer, LOCKED_MESSAGE } from '@/lib/tournament-lock'
 import { sendEmail } from '@/lib/email-service'
 import RegistrationApprovedEmail from '@/emails/RegistrationApprovedEmail'
 import QRCode from 'qrcode'
@@ -798,6 +799,7 @@ export async function generateAllBrackets(
     editedSpecsByCategory?: Record<string, PreviewMatch[]>
 ) {
     if (!tournamentId) return
+    { const locked = await lockedMessage(tournamentId); if (locked) return { success: false, message: locked } }
 
     // 1. Bulk Fetch Categories & Players
     // We only want categories of the specified type that have enough players
@@ -1071,6 +1073,7 @@ export async function generateBracketsForCategory(
     editedSpecs?: PreviewMatch[]
 ) {
     if (!categoryId) return
+    { const c = await prisma.category.findUnique({ where: { id: categoryId }, select: { tournamentId: true } }); const locked = await lockedMessage(c?.tournamentId); if (locked) throw new Error(locked) }
 
     // Update category court if provided
     if (court !== undefined) {
@@ -1456,6 +1459,7 @@ export async function deleteCategory(categoryId: string) {
         include: { _count: { select: { players: true } } }
     })
     if (!category) return { error: 'Category not found' }
+    { const locked = await lockedMessage(category.tournamentId); if (locked) return { error: locked } }
 
     await prisma.match.deleteMany({ where: { categoryRefId: categoryId } })
     await prisma.poomsaeMatch.deleteMany({ where: { categoryRefId: categoryId } })
@@ -2320,6 +2324,7 @@ export async function selectGuidelineTemplate(tournamentId: string, templateId: 
 
 export async function deleteAllCategories(tournamentId: string) {
     try {
+        { const locked = await lockedMessage(tournamentId); if (locked) return { error: locked } }
         // Delete matches first
         await prisma.match.deleteMany({
             where: {
@@ -2378,6 +2383,7 @@ export async function unapproveRegistration(playerId: string) {
 
 export async function deleteRegistration(playerId: string) {
     try {
+        { const locked = await lockedMessageForPlayer(playerId); if (locked) return { error: locked } }
         await prisma.player.delete({
             where: { id: playerId }
         })
@@ -2442,6 +2448,7 @@ export async function bulkUnapproveRegistrations(playerIds: string[]) {
 
 export async function bulkDeleteRegistrations(playerIds: string[]) {
     try {
+        for (const id of playerIds) { const locked = await lockedMessageForPlayer(id); if (locked) return { error: locked } }
         await prisma.player.deleteMany({
             where: { id: { in: playerIds } }
         })
@@ -2594,6 +2601,7 @@ export async function movePlayerToCategory(
     if (!player || player.category?.tournamentId !== tournamentId) {
         return { error: 'Player not found in this tournament' }
     }
+    { const locked = await lockedMessage(tournamentId); if (locked) return { error: locked } }
 
     // Verify the target category belongs to this tournament
     const target = await prisma.category.findUnique({
@@ -2646,6 +2654,7 @@ export async function removePlayerFromTournament(playerId: string, tournamentId:
     if (!player || player.category?.tournamentId !== tournamentId) {
         return { error: 'Player not found in this tournament' }
     }
+    { const locked = await lockedMessage(tournamentId); if (locked) return { error: locked } }
 
     const disciplineType = (player.category?.type ?? 'KYORUGI') as 'KYORUGI' | 'POOMSAE' | 'KYUKPA'
 
@@ -3855,6 +3864,7 @@ export async function forceExecuteSmartAction(proposalId: string, overrideVote?:
         })
 
         if (!proposal) return { error: 'Proposal not found' }
+        { const locked = await lockedMessage(proposal.tournamentId); if (locked) return { error: locked } }
 
         const data = JSON.parse(proposal.data)
 
@@ -4082,6 +4092,7 @@ export async function declareKyorugiWinner(matchId: number, winnerSlot: 'player1
     if (!match || !match.categoryRef?.tournament) return { success: false, error: 'Match not found' }
 
     const tournament = match.categoryRef.tournament
+    if (tournament.centralTakeoverAt) return { success: false, error: LOCKED_MESSAGE }
     const isOrganizer = tournament.organizerId === dbUser.id
     const isManager = tournament.managers.some(m => m.id === dbUser.id)
     const isAdmin = dbUser.role === 'ADMIN'
@@ -4133,6 +4144,7 @@ export async function declarePoomsaeWinner(categoryRefId: string, pairingMatchId
     if (!category?.tournament) return { success: false, error: 'Category not found' }
 
     const tournament = category.tournament
+    if (tournament.centralTakeoverAt) return { success: false, error: LOCKED_MESSAGE }
     const isOrganizer = tournament.organizerId === dbUser.id
     const isManager = tournament.managers.some(m => m.id === dbUser.id)
     const isAdmin = dbUser.role === 'ADMIN'
@@ -5280,6 +5292,7 @@ export async function generateAllBracketsFromPreview(
     seedOrders: Record<string, string[]> // categoryId → [playerId, playerId, ...]
 ) {
     if (!tournamentId) return { success: false, message: 'Missing tournament ID' }
+    { const locked = await lockedMessage(tournamentId); if (locked) return { success: false, message: locked } }
 
     // 1. Fetch categories + players
     const categories = await prisma.category.findMany({
@@ -5535,3 +5548,21 @@ export async function generateAllBracketsFromPreview(
     return { success: true, count: validCategories.length }
 }
 
+
+
+/**
+ * Lifts the Central lock by hand (for a download made by mistake, or an event that is abandoned). Only the organizer of the
+ * tournament may do this. Anything already changed on the Central Server will no longer match the website once the
+ * brackets are changed here again.
+ */
+export async function unlockTournamentFromCentral(tournamentId: string) {
+    const dbUser = await getAuthUser()
+    if (!dbUser) return { success: false, error: 'Unauthorized' }
+    const t = await prisma.tournament.findUnique({ where: { id: tournamentId }, select: { organizerId: true, centralTakeoverAt: true } })
+    if (!t) return { success: false, error: 'Tournament not found' }
+    if (t.organizerId !== dbUser.id) return { success: false, error: 'Only the organizer of this tournament can unlock it.' }
+    if (!t.centralTakeoverAt) return { success: true, alreadyUnlocked: true }
+    await prisma.tournament.update({ where: { id: tournamentId }, data: { centralTakeoverAt: null } })
+    revalidatePath(`/tournament/${tournamentId}`)
+    return { success: true }
+}

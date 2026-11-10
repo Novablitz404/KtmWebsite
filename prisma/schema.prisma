@@ -99,6 +99,11 @@ model Tournament {
   // given twice (completion button, the daily job and Central's "finalize" can all ask for it).
   gssBonusProcessedAt DateTime?
 
+  // Set when the Central Server downloads the (draft) brackets: from then on the Central Server is the source of truth, so the
+  // brackets and players can no longer be changed here. Cleared when the results are uploaded (finalize) or when the
+  // organizer unlocks the tournament by hand.
+  centralTakeoverAt DateTime?
+
   // Pricing
   showPricing       Boolean   @default(false) // Toggle pricing visibility for public/athletes
   categoryPricing   Json?     // Pricing per type+subtype combo, e.g. { "KYORUGI_INDIVIDUAL": { "earlyBird": 115, "regular": 145 } }

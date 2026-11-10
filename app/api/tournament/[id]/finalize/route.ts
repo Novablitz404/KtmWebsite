@@ -61,6 +61,9 @@ export async function POST(
         })
         if (!tournament) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
 
+        // Everything is uploaded: the website is the source of truth again, so the Central lock is lifted
+        await prisma.tournament.update({ where: { id }, data: { centralTakeoverAt: null } })
+
         if (tournament.gssBonusProcessedAt) {
             return NextResponse.json({ success: true, started: false, reason: 'The placement bonus of this tournament was already given' })
         }

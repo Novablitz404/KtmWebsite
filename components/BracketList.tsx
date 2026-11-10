@@ -42,12 +42,14 @@ const PDFDownloadLink = dynamic(
 type SimulatedMatchMap = Record<string, Record<number, { globalId: number; day: number }>>
 
 interface BracketListProps {
+    /** True once the Central Server has taken over the brackets: generating is disabled */
+    locked?: boolean
     categories: (Category & { matches: Match[], poomsaeMatches?: (PoomsaeMatch & { player: { name: string; club?: { name: string } | null } })[], _count?: { players: number } })[]
     tournamentName?: string
     publicView?: boolean
 }
 
-export default function BracketList({ categories, tournamentName, publicView = false }: BracketListProps) {
+export default function BracketList({ categories, tournamentName, publicView = false, locked = false }: BracketListProps) {
     const router = useRouter()
     const [activeTab, setActiveTab] = useState<'kyorugi' | 'poomsae' | 'kyukpa'>('kyorugi')
     const [isPending, startTransition] = useTransition()
@@ -978,8 +980,8 @@ export default function BracketList({ categories, tournamentName, publicView = f
                                 {/* Generate All */}
                                 <button
                                     onClick={handleGenerateAll}
-                                    disabled={isPending || displayedCategories.length === 0}
-                                    title={totalAlerts > 0 ? `${totalAlerts} alert(s) pending — you'll get a warning before generating` : undefined}
+                                    disabled={isPending || displayedCategories.length === 0 || locked}
+                                    title={locked ? 'Locked: the Central Server is running this event' : totalAlerts > 0 ? `${totalAlerts} alert(s) pending — you'll get a warning before generating` : undefined}
                                     className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold text-white transition-all
                                         bg-gradient-to-br from-red-600 to-red-700
                                         shadow-md shadow-red-500/20
@@ -1739,7 +1741,7 @@ function CollapsibleBracket({
             await queryClient.invalidateQueries({ queryKey: ['category-preview', category.id] })
             onBracketShapeChanged?.()
             onEditedSpecsChanged?.(category.id, null)
-        } catch { toast.error('Failed to generate bracket') }
+        } catch (e: any) { toast.error(e?.message && /locked/i.test(e.message) ? e.message : 'Failed to generate bracket') }
         finally { setGeneratingThis(false) }
     }
 

@@ -8,7 +8,8 @@ import PlayerRegistration from './PlayerRegistration'
 import TournamentManagers from './TournamentManagers'
 import TournamentOverview from './TournamentOverview'
 import ResolutionHistory from './ResolutionHistory'
-import { getTournamentPlayers, updateTournamentGuidelines, getTournamentAlerts } from '@/app/actions'
+import { getTournamentPlayers, updateTournamentGuidelines, getTournamentAlerts, unlockTournamentFromCentral } from '@/app/actions'
+import { toast } from 'sonner'
 import DashboardDataExport from './DashboardDataExport'
 import TournamentSettings from './TournamentSettings'
 import TournamentStatusActions from './TournamentStatusActions'
@@ -345,10 +346,34 @@ export default function TournamentTabs({
                     {/* ─ Matches ─ */}
                     {activeTab === 'brackets' && (
                         <div className="w-full animate-in fade-in duration-300">
+                            {tournament.centralTakeoverAt && !publicView && (
+                                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                                    <div>
+                                        <p className="font-semibold">🔒 Locked: the Central Server is running this event</p>
+                                        <p className="text-xs text-amber-800 mt-0.5">
+                                            It downloaded the brackets on {new Date(tournament.centralTakeoverAt).toLocaleString()}. Make changes there; brackets, players and results cannot be changed here until the results are uploaded.
+                                        </p>
+                                    </div>
+                                    {tournament.currentUserId && tournament.currentUserId === tournament.organizerId && (
+                                        <button
+                                            onClick={async () => {
+                                                if (!confirm('Unlock this tournament?\n\nUse this only if the download was a mistake or the event is cancelled. Anything already changed on the Central Server will no longer match the brackets here once you change them.')) return
+                                                const r = await unlockTournamentFromCentral(tournament.id)
+                                                if (r?.success) { toast.success('Tournament unlocked'); window.location.reload() }
+                                                else toast.error(r?.error || 'Could not unlock')
+                                            }}
+                                            className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+                                        >
+                                            Unlock
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                             <BracketList
                                 categories={tournament.categories.filter(c => (c._count?.players ?? 0) > 0)}
                                 tournamentName={tournament.name}
                                 publicView={publicView}
+                                locked={!!tournament.centralTakeoverAt}
                             />
                         </div>
                     )}
