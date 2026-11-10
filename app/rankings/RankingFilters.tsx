@@ -31,9 +31,8 @@ export default function RankingFilters({ weightClasses = [] }: { weightClasses?:
 
     // Filter Options
     const disciplines = ['KYORUGI', 'POOMSAE']
-    const divisions = ['Grade School', 'Cadet', 'Junior', 'Senior']
-    const skills = ['Advance', 'Novice']
-    const belts = ['White', 'Yellow', 'Orange', 'Green', 'Purple', 'Blue', 'Red', 'Maroon', 'Brown', 'Black']
+    // Same names the admin Rankings page and category templates use.
+    const divisions = ['Supertoddler', 'Toddler', 'Grade School', 'Cadet', 'Junior', 'Senior']
     const genders = ['Male', 'Female']
 
     // Helpers to get current value
@@ -98,7 +97,7 @@ export default function RankingFilters({ weightClasses = [] }: { weightClasses?:
                 />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {/* Discipline Removed - Handled by Tabs */}
                 {/* Division */}
                 {/* Division */}
@@ -127,11 +126,11 @@ export default function RankingFilters({ weightClasses = [] }: { weightClasses?:
                     guideline templates (e.g. "Under 73kg" vs "Under 74kg") —
                     a hardcoded list here would silently mismatch real data. */}
                 <GlobalDropdown
-                    label="Category"
+                    label="Weight Class"
                     value={getVal('weightCategory')}
                     onChange={(val) => updateFilter('weightCategory', val)}
                     options={[
-                        { label: 'All Categories', value: '' },
+                        { label: 'All Weight Classes', value: '' },
                         ...weightClasses.map(c => ({ label: c, value: c }))
                     ]}
                     className="w-full"
@@ -142,7 +141,7 @@ export default function RankingFilters({ weightClasses = [] }: { weightClasses?:
                             disabled={weightClasses.length === 0}
                             className={`inline-flex justify-between items-center rounded-lg border border-gray-200 shadow-sm px-4 py-2 bg-white text-sm font-medium transition-all w-full ${weightClasses.length === 0 ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
                         >
-                            <span className="truncate">{getVal('weightCategory') || 'All Categories'}</span>
+                            <span className="truncate">{getVal('weightCategory') || 'All Weight Classes'}</span>
                             <svg className="ml-2 h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
                                 <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                             </svg>
@@ -167,20 +166,6 @@ export default function RankingFilters({ weightClasses = [] }: { weightClasses?:
                     {skills.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
                 */}
-
-                {/* Belt */}
-                {/* Belt */}
-                <GlobalDropdown
-                    label="Belt"
-                    value={getVal('belt')}
-                    onChange={(val) => updateFilter('belt', val)}
-                    options={[
-                        { label: 'All Belts', value: '' },
-                        ...belts.map(b => ({ label: b, value: b }))
-                    ]}
-                    className="w-full"
-                    fullWidth
-                />
 
                 {/* Gender */}
                 {/* Gender */}

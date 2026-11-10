@@ -88,7 +88,7 @@ export async function fetchRankings(
         type?: string // KYORUGI | POOMSAE
         division?: string // e.g., "Junior"
         gender?: string // "Male" | "Female"
-        belt?: string
+        belt?: string // Only used by the WOTF ranking pages
         skillLevel?: string
         weightCategory?: string
         tenantId?: string // Organization ID for scoping

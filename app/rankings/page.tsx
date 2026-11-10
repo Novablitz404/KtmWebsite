@@ -43,7 +43,6 @@ export default async function RankingsPage({ searchParams }: PageProps) {
 
     let division = typeof params.division === 'string' ? params.division : undefined
     const weightCategory = typeof params.weightCategory === 'string' ? params.weightCategory : undefined
-    const belt = typeof params.belt === 'string' ? params.belt : undefined
     const skillLevel = typeof params.skillLevel === 'string' ? params.skillLevel : undefined
     let gender = typeof params.gender === 'string' ? params.gender : undefined
     const search = typeof params.search === 'string' ? params.search : undefined
@@ -71,7 +70,6 @@ export default async function RankingsPage({ searchParams }: PageProps) {
             gender = defaultSegment.gender
             syncParams = { type: currentType, division, gender }
             if (weightCategory) syncParams.weightCategory = weightCategory
-            if (belt) syncParams.belt = belt
             if (skillLevel) syncParams.skillLevel = skillLevel
             if (search) syncParams.search = search
             // Preserve the ?tenant= override — without it, the synced URL
@@ -84,7 +82,7 @@ export default async function RankingsPage({ searchParams }: PageProps) {
     }
 
     const [rankings, weightClasses] = await Promise.all([
-        fetchRankings({ type: currentType, division, weightCategory, belt, skillLevel, gender, search, tenantId, tenantSlug: tenant.slug }),
+        fetchRankings({ type: currentType, division, weightCategory, skillLevel, gender, search, tenantId, tenantSlug: tenant.slug }),
         getAvailableWeightClasses({ type: currentType, division, gender, tenantId, tenantSlug: tenant.slug }),
     ])
 
@@ -93,7 +91,6 @@ export default async function RankingsPage({ searchParams }: PageProps) {
         const newParams = new URLSearchParams()
         if (division) newParams.set('division', division)
         if (weightCategory) newParams.set('weightCategory', weightCategory)
-        if (belt) newParams.set('belt', belt)
         if (skillLevel) newParams.set('skillLevel', skillLevel)
         if (gender) newParams.set('gender', gender)
         if (search) newParams.set('search', search)
