@@ -139,8 +139,8 @@ export default function RankingFilters({ weightClasses = [] }: { weightClasses?:
                     trigger={
                         <button
                             type="button"
-                            disabled={!getVal('division') || weightClasses.length === 0}
-                            className={`inline-flex justify-between items-center rounded-lg border border-gray-200 shadow-sm px-4 py-2 bg-white text-sm font-medium transition-all w-full ${!getVal('division') || weightClasses.length === 0 ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
+                            disabled={weightClasses.length === 0}
+                            className={`inline-flex justify-between items-center rounded-lg border border-gray-200 shadow-sm px-4 py-2 bg-white text-sm font-medium transition-all w-full ${weightClasses.length === 0 ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
                         >
                             <span className="truncate">{getVal('weightCategory') || 'All Categories'}</span>
                             <svg className="ml-2 h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">

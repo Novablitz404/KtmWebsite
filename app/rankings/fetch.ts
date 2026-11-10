@@ -119,20 +119,38 @@ export async function fetchRankings(
     try {
         const scope = resolveScope(filters)
 
+        // Everything except the name search defines the ranked group.
+        const groupWhere = {
+            scope,
+            ...(filters.type ? { type: filters.type } : {}),
+            ...(filters.division ? { division: filters.division } : {}),
+            ...(filters.weightCategory ? { weightCategory: filters.weightCategory } : {}),
+            ...(filters.belt ? { belt: filters.belt } : {}),
+            ...(filters.gender ? { gender: filters.gender } : {}),
+        }
+
         // Query the Materialized View
         rankings = await prisma.globalAthleteRanking.findMany({
             where: {
-                scope,
-                ...(filters.type ? { type: filters.type } : {}),
-                ...(filters.division ? { division: filters.division } : {}),
-                ...(filters.weightCategory ? { weightCategory: filters.weightCategory } : {}),
-                ...(filters.belt ? { belt: filters.belt } : {}),
-                ...(filters.gender ? { gender: filters.gender } : {}),
+                ...groupWhere,
                 ...(filters.search ? { playerName: { contains: filters.search, mode: 'insensitive' as const } } : {}),
             },
             orderBy: { globalRank: 'asc' },
             take: 100 // Top 100 limit
         })
+
+        // The view's globalRank counts across the whole org + discipline, so a
+        // filtered list would show gaps (#1, #2, #5...). Re-number sequentially
+        // within the filtered group (1, 2, 3...). A name search only narrows
+        // the rows shown — it must not turn the match into #1 — so the
+        // position is looked up within the group, not within the search result.
+        const groupOrder = await prisma.globalAthleteRanking.findMany({
+            where: groupWhere,
+            select: { id: true },
+            orderBy: { globalRank: 'asc' },
+        })
+        const positionById = new Map(groupOrder.map((r, i) => [r.id, i + 1]))
+        rankings = rankings.map(r => ({ ...r, globalRank: positionById.get(r.id) ?? r.globalRank }))
     } catch (e) {
         console.error("GlobalAthleteRanking view not found or error querying:", e)
         return [] // Return empty if migration hasn't been run

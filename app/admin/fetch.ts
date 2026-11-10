@@ -225,14 +225,16 @@ export async function fetchAdminUserDetails(id: string) {
 }
 
 // ─── Athlete rankings (GSS) — admin view ────────────────────────────────
-// Read-only, live calculation that mirrors the public "GlobalAthleteRanking"
-// materialized view (ranking_migration_v3.sql) so points and rank order match,
-// EXCEPT it can include athletes whose license isn't activated
-// (User.isVerified = false), which the public view filters out.
+// Read-only, live calculation modelled on the public "GlobalAthleteRanking"
+// materialized view (ranking_migration_v3.sql), EXCEPT:
+//  - it can include athletes whose license isn't activated (User.isVerified = false)
+//  - points = Elo rating only (the placement bonus is already added into the
+//    rating by processTournamentCompletion; the view's separate medal
+//    "fieldBonus" is legacy and is not used here)
+//  - division/weight class come from the latest registration of the SAME discipline
 //
-// KEEP IN SYNC with ranking_migration_v3.sql: medal values, tier multipliers,
-// the EXP(-0.0578 * months) decay, the "active = >=1 approved event in 12
-// months" rule and the ORDER BY (isActive DESC, totalPoints DESC).
+// KEEP IN SYNC with the view: the "active = >=1 approved event in 12 months"
+// rule and the ORDER BY (isActive DESC, totalPoints DESC).
 
 export async function fetchAdminRankingScopes() {
     await checkAdmin()
@@ -290,8 +292,9 @@ export async function fetchAdminRankings(params: {
                 e."rating" AS "eloRating",
                 e."matchCount",
                 COALESCE(a."activityCount", 0) >= 1 AS "isActive",
-                COALESCE(fb."fieldBonus", 0)::double precision AS "fieldBonus",
-                (e."rating" + COALESCE(fb."fieldBonus", 0))::double precision AS "totalPoints"
+                -- The placement bonus is already added into the Elo rating when a
+                -- GSS-approved tournament completes, so points = the rating.
+                e."rating"::double precision AS "totalPoints"
             FROM "AthleteEloRating" e
             JOIN "User" u ON u.id = e."userId" AND u.role = 'ATHLETE'
             LEFT JOIN "Club" c ON u."clubName" = c.name
@@ -305,34 +308,13 @@ export async function fetchAdminRankings(params: {
                   AND p."registrationStatus" = 'APPROVED'
             ) a ON true
             LEFT JOIN LATERAL (
-                SELECT SUM(
-                    CASE p3.medal
-                        WHEN 'Gold' THEN 1.0 WHEN 'Silver' THEN 0.6 WHEN 'Bronze' THEN 0.36
-                        WHEN 'QF' THEN 0.22 WHEN 'R16' THEN 0.15 ELSE 0
-                    END
-                    * CASE t2.tier
-                        WHEN 'GSS-1' THEN 2.0 WHEN 'GSS-2' THEN 1.5 WHEN 'GSS-3' THEN 1.0 WHEN 'GSS-4' THEN 0.75
-                        WHEN 'J-4' THEN 2.0 WHEN 'J-3' THEN 1.5 WHEN 'J-2' THEN 1.0 WHEN 'J-1' THEN 0.75
-                        ELSE 1.0
-                    END
-                    * EXP(-0.0578 * GREATEST(
-                        (EXTRACT(YEAR FROM AGE(NOW(), t2."startDate")) * 12 +
-                         EXTRACT(MONTH FROM AGE(NOW(), t2."startDate"))),
-                        0
-                    ))
-                ) AS "fieldBonus"
-                FROM "Player" p3
-                JOIN "Category" cat3 ON p3."categoryId" = cat3.id
-                JOIN "Tournament" t2 ON cat3."tournamentId" = t2.id
-                WHERE p3."userId" = e."userId"
-                  AND p3.medal IS NOT NULL AND p3.medal != ''
-                  AND cat3.type = e."type"
-            ) fb ON true
-            LEFT JOIN LATERAL (
+                -- Latest registration in the SAME discipline as the rating, so a
+                -- Kyorugi row never shows a Poomsae class (and vice versa).
                 SELECT cat."division", cat."weightClass"
                 FROM "Player" p2
                 JOIN "Category" cat ON cat.id = p2."categoryId"
                 WHERE p2."userId" = e."userId"
+                  AND cat.type = e."type"
                 ORDER BY p2."createdAt" DESC
                 LIMIT 1
             ) mrc ON true
@@ -395,7 +377,6 @@ export async function fetchAdminRankings(params: {
             belt: (r.belt ?? null) as string | null,
             isVerified: !!r.isVerified,
             eloRating: Math.round(r.eloRating),
-            fieldBonus: Math.round(r.fieldBonus * 10) / 10,
             totalPoints: Math.round(r.totalPoints * 10) / 10,
             matchCount: Number(r.matchCount),
             isActive: !!r.isActive,

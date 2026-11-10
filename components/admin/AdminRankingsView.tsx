@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { Search, ChevronLeft, ChevronRight, Trophy } from 'lucide-react'
 import UserAvatar from '@/components/UserAvatar'
+import GlobalDropdown from '@/components/GlobalDropdown'
 import { fetchAdminRankingScopes, fetchAdminRankings } from '@/app/admin/fetch'
 
 const PAGE_SIZE = 25
@@ -39,32 +40,43 @@ export default function AdminRankingsView() {
     // Any filter change returns to page 1.
     const onFilter = (apply: () => void) => { apply(); setPage(1) }
 
-    const selectCls = 'px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500'
-
     return (
         <div>
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="p-4 border-b border-gray-100 flex flex-wrap items-center gap-3">
-                    <select value={activeScope} onChange={e => onFilter(() => { setScope(e.target.value); setWeightCategory('') })} className={selectCls}>
-                        {scopes.map(s => <option key={s.scope} value={s.scope}>{s.name} ({s.count})</option>)}
-                    </select>
-                    <select value={type} onChange={e => onFilter(() => { setType(e.target.value as 'KYORUGI' | 'POOMSAE'); setWeightCategory('') })} className={selectCls}>
-                        <option value="KYORUGI">Kyorugi</option>
-                        <option value="POOMSAE">Poomsae</option>
-                    </select>
-                    <select value={division} onChange={e => onFilter(() => { setDivision(e.target.value); setWeightCategory('') })} className={selectCls}>
-                        <option value="">All divisions</option>
-                        {(data?.divisions ?? []).map(d => <option key={d} value={d}>{d}</option>)}
-                    </select>
-                    <select value={weightCategory} onChange={e => onFilter(() => setWeightCategory(e.target.value))} className={selectCls}>
-                        <option value="">All weight classes</option>
-                        {(data?.weightCategories ?? []).map(w => <option key={w} value={w}>{w}</option>)}
-                    </select>
-                    <select value={gender} onChange={e => onFilter(() => { setGender(e.target.value); setWeightCategory('') })} className={selectCls}>
-                        <option value="">All genders</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                    </select>
+                    <GlobalDropdown
+                        value={activeScope}
+                        onChange={v => onFilter(() => { setScope(v); setWeightCategory('') })}
+                        options={scopes.map(s => ({ value: s.scope, label: `${s.name} (${s.count})` }))}
+                        label="Organization"
+                        searchable
+                        width="w-56"
+                    />
+                    <GlobalDropdown
+                        value={type}
+                        onChange={v => onFilter(() => { setType(v as 'KYORUGI' | 'POOMSAE'); setWeightCategory('') })}
+                        options={[{ value: 'KYORUGI', label: 'Kyorugi' }, { value: 'POOMSAE', label: 'Poomsae' }]}
+                        width="w-36"
+                    />
+                    <GlobalDropdown
+                        value={division}
+                        onChange={v => onFilter(() => { setDivision(v); setWeightCategory('') })}
+                        options={[{ value: '', label: 'All divisions' }, ...(data?.divisions ?? []).map(d => ({ value: d, label: d }))]}
+                        width="w-48"
+                    />
+                    <GlobalDropdown
+                        value={gender}
+                        onChange={v => onFilter(() => { setGender(v); setWeightCategory('') })}
+                        options={[{ value: '', label: 'All genders' }, { value: 'Male', label: 'Male' }, { value: 'Female', label: 'Female' }]}
+                        width="w-40"
+                    />
+                    <GlobalDropdown
+                        value={weightCategory}
+                        onChange={v => onFilter(() => setWeightCategory(v))}
+                        options={[{ value: '', label: 'All weight classes' }, ...(data?.weightCategories ?? []).map(w => ({ value: w, label: w }))]}
+                        searchable
+                        width="w-52"
+                    />
                     <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
                         <input
                             type="checkbox"
@@ -98,7 +110,7 @@ export default function AdminRankingsView() {
                         <table className="w-full">
                             <thead>
                                 <tr className="border-b border-gray-100 bg-gray-50">
-                                    {['Rank', 'Public Rank', 'Athlete', 'Club', 'Division', 'Weight', 'Elo', 'Field Bonus', 'Points', 'Matches', 'Status'].map(h => (
+                                    {['Rank', 'Public Rank', 'Athlete', 'Club', 'Division', 'Weight', 'Elo', 'Points', 'Matches', 'Status'].map(h => (
                                         <th key={h} className="px-4 py-3 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                                     ))}
                                 </tr>
@@ -124,7 +136,6 @@ export default function AdminRankingsView() {
                                         <td className="px-4 py-3 text-sm text-gray-700">{[r.division, r.gender].filter(Boolean).join(' · ') || '—'}</td>
                                         <td className="px-4 py-3 text-sm text-gray-700">{r.weightCategory || '—'}</td>
                                         <td className="px-4 py-3 text-sm font-mono text-gray-700">{r.eloRating}</td>
-                                        <td className="px-4 py-3 text-sm font-mono text-gray-700">{r.fieldBonus}</td>
                                         <td className="px-4 py-3 text-sm font-mono font-bold text-gray-900">{r.totalPoints}</td>
                                         <td className="px-4 py-3 text-sm text-gray-700">{r.matchCount}</td>
                                         <td className="px-4 py-3">
