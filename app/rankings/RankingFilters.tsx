@@ -20,6 +20,7 @@ export default function RankingFilters({ weightClasses = [] }: { weightClasses?:
             const params = new URLSearchParams(searchParams.toString())
             if (searchText) params.set('search', searchText)
             else params.delete('search')
+            params.delete('page') // new search → back to page 1
             startTransition(() => {
                 router.push(`/rankings?${params.toString()}`)
             })
@@ -46,6 +47,7 @@ export default function RankingFilters({ weightClasses = [] }: { weightClasses?:
         } else {
             params.delete(key)
         }
+        params.delete('page') // any filter change → back to page 1
         startTransition(() => {
             router.push(`/rankings?${params.toString()}`)
         })
@@ -109,6 +111,7 @@ export default function RankingFilters({ weightClasses = [] }: { weightClasses?:
                         if (val) params.set('division', val)
                         else params.delete('division')
                         params.delete('weightCategory') // Reset dependent filter
+                        params.delete('page')
                         startTransition(() => router.push(`/rankings?${params.toString()}`))
                     }}
                     options={[

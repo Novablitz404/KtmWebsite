@@ -1,11 +1,10 @@
-import { fetchRankings, getDefaultSegment, getAvailableWeightClasses } from './fetch'
+import { fetchRankingsPage, getAvailableWeightClasses } from './fetch'
 import { Shield, BadgeCheck } from 'lucide-react'
 import UserAvatar from '@/components/UserAvatar'
 import RankingFilters from './RankingFilters'
 import Link from 'next/link'
 import Image from 'next/image'
 import { getTenant } from '@/lib/tenant'
-import SyncUrlParams from './SyncUrlParams'
 import WOTFGlobalRankingPage from '@/components/landing/wotf-global/pages/RankingsPage'
 import Navbar from '@/components/landing/wotf/Navbar'
 import Footer from '@/components/landing/wotf/Footer'
@@ -41,48 +40,27 @@ export default async function RankingsPage({ searchParams }: PageProps) {
     // User asked for "Two containers". Let's show Tabs that switch the view.
     const currentType = typeof params.type === 'string' ? params.type : 'KYORUGI'
 
-    let division = typeof params.division === 'string' ? params.division : undefined
+    const division = typeof params.division === 'string' ? params.division : undefined
     const weightCategory = typeof params.weightCategory === 'string' ? params.weightCategory : undefined
     const skillLevel = typeof params.skillLevel === 'string' ? params.skillLevel : undefined
-    let gender = typeof params.gender === 'string' ? params.gender : undefined
+    const gender = typeof params.gender === 'string' ? params.gender : undefined
     const search = typeof params.search === 'string' ? params.search : undefined
 
     // KTM now has a real Organization row too (needed for host-based GSS
     // attribution), so its own tenant id is passed through like any other org.
     const tenantId = tenant.id || undefined
 
-    // Different divisions/genders are disconnected competitive populations —
-    // athletes in them never actually play each other, so a single flat
-    // "all" list mixing them isn't a meaningful ranking (see discussion).
-    // Rather than showing an empty/meaningless mixed view, default onto
-    // whichever Division+Gender combination actually has ranked athletes.
-    //
-    // Resolved here (not via redirect()) so the page renders the default
-    // segment's data in the very first response — a server redirect would
-    // force a second round trip, which is what caused the visible white
-    // flash on navigation. The URL is synced afterward on the client via
-    // SyncUrlParams, invisibly, without another navigation.
-    let syncParams: Record<string, string> | null = null
-    if (!division && !gender) {
-        const defaultSegment = await getDefaultSegment({ type: currentType, tenantId, tenantSlug: tenant.slug })
-        if (defaultSegment) {
-            division = defaultSegment.division
-            gender = defaultSegment.gender
-            syncParams = { type: currentType, division, gender }
-            if (weightCategory) syncParams.weightCategory = weightCategory
-            if (skillLevel) syncParams.skillLevel = skillLevel
-            if (search) syncParams.search = search
-            // Preserve the ?tenant= override — without it, the synced URL
-            // falls back to KTM (the default tenant) instead of staying on
-            // whichever org's rankings page this actually is.
-            if (!tenant.isMappedDomain) syncParams.tenant = tenant.slug
-        }
-        // No ranked data at all for this type/tenant yet — fall through and
-        // show the honest "no ranked athletes found" empty state below.
-    }
+    // Default view = All Divisions, All Genders, All Weight Classes (same as the
+    // admin Rankings page). Filters narrow it, and ranks are renumbered 1, 2, 3...
+    // within whatever group is selected (see fetchRankings).
 
-    const [rankings, weightClasses] = await Promise.all([
-        fetchRankings({ type: currentType, division, weightCategory, skillLevel, gender, search, tenantId, tenantSlug: tenant.slug }),
+    const PAGE_SIZE = 25
+    const requestedPage = parseInt(typeof params.page === 'string' ? params.page : '1', 10)
+    const [{ rows: rankings, total }, weightClasses] = await Promise.all([
+        fetchRankingsPage(
+            { type: currentType, division, weightCategory, gender, search, tenantId, tenantSlug: tenant.slug },
+            { page: Number.isFinite(requestedPage) ? requestedPage : 1, pageSize: PAGE_SIZE }
+        ),
         getAvailableWeightClasses({ type: currentType, division, gender, tenantId, tenantSlug: tenant.slug }),
     ])
 
@@ -100,12 +78,26 @@ export default async function RankingsPage({ searchParams }: PageProps) {
         return `/rankings?${newParams.toString()}`
     }
 
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+    const currentPage = Math.min(Math.max(1, Number.isFinite(requestedPage) ? requestedPage : 1), totalPages)
+    const getPageLink = (page: number) => {
+        const newParams = new URLSearchParams()
+        if (division) newParams.set('division', division)
+        if (weightCategory) newParams.set('weightCategory', weightCategory)
+        if (skillLevel) newParams.set('skillLevel', skillLevel)
+        if (gender) newParams.set('gender', gender)
+        if (search) newParams.set('search', search)
+        newParams.set('type', currentType)
+        if (page > 1) newParams.set('page', String(page))
+        if (!tenant.isMappedDomain) newParams.set('tenant', tenant.slug)
+        return `/rankings?${newParams.toString()}`
+    }
+
     const brandColor = tenant.primaryColor || '#DC2626'
     const qs = tenant.isMappedDomain ? '' : `?tenant=${tenant.slug}`
 
     return (
         <div className="min-h-screen bg-[#0A0A0A]">
-            {syncParams && <SyncUrlParams params={syncParams} />}
             {tenant.slug === 'tap-elite' ? (
                 <TapEliteNavbar qs={qs} solid />
             ) : tenant.slug !== 'ktm' && (
@@ -167,7 +159,7 @@ export default async function RankingsPage({ searchParams }: PageProps) {
 
                 <div className="flex items-center justify-between text-sm font-medium text-gray-500 bg-[#111] px-5 py-3 border border-white/10 rounded-t-xl">
                     <div>
-                        <span className="text-white font-bold text-base">{rankings.length}</span>{' '}
+                        <span className="text-white font-bold text-base">{total}</span>{' '}
                         athletes ranked
                     </div>
                     <div className="flex items-center gap-3 text-xs">
@@ -282,6 +274,31 @@ export default async function RankingsPage({ searchParams }: PageProps) {
                             </tbody>
                         </table>
                     </div>
+
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-between px-5 py-4 border-t border-white/10 bg-[#0D0D0D] text-xs text-gray-500">
+                            <span>
+                                Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, total)} of {total}
+                            </span>
+                            <div className="flex items-center gap-2">
+                                {currentPage > 1 ? (
+                                    <Link href={getPageLink(currentPage - 1)} className="px-3 py-1.5 rounded-lg border border-white/10 text-gray-300 hover:bg-white/5 font-bold">
+                                        Previous
+                                    </Link>
+                                ) : (
+                                    <span className="px-3 py-1.5 rounded-lg border border-white/5 text-gray-700 font-bold">Previous</span>
+                                )}
+                                <span className="px-2 text-gray-400">Page {currentPage} of {totalPages}</span>
+                                {currentPage < totalPages ? (
+                                    <Link href={getPageLink(currentPage + 1)} className="px-3 py-1.5 rounded-lg border border-white/10 text-gray-300 hover:bg-white/5 font-bold">
+                                        Next
+                                    </Link>
+                                ) : (
+                                    <span className="px-3 py-1.5 rounded-lg border border-white/5 text-gray-700 font-bold">Next</span>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 

@@ -185,6 +185,94 @@ export async function fetchRankings(
 }
 
 /**
+ * One page of the ranking (used by the public Rankings page). Only the rows
+ * on the requested page are loaded, so the page stays fast however many
+ * athletes are ranked.
+ *
+ * Ranks stay sequential (1, 2, 3...) within the filtered group across pages:
+ * page 2 of 25 starts at #26. A name search only narrows the rows — each match
+ * keeps its real position in the group instead of turning into #1.
+ */
+export async function fetchRankingsPage(
+    filters: {
+        type?: string
+        division?: string
+        gender?: string
+        weightCategory?: string
+        tenantId?: string
+        tenantSlug?: string
+        search?: string
+    },
+    paging: { page: number; pageSize: number }
+): Promise<{ rows: RankingEntry[]; total: number }> {
+    try {
+        const scope = resolveScope(filters)
+        const pageSize = Math.max(1, paging.pageSize)
+
+        const groupWhere = {
+            scope,
+            ...(filters.type ? { type: filters.type } : {}),
+            ...(filters.division ? { division: filters.division } : {}),
+            ...(filters.weightCategory ? { weightCategory: filters.weightCategory } : {}),
+            ...(filters.gender ? { gender: filters.gender } : {}),
+        }
+        const where = {
+            ...groupWhere,
+            ...(filters.search ? { playerName: { contains: filters.search, mode: 'insensitive' as const } } : {}),
+        }
+
+        const total = await prisma.globalAthleteRanking.count({ where })
+        const lastPage = Math.max(1, Math.ceil(total / pageSize))
+        const page = Math.min(Math.max(1, paging.page), lastPage)
+        const offset = (page - 1) * pageSize
+
+        const pageRows = await prisma.globalAthleteRanking.findMany({
+            where,
+            orderBy: { globalRank: 'asc' },
+            skip: offset,
+            take: pageSize,
+        })
+
+        // Position within the whole group. Without a search it is simply offset + index;
+        // with a search it has to be looked up in the group's full order.
+        let positionById: Map<string, number> | null = null
+        if (filters.search) {
+            const groupOrder = await prisma.globalAthleteRanking.findMany({
+                where: groupWhere,
+                select: { id: true },
+                orderBy: { globalRank: 'asc' },
+            })
+            positionById = new Map(groupOrder.map((r, i) => [r.id, i + 1]))
+        }
+
+        const users = await prisma.user.findMany({
+            where: { id: { in: pageRows.map(r => r.userId) } },
+            select: { id: true, imageUrl: true },
+        })
+        const imageMap = new Map(users.map(u => [u.id, u.imageUrl]))
+
+        const rows: RankingEntry[] = pageRows.map((r, i) => ({
+            userId: r.userId,
+            name: r.playerName,
+            clubName: r.clubName,
+            division: r.division,
+            weightCategory: r.weightCategory,
+            totalPoints: r.totalPoints,
+            rank: positionById ? (positionById.get(r.id) ?? r.globalRank) : offset + i + 1,
+            eloRating: r.eloRating,
+            isActive: r.isActive,
+            verified: true,
+            profileImage: imageMap.get(r.userId) || undefined,
+        }))
+
+        return { rows, total }
+    } catch (e) {
+        console.error('GlobalAthleteRanking view not found or error querying:', e)
+        return { rows: [], total: 0 }
+    }
+}
+
+/**
  * Returns the real, distinct weight-class values that actually exist for a
  * given type/division/gender/tenant — used to populate the Category filter
  * dropdown instead of a hardcoded guess. Different organizations define their
