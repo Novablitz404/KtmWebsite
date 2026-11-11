@@ -202,6 +202,9 @@ export async function fetchRankingsPage(
         tenantId?: string
         tenantSlug?: string
         search?: string
+        // Display-only filter (like search): narrows the rows but ranks stay the real
+        // position within the division/gender/weight-class group.
+        clubName?: string
     },
     paging: { page: number; pageSize: number }
 ): Promise<{ rows: RankingEntry[]; total: number }> {
@@ -219,6 +222,7 @@ export async function fetchRankingsPage(
         const where = {
             ...groupWhere,
             ...(filters.search ? { playerName: { contains: filters.search, mode: 'insensitive' as const } } : {}),
+            ...(filters.clubName ? { clubName: filters.clubName } : {}),
         }
 
         const total = await prisma.globalAthleteRanking.count({ where })
@@ -236,7 +240,7 @@ export async function fetchRankingsPage(
         // Position within the whole group. Without a search it is simply offset + index;
         // with a search it has to be looked up in the group's full order.
         let positionById: Map<string, number> | null = null
-        if (filters.search) {
+        if (filters.search || filters.clubName) {
             const groupOrder = await prisma.globalAthleteRanking.findMany({
                 where: groupWhere,
                 select: { id: true },

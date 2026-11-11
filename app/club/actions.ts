@@ -434,3 +434,39 @@ export async function requestAthleteLicenseActivation(athleteId: string) {
     revalidatePath('/club')
     return { success: true }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RANKINGS TAB — the public ranking of the organization this club belongs to
+// ─────────────────────────────────────────────────────────────────────────────
+export async function fetchClubRankings(params: import('@/lib/dashboard-rankings').DashboardRankingsParams) {
+    const { EMPTY_DASHBOARD_RANKINGS, loadDashboardRankings } = await import('@/lib/dashboard-rankings')
+
+    const authUser = await getAuthUser()
+    if (!authUser) return EMPTY_DASHBOARD_RANKINGS
+
+    const me = await prisma.user.findUnique({
+        where: { id: authUser.id },
+        select: {
+            role: true,
+            clubName: true,
+            club: { select: { name: true, organizationId: true, organization: { select: { name: true } } } },
+        },
+    })
+    if (!me || !['CLUB_MASTER', 'ASSISTANT_CLUB_MASTER'].includes(me.role)) return EMPTY_DASHBOARD_RANKINGS
+
+    // Club masters own their club; assistants belong to one by club name.
+    const club = me.club ?? (me.clubName
+        ? await prisma.club.findFirst({
+            where: { name: me.clubName },
+            select: { name: true, organizationId: true, organization: { select: { name: true } } },
+        })
+        : null)
+    if (!club) return EMPTY_DASHBOARD_RANKINGS
+
+    if (!club.organizationId) {
+        return { ...EMPTY_DASHBOARD_RANKINGS, clubName: club.name, notAffiliated: true }
+    }
+
+    const result = await loadDashboardRankings(club.organizationId, params, club.name)
+    return { ...result, organizationName: club.organization?.name ?? null }
+}

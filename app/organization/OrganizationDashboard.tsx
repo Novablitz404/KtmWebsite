@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { getOrganizationDashboardData } from './actions'
+import { getOrganizationDashboardData, fetchOrganizationRankings } from './actions'
 
 import PlatformGrowthCard from '@/components/organization/PlatformGrowthCard'
 import AffiliatedClubsTable from '@/components/organization/AffiliatedClubsTable'
@@ -19,6 +19,7 @@ import OrganizationClubsView from '@/components/organization/OrganizationClubsVi
 import OrganizationTopBar from '@/components/organization/OrganizationTopBar'
 import OrganizationCoOrganizers from '@/components/OrganizationCoOrganizers'
 import OrganizationAthletesView from '@/components/organization/OrganizationAthletesView'
+import DashboardRankingsView from '@/components/rankings/DashboardRankingsView'
 import OrganizationFinancialsView from '@/components/organization/OrganizationFinancialsView'
 import SupportPanel from '@/components/support/SupportPanel'
 import { LayoutDashboard, Building2, Calendar, Settings, Users, IdCard, DollarSign } from 'lucide-react'
@@ -36,7 +37,7 @@ interface OrganizationDashboardProps {
     settingsContent?: React.ReactNode
 }
 
-type ViewType = 'home' | 'clubs' | 'events' | 'athletes' | 'financials' | 'team' | 'settings' | 'support'
+type ViewType = 'home' | 'clubs' | 'events' | 'athletes' | 'rankings' | 'financials' | 'team' | 'settings' | 'support'
 
 export default function OrganizationDashboard({
     initialData,
@@ -192,6 +193,13 @@ export default function OrganizationDashboard({
                         {activeView === 'athletes' && (
                             <div className="p-6 md:p-8">
                                 <OrganizationAthletesView />
+                            </div>
+                        )}
+
+                        {/* Rankings View — the public ranking of this organization */}
+                        {activeView === 'rankings' && (
+                            <div className="p-6 md:p-8">
+                                <DashboardRankingsView fetchPage={fetchOrganizationRankings} cacheKey="organization" />
                             </div>
                         )}
 

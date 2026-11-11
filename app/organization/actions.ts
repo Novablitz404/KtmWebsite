@@ -3522,3 +3522,23 @@ export async function orgResetPassword(targetUserId: string) {
     return { success: true }
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RANKINGS TAB — the public ranking of this organization, viewable in-dashboard
+// ─────────────────────────────────────────────────────────────────────────────
+export async function fetchOrganizationRankings(params: import('@/lib/dashboard-rankings').DashboardRankingsParams) {
+    const { EMPTY_DASHBOARD_RANKINGS, loadDashboardRankings } = await import('@/lib/dashboard-rankings')
+
+    const user = await getAuthUser()
+    if (!user) return EMPTY_DASHBOARD_RANKINGS
+
+    const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: { organization: { select: { id: true, name: true } } },
+    })
+    if (!dbUser?.organization) return EMPTY_DASHBOARD_RANKINGS
+    if (!['ORGANIZER', 'MANAGER', 'ADMIN'].includes(dbUser.role)) return EMPTY_DASHBOARD_RANKINGS
+
+    const result = await loadDashboardRankings(dbUser.organization.id, params)
+    return { ...result, organizationName: dbUser.organization.name }
+}

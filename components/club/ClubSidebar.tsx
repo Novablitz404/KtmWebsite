@@ -7,6 +7,7 @@ import {
     LayoutDashboard,
     Users,
     Trophy,
+    Medal,
     Settings,
     LogOut,
     ChevronRight,
@@ -20,8 +21,8 @@ import {
 import { useSubscription } from '@/components/club/subscription'
 
 interface ClubSidebarProps {
-    activeView: 'home' | 'members' | 'attendance' | 'finance' | 'schedule' | 'tournaments' | 'notifications' | 'settings' | 'support'
-    onNavigate: (view: 'home' | 'members' | 'attendance' | 'finance' | 'schedule' | 'tournaments' | 'notifications' | 'settings' | 'support') => void
+    activeView: 'home' | 'members' | 'attendance' | 'finance' | 'schedule' | 'tournaments' | 'rankings' | 'notifications' | 'settings' | 'support'
+    onNavigate: (view: 'home' | 'members' | 'attendance' | 'finance' | 'schedule' | 'tournaments' | 'rankings' | 'notifications' | 'settings' | 'support') => void
     clubLogo?: string | null
     clubName?: string
     isOpen: boolean
@@ -48,6 +49,7 @@ const NAV_SECTIONS = [
         label: 'Tournament management',
         items: [
             { id: 'tournaments', label: 'Registrations', icon: Trophy },
+            { id: 'rankings',    label: 'Rankings',      icon: Medal  },
         ],
     },
     {

@@ -7,7 +7,7 @@ import { Upload, X, Home, Settings, ClipboardList, Users, Bell, Trophy, Medal, C
 import Link from 'next/link'
 import { useTenant } from '@/app/providers/TenantProvider'
 import { approveRegistrations, unapproveRegistration, deleteRegistration, updatePlayerDetails, bulkUnapproveRegistrations, bulkDeleteRegistrations, fetchClubDashboardData, removeMemberFromClub, updateClubMember, getClubAffiliationData, generatePlayerQRCode } from '@/app/actions'
-import { uploadMemberAvatar } from '@/app/club/actions'
+import { uploadMemberAvatar, fetchClubRankings } from '@/app/club/actions'
 import { updateRegistrationStatus, deletePromotionRegistration } from '@/app/promotions/actions'
 import { approveSeminarRegistration, unapproveSeminarRegistration, deleteSeminarRegistration, updateSeminarRegistrationStatus, updateSeminarParticipantDetails, generateSeminarQRCode } from '@/app/seminars/actions'
 
@@ -24,6 +24,7 @@ import { Suspense } from 'react'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import ClubSidebar from '@/components/club/ClubSidebar'
+import DashboardRankingsView from '@/components/rankings/DashboardRankingsView'
 import ClubAttendanceView from '@/components/club/ClubAttendanceView'
 import ClubFinanceView from '@/components/club/ClubFinanceView'
 import ClubScheduleView from '@/components/club/ClubScheduleView'
@@ -202,7 +203,7 @@ export default function ClubDashboard({
     const { isMappedDomain: tenantIsMappedDomain } = useTenant()
     const [submitting, setSubmitting] = useState(false)
     const initialView = (searchParams.get('tab') as any) || 'home'
-    const [activeView, setActiveView] = useState<'home' | 'settings' | 'members' | 'attendance' | 'finance' | 'schedule' | 'notifications' | 'tournaments' | 'support'>(initialView)
+    const [activeView, setActiveView] = useState<'home' | 'settings' | 'members' | 'attendance' | 'finance' | 'schedule' | 'notifications' | 'tournaments' | 'rankings' | 'support'>(initialView)
 
     // Sync tab param (optional, for deeplinking)
     useEffect(() => {
@@ -1364,6 +1365,14 @@ export default function ClubDashboard({
                             </div>
                         )
                     }
+
+                    {activeView === 'rankings' && (
+                        <div className="bg-gray-50 min-h-full">
+                            <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                                <DashboardRankingsView fetchPage={fetchClubRankings} cacheKey="club" highlightOwnClub />
+                            </div>
+                        </div>
+                    )}
 
                     {activeView === 'attendance' && <PaidGate feature="attendance"><ClubAttendanceView /></PaidGate>}
                     {activeView === 'finance' && <PaidGate feature="finance"><ClubFinanceView /></PaidGate>}

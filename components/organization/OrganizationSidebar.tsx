@@ -5,12 +5,12 @@ import { useTenant } from '@/app/providers/TenantProvider'
 import { useRouter } from 'next/navigation'
 import {
     LayoutDashboard, Building2, Calendar, Settings,
-    LogOut, IdCard, DollarSign, Users, ChevronRight, LifeBuoy
+    LogOut, IdCard, DollarSign, Users, ChevronRight, LifeBuoy, Trophy
 } from 'lucide-react'
 
 interface OrganizationSidebarProps {
-    activeView: 'home' | 'clubs' | 'events' | 'athletes' | 'financials' | 'team' | 'settings' | 'support'
-    onNavigate: (view: 'home' | 'clubs' | 'events' | 'athletes' | 'financials' | 'team' | 'settings' | 'support') => void
+    activeView: 'home' | 'clubs' | 'events' | 'athletes' | 'rankings' | 'financials' | 'team' | 'settings' | 'support'
+    onNavigate: (view: 'home' | 'clubs' | 'events' | 'athletes' | 'rankings' | 'financials' | 'team' | 'settings' | 'support') => void
     orgName?: string
 }
 
@@ -28,6 +28,7 @@ const NAV_SECTIONS = [
             { id: 'clubs',    label: 'Affiliates', icon: Building2  },
             { id: 'events',   label: 'Events',     icon: Calendar   },
             { id: 'athletes', label: 'Athletes',   icon: IdCard     },
+            { id: 'rankings', label: 'Rankings',   icon: Trophy     },
             { id: 'team',     label: 'Team',       icon: Users      },
         ],
     },
