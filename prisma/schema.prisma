@@ -278,7 +278,9 @@ model Player {
   height   Float? // Added for player specifics
   division String? // NEW: "Cadet", "Junior", etc.
 
-  registrationStatus String  @default("PENDING") // PENDING, APPROVED, REJECTED
+  registrationStatus String  @default("PENDING") // PENDING, APPROVED, REJECTED, WITHDRAWN (withdrawn at the event, see withdrawnReason)
+  withdrawnReason    String? // Why the player was withdrawn at the event (set with WITHDRAWN)
+  withdrawnAt        DateTime?
   manualOverride     Boolean @default(false)      // When true, auto-reassignment is skipped
   skillLevel         String? @default("Novice")
   medal              String? // Gold, Silver, Bronze, QF, R16
@@ -721,6 +723,10 @@ model Match {
 
   scheduledDay Int? // Which tournament day this match is played (1, 2, 3). Set at generation time.
 
+  // The Central Server's id for a match that was created there (e.g. added or redrawn during the event). Lets an interrupted
+  // upload be run again without creating the match twice. Null for matches generated on the website.
+  centralRef String?
+
   // Scoring Fields
   r1_blue_score    Int @default(0)
   r1_red_score     Int @default(0)
@@ -781,6 +787,9 @@ model PoomsaeMatch {
   court  String @default("Unassigned")
 
   scheduledDay Int? // Which tournament day this round is played (1, 2, 3). Set at generation time.
+
+  // See Match.centralRef
+  centralRef String?
 
   createdAt DateTime @default(now())
 

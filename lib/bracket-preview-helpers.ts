@@ -152,7 +152,7 @@ export function previewSpecsToPdfMatches(specs: PreviewMatch[], categoryName: st
         r3_blue_score: 0, r3_red_score: 0,
         total_blue_score: 0, total_red_score: 0,
         blue_gam_jeom: 0, red_gam_jeom: 0,
-        blue_rounds_won: 0, red_rounds_won: 0,
+        blue_rounds_won: 0, red_rounds_won: 0, centralRef: null,
     }))
 }
 

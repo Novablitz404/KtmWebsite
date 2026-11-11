@@ -105,6 +105,7 @@ export function adaptPoomsaeMatchesToBracket(poomsaeMatches: PoomsaeMatchWithPla
             red_gam_jeom: 0,
             blue_rounds_won: 0,
             red_rounds_won: 0,
+            centralRef: null,
         } as Match
     })
 
@@ -161,6 +162,7 @@ export function adaptPoomsaePreviewToBracket(slots: PoomsaePreviewSlot[]): Match
             red_gam_jeom: 0,
             blue_rounds_won: 0,
             red_rounds_won: 0,
+            centralRef: null,
         } as Match
     })
 
