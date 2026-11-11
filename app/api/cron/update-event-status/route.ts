@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { processTournamentCompletion } from '@/lib/gss-ranking'
+import { grantFreeLicensesToNewAthletes } from '@/lib/athlete-license'
 
 /**
  * GET /api/cron/update-event-status
@@ -71,6 +72,57 @@ export async function GET(req: NextRequest) {
             data: { status: 'COMPLETED' },
         })
         results.promotions = promotions.count
+
+        // 4. Free 2026 license safety net — licenses any athlete who slipped past signup (no-op after Dec 31, 2026)
+        results.freeLicensesGranted = await grantFreeLicensesToNewAthletes().catch(err => {
+            console.error('[Cron] free license sweep failed:', err)
+            return 0
+        })
+
+        // 5. License renewal reminders — athletes (and their club masters) 30 and 7 days before expiry.
+        //    Each athlete falls in a given 24h window exactly once, so no duplicates are sent.
+        try {
+            const DAY = 24 * 60 * 60 * 1000
+            let reminded = 0
+            for (const days of [30, 7]) {
+                const expiring = await prisma.user.findMany({
+                    where: {
+                        role: 'ATHLETE',
+                        isVerified: true,
+                        licenseExpiresAt: { gt: new Date(now.getTime() + (days - 1) * DAY), lte: new Date(now.getTime() + days * DAY) },
+                    },
+                    select: { id: true, name: true, clubName: true, licenseExpiresAt: true },
+                })
+                if (expiring.length === 0) continue
+
+                const when = expiring[0].licenseExpiresAt!.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Manila' })
+                await prisma.notification.createMany({
+                    data: expiring.map(u => ({
+                        userId: u.id,
+                        title: 'Your athlete license is expiring soon',
+                        body: `Your license expires on ${when}. Renew it to stay in the rankings and keep earning GSS points.`,
+                        url: '/athlete',
+                    })),
+                })
+                reminded += expiring.length
+
+                // One summary per club master
+                const byClub = new Map<string, number>()
+                for (const u of expiring) if (u.clubName) byClub.set(u.clubName, (byClub.get(u.clubName) ?? 0) + 1)
+                const clubs = await prisma.club.findMany({ where: { name: { in: [...byClub.keys()] } }, select: { name: true, masterId: true } })
+                await prisma.notification.createMany({
+                    data: clubs.map(c => ({
+                        userId: c.masterId,
+                        title: 'Athlete licenses expiring soon',
+                        body: `${byClub.get(c.name)} athlete license${byClub.get(c.name) === 1 ? '' : 's'} in your club expire on ${when}. Request renewals so they stay in the rankings.`,
+                        url: '/club',
+                    })),
+                })
+            }
+            results.licenseReminders = reminded
+        } catch (err) {
+            console.error('[Cron] license reminders failed:', err)
+        }
 
         console.log(`[Cron] Event status update: ${JSON.stringify(results)}`)
 

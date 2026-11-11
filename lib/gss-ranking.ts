@@ -7,6 +7,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { getActiveLicenseUserIds } from '@/lib/athlete-license'
 import {
     computeMatchEloUpdate,
     calculateFieldStrength,
@@ -126,8 +127,21 @@ async function applyEloUpdate({
         return // Guest players without userId can't have Elo
     }
 
-    const winnerRecord = await getOrCreateEloRecord(winnerPlayer.userId, discipline, hostOrgId, hostOrgId, winnerPlayer.belt)
-    const loserRecord = await getOrCreateEloRecord(loserPlayer.userId, discipline, hostOrgId, hostOrgId, loserPlayer.belt)
+    // Only athletes with a valid license earn points. An unlicensed or expired athlete's rating is
+    // never created or changed (it stays frozen); a licensed opponent still earns normally, computed
+    // against the unlicensed athlete's current rating (or the belt default if they have none).
+    const licensed = await getActiveLicenseUserIds([winnerPlayer.userId, loserPlayer.userId])
+    const winnerLicensed = licensed.has(winnerPlayer.userId)
+    const loserLicensed = licensed.has(loserPlayer.userId)
+    if (!winnerLicensed && !loserLicensed) return
+
+    const resolveRecord = async (userId: string, belt: string | null, isLicensed: boolean) => {
+        if (isLicensed) return getOrCreateEloRecord(userId, discipline, hostOrgId, hostOrgId, belt)
+        const existing = await prisma.athleteEloRating.findUnique({ where: { id: `${userId}-${discipline}-${hostOrgId}` } })
+        return existing ?? { id: null as string | null, rating: getInitialElo(belt), matchCount: 0 }
+    }
+    const winnerRecord = await resolveRecord(winnerPlayer.userId, winnerPlayer.belt, winnerLicensed)
+    const loserRecord = await resolveRecord(loserPlayer.userId, loserPlayer.belt, loserLicensed)
 
     const result = computeMatchEloUpdate(
         winnerRecord.rating,
@@ -137,27 +151,31 @@ async function applyEloUpdate({
         Math.abs(scoreDifference)
     )
 
-    // Update winner
-    await prisma.athleteEloRating.update({
-        where: { id: winnerRecord.id },
-        data: {
-            rating: result.winnerNewRating,
-            matchCount: { increment: 1 },
-            lastMatchAt: new Date(),
-            updatedAt: new Date(),
-        },
-    })
+    // Update winner (licensed only)
+    if (winnerLicensed && winnerRecord.id) {
+        await prisma.athleteEloRating.update({
+            where: { id: winnerRecord.id },
+            data: {
+                rating: result.winnerNewRating,
+                matchCount: { increment: 1 },
+                lastMatchAt: new Date(),
+                updatedAt: new Date(),
+            },
+        })
+    }
 
-    // Update loser
-    await prisma.athleteEloRating.update({
-        where: { id: loserRecord.id },
-        data: {
-            rating: result.loserNewRating,
-            matchCount: { increment: 1 },
-            lastMatchAt: new Date(),
-            updatedAt: new Date(),
-        },
-    })
+    // Update loser (licensed only)
+    if (loserLicensed && loserRecord.id) {
+        await prisma.athleteEloRating.update({
+            where: { id: loserRecord.id },
+            data: {
+                rating: result.loserNewRating,
+                matchCount: { increment: 1 },
+                lastMatchAt: new Date(),
+                updatedAt: new Date(),
+            },
+        })
+    }
 
     await prisma.eloMatchLog.create({
         data: {
@@ -365,8 +383,9 @@ export async function processTournamentCompletion(tournamentId: string): Promise
         const fieldStrength = calculateFieldStrength(participantElos)
         const bracketSize = playersWithUserId.length
 
-        // Award field bonus to placed athletes
-        const placedPlayers = playersWithUserId.filter(p => p.medal && p.medal !== '')
+        // Award field bonus to placed athletes — licensed athletes only
+        const licensedIds = await getActiveLicenseUserIds(playersWithUserId.map(p => p.userId!))
+        const placedPlayers = playersWithUserId.filter(p => p.medal && p.medal !== '' && licensedIds.has(p.userId!))
 
         for (const player of placedPlayers) {
             if (!player.userId) continue

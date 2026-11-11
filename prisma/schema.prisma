@@ -226,6 +226,9 @@ model User {
   licensePaymentProofUrl String? // Image URL for uploaded proof — SELF path only
   licensePaymentStatus   String? // "PENDING_ACTIVATION", "APPROVED", "REJECTED"
   licenseRequestedVia    String? // "SELF" | "CLUB_MASTER"
+  // When the license stops being valid (end of Dec 31, Manila time). NULL on a
+  // verified athlete = legacy license with no end date. See lib/license.ts.
+  licenseExpiresAt       DateTime?
 
   // Relations
   players      Player[]

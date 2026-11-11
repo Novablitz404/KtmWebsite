@@ -1,6 +1,7 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
+import { grantFreeLicense } from '@/lib/athlete-license'
 import { revalidatePath } from 'next/cache'
 import { getAuthUser } from '@/lib/supabase/server'
 import { toTitleCase } from '@/lib/utils'
@@ -1853,6 +1854,9 @@ export async function createMemberForClub(clubId: string, input: {
                 athleteNumber: input.athleteNumber || null,
             }
         })
+
+        // Free 2026 license for the new athlete (no-op after Dec 31, 2026)
+        await grantFreeLicense(newMember.id).catch(err => console.error('[License] free grant failed:', err))
 
         revalidatePath('/organization')
 

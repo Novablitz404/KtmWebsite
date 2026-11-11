@@ -17,6 +17,7 @@ import { lockedMessage, lockedMessageForPlayer, LOCKED_MESSAGE } from '@/lib/tou
 import { sendEmail } from '@/lib/email-service'
 import RegistrationApprovedEmail from '@/emails/RegistrationApprovedEmail'
 import QRCode from 'qrcode'
+import { licenseExpiryFor, grantFreeLicense } from '@/lib/athlete-license'
 
 
 export async function fetchClubRegistrationData(clubId: string) {
@@ -3193,6 +3194,7 @@ export async function fetchAthleteDashboardData(clerkId: string, organizationId?
             athleteNumber: true,
             createdAt: true,
             isVerified: true,
+            licenseExpiresAt: true,
             cardPaymentStatus: true,
             cardPaymentProofUrl: true,
             licensePaymentStatus: true,
@@ -3203,6 +3205,22 @@ export async function fetchAthleteDashboardData(clerkId: string, organizationId?
     })
 
     if (!dbUser) return null
+
+    // Free 2026 license: a brand-new athlete who has never had a license date is
+    // licensed the moment they open their dashboard (no-op after Dec 31, 2026).
+    if (dbUser.role === 'ATHLETE' && !dbUser.isVerified && !dbUser.licenseExpiresAt) {
+        try {
+            if (await grantFreeLicense(dbUser.id)) {
+                const granted = await prisma.user.findUnique({
+                    where: { id: dbUser.id },
+                    select: { isVerified: true, licenseExpiresAt: true, athleteNumber: true, createdAt: true },
+                })
+                if (granted) Object.assign(dbUser, granted)
+            }
+        } catch (err) {
+            console.error('[License] free grant on dashboard failed:', err)
+        }
+    }
 
     // Fetch club info if user has a club
     let clubLogo: string | null = null
@@ -4862,6 +4880,7 @@ export async function approveAthleteCardPayment(userId: string) {
             where: { id: userId },
             data: {
                 isVerified: true,
+                licenseExpiresAt: licenseExpiryFor(),
                 cardPaymentStatus: 'APPROVED',
                 // Also update the createdAt to act as the start date of the 1-year validity
                 createdAt: new Date()

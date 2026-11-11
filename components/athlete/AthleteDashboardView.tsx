@@ -559,9 +559,11 @@ export default function AthleteDashboardView({
                                             <div className="flex items-center justify-between text-xs">
                                                 <span className="text-gray-400 font-medium">Valid Until</span>
                                                 <span className="font-bold text-gray-800">
-                                                    {dbUser?.createdAt
-                                                        ? new Date(new Date(dbUser.createdAt).setFullYear(new Date(dbUser.createdAt).getFullYear() + 1)).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-                                                        : '—'}
+                                                    {dbUser?.licenseExpiresAt
+                                                        ? new Date(dbUser.licenseExpiresAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Manila' })
+                                                        : dbUser?.createdAt
+                                                            ? new Date(new Date(dbUser.createdAt).setFullYear(new Date(dbUser.createdAt).getFullYear() + 1)).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                                                            : '—'}
                                                 </span>
                                             </div>
                                             <div className="h-px bg-gray-50" />

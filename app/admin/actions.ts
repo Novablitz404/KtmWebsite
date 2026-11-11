@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
-import { countryToCode } from '@/lib/countries'
+import { generateAthleteNumber, licenseExpiryFor } from '@/lib/athlete-license'
 import { toTitleCase } from '@/lib/utils'
 import { sendEmail } from '@/lib/email-service'
 import TournamentGssDecisionEmail from '@/emails/TournamentGssDecisionEmail'
@@ -218,25 +218,6 @@ export async function promoteToClubMaster(formData: FormData) {
 
 
 
-async function generateAthleteNumber(country: string | null | undefined): Promise<string> {
-    const code = countryToCode(country)
-    const year = new Date().getFullYear()
-    const prefix = `${code}-${year}-`
-
-    // Random 7-digit suffix (not sequential) — retry on the rare collision.
-    for (let attempt = 0; attempt < 20; attempt++) {
-        const suffix = Math.floor(Math.random() * 10_000_000).toString().padStart(7, '0')
-        const candidate = `${prefix}${suffix}`
-        const existing = await prisma.user.findFirst({
-            where: { athleteNumber: candidate },
-            select: { id: true },
-        })
-        if (!existing) return candidate
-    }
-
-    throw new Error('Failed to generate a unique athlete number after 20 attempts')
-}
-
 export async function toggleAthleteVerification(formData: FormData) {
     const user = await getAuthUser()
     if (!user) throw new Error('Not authenticated')
@@ -274,6 +255,7 @@ export async function toggleAthleteVerification(formData: FormData) {
                 isVerified: true,
                 athleteNumber,
                 createdAt: new Date(),
+                licenseExpiresAt: licenseExpiryFor(),
             }
         })
     } else {
@@ -282,6 +264,9 @@ export async function toggleAthleteVerification(formData: FormData) {
             where: { id: targetUserId },
             data: {
                 isVerified: false,
+                // Stamp the end date as "now" so the free-license grant for new
+                // signups never silently re-activates a deliberately deactivated athlete.
+                licenseExpiresAt: new Date(),
                 // athleteNumber is preserved for renewal
             }
         })
@@ -354,6 +339,7 @@ export async function approveAthleteLicense(targetUserId: string) {
             isVerified: true,
             athleteNumber,
             createdAt: new Date(),
+            licenseExpiresAt: licenseExpiryFor(),
             licensePaymentStatus: 'APPROVED',
         }
     })

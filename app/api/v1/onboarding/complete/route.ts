@@ -234,6 +234,10 @@ export async function POST(request: Request) {
                         ...(profileImageUrl && { imageUrl: profileImageUrl })
                     }
                 })
+
+                // Free 2026 license (no-op after Dec 31, 2026). Never blocks onboarding.
+                const { grantFreeLicense } = await import('@/lib/athlete-license')
+                await grantFreeLicense(dbUser.id).catch(err => console.error('[License] free grant failed:', err))
             }
 
         } else if (role === 'CLUB_MASTER') {

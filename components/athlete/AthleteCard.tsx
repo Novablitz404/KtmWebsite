@@ -9,6 +9,7 @@ interface AthleteCardProps {
     athleteId?: string | null
     imageUrl?: string | null
     createdAt?: string | null
+    licenseExpiresAt?: string | Date | null
     isVerified?: boolean
     cardPaymentStatus?: string | null
     onActivateClick?: () => void
@@ -24,9 +25,11 @@ function formatValidityDate(createdAt: string): string {
     })
 }
 
-export default function AthleteCard({ name, athleteId, imageUrl, createdAt, isVerified = false, cardPaymentStatus, onActivateClick }: AthleteCardProps) {
+export default function AthleteCard({ name, athleteId, imageUrl, createdAt, licenseExpiresAt, isVerified = false, cardPaymentStatus, onActivateClick }: AthleteCardProps) {
     const fullName = (name || 'ATHLETE').toUpperCase()
-    const validUntil = createdAt ? formatValidityDate(createdAt) : '—'
+    const validUntil = licenseExpiresAt
+        ? new Date(licenseExpiresAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Manila' })
+        : createdAt ? formatValidityDate(createdAt) : '—'
 
     // Auto-fit name font size
     const nameContainerRef = useRef<HTMLDivElement>(null)

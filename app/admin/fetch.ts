@@ -266,7 +266,9 @@ export async function fetchAdminRankings(params: {
 
     const page = Math.max(1, params.page ?? 1)
     const pageSize = params.pageSize ?? 25
-    const licenseFilter = params.includeUnlicensed ? Prisma.empty : Prisma.sql`AND u."isVerified" = true`
+    // "Licensed" = activated AND not past its end date (the daily expiry job may lag by hours).
+    const licensedSql = Prisma.sql`(u."isVerified" AND (u."licenseExpiresAt" IS NULL OR u."licenseExpiresAt" > NOW()))`
+    const licenseFilter = params.includeUnlicensed ? Prisma.empty : Prisma.sql`AND ${licensedSql}`
     const divisionFilter = params.division ? Prisma.sql`AND "division" = ${params.division}` : Prisma.empty
     const genderFilter = params.gender ? Prisma.sql`AND "gender" = ${params.gender}` : Prisma.empty
     const weightFilter = params.weightCategory ? Prisma.sql`AND "weightCategory" = ${params.weightCategory}` : Prisma.empty
@@ -286,7 +288,7 @@ export async function fetchAdminRankings(params: {
                 mrc."weightClass" AS "weightCategory",
                 u.belt AS "belt",
                 u.gender AS "gender",
-                u."isVerified" AS "isVerified",
+                ${licensedSql} AS "isVerified",
                 u."athleteNumber" AS "athleteNumber",
                 u."imageUrl" AS "imageUrl",
                 e."rating" AS "eloRating",

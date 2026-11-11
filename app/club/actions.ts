@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { toTitleCase } from '@/lib/utils'
+import { grantFreeLicense } from '@/lib/athlete-license'
 
 // Generate a random 9-digit ID
 function generateUserId(): string {
@@ -93,6 +94,9 @@ export async function createClubMember(input: CreateClubMemberInput) {
                 organizationMemberId: clubMaster.club.organizationId || null,
             }
         })
+
+        // Free 2026 license for the new athlete (no-op after Dec 31, 2026)
+        await grantFreeLicense(newMember.id).catch(err => console.error('[License] free grant failed:', err))
 
         revalidatePath('/club')
 
