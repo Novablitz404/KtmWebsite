@@ -565,7 +565,7 @@ export default function MembersGrid({
                                             </td>
                                         </tr>
                                         {/* Inline Approval Row */}
-                                        {isWOTF && member.onboardingStatus === 'PENDING_APPROVAL' && expandedApprovalId === member.id && (
+                                        {member.onboardingStatus === 'PENDING_APPROVAL' && expandedApprovalId === member.id && (
                                             <tr>
                                                 <td colSpan={8} className="px-6 py-4 bg-blue-50/50 border-b border-blue-100">
                                                     <div className="space-y-3">
