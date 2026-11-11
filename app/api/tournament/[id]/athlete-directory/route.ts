@@ -41,7 +41,7 @@ export async function GET(
         const users = await prisma.user.findMany({
             where: {
                 role: 'ATHLETE',
-                athleteNumber: { not: null },
+                AND: [{ athleteNumber: { not: null } }, { athleteNumber: { not: '' } }],
                 OR: [
                     { id: { in: registeredUserIds } },
                     { clubName: { in: Array.from(clubNames.values()), mode: 'insensitive' } },
