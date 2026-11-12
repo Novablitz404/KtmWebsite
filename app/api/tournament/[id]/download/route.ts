@@ -104,11 +104,26 @@ export async function GET(
         const matchesList: any[] = []
         const poomsaeMatchesList: any[] = []
         const masterList: any[] = []
+        // Everyone registered and approved, with their division: lets the Central Server pick any registered player
+        // (for an exhibition match, or a gold given by decision) even if they are in no match
+        const roster: any[] = []
         const processedEntries = new Set<string>() // To avoid exact duplicates if any
 
         tournament.categories.forEach(category => {
             const playerMap = new Map<string, { id: string, club: string }>() // Name -> { ID, Club }
             const playerIdToClub = new Map<string, string>() // Player.id -> Club (for resolving TEAM/PAIR memberIds)
+
+            category.players.forEach(p => {
+                if (p.registrationStatus !== 'APPROVED') return
+                roster.push({
+                    playerId: p.id,
+                    userId: p.userId ?? null,
+                    name: p.user?.name || p.name,
+                    club: p.club?.name || p.user?.clubName || '',
+                    category: category.name,
+                    categoryType: category.type,
+                })
+            })
 
             // Populate playerMap from category players
             category.players.forEach(p => {
@@ -302,7 +317,8 @@ export async function GET(
             },
             matches: matchesList,
             poomsaeMatches: poomsaeMatchesList,
-            masterList: masterList
+            masterList: masterList,
+            roster: roster
         })
 
     } catch (error) {
